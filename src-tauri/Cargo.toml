@@ -1,0 +1,28 @@
+[package]
+name = "markra"
+version = "0.0.1"
+description = "AI-native Markdown editor"
+authors = ["Markra contributors"]
+license = "MIT"
+repository = ""
+edition = "2021"
+
+[lib]
+name = "markra_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.0", features = [] }
+
+[dependencies]
+notify = "8.2.0"
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2.11.0", features = ["macos-private-api"] }
+tauri-plugin-dialog = "2.7.1"
+tauri-plugin-store = "2.4.3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+dispatch2 = "0.3.0"
+objc2 = "0.6.0"
+objc2-app-kit = { version = "0.3.0", default-features = false, features = ["std", "NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSWindow"] }
+objc2-foundation = { version = "0.3.0", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }

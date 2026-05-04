@@ -1,0 +1,49 @@
+import { emit, listen } from "@tauri-apps/api/event";
+import { listenAppThemeChanged, notifyAppThemeChanged } from "./settingsEvents";
+
+vi.mock("@tauri-apps/api/event", () => ({
+  emit: vi.fn(),
+  listen: vi.fn()
+}));
+
+const mockedEmit = vi.mocked(emit);
+const mockedListen = vi.mocked(listen);
+
+describe("settings events", () => {
+  beforeEach(() => {
+    mockedEmit.mockReset();
+    mockedListen.mockReset();
+    delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  });
+
+  it("does nothing outside the Tauri runtime", async () => {
+    const cleanup = await listenAppThemeChanged(vi.fn());
+
+    await notifyAppThemeChanged("dark");
+    cleanup();
+
+    expect(mockedListen).not.toHaveBeenCalled();
+    expect(mockedEmit).not.toHaveBeenCalled();
+  });
+
+  it("emits and listens for theme changes inside Tauri", async () => {
+    const unlisten = vi.fn();
+    const onThemeChanged = vi.fn();
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppThemeChanged(onThemeChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await notifyAppThemeChanged("dark");
+    listener?.({ payload: { theme: "dark" } } as Parameters<NonNullable<typeof listener>>[0]);
+    listener?.({ payload: { theme: "sepia" } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://theme-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://theme-changed", { theme: "dark" });
+    expect(onThemeChanged).toHaveBeenCalledWith("dark");
+    expect(onThemeChanged).toHaveBeenCalledTimes(1);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+});

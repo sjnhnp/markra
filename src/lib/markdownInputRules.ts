@@ -1,0 +1,543 @@
+import { emphasisSchema, inlineCodeSchema, strongSchema } from "@milkdown/kit/preset/commonmark";
+import { strikethroughSchema } from "@milkdown/kit/preset/gfm";
+import type { Mark, MarkType, Node as ProseNode } from "@milkdown/kit/prose/model";
+import { type EditorState, Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
+import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
+import { $prose } from "@milkdown/kit/utils";
+
+type LiveMarkdownKind = "strong" | "emphasis" | "inlineCode" | "strikethrough";
+
+type LiveMarkdownSpec = {
+  markers: string[];
+  pattern: RegExp;
+  marks: LiveMarkdownMark[];
+};
+
+type LiveMarkdownMark = {
+  kind: LiveMarkdownKind;
+  markType: MarkType;
+  getAttr?: (marker: string) => Record<string, unknown>;
+};
+
+type LiveMarkdownRange = {
+  kinds: LiveMarkdownKind[];
+  marker: string;
+  from: number;
+  to: number;
+  contentFrom: number;
+  contentTo: number;
+  content: string;
+  marks: LiveMarkdownMark[];
+};
+
+type FoldedMarkdownRange = {
+  marker: string;
+  from: number;
+  to: number;
+  kinds: LiveMarkdownKind[];
+};
+
+type ActiveLiveMarkdownRange = {
+  from: number;
+  to: number;
+};
+
+// A suppressed range stays visually folded while the cursor is still near its source markers.
+type SuppressedLiveMarkdownRange = ActiveLiveMarkdownRange & {
+  cursor: number;
+};
+
+type LiveMarkdownPluginState = {
+  suppressActiveAt: number | null;
+  activeFoldedRange: FoldedMarkdownRange | null;
+  suppressedLiveRange: SuppressedLiveMarkdownRange | null;
+};
+
+const liveMarkdownKey = new PluginKey("markra-live-markdown");
+
+function overlaps(ranges: LiveMarkdownRange[], from: number, to: number) {
+  return ranges.some((range) => from < range.to && to > range.from);
+}
+
+function getLiveMarkdownRanges(text: string, specs: LiveMarkdownSpec[]) {
+  const ranges: LiveMarkdownRange[] = [];
+
+  for (const spec of specs) {
+    spec.pattern.lastIndex = 0;
+
+    for (const match of text.matchAll(spec.pattern)) {
+      const matchedText = match[0];
+      const from = match.index;
+      const to = from + matchedText.length;
+
+      if (overlaps(ranges, from, to)) continue;
+
+      const marker = spec.markers.find((candidate) => matchedText.startsWith(candidate));
+      if (!marker || !matchedText.endsWith(marker)) continue;
+
+      const contentFrom = from + marker.length;
+      const contentTo = to - marker.length;
+      const content = text.slice(contentFrom, contentTo);
+      // Empty pairs such as "~~~~" should remain editable placeholders until content is typed inside.
+      if (content.length === 0) continue;
+
+      ranges.push({
+        kinds: spec.marks.map((mark) => mark.kind),
+        marker,
+        from,
+        to,
+        contentFrom,
+        contentTo,
+        content,
+        marks: spec.marks
+      });
+    }
+  }
+
+  return ranges.sort((left, right) => left.from - right.from || right.to - left.to);
+}
+
+function getMarkByType(marks: readonly Mark[], markType: MarkType) {
+  return marks.find((mark) => mark.type === markType);
+}
+
+function getMarkerFromFoldedMarks(marks: readonly Mark[], spec: LiveMarkdownSpec) {
+  const strongMark = spec.marks.find((mark) => mark.kind === "strong");
+  const emphasisMark = spec.marks.find((mark) => mark.kind === "emphasis");
+
+  if (strongMark && emphasisMark) {
+    const mark = getMarkByType(marks, strongMark.markType) ?? getMarkByType(marks, emphasisMark.markType);
+    const marker = typeof mark?.attrs.marker === "string" ? mark.attrs.marker : "*";
+    return marker.repeat(3);
+  }
+
+  if (strongMark) {
+    const mark = getMarkByType(marks, strongMark.markType);
+    const marker = typeof mark?.attrs.marker === "string" ? mark.attrs.marker : "*";
+    return marker.repeat(2);
+  }
+
+  if (emphasisMark) {
+    const mark = getMarkByType(marks, emphasisMark.markType);
+    return typeof mark?.attrs.marker === "string" ? mark.attrs.marker : "*";
+  }
+
+  return spec.markers[0] ?? "";
+}
+
+function getFoldedMarkdownRangeAtCursor(
+  doc: ProseNode,
+  cursor: number,
+  specs: LiveMarkdownSpec[]
+): FoldedMarkdownRange | null {
+  let foldedRange: FoldedMarkdownRange | null = null;
+
+  doc.descendants((node, position) => {
+    if (foldedRange) return false;
+    if (!node.isText || !node.text) return;
+
+    const from = position;
+    const to = position + node.nodeSize;
+    if (cursor < from || cursor > to) return;
+
+    const spec = specs.find((candidate) =>
+      candidate.marks.every((mark) => node.marks.some((nodeMark) => nodeMark.type === mark.markType))
+    );
+    if (!spec) return;
+
+    foldedRange = {
+      marker: getMarkerFromFoldedMarks(node.marks, spec),
+      from,
+      to,
+      kinds: spec.marks.map((mark) => mark.kind)
+    };
+  });
+
+  return foldedRange;
+}
+
+function createDelimiterWidget(marker: string) {
+  const delimiter = document.createElement("span");
+  delimiter.className = "markra-md-delimiter markra-md-virtual-delimiter";
+  delimiter.textContent = marker;
+  return delimiter;
+}
+
+function buildLiveMarkdownDecorations(
+  doc: ProseNode,
+  specs: LiveMarkdownSpec[],
+  activeLiveRange: ActiveLiveMarkdownRange | null,
+  activeFoldedRange: FoldedMarkdownRange | null
+) {
+  const decorations: Decoration[] = [];
+
+  doc.descendants((node, position) => {
+    if (!node.isTextblock) return;
+
+    const blockStart = position + 1;
+    const ranges = getLiveMarkdownRanges(node.textContent, specs);
+
+    for (const range of ranges) {
+      const from = blockStart + range.from;
+      const to = blockStart + range.to;
+      const contentFrom = blockStart + range.contentFrom;
+      const contentTo = blockStart + range.contentTo;
+      const delimiterClass =
+        activeLiveRange?.from === from && activeLiveRange.to === to
+          ? "markra-md-delimiter"
+          : "markra-md-hidden-delimiter";
+
+      // Keep Markdown markers in the document, but reveal them only for the currently active range.
+      decorations.push(
+        Decoration.inline(from, contentFrom, {
+          class: delimiterClass
+        }),
+        Decoration.inline(contentTo, to, {
+          class: delimiterClass
+        })
+      );
+
+      if (range.contentFrom < range.contentTo) {
+        decorations.push(
+          Decoration.inline(contentFrom, contentTo, {
+            class: ["markra-live-mark", ...range.kinds.map((kind) => `markra-live-mark-${kind}`)].join(" ")
+          })
+        );
+      }
+    }
+  });
+
+  if (activeFoldedRange) {
+    // Finalized marks use virtual markers so the user can re-enter an editable Markdown-like state.
+    decorations.push(
+      Decoration.widget(activeFoldedRange.from, () => createDelimiterWidget(activeFoldedRange.marker), { side: -1 }),
+      Decoration.widget(activeFoldedRange.to, () => createDelimiterWidget(activeFoldedRange.marker), { side: -1 }),
+      Decoration.inline(activeFoldedRange.from, activeFoldedRange.to, {
+        class: ["markra-live-mark", ...activeFoldedRange.kinds.map((kind) => `markra-live-mark-${kind}`)].join(" ")
+      })
+    );
+  }
+
+  return DecorationSet.create(doc, decorations);
+}
+
+function getAbsoluteLiveMarkdownRange(active: { range: LiveMarkdownRange; blockStart: number }) {
+  return {
+    from: active.blockStart + active.range.from,
+    to: active.blockStart + active.range.to,
+    contentFrom: active.blockStart + active.range.contentFrom,
+    contentTo: active.blockStart + active.range.contentTo
+  };
+}
+
+function isSameLiveMarkdownRange(
+  left: Pick<SuppressedLiveMarkdownRange, "from" | "to"> | null,
+  right: Pick<SuppressedLiveMarkdownRange, "from" | "to"> | null
+) {
+  return Boolean(left && right && left.from === right.from && left.to === right.to);
+}
+
+function createSuppressedLiveRange(
+  range: Pick<SuppressedLiveMarkdownRange, "from" | "to">,
+  cursor: number
+): SuppressedLiveMarkdownRange {
+  return {
+    from: range.from,
+    to: range.to,
+    cursor
+  };
+}
+
+function findActiveLiveMarkdownRange(state: EditorState, specs: LiveMarkdownSpec[]) {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+
+  const { $from } = selection;
+  if (!$from.parent.isTextblock) return null;
+
+  const ranges = getLiveMarkdownRanges($from.parent.textContent, specs)
+    .filter((range) => range.content.trim().length > 0)
+    .filter((range) => range.from <= $from.parentOffset && $from.parentOffset <= range.to)
+    .sort((left, right) => left.to - left.from - (right.to - right.from));
+
+  const range = ranges[0];
+  if (!range) return null;
+
+  return {
+    range,
+    blockStart: $from.start()
+  };
+}
+
+function finalizeActiveLiveMarkdown(view: EditorView, specs: LiveMarkdownSpec[]) {
+  const active = findActiveLiveMarkdownRange(view.state, specs);
+  if (!active) return false;
+
+  // Enter commits the active raw Markdown span into real ProseMirror marks.
+  const { blockStart, range } = active;
+  const marks = range.marks.map((mark) => mark.markType.create(mark.getAttr?.(range.marker)));
+  const markedText = view.state.schema.text(range.content, marks);
+  const start = blockStart + range.from;
+  const end = blockStart + range.to;
+  const cursor = start + range.content.length;
+  const tr = view.state.tr.replaceWith(start, end, markedText).setMeta(liveMarkdownKey, {
+    suppressActiveAt: cursor
+  });
+
+  view.dispatch(tr.setSelection(TextSelection.create(tr.doc, cursor)).scrollIntoView());
+  return true;
+}
+
+function moveCursorOverLiveMarkdownDelimiter(
+  view: EditorView,
+  specs: LiveMarkdownSpec[],
+  direction: "left" | "right"
+) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+
+  const active = findActiveLiveMarkdownRange(view.state, specs);
+  if (!active) return false;
+
+  const cursor = selection.from;
+  const range = getAbsoluteLiveMarkdownRange(active);
+  const pluginState = liveMarkdownKey.getState(view.state) as LiveMarkdownPluginState | undefined;
+  const suppressedRange = isSameLiveMarkdownRange(range, pluginState?.suppressedLiveRange ?? null)
+    ? pluginState?.suppressedLiveRange ?? null
+    : null;
+  const openingStart = range.from;
+  const openingEnd = range.contentFrom;
+  const closingStart = range.contentTo;
+  const closingEnd = range.to;
+  let target: number | null = null;
+  let suppressedLiveRange: SuppressedLiveMarkdownRange | null = null;
+
+  // When a folded range is active, arrow keys should move by visible text positions, not hidden marker positions.
+  if (suppressedRange && direction === "right" && cursor === closingEnd) {
+    return false;
+  }
+
+  if (suppressedRange && direction === "left" && cursor === openingStart) {
+    return false;
+  }
+
+  if (suppressedRange && direction === "right" && cursor === closingStart) {
+    target = closingEnd < selection.$from.end() ? closingEnd + 1 : closingEnd;
+    suppressedLiveRange = target === closingEnd ? createSuppressedLiveRange(range, target) : null;
+  } else if (suppressedRange && direction === "left" && cursor === closingEnd) {
+    target = closingStart;
+    suppressedLiveRange = createSuppressedLiveRange(range, target);
+  } else if (suppressedRange && direction === "left" && cursor === openingEnd) {
+    target = openingStart > selection.$from.start() ? openingStart - 1 : openingStart;
+    suppressedLiveRange = target === openingStart ? createSuppressedLiveRange(range, target) : null;
+  } else if (suppressedRange && direction === "right" && cursor === openingStart) {
+    target = openingEnd;
+    suppressedLiveRange = createSuppressedLiveRange(range, target);
+  } else if (direction === "right") {
+    if (cursor >= openingStart && cursor < openingEnd) {
+      target = openingEnd;
+    } else if (cursor >= closingStart && cursor < closingEnd) {
+      target = closingEnd;
+    } else if (cursor === closingEnd) {
+      target = closingStart;
+      suppressedLiveRange = createSuppressedLiveRange(range, target);
+    }
+  } else if (cursor > openingStart && cursor <= openingEnd) {
+    target = openingStart;
+  } else if (cursor > closingStart && cursor <= closingEnd) {
+    target = closingStart;
+  } else if (cursor === openingStart) {
+    target = openingEnd;
+    suppressedLiveRange = createSuppressedLiveRange(range, target);
+  }
+
+  if (target === null || target === cursor) return false;
+
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, target))
+      .setMeta(liveMarkdownKey, suppressedLiveRange ? { suppressedLiveRange } : {})
+      .scrollIntoView()
+  );
+  return true;
+}
+
+export const markraLiveMarkdownPlugin = $prose((ctx) => {
+  const specs: LiveMarkdownSpec[] = [
+    {
+      markers: ["`"],
+      pattern: /`[^`\n]*?`/g,
+      marks: [
+        {
+          kind: "inlineCode",
+          markType: inlineCodeSchema.type(ctx)
+        }
+      ]
+    },
+    {
+      markers: ["***", "___"],
+      pattern: /(?:\*\*\*|___)[^\n]*?(?:\*\*\*|___)/g,
+      marks: [
+        {
+          kind: "strong",
+          markType: strongSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker: marker[0]
+          })
+        },
+        {
+          kind: "emphasis",
+          markType: emphasisSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker: marker[0]
+          })
+        }
+      ]
+    },
+    {
+      markers: ["**", "__"],
+      pattern: /(?:\*\*|__)[^\n]*?(?:\*\*|__)/g,
+      marks: [
+        {
+          kind: "strong",
+          markType: strongSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker: marker[0]
+          })
+        }
+      ]
+    },
+    {
+      markers: ["~~"],
+      pattern: /~~[^\n]*?~~/g,
+      marks: [
+        {
+          kind: "strikethrough",
+          markType: strikethroughSchema.type(ctx)
+        }
+      ]
+    },
+    {
+      markers: ["*"],
+      pattern: /(?<!\*)\*(?!\*)[^*\n]*?(?<!\*)\*(?!\*)/g,
+      marks: [
+        {
+          kind: "emphasis",
+          markType: emphasisSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker
+          })
+        }
+      ]
+    },
+    {
+      markers: ["_"],
+      pattern: /(?<!_)_(?!_)[^_\n]*?(?<!_)_(?!_)/g,
+      marks: [
+        {
+          kind: "emphasis",
+          markType: emphasisSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker
+          })
+        }
+      ]
+    }
+  ];
+
+  return new Plugin({
+    key: liveMarkdownKey,
+    state: {
+      init: (): LiveMarkdownPluginState => ({
+        suppressActiveAt: null,
+        activeFoldedRange: null,
+        suppressedLiveRange: null
+      }),
+      apply: (tr, value, _oldState, newState): LiveMarkdownPluginState => {
+        const meta = tr.getMeta(liveMarkdownKey) as Partial<LiveMarkdownPluginState> | undefined;
+        if (meta?.suppressedLiveRange) {
+          // Preserve the folded view after an arrow-key collapse until the cursor leaves that edge.
+          return {
+            suppressActiveAt: null,
+            activeFoldedRange: null,
+            suppressedLiveRange: meta.suppressedLiveRange
+          };
+        }
+
+        if (typeof meta?.suppressActiveAt === "number") {
+          return {
+            suppressActiveAt: meta.suppressActiveAt,
+            activeFoldedRange: null,
+            suppressedLiveRange: null
+          };
+        }
+
+        if (tr.selectionSet) {
+          const selection = newState.selection instanceof TextSelection ? newState.selection : null;
+          const activeFoldedRange =
+            selection?.empty && selection.from !== value.suppressActiveAt
+              ? getFoldedMarkdownRangeAtCursor(newState.doc, selection.from, specs)
+              : null;
+
+          return {
+            suppressActiveAt: selection?.from === value.suppressActiveAt ? value.suppressActiveAt : null,
+            activeFoldedRange,
+            suppressedLiveRange:
+              selection?.from === value.suppressedLiveRange?.cursor ? value.suppressedLiveRange : null
+          };
+        }
+
+        if (tr.docChanged) {
+          return {
+            suppressActiveAt: null,
+            activeFoldedRange: null,
+            suppressedLiveRange: null
+          };
+        }
+
+        return value;
+      }
+    },
+    props: {
+      decorations: (state) => {
+        const pluginState = liveMarkdownKey.getState(state) as LiveMarkdownPluginState | undefined;
+        const active = findActiveLiveMarkdownRange(state, specs);
+        const absoluteActive = active ? getAbsoluteLiveMarkdownRange(active) : null;
+        const activeLiveRange =
+          absoluteActive && !isSameLiveMarkdownRange(absoluteActive, pluginState?.suppressedLiveRange ?? null)
+            ? absoluteActive
+            : null;
+
+        // Suppressed ranges still receive styling, but their source markers stay hidden.
+        return buildLiveMarkdownDecorations(
+          state.doc,
+          specs,
+          activeLiveRange,
+          pluginState?.activeFoldedRange ?? null
+        );
+      },
+      handleKeyDown: (view, event) => {
+        const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
+
+        if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !hasModifier) {
+          const handled = moveCursorOverLiveMarkdownDelimiter(
+            view,
+            specs,
+            event.key === "ArrowLeft" ? "left" : "right"
+          );
+
+          if (handled) {
+            event.preventDefault();
+            return true;
+          }
+        }
+
+        if (event.key !== "Enter" || hasModifier) {
+          return false;
+        }
+
+        return finalizeActiveLiveMarkdown(view, specs);
+      }
+    }
+  });
+});
