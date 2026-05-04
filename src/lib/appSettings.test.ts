@@ -59,10 +59,21 @@ describe("app settings", () => {
     expect(store.get).toHaveBeenCalledWith("theme");
   });
 
-  it("falls back to light when the stored theme is missing or invalid", async () => {
+  it("loads and persists the system color theme preference", async () => {
+    store.get.mockResolvedValue("system");
+
+    await expect(getStoredTheme()).resolves.toBe("system");
+
+    await saveStoredTheme("system");
+
+    expect(store.set).toHaveBeenCalledWith("theme", "system");
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the system theme preference when the stored theme is missing or invalid", async () => {
     store.get.mockResolvedValue("sepia");
 
-    await expect(getStoredTheme()).resolves.toBe("light");
+    await expect(getStoredTheme()).resolves.toBe("system");
   });
 
   it("persists the selected color theme", async () => {

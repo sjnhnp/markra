@@ -92,6 +92,44 @@ const mockDroppedPath = "/mock-files/dropped.md";
 const mockFolderPath = "/mock-files/vault";
 const mockUntitledPath = "/mock-files/Untitled.md";
 
+function mockSystemColorScheme(initiallyDark: boolean) {
+  let matches = initiallyDark;
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const mediaQueryList = {
+    get matches() {
+      return matches;
+    },
+    media: "(prefers-color-scheme: dark)",
+    onchange: null,
+    addEventListener: vi.fn((_event: "change", listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    }),
+    removeEventListener: vi.fn((_event: "change", listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener);
+    }),
+    addListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    }),
+    removeListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener);
+    }),
+    dispatchEvent: vi.fn()
+  } as unknown as MediaQueryList;
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: vi.fn(() => mediaQueryList)
+  });
+
+  return {
+    setSystemDark(nextMatches: boolean) {
+      matches = nextMatches;
+      const event = { matches: nextMatches, media: "(prefers-color-scheme: dark)" } as MediaQueryListEvent;
+      listeners.forEach((listener) => listener(event));
+    }
+  };
+}
+
 function mockOpenMarkdownFile(file: { content: string; name: string; path: string }) {
   mockedOpenNativeMarkdownPath.mockResolvedValue({
     kind: "file",
@@ -139,6 +177,7 @@ describe("Markra workspace", () => {
     mockedListenAppThemeChanged.mockResolvedValue(() => {});
     mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);
     mockedNotifyAppThemeChanged.mockResolvedValue(undefined);
+    mockSystemColorScheme(false);
   });
 
   it("renders a Typora-like minimal writing surface", async () => {
@@ -182,7 +221,7 @@ describe("Markra workspace", () => {
   });
 
   it("updates the editor window when another window changes the theme", async () => {
-    let onThemeChanged: ((theme: "light" | "dark") => void) | null = null;
+    let onThemeChanged: ((theme: "light" | "dark" | "system") => void) | null = null;
     mockedListenAppThemeChanged.mockImplementation(async (listener) => {
       onThemeChanged = listener;
       return () => {};
@@ -197,6 +236,23 @@ describe("Markra workspace", () => {
 
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     expect(screen.getByRole("button", { name: "Switch to light theme" })).toBeInTheDocument();
+  });
+
+  it("follows the system color scheme when the stored theme preference is system", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockedGetStoredTheme.mockResolvedValue("system");
+    const systemColorScheme = mockSystemColorScheme(true);
+
+    render(<App />);
+
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "dark"));
+
+    act(() => {
+      systemColorScheme.setSystemDark(false);
+    });
+
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+    expect(mockedSaveStoredTheme).not.toHaveBeenCalled();
   });
 
   it("reinstalls native menus when another window changes the language", async () => {
@@ -282,7 +338,9 @@ describe("Markra workspace", () => {
     const themeGroup = container.querySelector('[role="group"]');
     expect(themeGroup).toBeInTheDocument();
     const themeButtons = themeGroup?.querySelectorAll("button");
-    fireEvent.click(themeButtons![1]);
+    expect(themeButtons).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "跟随系统主题" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "使用深色主题" }));
 
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     await waitFor(() => expect(mockedSaveStoredTheme).toHaveBeenCalledWith("dark"));

@@ -40,14 +40,14 @@ describe("settings events", () => {
     const cleanup = await listenAppThemeChanged(onThemeChanged);
     const listener = mockedListen.mock.calls[0]?.[1];
 
-    await notifyAppThemeChanged("dark");
-    listener?.({ payload: { theme: "dark" } } as Parameters<NonNullable<typeof listener>>[0]);
+    await notifyAppThemeChanged("system");
+    listener?.({ payload: { theme: "system" } } as Parameters<NonNullable<typeof listener>>[0]);
     listener?.({ payload: { theme: "sepia" } } as Parameters<NonNullable<typeof listener>>[0]);
     cleanup();
 
     expect(mockedListen).toHaveBeenCalledWith("markra://theme-changed", expect.any(Function));
-    expect(mockedEmit).toHaveBeenCalledWith("markra://theme-changed", { theme: "dark" });
-    expect(onThemeChanged).toHaveBeenCalledWith("dark");
+    expect(mockedEmit).toHaveBeenCalledWith("markra://theme-changed", { theme: "system" });
+    expect(onThemeChanged).toHaveBeenCalledWith("system");
     expect(onThemeChanged).toHaveBeenCalledTimes(1);
     expect(unlisten).toHaveBeenCalledTimes(1);
   });

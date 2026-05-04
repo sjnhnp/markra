@@ -6,7 +6,8 @@ const welcomeDocumentSeenKey = "welcomeDocumentSeen";
 const themeKey = "theme";
 const languageKey = "language";
 
-export type AppTheme = "light" | "dark";
+export type AppTheme = "light" | "dark" | "system";
+export type ResolvedAppTheme = "light" | "dark";
 export type { AppLanguage };
 
 function loadSettingsStore() {
@@ -14,7 +15,7 @@ function loadSettingsStore() {
 }
 
 export function isAppTheme(value: unknown): value is AppTheme {
-  return value === "light" || value === "dark";
+  return value === "light" || value === "dark" || value === "system";
 }
 
 export async function consumeWelcomeDocumentState() {
@@ -33,7 +34,7 @@ export async function getStoredTheme(): Promise<AppTheme> {
   const store = await loadSettingsStore();
   const theme = await store.get<AppTheme>(themeKey);
 
-  return isAppTheme(theme) ? theme : "light";
+  return isAppTheme(theme) ? theme : "system";
 }
 
 export async function saveStoredTheme(theme: AppTheme) {

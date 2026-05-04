@@ -1,14 +1,28 @@
 import { useCallback, useEffect, useState } from "react";
-import { getStoredTheme, saveStoredTheme, type AppTheme } from "../lib/appSettings";
+import { getStoredTheme, saveStoredTheme, type AppTheme, type ResolvedAppTheme } from "../lib/appSettings";
 import { listenAppThemeChanged, notifyAppThemeChanged } from "../lib/settingsEvents";
 
-function applyAppTheme(theme: AppTheme) {
+const systemDarkThemeQuery = "(prefers-color-scheme: dark)";
+
+function getSystemTheme(): ResolvedAppTheme {
+  if (typeof window.matchMedia !== "function") return "light";
+
+  return window.matchMedia(systemDarkThemeQuery).matches ? "dark" : "light";
+}
+
+function resolveAppTheme(theme: AppTheme, systemTheme: ResolvedAppTheme): ResolvedAppTheme {
+  return theme === "system" ? systemTheme : theme;
+}
+
+function applyAppTheme(theme: ResolvedAppTheme) {
   // Keep the root attribute as the single switch for theme-scoped CSS variables.
   document.documentElement.dataset.theme = theme;
 }
 
 export function useAppTheme() {
-  const [theme, setTheme] = useState<AppTheme>("light");
+  const [theme, setTheme] = useState<AppTheme>("system");
+  const [systemTheme, setSystemTheme] = useState<ResolvedAppTheme>(() => getSystemTheme());
+  const resolvedTheme = resolveAppTheme(theme, systemTheme);
 
   useEffect(() => {
     let active = true;
@@ -23,8 +37,24 @@ export function useAppTheme() {
   }, []);
 
   useEffect(() => {
-    applyAppTheme(theme);
-  }, [theme]);
+    if (typeof window.matchMedia !== "function") return;
+
+    const mediaQuery = window.matchMedia(systemDarkThemeQuery);
+    const handleSystemThemeChange = (event: MediaQueryListEvent) => {
+      setSystemTheme(event.matches ? "dark" : "light");
+    };
+
+    setSystemTheme(mediaQuery.matches ? "dark" : "light");
+    mediaQuery.addEventListener("change", handleSystemThemeChange);
+
+    return () => {
+      mediaQuery.removeEventListener("change", handleSystemThemeChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    applyAppTheme(resolvedTheme);
+  }, [resolvedTheme]);
 
   useEffect(() => {
     let active = true;
@@ -53,16 +83,14 @@ export function useAppTheme() {
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setTheme((currentTheme) => {
-      const nextTheme = currentTheme === "dark" ? "light" : "dark";
+    const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
 
-      void saveStoredTheme(nextTheme).then(() => notifyAppThemeChanged(nextTheme)).catch(() => {});
-
-      return nextTheme;
-    });
-  }, []);
+    setTheme(nextTheme);
+    void saveStoredTheme(nextTheme).then(() => notifyAppThemeChanged(nextTheme)).catch(() => {});
+  }, [resolvedTheme]);
 
   return {
+    resolvedTheme,
     selectTheme,
     theme,
     toggleTheme

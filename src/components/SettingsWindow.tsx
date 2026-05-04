@@ -2,6 +2,7 @@ import {
   FileText,
   Keyboard,
   Languages,
+  Monitor,
   Moon,
   Palette,
   PenLine,
@@ -26,16 +27,25 @@ type SettingsCategoryDefinition = {
 };
 
 const themeOptions: Array<{
+  actionLabelKey: I18nKey;
   icon: LucideIcon;
   labelKey: I18nKey;
   value: AppTheme;
 }> = [
   {
+    actionLabelKey: "settings.theme.useSystemLabel",
+    icon: Monitor,
+    labelKey: "settings.theme.system",
+    value: "system"
+  },
+  {
+    actionLabelKey: "settings.theme.useLightLabel",
     icon: Sun,
     labelKey: "settings.theme.light",
     value: "light"
   },
   {
+    actionLabelKey: "settings.theme.useDarkLabel",
     icon: Moon,
     labelKey: "settings.theme.dark",
     value: "dark"
@@ -274,7 +284,7 @@ function ThemeSegmentedControl({
 }) {
   return (
     <div
-      className="grid shrink-0 grid-cols-2 rounded-md border border-(--border-default) bg-(--bg-secondary) p-0.5"
+      className="grid shrink-0 grid-cols-3 rounded-md border border-(--border-default) bg-(--bg-secondary) p-0.5"
       role="group"
       aria-label={translate("settings.theme.groupLabel")}
     >
@@ -287,11 +297,7 @@ function ThemeSegmentedControl({
             className="inline-flex h-7 min-w-16 items-center justify-center gap-1.5 rounded-sm border-0 bg-transparent px-2.5 text-[12px] leading-5 font-[560] text-(--text-secondary) transition-colors duration-150 ease-out hover:text-(--text-heading) aria-pressed:bg-(--bg-active) aria-pressed:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
             type="button"
             key={option.value}
-            aria-label={
-              option.value === "dark"
-                ? translate("settings.theme.useDarkLabel")
-                : translate("settings.theme.useLightLabel")
-            }
+            aria-label={translate(option.actionLabelKey)}
             aria-pressed={active}
             onClick={() => onSelectTheme(option.value)}
           >

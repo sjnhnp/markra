@@ -1,12 +1,12 @@
 import { FileText, FolderOpen, Moon, Save, Sun } from "lucide-react";
-import type { AppTheme } from "../lib/appSettings";
+import type { ResolvedAppTheme } from "../lib/appSettings";
 import { t, type AppLanguage } from "../lib/i18n";
 
 type NativeTitleBarProps = {
   dirty: boolean;
   documentName: string;
   language?: AppLanguage;
-  theme: AppTheme;
+  theme: ResolvedAppTheme;
   onOpenMarkdown: () => void;
   onSaveMarkdown: () => void;
   onToggleTheme: () => void;

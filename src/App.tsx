@@ -89,7 +89,7 @@ export default function App() {
         dirty={document.dirty}
         documentName={document.name}
         language={appLanguage.language}
-        theme={appTheme.theme}
+        theme={appTheme.resolvedTheme}
         onOpenMarkdown={openMarkdownFile}
         onSaveMarkdown={handleSaveClick}
         onToggleTheme={appTheme.toggleTheme}
