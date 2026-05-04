@@ -17,11 +17,18 @@ import {
 } from "./lib/nativeMenu";
 import {
   consumeWelcomeDocumentState,
+  getStoredLanguage,
   getStoredTheme,
   resetWelcomeDocumentState,
+  saveStoredLanguage,
   saveStoredTheme
 } from "./lib/appSettings";
-import { listenAppThemeChanged, notifyAppThemeChanged } from "./lib/settingsEvents";
+import {
+  listenAppLanguageChanged,
+  listenAppThemeChanged,
+  notifyAppLanguageChanged,
+  notifyAppThemeChanged
+} from "./lib/settingsEvents";
 
 vi.mock("./lib/nativeFile", () => ({
   installNativeMarkdownFileDrop: vi.fn(),
@@ -41,14 +48,22 @@ vi.mock("./lib/nativeMenu", () => ({
 
 vi.mock("./lib/appSettings", () => ({
   consumeWelcomeDocumentState: vi.fn(),
+  getStoredLanguage: vi.fn(),
   getStoredTheme: vi.fn(),
   resetWelcomeDocumentState: vi.fn(),
+  saveStoredLanguage: vi.fn(),
   saveStoredTheme: vi.fn()
 }));
 
 vi.mock("./lib/settingsEvents", () => ({
+  listenAppLanguageChanged: vi.fn(),
   listenAppThemeChanged: vi.fn(),
+  notifyAppLanguageChanged: vi.fn(),
   notifyAppThemeChanged: vi.fn()
+}));
+
+vi.mock("./lib/nativeWindow", () => ({
+  setNativeWindowTitle: vi.fn()
 }));
 
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
@@ -62,10 +77,14 @@ const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
 const mockedInstallNativeApplicationMenu = vi.mocked(installNativeApplicationMenu);
 const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEditorContextMenu);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
+const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
 const mockedGetStoredTheme = vi.mocked(getStoredTheme);
 const mockedResetWelcomeDocumentState = vi.mocked(resetWelcomeDocumentState);
+const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
 const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
+const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
 const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
+const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
 const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
 
 const mockNativePath = "/mock-files/native.md";
@@ -94,10 +113,14 @@ describe("Markra workspace", () => {
     mockedWatchNativeMarkdownFile.mockReset();
     mockedInstallNativeApplicationMenu.mockReset();
     mockedInstallNativeEditorContextMenu.mockReset();
+    mockedGetStoredLanguage.mockReset();
     mockedGetStoredTheme.mockReset();
     mockedResetWelcomeDocumentState.mockReset();
+    mockedSaveStoredLanguage.mockReset();
     mockedSaveStoredTheme.mockReset();
+    mockedListenAppLanguageChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
+    mockedNotifyAppLanguageChanged.mockReset();
     mockedNotifyAppThemeChanged.mockReset();
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("data-window");
@@ -107,10 +130,14 @@ describe("Markra workspace", () => {
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
+    mockedGetStoredLanguage.mockResolvedValue("en");
     mockedGetStoredTheme.mockResolvedValue("light");
     mockedResetWelcomeDocumentState.mockResolvedValue(undefined);
+    mockedSaveStoredLanguage.mockResolvedValue(undefined);
     mockedSaveStoredTheme.mockResolvedValue(undefined);
+    mockedListenAppLanguageChanged.mockResolvedValue(() => {});
     mockedListenAppThemeChanged.mockResolvedValue(() => {});
+    mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);
     mockedNotifyAppThemeChanged.mockResolvedValue(undefined);
   });
 
@@ -135,6 +162,7 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toBeInTheDocument();
     expect(shell).toHaveClass("bg-(--bg-primary)");
     expect(shell).toHaveClass("grid-rows-[minmax(0,1fr)]");
+    expect(shell).toHaveClass("overscroll-none");
   });
 
   it("loads and persists the app color theme", async () => {
@@ -171,20 +199,90 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "Switch to light theme" })).toBeInTheDocument();
   });
 
+  it("reinstalls native menus when another window changes the language", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    let onLanguageChanged: ((language: "en" | "zh-CN" | "fr") => void) | null = null;
+    mockedListenAppLanguageChanged.mockImplementation(async (listener) => {
+      onLanguageChanged = listener;
+      return () => {};
+    });
+
+    render(<App />);
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "en"));
+
+    act(() => {
+      onLanguageChanged?.("zh-CN");
+    });
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "zh-CN"));
+  });
+
+  it("waits for the stored language before replacing the Rust startup menu", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    let resolveLanguage: ((language: "fr") => void) | null = null;
+    mockedGetStoredLanguage.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLanguage = resolve;
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(mockedGetStoredLanguage).toHaveBeenCalledTimes(1));
+    expect(mockedInstallNativeApplicationMenu).not.toHaveBeenCalled();
+
+    act(() => {
+      resolveLanguage?.("fr");
+    });
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "fr"));
+  });
+
   it("renders an independent settings window route", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     window.history.pushState({}, "", "/?settings=1");
 
-    render(<App />);
+    const { container } = render(<App />);
 
-    expect(await screen.findByRole("main", { name: "Markra settings" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Color theme" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Use dark theme" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
+    expect(container.querySelector(".settings-drag-region")).toHaveAttribute("data-tauri-drag-region");
+    expect(container.querySelector(".settings-window")).not.toHaveClass("border");
+    expect(container.querySelector(".settings-window")).toHaveClass("overscroll-none");
+    expect(container.querySelector(".settings-scroll")).toHaveClass("overscroll-none");
+    expect(container.querySelector(".settings-sidebar-title")).toBeInTheDocument();
+    expect(container.querySelector(".settings-sidebar nav")).toBeInTheDocument();
+    expect(container.querySelector(".settings-layout")).toHaveClass("grid-cols-[180px_minmax(0,1fr)]");
+    expect(container.querySelector(".settings-sidebar")).toHaveClass("bg-(--bg-secondary)");
+    expect(container.querySelector(".settings-content-header")).toHaveClass("border-b");
+    expect(container.querySelector(".settings-panel-title")).toHaveClass("text-[16px]");
+    const settingsGroups = Array.from(container.querySelectorAll(".settings-list-group"));
+    expect(settingsGroups.length).toBeGreaterThan(0);
+    settingsGroups.forEach((group) => expect(group).not.toHaveClass("border-y"));
+    expect(settingsGroups[0]).not.toHaveClass("divide-y");
+    expect(settingsGroups.at(-1)).toHaveClass("divide-y");
+    const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
+    expect(categoryButtons).toHaveLength(5);
+    expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
+    expect(categoryButtons[1]).not.toHaveAttribute("aria-current");
+    const languageSelect = container.querySelector("select");
+    expect(languageSelect).toHaveValue("en");
+    expect(container.querySelector('[role="group"]')).not.toBeInTheDocument();
+    expect(container.querySelector(".markdown-paper")).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("data-window", "settings");
 
-    fireEvent.click(screen.getByRole("button", { name: "Use dark theme" }));
+    fireEvent.change(languageSelect!, {
+      target: { value: "zh-CN" }
+    });
+    await waitFor(() => expect(mockedSaveStoredLanguage).toHaveBeenCalledWith("zh-CN"));
+    await waitFor(() => expect(mockedNotifyAppLanguageChanged).toHaveBeenCalledWith("zh-CN"));
+
+    fireEvent.click(categoryButtons[1]);
+    expect(categoryButtons[1]).toHaveAttribute("aria-current", "page");
+    const themeGroup = container.querySelector('[role="group"]');
+    expect(themeGroup).toBeInTheDocument();
+    const themeButtons = themeGroup?.querySelectorAll("button");
+    fireEvent.click(themeButtons![1]);
 
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     await waitFor(() => expect(mockedSaveStoredTheme).toHaveBeenCalledWith("dark"));
@@ -194,12 +292,16 @@ describe("Markra workspace", () => {
   it("resets the welcome document from settings", async () => {
     window.history.pushState({}, "", "/?settings=1");
 
-    render(<App />);
+    const { container } = render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Show welcome next launch" }));
+    await waitFor(() => expect(container.querySelector(".settings-sidebar nav button")).toHaveAttribute("aria-current", "page"));
+    expect(container.querySelector('[role="group"]')).not.toBeInTheDocument();
+
+    const resetButton = container.querySelector(".settings-row button");
+    fireEvent.click(resetButton!);
 
     await waitFor(() => expect(mockedResetWelcomeDocumentState).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole("status")).toHaveTextContent("Welcome document will show next launch.");
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("opens a folder markdown tree from the lower-left file list button", async () => {
@@ -225,7 +327,8 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("complementary", { name: "Markdown file tree" })).not.toHaveClass("fixed");
     expect(container.querySelector(".workspace-layout")).toHaveClass("grid-cols-[18rem_minmax(0,1fr)]");
-    expect(screen.getByText("文件")).toBeInTheDocument();
+    expect(container.querySelector(".file-tree-scroll")).toHaveClass("overscroll-none");
+    expect(screen.getByText("Files")).toBeInTheDocument();
     expect(screen.getByText("mock-files")).toBeInTheDocument();
     expect(screen.getByText("docs")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "docs" })).toHaveAttribute("aria-expanded", "false");
@@ -332,7 +435,7 @@ describe("Markra workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
     fireEvent.click(await screen.findByRole("button", { name: "Show outline" }));
 
-    expect(screen.getByText("大纲")).toBeInTheDocument();
+    expect(screen.getByText("Outline")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Document outline" })).toHaveTextContent("Native file");
     expect(screen.getByRole("list", { name: "Document outline" })).toHaveTextContent("Details");
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");

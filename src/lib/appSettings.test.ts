@@ -1,5 +1,12 @@
 import { load } from "@tauri-apps/plugin-store";
-import { consumeWelcomeDocumentState, getStoredTheme, resetWelcomeDocumentState, saveStoredTheme } from "./appSettings";
+import {
+  consumeWelcomeDocumentState,
+  getStoredLanguage,
+  getStoredTheme,
+  resetWelcomeDocumentState,
+  saveStoredLanguage,
+  saveStoredTheme
+} from "./appSettings";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn()
@@ -62,6 +69,25 @@ describe("app settings", () => {
     await saveStoredTheme("dark");
 
     expect(store.set).toHaveBeenCalledWith("theme", "dark");
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads English as the default app language", async () => {
+    store.get.mockResolvedValue("pirate");
+
+    await expect(getStoredLanguage()).resolves.toBe("en");
+
+    expect(store.get).toHaveBeenCalledWith("language");
+  });
+
+  it("loads and persists a supported app language", async () => {
+    store.get.mockResolvedValue("zh-CN");
+
+    await expect(getStoredLanguage()).resolves.toBe("zh-CN");
+
+    await saveStoredLanguage("ja");
+
+    expect(store.set).toHaveBeenCalledWith("language", "ja");
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 

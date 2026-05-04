@@ -4,6 +4,7 @@ import { MarkdownPaper } from "./components/MarkdownPaper";
 import { NativeTitleBar } from "./components/NativeTitleBar";
 import { QuietStatus } from "./components/QuietStatus";
 import { SettingsWindow } from "./components/SettingsWindow";
+import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
@@ -14,6 +15,7 @@ import {
   useNativeMenuHandlers,
   useNativeMenus
 } from "./hooks/useNativeBindings";
+import { t, type I18nKey } from "./lib/i18n";
 
 function isSettingsWindowRoute() {
   return new URLSearchParams(window.location.search).has("settings");
@@ -25,6 +27,8 @@ export default function App() {
   }
 
   const appTheme = useAppTheme();
+  const appLanguage = useAppLanguage();
+  const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const editor = useEditorController();
   const fileTree = useMarkdownFileTree();
   const {
@@ -55,6 +59,13 @@ export default function App() {
   } = markdownDocument;
   const saveDocumentAs = useCallback(() => saveCurrentDocument(true), [saveCurrentDocument]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
+  const rawFileTreeRootName = rootNameForDocument(document.path);
+  const fileTreeRootName =
+    rawFileTreeRootName === "No folder"
+      ? translate("app.noFolder")
+      : rawFileTreeRootName === "Files"
+        ? translate("app.files")
+        : rawFileTreeRootName;
   const nativeMenuHandlers = useNativeMenuHandlers({
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
     openDocument: openMarkdownFile,
@@ -64,7 +75,7 @@ export default function App() {
   });
 
   useNativeMarkdownDrop(handleDroppedMarkdownPath);
-  useNativeMenus(nativeMenuHandlers);
+  useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null);
   useApplicationShortcuts({
     openDocument: openMarkdownFile,
     openFolder: openMarkdownFolder,
@@ -73,10 +84,11 @@ export default function App() {
   });
 
   return (
-    <main className="app-shell group/app relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden bg-(--bg-primary) text-(--text-primary)">
+    <main className="app-shell group/app relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden overscroll-none bg-(--bg-primary) text-(--text-primary)">
       <NativeTitleBar
         dirty={document.dirty}
         documentName={document.name}
+        language={appLanguage.language}
         theme={appTheme.theme}
         onOpenMarkdown={openMarkdownFile}
         onSaveMarkdown={handleSaveClick}
@@ -89,9 +101,10 @@ export default function App() {
         <MarkdownFileTreeDrawer
           currentPath={document.path}
           files={fileTreeFiles}
+          language={appLanguage.language}
           open={false}
           outlineItems={outlineItems}
-          rootName={rootNameForDocument(document.path)}
+          rootName={fileTreeRootName}
           onOpenFile={openTreeMarkdownFile}
           onSelectOutlineItem={editor.selectOutlineItem}
           onToggle={handleFileTreeToggle}
@@ -103,9 +116,10 @@ export default function App() {
           <MarkdownFileTreeDrawer
             currentPath={document.path}
             files={fileTreeFiles}
+            language={appLanguage.language}
             open
             outlineItems={outlineItems}
-            rootName={rootNameForDocument(document.path)}
+            rootName={fileTreeRootName}
             onOpenFile={openTreeMarkdownFile}
             onSelectOutlineItem={editor.selectOutlineItem}
             onToggle={handleFileTreeToggle}
@@ -114,13 +128,14 @@ export default function App() {
 
         <MarkdownPaper
           initialContent={document.content}
+          language={appLanguage.language}
           onEditorReady={editor.handleEditorReady}
           onMarkdownChange={handleMarkdownChange}
           revision={document.revision}
         />
       </div>
 
-      <QuietStatus dirty={document.dirty} wordCount={wordCount} />
+      <QuietStatus dirty={document.dirty} language={appLanguage.language} wordCount={wordCount} />
     </main>
   );
 }

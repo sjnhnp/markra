@@ -68,7 +68,7 @@ describe("MarkdownFileTreeDrawer", () => {
 
     expect(sidebar).toBeInTheDocument();
     expect(sidebar).not.toHaveClass("fixed");
-    expect(screen.getByText("文件")).toBeInTheDocument();
+    expect(screen.getByText("Files")).toBeInTheDocument();
     expect(screen.getByText("Obsidian Vault")).toBeInTheDocument();
     expect(folder).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: "deploy/deploy.md" })).not.toBeInTheDocument();
@@ -127,7 +127,7 @@ describe("MarkdownFileTreeDrawer", () => {
     const filesSwitch = screen.getByRole("button", { name: "Show files" });
 
     expect(filesSwitch).toContainElement(container.querySelector(".lucide-folder-tree"));
-    expect(screen.getByText("大纲")).toBeInTheDocument();
+    expect(screen.getByText("Outline")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Document outline" })).toBeInTheDocument();
     expect(screen.getByText("Intro")).toBeInTheDocument();
     expect(screen.getByText("Details")).toBeInTheDocument();
@@ -160,7 +160,7 @@ describe("MarkdownFileTreeDrawer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show outline" }));
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
 
-    expect(screen.getByText("大纲")).toBeInTheDocument();
+    expect(screen.getByText("Outline")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Document outline" })).toBeInTheDocument();
     expect(screen.getByText("Intro")).toBeInTheDocument();
     expect(screen.getByText("Details")).toBeInTheDocument();

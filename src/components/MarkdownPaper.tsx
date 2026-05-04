@@ -21,6 +21,7 @@ import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/re
 import { markraLiveMarkdownPlugin } from "../lib/markdownInputRules";
 import { markraLinkImageLivePlugin } from "../lib/markdownLinkImageInputRules";
 import { markraMarkdownShortcuts } from "../lib/markdownShortcuts";
+import { t, type AppLanguage } from "../lib/i18n";
 
 const markraCommonmark = [
   commonmarkSchema,
@@ -41,6 +42,7 @@ const markraGfm = [
 
 type MarkdownPaperProps = {
   initialContent: string;
+  language?: AppLanguage;
   onEditorReady: (editor: Editor | null) => void;
   onMarkdownChange: (content: string) => void;
   revision: number;
@@ -48,6 +50,7 @@ type MarkdownPaperProps = {
 
 type MilkdownSurfaceProps = {
   initialContent: string;
+  language: AppLanguage;
   onEditorReady: (editor: Editor | null) => void;
   onMarkdownChange: (content: string) => void;
 };
@@ -69,8 +72,9 @@ function MilkdownInstanceBridge({ onEditorReady }: Pick<MilkdownSurfaceProps, "o
   return null;
 }
 
-function MilkdownSurface({ initialContent, onEditorReady, onMarkdownChange }: MilkdownSurfaceProps) {
+function MilkdownSurface({ initialContent, language, onEditorReady, onMarkdownChange }: MilkdownSurfaceProps) {
   const initialContentRef = useRef(initialContent);
+  const markdownDocumentLabel = t(language, "app.markdownDocument");
 
   const createEditor = useCallback(
     (root: HTMLElement) =>
@@ -82,7 +86,7 @@ function MilkdownSurface({ initialContent, onEditorReady, onMarkdownChange }: Mi
             ...options,
             attributes: {
               ...options.attributes,
-              "aria-label": "Markdown document",
+              "aria-label": markdownDocumentLabel,
               spellcheck: "true"
             }
           }));
@@ -97,7 +101,7 @@ function MilkdownSurface({ initialContent, onEditorReady, onMarkdownChange }: Mi
         .use(markraMarkdownShortcuts)
         .use(markraLinkImageLivePlugin)
         .use(markraLiveMarkdownPlugin),
-    [onMarkdownChange]
+    [markdownDocumentLabel, onMarkdownChange]
   );
 
   useEditor(createEditor, [createEditor]);
@@ -110,18 +114,28 @@ function MilkdownSurface({ initialContent, onEditorReady, onMarkdownChange }: Mi
   );
 }
 
-export function MarkdownPaper({ initialContent, onEditorReady, onMarkdownChange, revision }: MarkdownPaperProps) {
+export function MarkdownPaper({
+  initialContent,
+  language = "en",
+  onEditorReady,
+  onMarkdownChange,
+  revision
+}: MarkdownPaperProps) {
   return (
-    <section className="paper-scroll min-h-0 overflow-auto bg-transparent" aria-label="Writing surface">
+    <section
+      className="paper-scroll min-h-0 overflow-auto overscroll-none bg-transparent"
+      aria-label={t(language, "app.writingSurface")}
+    >
       <article
         key={revision}
         className="markdown-paper mx-auto min-h-screen w-full max-w-215 px-18 pb-30 pt-14 text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25 max-[900px]:pt-10"
-        aria-label="Markdown editor"
+        aria-label={t(language, "app.markdownEditor")}
         data-editor-engine="milkdown"
       >
         <MilkdownProvider>
           <MilkdownSurface
             initialContent={initialContent}
+            language={language}
             onEditorReady={onEditorReady}
             onMarkdownChange={onMarkdownChange}
           />

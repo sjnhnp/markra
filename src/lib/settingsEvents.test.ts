@@ -1,5 +1,10 @@
 import { emit, listen } from "@tauri-apps/api/event";
-import { listenAppThemeChanged, notifyAppThemeChanged } from "./settingsEvents";
+import {
+  listenAppLanguageChanged,
+  listenAppThemeChanged,
+  notifyAppLanguageChanged,
+  notifyAppThemeChanged
+} from "./settingsEvents";
 
 vi.mock("@tauri-apps/api/event", () => ({
   emit: vi.fn(),
@@ -44,6 +49,27 @@ describe("settings events", () => {
     expect(mockedEmit).toHaveBeenCalledWith("markra://theme-changed", { theme: "dark" });
     expect(onThemeChanged).toHaveBeenCalledWith("dark");
     expect(onThemeChanged).toHaveBeenCalledTimes(1);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits and listens for language changes inside Tauri", async () => {
+    const unlisten = vi.fn();
+    const onLanguageChanged = vi.fn();
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppLanguageChanged(onLanguageChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await notifyAppLanguageChanged("fr");
+    listener?.({ payload: { language: "fr" } } as Parameters<NonNullable<typeof listener>>[0]);
+    listener?.({ payload: { language: "pirate" } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://language-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://language-changed", { language: "fr" });
+    expect(onLanguageChanged).toHaveBeenCalledWith("fr");
+    expect(onLanguageChanged).toHaveBeenCalledTimes(1);
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 });

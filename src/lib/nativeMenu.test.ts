@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   installNativeEditorContextMenu,
+  installNativeApplicationMenu,
   listenNativeApplicationMenuCommands,
   type NativeMenuHandlers
 } from "./nativeMenu";
@@ -72,6 +73,23 @@ describe("native menu", () => {
     stopListening();
 
     expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("installs the application menu while keeping command listeners", async () => {
+    const handlers: NativeMenuHandlers = {
+      saveDocument: vi.fn()
+    };
+
+    await installNativeApplicationMenu(handlers, "fr");
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://menu-command", expect.any(Function));
+    expect(mockedMenuNew).toHaveBeenCalledWith({
+      items: expect.arrayContaining([
+        expect.objectContaining({ id: "markra:file" }),
+        expect.objectContaining({ id: "markra:format" })
+      ])
+    });
+    expect(setAsAppMenu).toHaveBeenCalledTimes(1);
   });
 
   it("ignores native application menu commands in unfocused windows", async () => {

@@ -1,10 +1,13 @@
 import { load } from "@tauri-apps/plugin-store";
+import { isAppLanguage, type AppLanguage } from "./i18n";
 
 const settingsStorePath = "settings.json";
 const welcomeDocumentSeenKey = "welcomeDocumentSeen";
 const themeKey = "theme";
+const languageKey = "language";
 
 export type AppTheme = "light" | "dark";
+export type { AppLanguage };
 
 function loadSettingsStore() {
   return load(settingsStorePath, { autoSave: false, defaults: {} });
@@ -37,6 +40,20 @@ export async function saveStoredTheme(theme: AppTheme) {
   const store = await loadSettingsStore();
 
   await store.set(themeKey, theme);
+  await store.save();
+}
+
+export async function getStoredLanguage(): Promise<AppLanguage> {
+  const store = await loadSettingsStore();
+  const language = await store.get<AppLanguage>(languageKey);
+
+  return isAppLanguage(language) ? language : "en";
+}
+
+export async function saveStoredLanguage(language: AppLanguage) {
+  const store = await loadSettingsStore();
+
+  await store.set(languageKey, language);
   await store.save();
 }
 

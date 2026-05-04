@@ -9,12 +9,14 @@ import {
   Search,
   TableOfContents
 } from "lucide-react";
+import { t, type AppLanguage } from "../lib/i18n";
 import type { MarkdownOutlineItem } from "../lib/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/nativeFile";
 
 type MarkdownFileTreeDrawerProps = {
   currentPath: string | null;
   files: NativeMarkdownFolderFile[];
+  language?: AppLanguage;
   open: boolean;
   outlineItems: MarkdownOutlineItem[];
   rootName: string;
@@ -109,6 +111,7 @@ function filterMarkdownFileTree(nodes: TreeNode[], query: string): TreeNode[] {
 export function MarkdownFileTreeDrawer({
   currentPath,
   files,
+  language = "en",
   open,
   outlineItems,
   rootName,
@@ -122,6 +125,7 @@ export function MarkdownFileTreeDrawer({
   const [searchQuery, setSearchQuery] = useState("");
   const tree = useMemo(() => filterMarkdownFileTree(buildMarkdownFileTree(files), searchQuery), [files, searchQuery]);
   const showingOutline = viewMode === "outline";
+  const label = (key: Parameters<typeof t>[1]) => t(language, key);
 
   const toggleFolder = (relativePath: string) => {
     setExpandedFolders((current) => {
@@ -135,11 +139,11 @@ export function MarkdownFileTreeDrawer({
     });
   };
 
-  const renderNodes = (nodes: TreeNode[], depth = 0, label = "Markdown files") => (
+  const renderNodes = (nodes: TreeNode[], depth = 0, treeLabel = label("app.markdownFiles")) => (
     <ol
       className={depth === 0 ? "m-0 list-none p-0" : "ml-5 list-none border-l border-(--border-default) p-0"}
       role={depth === 0 ? "tree" : "group"}
-      aria-label={label}
+      aria-label={treeLabel}
     >
       {nodes.map((node) => {
         const rowBranchClass =
@@ -199,7 +203,7 @@ export function MarkdownFileTreeDrawer({
       <button
         className="fixed bottom-3 left-3 z-30 inline-flex size-7 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent p-0 text-(--text-secondary) opacity-40 transition-[background-color,color,opacity] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100 focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:opacity-100 focus-visible:outline-none"
         type="button"
-        aria-label="Toggle Markdown files"
+        aria-label={label("app.toggleMarkdownFiles")}
         aria-pressed={open}
         onClick={onToggle}
       >
@@ -209,13 +213,13 @@ export function MarkdownFileTreeDrawer({
       {open ? (
         <aside
           className="markdown-file-tree flex h-full min-h-0 w-72 flex-col border-r border-(--border-default) bg-(--bg-secondary) pt-9.5"
-          aria-label="Markdown file tree"
+          aria-label={label("app.markdownFileTree")}
         >
           <div className="grid h-10 grid-cols-[40px_minmax(0,1fr)_40px] items-center border-b border-(--border-default)">
             <button
               className="inline-flex size-10 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
               type="button"
-              aria-label={showingOutline ? "Show files" : "Show outline"}
+              aria-label={showingOutline ? label("app.showFiles") : label("app.showOutline")}
               onClick={() => setViewMode((mode) => (mode === "files" ? "outline" : "files"))}
             >
               {showingOutline ? (
@@ -225,12 +229,12 @@ export function MarkdownFileTreeDrawer({
               )}
             </button>
             <h2 className="m-0 truncate text-center text-[14px] font-[560] tracking-normal text-(--text-heading)">
-              {showingOutline ? "大纲" : "文件"}
+              {showingOutline ? label("app.outline") : label("app.files")}
             </h2>
             <button
               className="inline-flex size-10 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
               type="button"
-              aria-label="Search Markdown files"
+              aria-label={label("app.searchMarkdownFiles")}
               aria-pressed={searchOpen}
               disabled={showingOutline}
               onClick={() => {
@@ -245,23 +249,23 @@ export function MarkdownFileTreeDrawer({
           {!showingOutline && searchOpen ? (
             <>
               <label className="sr-only" htmlFor="markra-file-search">
-                Search Markdown files
+                {label("app.searchMarkdownFiles")}
               </label>
               <input
                 id="markra-file-search"
                 className="h-8 border-0 border-b border-(--border-default) bg-transparent px-3 text-[12px] text-(--text-primary) outline-none placeholder:text-(--text-secondary) focus:border-(--border-strong)"
                 type="search"
                 value={searchQuery}
-                placeholder="Search"
+                placeholder={label("app.searchPlaceholder")}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
             </>
           ) : null}
 
           {showingOutline ? (
-            <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+            <div className="file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4">
               {outlineItems.length > 0 ? (
-                <ol className="m-0 list-none p-0" aria-label="Document outline">
+                <ol className="m-0 list-none p-0" aria-label={label("app.documentOutline")}>
                   {outlineItems.map((item, index) => (
                     <li key={`${item.level}-${item.title}-${index}`}>
                       <button
@@ -277,7 +281,7 @@ export function MarkdownFileTreeDrawer({
                   ))}
                 </ol>
               ) : (
-                <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">No headings</p>
+                <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">{label("app.noHeadings")}</p>
               )}
             </div>
           ) : (
@@ -287,8 +291,14 @@ export function MarkdownFileTreeDrawer({
                 <span className="min-w-0 truncate">{rootName}</span>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-                {tree.length > 0 ? renderNodes(tree) : <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">No Markdown files</p>}
+              <div className="file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4">
+                {tree.length > 0 ? (
+                  renderNodes(tree)
+                ) : (
+                  <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">
+                    {label("app.noMarkdownFiles")}
+                  </p>
+                )}
               </div>
             </>
           )}

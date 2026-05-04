@@ -157,6 +157,12 @@ function expectLiveImagePreview(container: HTMLElement, src: string) {
 }
 
 describe("MarkdownPaper editing", () => {
+  it("keeps the writing surface from macOS-style scroll dragging", async () => {
+    const { container } = await renderEditor();
+
+    expect(container.querySelector(".paper-scroll")).toHaveClass("overscroll-none");
+  });
+
   it("turns typed strong markdown into bold text", async () => {
     const { container, view } = await renderEditor();
 

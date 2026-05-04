@@ -5,6 +5,7 @@ import {
   installNativeEditorContextMenu,
   type NativeMenuHandlers
 } from "../lib/nativeMenu";
+import type { AppLanguage } from "../lib/i18n";
 
 type NativeMenuHandlerOptions = {
   insertMarkdownSnippet: (open: string, close: string, placeholder: string) => void;
@@ -73,12 +74,14 @@ export function useNativeMarkdownDrop(onDrop: (path: string) => void | Promise<v
   }, [onDrop]);
 }
 
-export function useNativeMenus(handlers: NativeMenuHandlers) {
+export function useNativeMenus(handlers: NativeMenuHandlers, language: AppLanguage | null = "en") {
   useEffect(() => {
+    if (!language) return;
+
     let active = true;
     let cleanup: (() => void) | null = null;
 
-    void installNativeApplicationMenu(handlers).then((stopListening) => {
+    void installNativeApplicationMenu(handlers, language).then((stopListening) => {
       if (!active) {
         stopListening();
         return;
@@ -91,13 +94,15 @@ export function useNativeMenus(handlers: NativeMenuHandlers) {
       active = false;
       cleanup?.();
     };
-  }, [handlers]);
+  }, [handlers, language]);
 
   useEffect(() => {
+    if (!language) return;
+
     let active = true;
     let cleanup: (() => void) | null = null;
 
-    void installNativeEditorContextMenu(globalThis.document, handlers).then((removeContextMenu) => {
+    void installNativeEditorContextMenu(globalThis.document, handlers, language).then((removeContextMenu) => {
       if (!active) {
         removeContextMenu();
         return;
@@ -110,7 +115,7 @@ export function useNativeMenus(handlers: NativeMenuHandlers) {
       active = false;
       cleanup?.();
     };
-  }, [handlers]);
+  }, [handlers, language]);
 }
 
 export function useApplicationShortcuts({
