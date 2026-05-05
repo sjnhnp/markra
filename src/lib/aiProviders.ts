@@ -1,3 +1,5 @@
+import { isRecord } from "./utils";
+
 export const aiProviderApiStyles = [
   "openai",
   "anthropic",
@@ -455,10 +457,6 @@ function readModelCapabilities(value: Record<string, unknown> | AiProviderModelS
   const legacyCapability = isAiModelCapability(value.capability) ? [value.capability] : [];
 
   return normalizeAiModelCapabilities(capabilities.length > 0 ? capabilities : legacyCapability);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 export function normalizeAiModelCapabilities(values: readonly unknown[], fallback: AiModelCapability[] = ["text"]): AiModelCapability[] {

@@ -123,6 +123,7 @@ const messages: LocaleMessages = {
   "app.aiApply": "적용",
   "app.aiReject": "거부",
   "app.aiCopy": "복사",
+  "app.aiCopied": "복사됨",
   "app.aiSettingsLoading": "AI 설정을 아직 불러오는 중입니다.",
   "app.aiMissingProvider": "먼저 설정에서 활성화된 AI 제공자와 텍스트 모델을 구성하세요.",
   "app.aiProviderUnsupported": "선택한 AI 제공자는 채팅 완성을 지원하지 않습니다.",

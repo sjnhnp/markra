@@ -1,5 +1,6 @@
 import type { AiProviderConfig } from "../aiProviders";
 import { requestNativeChat, type NativeAiChatRequest, type NativeAiHttpResponse } from "../nativeAi";
+import { isRecord } from "../utils";
 import { getChatAdapter, type ChatMessage, type ChatResponse } from "./chatAdapters";
 
 export type ChatCompletionTransport = (request: NativeAiChatRequest) => Promise<NativeAiHttpResponse>;
@@ -33,8 +34,4 @@ function readResponseError(response: NativeAiHttpResponse) {
   }
 
   return `Request failed with HTTP ${response.status}.`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

@@ -4,13 +4,22 @@ import { editorViewCtx } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
-import { applyAiEditorResult, clearAiEditorPreview, showAiEditorPreview } from "../lib/aiEditorPreview";
+import {
+  AI_EDITOR_PREVIEW_ACTION_EVENT,
+  AI_EDITOR_PREVIEW_RESTORE_EVENT,
+  type AiEditorPreviewActionDetail,
+  applyAiEditorResult,
+  clearAiEditorPreview,
+  showAiEditorPreview
+} from "../lib/aiEditorPreview";
+import { readAiSelectionContextFromView } from "../hooks/useEditorController";
 import type { AiSelectionContext } from "../lib/agent/inlineAi";
+import { clearAiSelectionHold, showAiSelectionHold } from "../lib/aiSelectionHold";
 
 async function renderEditor(
   initialContent = "",
   options: {
-    onTextSelectionChange?: (selection: AiSelectionContext) => void;
+    onTextSelectionChange?: (selection: AiSelectionContext | null) => void;
   } = {}
 ) {
   let editor: Editor | null = null;
@@ -214,6 +223,37 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
   });
 
+  it("shows inline success feedback when copying an AI suggestion", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+
+    showAiEditorPreview(
+      view,
+      {
+        from,
+        original: "Original",
+        replacement: "Improved",
+        to: from + "Original".length,
+        type: "replace"
+      },
+      {
+        apply: "Apply",
+        copied: "Copied",
+        copy: "Copy",
+        reject: "Reject"
+      }
+    );
+
+    container.querySelector<HTMLButtonElement>(".ProseMirror .markra-ai-preview-copy")?.click();
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-copy")).toHaveAccessibleName("Copied");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-copy")).toHaveAttribute("data-copied", "true");
+
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
   it("does not let markdown replacement preview inherit heading styling", async () => {
     const { container, view } = await renderEditor("> Original quote\n\n## Existing heading");
     const from = findTextPosition(view, "Original quote");
@@ -254,6 +294,28 @@ describe("MarkdownPaper editing", () => {
     expect(insertedPreview?.closest("h1,h2,h3,h4,h5,h6")).toBeNull();
   });
 
+  it("keeps AI replacement preview inside the current heading block", async () => {
+    const { container, view } = await renderEditor("# Original title\n\nBody");
+    const from = findTextPosition(view, "Original title");
+    const to = from + "Original title".length;
+
+    showAiEditorPreview(view, {
+      from,
+      original: "Original title",
+      replacement: "Improved title",
+      to,
+      type: "replace"
+    });
+
+    const insertedPreview = container.querySelector(".ProseMirror .markra-ai-preview-insert");
+
+    expect(insertedPreview).toHaveTextContent("Improved title");
+    expect(insertedPreview?.closest("h1")).toBeInTheDocument();
+
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
   it("notifies when the user selects text in the editor", async () => {
     const onTextSelectionChange = vi.fn();
     const { view } = await renderEditor("First sentence. Second sentence.", { onTextSelectionChange });
@@ -267,6 +329,51 @@ describe("MarkdownPaper editing", () => {
       text: "Second sentence.",
       to
     });
+  });
+
+  it("notifies when the editor text selection is cleared", async () => {
+    const onTextSelectionChange = vi.fn();
+    const { view } = await renderEditor("First sentence. Second sentence.", { onTextSelectionChange });
+    const from = findTextPosition(view, "Second");
+    const to = from + "Second sentence.".length;
+
+    view.focus();
+    selectText(view, from, to);
+    moveCursor(view, from);
+
+    expect(onTextSelectionChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("keeps the active text selection when focus moves out of the editor", async () => {
+    const onTextSelectionChange = vi.fn();
+    const outsideInput = document.createElement("textarea");
+    document.body.append(outsideInput);
+    const { view } = await renderEditor("First sentence. Second sentence.", { onTextSelectionChange });
+    const from = findTextPosition(view, "Second");
+    const to = from + "Second sentence.".length;
+
+    view.focus();
+    selectText(view, from, to);
+    outsideInput.focus();
+    moveCursor(view, to);
+
+    expect(onTextSelectionChange).not.toHaveBeenLastCalledWith(null);
+    outsideInput.remove();
+  });
+
+  it("uses the current text block as AI context when no text is selected", async () => {
+    const { view } = await renderEditor("# Title\n\nFirst paragraph.\n\nSecond paragraph.");
+    const from = findTextPosition(view, "First paragraph.");
+    const to = from + "First paragraph.".length;
+
+    moveCursor(view, findTextPosition(view, "paragraph", 2));
+
+    expect(readAiSelectionContextFromView(view)).toEqual({
+      from,
+      text: "First paragraph.",
+      to
+    });
+    await settleMarkdownListener();
   });
 
   it("restores the pending AI comparison when undoing an applied suggestion", async () => {
@@ -293,6 +400,165 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("Original");
     expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
     expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
+
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("restores the pending AI comparison in a heading after undoing an applied suggestion", async () => {
+    const { container, view } = await renderEditor("# Original title\n\nBody");
+    const from = findTextPosition(view, "Original title");
+    const result = {
+      from,
+      original: "Original title",
+      replacement: "Improved title",
+      to: from + "Original title".length,
+      type: "replace" as const
+    };
+
+    showAiEditorPreview(view, result);
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved title");
+
+    expect(applyAiEditorResult(view, result)).toBe(true);
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
+
+    expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
+
+    const insertedPreview = container.querySelector(".ProseMirror .markra-ai-preview-insert");
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("Original title");
+    expect(insertedPreview).toHaveTextContent("Improved title");
+    expect(insertedPreview?.closest("h1")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
+
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("notifies the app when undo restores an applied AI comparison", async () => {
+    const { view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+    const onRestore = vi.fn();
+
+    window.addEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, onRestore);
+
+    showAiEditorPreview(view, result);
+    expect(applyAiEditorResult(view, result)).toBe(true);
+    expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
+
+    expect(onRestore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: {
+          result
+        }
+      })
+    );
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, onRestore);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("keeps an AI selection highlight visible after the editor loses its native selection", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const selection = {
+      from,
+      text: "Original",
+      to: from + "Original".length
+    };
+
+    showAiSelectionHold(view, selection);
+    expect(container.querySelector(".ProseMirror .markra-ai-selection-hold")).toHaveTextContent("Original");
+
+    moveCursor(view, selection.to);
+
+    expect(container.querySelector(".ProseMirror .markra-ai-selection-hold")).toHaveTextContent("Original");
+
+    clearAiSelectionHold(view);
+
+    expect(container.querySelector(".ProseMirror .markra-ai-selection-hold")).not.toBeInTheDocument();
+    await settleMarkdownListener();
+  });
+
+  it("can apply a restored AI comparison and undo it back to pending again", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+    const onPreviewAction = vi.fn((event: Event) => {
+      const detail = (event as CustomEvent<AiEditorPreviewActionDetail>).detail;
+      if (detail.action === "apply") applyAiEditorResult(view, detail.result);
+    });
+
+    window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+
+    showAiEditorPreview(view, result);
+    expect(applyAiEditorResult(view, result)).toBe(true);
+    expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
+
+    container.querySelector<HTMLButtonElement>(".ProseMirror .markra-ai-preview-apply")?.click();
+
+    expect(onPreviewAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: {
+          action: "apply",
+          result
+        }
+      })
+    );
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("Improved text");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
+
+    expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("Original");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("can reject an AI comparison and undo it back to pending again", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+
+    showAiEditorPreview(view, result);
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+
+    clearAiEditorPreview(view);
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
+
+    expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("Original");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
+
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
   });
 
   it("turns typed strong markdown into bold text", async () => {

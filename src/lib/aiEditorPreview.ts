@@ -3,12 +3,22 @@ import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 import type { AiDiffResult } from "./agent/inlineAi";
+import { clampNumber } from "./utils";
 
 export const AI_EDITOR_PREVIEW_ACTION_EVENT = "markra-ai-preview-action";
+export const AI_EDITOR_PREVIEW_RESTORE_EVENT = "markra-ai-preview-restore";
 export type AiEditorPreviewAction = "apply" | "copy" | "reject";
+export type AiEditorPreviewActionDetail = {
+  action: AiEditorPreviewAction;
+  result: AiTextDiffResult;
+};
+export type AiEditorPreviewRestoreDetail = {
+  result: AiTextDiffResult;
+};
 
 export type AiEditorPreviewLabels = {
   apply: string;
+  copied: string;
   copy: string;
   reject: string;
 };
@@ -21,6 +31,9 @@ type AiEditorPreviewMeta =
     }
   | {
       kind: "clear";
+    }
+  | {
+      kind: "restore";
     }
   | {
       kind: "show";
@@ -38,6 +51,7 @@ type AiEditorPreviewSnapshot = {
 type AiEditorPreviewState = {
   applied?: AiEditorPreviewSnapshot;
   decorations: DecorationSet;
+  dismissed?: AiEditorPreviewSnapshot;
   pending?: AiEditorPreviewSnapshot;
 };
 
@@ -48,8 +62,8 @@ const emptyPreviewState: AiEditorPreviewState = {
 
 export function showAiEditorPreview(view: EditorView, result: AiDiffResult, labels?: AiEditorPreviewLabels) {
   const docSize = view.state.doc.content.size;
-  const from = result.type === "error" ? null : clampPosition(result.from, docSize);
-  const to = result.type === "error" ? null : clampPosition(result.to, docSize);
+  const from = result.type === "error" ? null : clampNumber(result.from, 0, docSize);
+  const to = result.type === "error" ? null : clampNumber(result.to, 0, docSize);
   const appendPosition =
     result.type === "error" || from === null || to === null ? null : findInlineAppendPosition(view.state.doc, from, to);
   const transaction = view.state.tr.setMeta(aiEditorPreviewKey, {
@@ -75,8 +89,8 @@ export function applyAiEditorResult(view: EditorView, result: AiDiffResult) {
 
   const docSize = view.state.doc.content.size;
   const fallbackSelection = view.state.selection;
-  const from = clampPosition(result.from ?? fallbackSelection.from, docSize);
-  const to = clampPosition(result.to ?? fallbackSelection.to, docSize);
+  const from = clampNumber(result.from ?? fallbackSelection.from, 0, docSize);
+  const to = clampNumber(result.to ?? fallbackSelection.to, 0, docSize);
   if (from === null || to === null) return false;
 
   const transaction = view.state.tr.insertText(result.replacement, from, to).setMeta(aiEditorPreviewKey, {
@@ -95,16 +109,68 @@ export function applyAiEditorResult(view: EditorView, result: AiDiffResult) {
 export const markraAiEditorPreviewPlugin = $prose(() => {
   return new Plugin<AiEditorPreviewState>({
     key: aiEditorPreviewKey,
+    view() {
+      return {
+        update(view, previousState) {
+          const previousPreviewState = aiEditorPreviewKey.getState(previousState);
+          const nextPreviewState = aiEditorPreviewKey.getState(view.state);
+
+          if (
+            !previousPreviewState?.pending &&
+            nextPreviewState?.pending &&
+            (previousPreviewState?.applied || previousPreviewState?.dismissed)
+          ) {
+            window.dispatchEvent(
+              new CustomEvent<AiEditorPreviewRestoreDetail>(AI_EDITOR_PREVIEW_RESTORE_EVENT, {
+                detail: {
+                  result: nextPreviewState.pending.result
+                }
+              })
+            );
+          }
+        }
+      };
+    },
     props: {
       decorations(state) {
         return aiEditorPreviewKey.getState(state)?.decorations ?? DecorationSet.empty;
+      },
+      handleKeyDown(view, event) {
+        const previewState = aiEditorPreviewKey.getState(view.state);
+        if (!previewState?.dismissed || !isUndoShortcut(event)) return false;
+
+        event.preventDefault();
+        view.dispatch(view.state.tr.setMeta(aiEditorPreviewKey, { kind: "restore" } satisfies AiEditorPreviewMeta));
+        view.focus();
+
+        return true;
       }
     },
     state: {
       apply(transaction, previewState) {
         const meta = transaction.getMeta(aiEditorPreviewKey) as AiEditorPreviewMeta | undefined;
 
-        if (meta?.kind === "clear" || meta?.result.type === "error") return emptyPreviewState;
+        if (meta?.kind === "clear") {
+          return previewState.pending
+            ? {
+                decorations: DecorationSet.empty,
+                dismissed: previewState.pending
+              }
+            : emptyPreviewState;
+        }
+        if (meta?.kind === "restore") {
+          return previewState.dismissed
+            ? {
+                decorations: buildAiPreviewDecorations(
+                  transaction.doc,
+                  previewState.dismissed.result,
+                  previewState.dismissed.labels
+                ),
+                pending: previewState.dismissed
+              }
+            : previewState;
+        }
+        if (meta?.result.type === "error") return emptyPreviewState;
         if (meta?.kind === "show" && isTextDiffResult(meta.result)) {
           return {
             decorations: buildAiPreviewDecorations(transaction.doc, meta.result, meta.labels),
@@ -124,6 +190,16 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
           };
         }
         if (transaction.docChanged) {
+          if (
+            previewState.dismissed &&
+            resultMatchesOriginal(transaction.doc, previewState.dismissed.result)
+          ) {
+            return {
+              ...previewState,
+              decorations: previewState.decorations.map(transaction.mapping, transaction.doc)
+            };
+          }
+
           if (previewState.applied && resultMatchesOriginal(transaction.doc, previewState.applied.result)) {
             return {
               decorations: buildAiPreviewDecorations(
@@ -163,15 +239,15 @@ function buildAiPreviewDecorations(
   labels: AiEditorPreviewLabels = defaultLabels
 ) {
   const docSize = doc.content.size;
-  const from = clampPosition(result.from, docSize);
-  const to = clampPosition(result.to, docSize);
+  const from = clampNumber(result.from, 0, docSize);
+  const to = clampNumber(result.to, 0, docSize);
   if (from === null || to === null) return DecorationSet.empty;
   const appendPosition = findInlineAppendPosition(doc, from, to);
 
   const decorations = [
-    Decoration.widget(appendPosition, () => createPreviewWidget(result.replacement, labels), {
+    Decoration.widget(appendPosition, () => createPreviewWidget(result, labels), {
       key: `markra-ai-preview-insert-${from}-${to}`,
-      side: 1
+      side: -1
     })
   ];
 
@@ -188,26 +264,27 @@ function buildAiPreviewDecorations(
 
 const defaultLabels: AiEditorPreviewLabels = {
   apply: "Apply",
+  copied: "Copied",
   copy: "Copy",
   reject: "Reject"
 };
 
-function createPreviewWidget(text: string, labels: AiEditorPreviewLabels) {
+function createPreviewWidget(result: AiTextDiffResult, labels: AiEditorPreviewLabels) {
   const preview = document.createElement("span");
   preview.className = "markra-ai-preview-widget";
   preview.contentEditable = "false";
 
   const inserted = document.createElement("span");
   inserted.className = "markra-ai-preview-insert";
-  inserted.textContent = text;
+  inserted.textContent = result.replacement;
 
   const actions = document.createElement("span");
   actions.className = "markra-ai-preview-actions";
   actions.contentEditable = "false";
   actions.append(
-    createActionButton("copy", labels.copy),
-    createActionButton("reject", labels.reject),
-    createActionButton("apply", labels.apply)
+    createActionButton("copy", labels.copy, result, labels.copied),
+    createActionButton("reject", labels.reject, result),
+    createActionButton("apply", labels.apply, result)
   );
 
   preview.append(inserted, actions);
@@ -215,8 +292,14 @@ function createPreviewWidget(text: string, labels: AiEditorPreviewLabels) {
   return preview;
 }
 
-function createActionButton(action: AiEditorPreviewAction, label: string) {
+function createActionButton(
+  action: AiEditorPreviewAction,
+  label: string,
+  result: AiTextDiffResult,
+  copiedLabel?: string
+) {
   const button = document.createElement("button");
+  let copyFeedbackTimer: number | null = null;
   button.className = `markra-ai-preview-action markra-ai-preview-${action}`;
   button.type = "button";
   button.setAttribute("aria-label", label);
@@ -226,13 +309,39 @@ function createActionButton(action: AiEditorPreviewAction, label: string) {
     event.preventDefault();
     event.stopPropagation();
     window.dispatchEvent(
-      new CustomEvent<{ action: AiEditorPreviewAction }>(AI_EDITOR_PREVIEW_ACTION_EVENT, {
-        detail: { action }
+      new CustomEvent<AiEditorPreviewActionDetail>(AI_EDITOR_PREVIEW_ACTION_EVENT, {
+        detail: { action, result }
       })
     );
+    if (action === "copy" && copiedLabel) {
+      showCopySuccessFeedback(button, copiedLabel, () => {
+        if (copyFeedbackTimer !== null) window.clearTimeout(copyFeedbackTimer);
+        copyFeedbackTimer = window.setTimeout(() => {
+          restoreCopyButton(button, label);
+          copyFeedbackTimer = null;
+        }, 1200);
+      });
+    }
   });
 
   return button;
+}
+
+function showCopySuccessFeedback(button: HTMLButtonElement, copiedLabel: string, scheduleRestore: () => void) {
+  button.dataset.copied = "true";
+  button.classList.add("markra-ai-preview-copied");
+  button.setAttribute("aria-label", copiedLabel);
+  button.title = copiedLabel;
+  button.replaceChildren(createActionIcon("apply"));
+  scheduleRestore();
+}
+
+function restoreCopyButton(button: HTMLButtonElement, copyLabel: string) {
+  delete button.dataset.copied;
+  button.classList.remove("markra-ai-preview-copied");
+  button.setAttribute("aria-label", copyLabel);
+  button.title = copyLabel;
+  button.replaceChildren(createActionIcon("copy"));
 }
 
 function createActionIcon(action: AiEditorPreviewAction) {
@@ -267,19 +376,22 @@ function createActionIcon(action: AiEditorPreviewAction) {
   return icon;
 }
 
-function clampPosition(position: number | undefined, docSize: number) {
-  if (typeof position !== "number" || Number.isNaN(position)) return null;
-
-  return Math.max(0, Math.min(docSize, position));
-}
-
 function isTextDiffResult(result: AiDiffResult): result is AiTextDiffResult {
   return result.type === "insert" || result.type === "replace";
 }
 
+function isUndoShortcut(event: KeyboardEvent) {
+  return (
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey &&
+    !event.shiftKey &&
+    event.key.toLowerCase() === "z"
+  );
+}
+
 function resultMatchesOriginal(doc: ProseNode, result: AiTextDiffResult) {
   const docSize = doc.content.size;
-  const from = clampPosition(result.from, docSize);
+  const from = clampNumber(result.from, 0, docSize);
   if (from === null) return false;
 
   if (result.type === "insert") {
@@ -287,7 +399,7 @@ function resultMatchesOriginal(doc: ProseNode, result: AiTextDiffResult) {
     return doc.textBetween(from, replacementEnd, "\n") !== result.replacement;
   }
 
-  const to = clampPosition(result.to, docSize);
+  const to = clampNumber(result.to, 0, docSize);
   if (to === null || from > to) return false;
 
   return doc.textBetween(from, to, "\n") === result.original;
@@ -295,7 +407,7 @@ function resultMatchesOriginal(doc: ProseNode, result: AiTextDiffResult) {
 
 function resultMatchesReplacement(doc: ProseNode, result: AiTextDiffResult) {
   const docSize = doc.content.size;
-  const from = clampPosition(result.from, docSize);
+  const from = clampNumber(result.from, 0, docSize);
   if (from === null) return false;
 
   const replacementEnd = Math.min(docSize, from + result.replacement.length);

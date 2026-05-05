@@ -28,6 +28,34 @@ describe("useAiCommandUi", () => {
     mockedChatCompletion.mockReset();
   });
 
+  it("only opens the command surface when text is selected", () => {
+    let selection: { from: number; text: string; to: number } | null = null;
+    const { result } = renderHook(() =>
+      useAiCommandUi({
+        getDocumentContent: () => "# Draft",
+        getSelection: () => selection,
+        model: "gpt-5.5",
+        onAiResult: vi.fn(),
+        provider: provider(),
+        settingsLoading: false
+      })
+    );
+
+    act(() => {
+      result.current.openAiCommand();
+    });
+
+    expect(result.current.open).toBe(false);
+
+    selection = { from: 2, text: "Draft", to: 7 };
+
+    act(() => {
+      result.current.openAiCommand();
+    });
+
+    expect(result.current.open).toBe(true);
+  });
+
   it("returns a configuration error when no provider is ready", async () => {
     const onAiResult = vi.fn();
     const { result } = renderHook(() =>
@@ -85,6 +113,80 @@ describe("useAiCommandUi", () => {
       from: 9,
       original: "Original draft",
       replacement: "Better draft",
+      to: 23,
+      type: "replace"
+    });
+  });
+
+  it("keeps the command session open and clears the prompt after a suggestion is ready", async () => {
+    const onAiResult = vi.fn();
+    mockedChatCompletion.mockResolvedValue({ content: "Better draft", finishReason: "stop" });
+    const { result } = renderHook(() =>
+      useAiCommandUi({
+        getDocumentContent: () => "# Draft\n\nOriginal draft",
+        getSelection: () => ({ from: 9, text: "Original draft", to: 23 }),
+        model: "gpt-5.5",
+        onAiResult,
+        provider: provider(),
+        settingsLoading: false
+      })
+    );
+
+    act(() => {
+      result.current.openAiCommand();
+      result.current.updatePrompt("make it clearer");
+    });
+    await act(async () => {
+      await result.current.submitPrompt();
+    });
+
+    expect(result.current.open).toBe(true);
+    expect(result.current.prompt).toBe("");
+    expect(onAiResult).toHaveBeenCalledWith(expect.objectContaining({ replacement: "Better draft", type: "replace" }));
+  });
+
+  it("continues from a pending AI suggestion when the editor selection has already moved", async () => {
+    const onAiResult = vi.fn();
+    mockedChatCompletion.mockResolvedValue({ content: "Even better draft", finishReason: "stop" });
+    const pendingResult = {
+      from: 9,
+      original: "Original draft",
+      replacement: "Better draft",
+      to: 23,
+      type: "replace" as const
+    };
+    const commandContext = {
+      getDocumentContent: () => "# Draft\n\nOriginal draft",
+      getPendingResult: () => pendingResult,
+      getSelection: () => null,
+      model: "gpt-5.5",
+      onAiResult,
+      provider: provider(),
+      settingsLoading: false
+    };
+    const { result } = renderHook(() => useAiCommandUi(commandContext));
+
+    act(() => {
+      result.current.updatePrompt("make the suggestion warmer");
+    });
+    await act(async () => {
+      await result.current.submitPrompt();
+    });
+
+    expect(mockedChatCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "openai" }),
+      "gpt-5.5",
+      expect.arrayContaining([
+        expect.objectContaining({
+          content: expect.stringContaining("Suggested replacement:\nBetter draft"),
+          role: "user"
+        })
+      ])
+    );
+    expect(onAiResult).toHaveBeenCalledWith({
+      from: 9,
+      original: "Original draft",
+      replacement: "Even better draft",
       to: 23,
       type: "replace"
     });

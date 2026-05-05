@@ -1,6 +1,7 @@
 import type { AiModelCapability, AiProviderApiStyle, AiProviderConfig, AiProviderModel } from "./aiProviders";
 import { enrichAiProviderModelCapabilities, normalizeAiModelCapabilities } from "./aiProviders";
 import { requestNativeAiJson, type NativeAiHttpRequest, type NativeAiHttpResponse } from "./nativeAi";
+import { isRecord, joinApiUrl } from "./utils";
 
 export type AiProviderHttpRequest = NativeAiHttpRequest;
 export type AiProviderHttpResponse = NativeAiHttpResponse;
@@ -146,13 +147,6 @@ function buildAuthHeaders(auth: ProviderEndpoint["auth"], apiKey: string): Recor
   if (auth === "google") return { "x-goog-api-key": apiKey };
 
   return { Authorization: `Bearer ${apiKey}` };
-}
-
-function joinApiUrl(baseUrl: string, path: string) {
-  if (/^https?:\/\/[^/]+\/?$/.test(baseUrl) && path.startsWith("?")) return `${baseUrl.replace(/\/$/, "")}${path}`;
-  if (baseUrl.includes("?")) return baseUrl;
-
-  return `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
 function readModelRecords(apiStyle: AiProviderApiStyle, body: unknown): Record<string, unknown>[] {
@@ -302,8 +296,4 @@ function readNestedMessage(body: Record<string, unknown>): string | undefined {
   if (typeof body.error === "string") return body.error;
 
   return undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

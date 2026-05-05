@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { initialMarkdown } from "../constants/initialMarkdown";
-import { consumeWelcomeDocumentState } from "../lib/appSettings";
+import { consumeWelcomeDocumentState, getStoredWorkspaceState, saveStoredWorkspaceState } from "../lib/appSettings";
 import { getMarkdownOutline, getWordCount } from "../lib/markdown";
 import {
   openNativeMarkdownFileInNewWindow,
@@ -42,6 +42,10 @@ type UseMarkdownDocumentOptions = {
   onTreeRootFromFilePath: (path: string) => void;
 };
 
+function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
+  void saveStoredWorkspaceState(patch).catch(() => {});
+}
+
 export function useMarkdownDocument({
   getCurrentMarkdown,
   onTreeRootFromFolderPath,
@@ -76,6 +80,10 @@ export function useMarkdownDocument({
       }));
 
       if (updateTreeRoot) onTreeRootFromFilePath(file.path);
+      persistWorkspaceState({
+        filePath: file.path,
+        ...(updateTreeRoot ? { folderName: null, folderPath: null } : {})
+      });
     },
     [onTreeRootFromFilePath]
   );
@@ -131,6 +139,10 @@ export function useMarkdownDocument({
         dirty: false
       }));
       if (saveAs || current.path === null) onTreeRootFromFilePath(savedFile.path);
+      persistWorkspaceState({
+        filePath: savedFile.path,
+        ...(saveAs || current.path === null ? { folderName: null, folderPath: null } : {})
+      });
     },
     [currentMarkdown, onTreeRootFromFilePath]
   );
@@ -180,7 +192,35 @@ export function useMarkdownDocument({
 
     let active = true;
 
-    void consumeWelcomeDocumentState().then((shouldShowWelcomeDocument) => {
+    void (async () => {
+      let restoredWorkspace = false;
+
+      try {
+        const workspace = await getStoredWorkspaceState();
+
+        if (workspace.folderPath && workspace.fileTreeOpen) {
+          onTreeRootFromFolderPath(workspace.folderPath, workspace.folderName ?? workspace.folderPath);
+          restoredWorkspace = true;
+        }
+
+        if (workspace.filePath) {
+          try {
+            const file = await readNativeMarkdownFile(workspace.filePath);
+            if (!active) return;
+
+            applyNativeMarkdownFile(file, !restoredWorkspace);
+            restoredWorkspace = true;
+          } catch {
+            // A deleted or moved file should not block the normal launch fallback.
+          }
+        }
+      } catch {
+        // Store issues should not prevent Markra from opening a usable document.
+      }
+
+      if (!active || restoredWorkspace) return;
+
+      const shouldShowWelcomeDocument = await consumeWelcomeDocumentState();
       if (!active || !shouldShowWelcomeDocument) return;
 
       setDocument((current) => {
@@ -192,12 +232,12 @@ export function useMarkdownDocument({
           revision: current.revision + 1
         };
       });
-    }).catch(() => {});
+    })().catch(() => {});
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [applyNativeMarkdownFile, onTreeRootFromFolderPath]);
 
   useEffect(() => {
     if (!document.path) return;

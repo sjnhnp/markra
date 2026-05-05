@@ -32,6 +32,32 @@ describe("AiCommandBar", () => {
     expect(screen.getByRole("textbox", { name: "AI command" }).closest(".ai-command-panel")).toBeInTheDocument();
   });
 
+  it("keeps the result follow-up field ready for another instruction", () => {
+    render(
+      <AiCommandBar
+        aiResult={{
+          from: 1,
+          original: "Original",
+          replacement: "Improved",
+          to: 9,
+          type: "replace"
+        }}
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "AI command" })).toHaveAttribute(
+      "placeholder",
+      "Tell AI what else needs to be changed..."
+    );
+  });
+
   it("locks the input and shows an interrupt control while AI is running", () => {
     const onInterrupt = vi.fn();
     const onPromptChange = vi.fn();
@@ -53,7 +79,6 @@ describe("AiCommandBar", () => {
 
     expect(input).toHaveAttribute("readonly");
     expect(input).toHaveAttribute("aria-busy", "true");
-    expect(screen.queryByText("AI is writing...")).not.toBeInTheDocument();
     expect(document.querySelector(".ai-command-loading-icon")).toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: "new text" } });

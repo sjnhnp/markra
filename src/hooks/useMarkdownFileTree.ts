@@ -1,21 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
+import { saveStoredWorkspaceState } from "../lib/appSettings";
 import {
   listNativeMarkdownFilesForPath,
   openNativeMarkdownFolder,
   type NativeMarkdownFolderFile
 } from "../lib/nativeFile";
+import { folderNameFromDocumentPath, pathNameFromPath } from "../lib/utils";
 
-export function folderNameFromDocumentPath(path: string | null) {
-  if (!path) return "No folder";
-
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts.at(-2) ?? "Files";
-}
-
-export function pathNameFromPath(path: string | null) {
-  if (!path) return "No folder";
-
-  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? "Files";
+function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
+  void saveStoredWorkspaceState(patch).catch(() => {});
 }
 
 export function useMarkdownFileTree() {
@@ -50,9 +43,16 @@ export function useMarkdownFileTree() {
   }, []);
 
   const openFolderPath = useCallback((path: string, name = pathNameFromPath(path)) => {
+    const folderName = name || pathNameFromPath(path);
     setSourcePath(path);
-    setRootName(name || pathNameFromPath(path));
+    setRootName(folderName);
     setOpen(true);
+    // Folder navigation is restored independently from the last active document.
+    persistWorkspaceState({
+      fileTreeOpen: true,
+      folderName,
+      folderPath: path
+    });
   }, []);
 
   const openMarkdownFolder = useCallback(async () => {
@@ -67,6 +67,7 @@ export function useMarkdownFileTree() {
       setOpen((currentOpen) => {
         const nextOpen = !currentOpen;
         if (nextOpen) void refresh(fallbackPath);
+        persistWorkspaceState({ fileTreeOpen: nextOpen });
         return nextOpen;
       });
     },

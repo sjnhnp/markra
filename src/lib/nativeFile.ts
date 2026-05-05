@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { fileNameFromPath, firstMarkdownPath } from "./utils";
 
 type MarkdownFileResponse = {
   path: string;
@@ -76,18 +77,6 @@ const markdownFilters = [
     extensions: ["md", "markdown", "txt"]
   }
 ];
-
-function fileNameFromPath(path: string) {
-  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? "Untitled.md";
-}
-
-function isMarkdownPath(path: string) {
-  return /\.(md|markdown|txt)$/i.test(fileNameFromPath(path));
-}
-
-function firstMarkdownPath(paths: string[]) {
-  return paths.find(isMarkdownPath) ?? null;
-}
 
 export async function readNativeMarkdownFile(path: string): Promise<NativeMarkdownFile> {
   const file = await invoke<MarkdownFileResponse>("read_markdown_file", {

@@ -131,6 +131,7 @@ const messages: LocaleMessages = {
   "app.aiApply": "適用",
   "app.aiReject": "却下",
   "app.aiCopy": "コピー",
+  "app.aiCopied": "コピー済み",
   "app.aiSettingsLoading": "AI 設定を読み込み中です。",
   "app.aiMissingProvider": "先に設定で有効な AI プロバイダーとテキストモデルを設定してください。",
   "app.aiProviderUnsupported": "選択した AI プロバイダーはチャット補完に対応していません。",

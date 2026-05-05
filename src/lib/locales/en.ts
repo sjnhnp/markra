@@ -152,6 +152,7 @@ const messages: BaseLocaleMessages = {
   "app.aiApply": "Apply",
   "app.aiReject": "Reject",
   "app.aiCopy": "Copy",
+  "app.aiCopied": "Copied",
   "app.aiSettingsLoading": "AI settings are still loading.",
   "app.aiMissingProvider": "Configure an enabled AI provider and text model in Settings first.",
   "app.aiProviderUnsupported": "The selected AI provider does not support chat completions.",

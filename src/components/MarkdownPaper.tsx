@@ -24,6 +24,7 @@ import { markraLiveMarkdownPlugin } from "../lib/markdownInputRules";
 import { markraLinkImageLivePlugin } from "../lib/markdownLinkImageInputRules";
 import { markraMarkdownShortcuts } from "../lib/markdownShortcuts";
 import { markraAiEditorPreviewPlugin } from "../lib/aiEditorPreview";
+import { markraAiSelectionHoldPlugin } from "../lib/aiSelectionHold";
 import type { AiSelectionContext } from "../lib/agent/inlineAi";
 import { t, type AppLanguage } from "../lib/i18n";
 
@@ -50,7 +51,7 @@ type MarkdownPaperProps = {
   language?: AppLanguage;
   onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => void;
   onMarkdownChange: (content: string) => void;
-  onTextSelectionChange?: (selection: AiSelectionContext) => void;
+  onTextSelectionChange?: (selection: AiSelectionContext | null) => void;
   revision: number;
 };
 
@@ -60,40 +61,59 @@ type MilkdownSurfaceProps = {
   language: AppLanguage;
   onEditorReady: MarkdownPaperProps["onEditorReady"];
   onMarkdownChange: (content: string) => void;
-  onTextSelectionChange?: (selection: AiSelectionContext) => void;
+  onTextSelectionChange?: MarkdownPaperProps["onTextSelectionChange"];
 };
 
 function markraTextSelectionObserverPlugin(
-  onTextSelectionChange: (selection: AiSelectionContext) => void
+  onTextSelectionChange: (selection: AiSelectionContext | null) => void
 ) {
   return $prose(() => {
     let lastSignature = "";
 
     return new Plugin({
-      filterTransaction(transaction, state) {
-        if (!transaction.selectionSet) return true;
+      view() {
+        return {
+          update(view, previousState) {
+            const { selection } = view.state;
+            if (selection.eq(previousState.selection)) return;
 
-        const { selection } = transaction;
-        if (selection.eq(state.selection) || selection.empty) return true;
+            if (selection.empty) {
+              if (!view.hasFocus()) return;
 
-        const text = transaction.doc.textBetween(selection.from, selection.to, "\n").trim();
-        if (!text) return true;
+              if (lastSignature) {
+                lastSignature = "";
+                onTextSelectionChange(null);
+              }
 
-        const signature = `${selection.from}:${selection.to}:${text}`;
-        if (signature === lastSignature) return true;
+              return;
+            }
 
-        lastSignature = signature;
-        onTextSelectionChange({
-          from: selection.from,
-          text,
-          to: selection.to
-        });
+            const text = view.state.doc.textBetween(selection.from, selection.to, "\n").trim();
+            if (!text) {
+              if (view.hasFocus() && lastSignature) {
+                lastSignature = "";
+                onTextSelectionChange(null);
+              }
 
-        return true;
+              return;
+            }
+
+            const signature = `${selection.from}:${selection.to}:${text}`;
+            if (signature === lastSignature) return;
+
+            lastSignature = signature;
+            onTextSelectionChange({
+              from: selection.from,
+              text,
+              to: selection.to
+            });
+          }
+        };
       }
     });
   });
 }
+
 
 function MilkdownInstanceBridge({ autoFocus, onEditorReady }: Pick<MilkdownSurfaceProps, "autoFocus" | "onEditorReady">) {
   const [loading, getEditor] = useInstance();
@@ -156,6 +176,7 @@ function MilkdownSurface({
         .use(markraCommonmark)
         .use(markraGfm)
         .use(markraMarkdownShortcuts)
+        .use(markraAiSelectionHoldPlugin)
         .use(markraAiEditorPreviewPlugin)
         .use(
           markraTextSelectionObserverPlugin((selection) => {

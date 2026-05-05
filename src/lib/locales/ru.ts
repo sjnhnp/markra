@@ -123,6 +123,7 @@ const messages: LocaleMessages = {
   "app.aiApply": "Применить",
   "app.aiReject": "Отклонить",
   "app.aiCopy": "Копировать",
+  "app.aiCopied": "Скопировано",
   "app.aiSettingsLoading": "Настройки AI ещё загружаются.",
   "app.aiMissingProvider": "Сначала настройте включённого AI-провайдера и текстовую модель в настройках.",
   "app.aiProviderUnsupported": "Выбранный AI-провайдер не поддерживает chat completions.",

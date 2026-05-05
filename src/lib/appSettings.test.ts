@@ -5,11 +5,13 @@ import {
   getStoredEditorPreferences,
   getStoredLanguage,
   getStoredTheme,
+  getStoredWorkspaceState,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
   saveStoredLanguage,
-  saveStoredTheme
+  saveStoredTheme,
+  saveStoredWorkspaceState
 } from "./appSettings";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
@@ -127,6 +129,45 @@ describe("app settings", () => {
     await resetWelcomeDocumentState();
 
     expect(store.delete).toHaveBeenCalledWith("welcomeDocumentSeen");
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads the last workspace state from settings", async () => {
+    store.get.mockResolvedValue({
+      filePath: "/mock-files/vault/README.md",
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault"
+    });
+
+    await expect(getStoredWorkspaceState()).resolves.toEqual({
+      filePath: "/mock-files/vault/README.md",
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault"
+    });
+
+    expect(store.get).toHaveBeenCalledWith("workspace");
+  });
+
+  it("merges and persists partial workspace state updates", async () => {
+    store.get.mockResolvedValue({
+      filePath: null,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault"
+    });
+
+    await saveStoredWorkspaceState({
+      filePath: "/mock-files/vault/README.md"
+    });
+
+    expect(store.set).toHaveBeenCalledWith("workspace", {
+      filePath: "/mock-files/vault/README.md",
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault"
+    });
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 

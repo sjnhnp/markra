@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { buildInlineAiMessages } from "../lib/agent/chatAdapters";
 import { chatCompletion } from "../lib/agent/chatCompletion";
 import { getProviderCapabilities } from "../lib/agent/providerCapabilities";
@@ -6,8 +6,11 @@ import type { AiDiffResult, AiSelectionContext } from "../lib/agent/inlineAi";
 import type { AiProviderConfig } from "../lib/aiProviders";
 import type { I18nKey } from "../lib/i18n";
 
+type AiTextDiffResult = Extract<AiDiffResult, { type: "insert" | "replace" }>;
+
 type AiCommandContext = {
   getDocumentContent: () => string;
+  getPendingResult?: () => AiDiffResult | null;
   getSelection: () => AiSelectionContext | null;
   model: string | null;
   onAiResult: (result: AiDiffResult) => void;
@@ -22,12 +25,20 @@ export function useAiCommandUi(ctx: AiCommandContext) {
   const [submitting, setSubmitting] = useState(false);
   const requestIdRef = useRef(0);
 
-  const openAiCommand = useCallback(() => {
+  const openAiCommand = useCallback((selectionOverride?: AiSelectionContext | null) => {
+    const selection = selectionOverride === undefined ? ctx.getSelection() : selectionOverride;
+    if (!hasSelectedText(selection)) return false;
+
     setOpen(true);
-  }, []);
+    return true;
+  }, [ctx]);
 
   const closeAiCommand = useCallback(() => {
     setOpen(false);
+  }, []);
+
+  const restoreAiCommand = useCallback(() => {
+    setOpen(true);
   }, []);
 
   const interruptPrompt = useCallback(() => {
@@ -65,31 +76,24 @@ export function useAiCommandUi(ctx: AiCommandContext) {
     setSubmitting(true);
     try {
       const selection = ctx.getSelection();
-      const selectedText = selection?.text ?? "";
+      const target = getAiCommandTarget(selection, ctx.getPendingResult?.());
+      if (!target) return;
+
       const response = await chatCompletion(
         ctx.provider,
         ctx.model,
-        buildInlineAiMessages(trimmedPrompt, selectedText, ctx.getDocumentContent())
+        buildInlineAiMessages(trimmedPrompt, target.promptText, ctx.getDocumentContent(), target.suggestionContext)
       );
       if (requestIdRef.current !== requestId) return;
 
-      ctx.onAiResult(
-        selectedText
-          ? {
-              from: selection?.from,
-              original: selectedText,
-              replacement: response.content,
-              to: selection?.to,
-              type: "replace"
-            }
-          : {
-              from: selection?.from,
-              original: "",
-              replacement: response.content,
-              to: selection?.to,
-              type: "insert"
-            }
-      );
+      ctx.onAiResult({
+        from: target.from,
+        original: target.original,
+        replacement: response.content,
+        to: target.to,
+        type: target.type
+      });
+      setPrompt("");
     } catch (error) {
       if (requestIdRef.current !== requestId) return;
       ctx.onAiResult({
@@ -101,33 +105,50 @@ export function useAiCommandUi(ctx: AiCommandContext) {
     }
   }, [ctx, prompt, submitting]);
 
-  useEffect(() => {
-    const handleAiShortcut = (event: KeyboardEvent) => {
-      const isModKey = event.metaKey || event.ctrlKey;
-      const key = event.key.toLowerCase();
-
-      if (isModKey && !event.altKey && !event.shiftKey && key === "j") {
-        event.preventDefault();
-        openAiCommand();
-        return;
-      }
-
-    };
-
-    window.addEventListener("keydown", handleAiShortcut);
-    return () => {
-      window.removeEventListener("keydown", handleAiShortcut);
-    };
-  }, [openAiCommand]);
-
   return {
     closeAiCommand,
     interruptPrompt,
     openAiCommand,
     open,
     prompt,
+    restoreAiCommand,
     submitPrompt,
     submitting,
     updatePrompt
   };
+}
+
+function hasSelectedText(selection: AiSelectionContext | null | undefined): selection is AiSelectionContext {
+  return Boolean(selection?.text.trim());
+}
+
+function getAiCommandTarget(selection: AiSelectionContext | null, pendingResult: AiDiffResult | null | undefined) {
+  if (hasSelectedText(selection)) {
+    return {
+      from: selection.from,
+      original: selection.text,
+      promptText: selection.text,
+      to: selection.to,
+      type: "replace" as const
+    };
+  }
+
+  if (!isTextDiffResult(pendingResult)) return null;
+
+  // Follow-up prompts should refine the visible suggestion while keeping the original diff anchor intact.
+  return {
+    from: pendingResult.from,
+    original: pendingResult.original,
+    promptText: pendingResult.replacement,
+    suggestionContext: {
+      original: pendingResult.original,
+      replacement: pendingResult.replacement
+    },
+    to: pendingResult.to,
+    type: pendingResult.type
+  };
+}
+
+function isTextDiffResult(result: AiDiffResult | null | undefined): result is AiTextDiffResult {
+  return result?.type === "insert" || result?.type === "replace";
 }

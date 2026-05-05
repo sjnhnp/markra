@@ -163,6 +163,7 @@ export type I18nKey =
   | "app.aiApply"
   | "app.aiReject"
   | "app.aiCopy"
+  | "app.aiCopied"
   | "app.aiSettingsLoading"
   | "app.aiMissingProvider"
   | "app.aiProviderUnsupported"

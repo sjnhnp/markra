@@ -123,6 +123,7 @@ const messages: LocaleMessages = {
   "app.aiApply": "Anwenden",
   "app.aiReject": "Ablehnen",
   "app.aiCopy": "Kopieren",
+  "app.aiCopied": "Kopiert",
   "app.aiSettingsLoading": "AI-Einstellungen werden noch geladen.",
   "app.aiMissingProvider": "Aktiviere zuerst einen AI-Anbieter und ein Textmodell in den Einstellungen.",
   "app.aiProviderUnsupported": "Der ausgewählte AI-Anbieter unterstützt keine Chat-Vervollständigungen.",

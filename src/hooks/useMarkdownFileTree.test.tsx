@@ -1,14 +1,20 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { listNativeMarkdownFilesForPath, openNativeMarkdownFolder } from "../lib/nativeFile";
-import { folderNameFromDocumentPath, pathNameFromPath, useMarkdownFileTree } from "./useMarkdownFileTree";
+import { saveStoredWorkspaceState } from "../lib/appSettings";
+import { useMarkdownFileTree } from "./useMarkdownFileTree";
 
 vi.mock("../lib/nativeFile", () => ({
   listNativeMarkdownFilesForPath: vi.fn(),
   openNativeMarkdownFolder: vi.fn()
 }));
 
+vi.mock("../lib/appSettings", () => ({
+  saveStoredWorkspaceState: vi.fn()
+}));
+
 const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
+const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 
 function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) {
   const tree = useMarkdownFileTree();
@@ -36,12 +42,8 @@ describe("useMarkdownFileTree", () => {
   beforeEach(() => {
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
-  });
-
-  it("derives compact folder labels from file and folder paths", () => {
-    expect(folderNameFromDocumentPath("/vault/docs/readme.md")).toBe("docs");
-    expect(folderNameFromDocumentPath(null)).toBe("No folder");
-    expect(pathNameFromPath("/vault/docs")).toBe("docs");
+    mockedSaveStoredWorkspaceState.mockReset();
+    mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
   });
 
   it("opens a selected markdown folder as the tree root", async () => {
@@ -61,6 +63,11 @@ describe("useMarkdownFileTree", () => {
     expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
     expect(screen.getByTestId("open-state")).toHaveTextContent("open");
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault");
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/vault"
+    });
   });
 
   it("refreshes from the current document path when toggled open without an explicit folder", async () => {
@@ -75,5 +82,6 @@ describe("useMarkdownFileTree", () => {
     await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault/readme.md"));
     expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
     expect(screen.getByTestId("open-state")).toHaveTextContent("open");
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({ fileTreeOpen: true });
   });
 });

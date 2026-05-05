@@ -152,6 +152,7 @@ const messages: LocaleMessages = {
   "app.aiApply": "应用",
   "app.aiReject": "拒绝",
   "app.aiCopy": "复制",
+  "app.aiCopied": "已复制",
   "app.aiSettingsLoading": "AI 设置仍在加载中。",
   "app.aiMissingProvider": "请先在设置里启用 AI 服务商和文本模型。",
   "app.aiProviderUnsupported": "当前 AI 服务商不支持聊天补全。",

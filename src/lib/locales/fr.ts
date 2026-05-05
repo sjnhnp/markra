@@ -123,6 +123,7 @@ const messages: LocaleMessages = {
   "app.aiApply": "Appliquer",
   "app.aiReject": "Refuser",
   "app.aiCopy": "Copier",
+  "app.aiCopied": "Copié",
   "app.aiSettingsLoading": "Les réglages IA sont encore en cours de chargement.",
   "app.aiMissingProvider": "Configurez d’abord un fournisseur IA activé et un modèle de texte dans les réglages.",
   "app.aiProviderUnsupported": "Le fournisseur IA sélectionné ne prend pas en charge les complétions de chat.",

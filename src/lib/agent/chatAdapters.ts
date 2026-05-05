@@ -1,4 +1,5 @@
 import type { AiProviderApiStyle, AiProviderConfig } from "../aiProviders";
+import { isRecord, joinApiUrl } from "../utils";
 
 export type ChatMessage = {
   content: string;
@@ -177,8 +178,25 @@ export function getChatAdapter(apiStyle: AiProviderApiStyle): ChatAdapter {
   return adapterByApiStyle[apiStyle] ?? openAiCompatibleAdapter;
 }
 
-export function buildInlineAiMessages(prompt: string, selectedText: string, documentContent: string): ChatMessage[] {
+type InlineAiSuggestionContext = {
+  original: string;
+  replacement: string;
+};
+
+export function buildInlineAiMessages(
+  prompt: string,
+  selectedText: string,
+  documentContent: string,
+  suggestionContext?: InlineAiSuggestionContext
+): ChatMessage[] {
   const trimmedSelection = selectedText.trim();
+  const currentSuggestion = suggestionContext
+    ? [
+        "Current AI suggestion awaiting confirmation:",
+        `Original text:\n${suggestionContext.original}`,
+        `Suggested replacement:\n${suggestionContext.replacement}`
+      ].join("\n\n")
+    : null;
 
   return [
     {
@@ -190,19 +208,12 @@ export function buildInlineAiMessages(prompt: string, selectedText: string, docu
       content: [
         `Instruction:\n${prompt.trim()}`,
         trimmedSelection ? `Selected text:\n${selectedText}` : "No text is selected. Generate text that fits at the current cursor.",
+        currentSuggestion,
         `Current document:\n${documentContent}`
-      ].join("\n\n"),
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
       role: "user"
     }
   ];
-}
-
-function joinApiUrl(baseUrl: string, path: string) {
-  if (baseUrl.includes("?")) return baseUrl;
-
-  return `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

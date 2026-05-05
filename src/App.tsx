@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
@@ -20,8 +20,13 @@ import {
   useNativeMenus
 } from "./hooks/useNativeBindings";
 import { t, type I18nKey } from "./lib/i18n";
-import type { AiDiffResult } from "./lib/agent/inlineAi";
-import { AI_EDITOR_PREVIEW_ACTION_EVENT, type AiEditorPreviewAction } from "./lib/aiEditorPreview";
+import type { AiDiffResult, AiSelectionContext } from "./lib/agent/inlineAi";
+import {
+  AI_EDITOR_PREVIEW_ACTION_EVENT,
+  AI_EDITOR_PREVIEW_RESTORE_EVENT,
+  type AiEditorPreviewActionDetail,
+  type AiEditorPreviewRestoreDetail
+} from "./lib/aiEditorPreview";
 
 function isSettingsWindowRoute() {
   return new URLSearchParams(window.location.search).has("settings");
@@ -37,6 +42,9 @@ export default function App() {
   const aiSettings = useAiSettings();
   const editorPreferences = useEditorPreferences();
   const [aiResult, setAiResult] = useState<AiDiffResult | null>(null);
+  const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
+  const aiResultRef = useRef<AiDiffResult | null>(null);
+  const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const editor = useEditorController();
   const fileTree = useMarkdownFileTree();
@@ -67,46 +75,79 @@ export default function App() {
     wordCount
   } = markdownDocument;
   const getAiDocumentContent = useCallback(() => editor.getCurrentMarkdown(document.content), [document.content, editor]);
+  const getActiveAiSelection = useCallback(() => activeAiSelectionRef.current, []);
+  const updateActiveAiSelection = useCallback((selection: AiSelectionContext | null) => {
+    activeAiSelectionRef.current = selection;
+    setActiveAiSelection(selection);
+  }, []);
+  const updateAiResult = useCallback((result: AiDiffResult | null) => {
+    aiResultRef.current = result;
+    setAiResult(result);
+  }, []);
+  const getPendingAiResult = useCallback(() => aiResultRef.current, []);
+  const hasActiveAiSelection = Boolean(activeAiSelection?.text.trim());
   const handleAiResult = useCallback(
     (result: AiDiffResult) => {
-      setAiResult(result);
+      editor.clearAiSelection();
+      updateAiResult(result);
       editor.previewAiResult(result, {
         apply: translate("app.aiApply"),
+        copied: translate("app.aiCopied"),
         copy: translate("app.aiCopy"),
         reject: translate("app.aiReject")
       });
     },
-    [editor, translate]
+    [editor, translate, updateAiResult]
   );
   const aiCommand = useAiCommandUi({
     getDocumentContent: getAiDocumentContent,
-    getSelection: editor.getSelection,
+    getPendingResult: getPendingAiResult,
+    getSelection: getActiveAiSelection,
     model: aiSettings.defaultModelId,
     onAiResult: handleAiResult,
     provider: aiSettings.activeProvider,
     settingsLoading: aiSettings.loading,
     translate
   });
-  const handleTextSelectionChange = useCallback(() => {
+  const restoreAiCommand = aiCommand.restoreAiCommand;
+  const handleAiCommandClose = useCallback(() => {
+    aiCommand.closeAiCommand();
+    editor.clearAiSelection();
+  }, [aiCommand, editor]);
+  const handleTextSelectionChange = useCallback((selection: AiSelectionContext | null) => {
+    updateActiveAiSelection(selection);
+
+    if (!selection?.text.trim()) {
+      editor.clearAiSelection();
+      if (!aiResultRef.current) aiCommand.closeAiCommand();
+      return;
+    }
+
+    editor.holdAiSelection(selection);
+
     if (!editorPreferences.preferences.autoOpenAiOnSelection || aiCommand.open || aiCommand.submitting) return;
 
-    aiCommand.openAiCommand();
-  }, [aiCommand, editorPreferences.preferences.autoOpenAiOnSelection]);
+    aiCommand.openAiCommand(selection);
+  }, [aiCommand, editor, editorPreferences.preferences.autoOpenAiOnSelection, updateActiveAiSelection]);
   const saveDocumentAs = useCallback(() => saveCurrentDocument(true), [saveCurrentDocument]);
-  const handleApplyAiResult = useCallback(() => {
-    if (!aiResult) return;
-    if (editor.applyAiResult(aiResult)) {
-      setAiResult(null);
-      aiCommand.closeAiCommand();
+  const handleApplyAiResult = useCallback((restoredResult?: AiDiffResult | null) => {
+    const result = restoredResult ?? aiResult;
+    if (!result) return;
+    if (editor.applyAiResult(result)) {
+      editor.clearAiSelection();
+      updateAiResult(null);
+      handleAiCommandClose();
     }
-  }, [aiCommand, aiResult, editor]);
+  }, [aiResult, editor, handleAiCommandClose, updateAiResult]);
   const handleRejectAiResult = useCallback(() => {
-    setAiResult(null);
+    editor.clearAiSelection();
+    updateAiResult(null);
     editor.clearAiPreview();
-  }, [editor]);
-  const handleCopyAiResult = useCallback(() => {
-    if (!aiResult || aiResult.type === "error") return;
-    void navigator.clipboard?.writeText(aiResult.replacement);
+  }, [editor, updateAiResult]);
+  const handleCopyAiResult = useCallback((restoredResult?: AiDiffResult | null) => {
+    const result = restoredResult ?? aiResult;
+    if (!result || result.type === "error") return;
+    void navigator.clipboard?.writeText(result.replacement);
   }, [aiResult]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
   const rawFileTreeRootName = rootNameForDocument(document.path);
@@ -135,15 +176,16 @@ export default function App() {
 
   useEffect(() => {
     const handlePreviewAction = (event: Event) => {
-      const action = (event as CustomEvent<{ action?: AiEditorPreviewAction }>).detail?.action;
+      const detail = (event as CustomEvent<Partial<AiEditorPreviewActionDetail>>).detail;
+      const action = detail?.action;
 
       if (action === "apply") {
-        handleApplyAiResult();
+        handleApplyAiResult(detail.result);
         return;
       }
 
       if (action === "copy") {
-        handleCopyAiResult();
+        handleCopyAiResult(detail.result);
         return;
       }
 
@@ -157,6 +199,21 @@ export default function App() {
       window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, handlePreviewAction);
     };
   }, [handleApplyAiResult, handleCopyAiResult, handleRejectAiResult]);
+
+  useEffect(() => {
+    const handlePreviewRestore = (event: Event) => {
+      const result = (event as CustomEvent<Partial<AiEditorPreviewRestoreDetail>>).detail?.result;
+      if (!result || (result.type !== "insert" && result.type !== "replace")) return;
+
+      updateAiResult(result);
+      restoreAiCommand();
+    };
+
+    window.addEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, handlePreviewRestore);
+    return () => {
+      window.removeEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, handlePreviewRestore);
+    };
+  }, [restoreAiCommand, updateAiResult]);
 
   return (
     <main className="app-shell group/app relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden overscroll-none bg-(--bg-primary) text-(--text-primary)">
@@ -217,12 +274,12 @@ export default function App() {
         availableModels={aiSettings.availableTextModels}
         editorLeftInset={fileTreeOpen ? "18rem" : "0px"}
         language={appLanguage.language}
-        open={aiCommand.open}
+        open={aiCommand.open && (hasActiveAiSelection || Boolean(aiResult))}
         prompt={aiCommand.prompt}
         selectedModelId={aiSettings.defaultModelId}
         selectedProviderId={aiSettings.activeProvider?.id ?? null}
         submitting={aiCommand.submitting}
-        onClose={aiCommand.closeAiCommand}
+        onClose={handleAiCommandClose}
         onInterrupt={aiCommand.interruptPrompt}
         onPromptChange={aiCommand.updatePrompt}
         onSelectModel={aiSettings.selectEditorModel}

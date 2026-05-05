@@ -21,11 +21,13 @@ import {
   getStoredEditorPreferences,
   getStoredLanguage,
   getStoredTheme,
+  getStoredWorkspaceState,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
   saveStoredLanguage,
-  saveStoredTheme
+  saveStoredTheme,
+  saveStoredWorkspaceState
 } from "./lib/appSettings";
 import {
   listenAppEditorPreferencesChanged,
@@ -37,6 +39,7 @@ import {
 } from "./lib/settingsEvents";
 import { fetchAiProviderModels, testAiProviderConnection } from "./lib/aiProviderRequests";
 import { chatCompletion } from "./lib/agent/chatCompletion";
+import { AI_EDITOR_PREVIEW_RESTORE_EVENT } from "./lib/aiEditorPreview";
 
 vi.mock("./lib/nativeFile", () => ({
   installNativeMarkdownFileDrop: vi.fn(),
@@ -61,11 +64,13 @@ vi.mock("./lib/appSettings", () => ({
   getStoredEditorPreferences: vi.fn(),
   getStoredLanguage: vi.fn(),
   getStoredTheme: vi.fn(),
+  getStoredWorkspaceState: vi.fn(),
   resetWelcomeDocumentState: vi.fn(),
   saveStoredAiSettings: vi.fn(),
   saveStoredEditorPreferences: vi.fn(),
   saveStoredLanguage: vi.fn(),
-  saveStoredTheme: vi.fn()
+  saveStoredTheme: vi.fn(),
+  saveStoredWorkspaceState: vi.fn()
 }));
 
 vi.mock("./lib/settingsEvents", () => ({
@@ -105,11 +110,13 @@ const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
 const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPreferences);
 const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
 const mockedGetStoredTheme = vi.mocked(getStoredTheme);
+const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
 const mockedResetWelcomeDocumentState = vi.mocked(resetWelcomeDocumentState);
 const mockedSaveStoredAiSettings = vi.mocked(saveStoredAiSettings);
 const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences);
 const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
 const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
+const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
 const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
 const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
@@ -188,11 +195,13 @@ describe("Markra workspace", () => {
     mockedGetStoredAiSettings.mockReset();
     mockedGetStoredEditorPreferences.mockReset();
     mockedGetStoredTheme.mockReset();
+    mockedGetStoredWorkspaceState.mockReset();
     mockedResetWelcomeDocumentState.mockReset();
     mockedSaveStoredAiSettings.mockReset();
     mockedSaveStoredEditorPreferences.mockReset();
     mockedSaveStoredLanguage.mockReset();
     mockedSaveStoredTheme.mockReset();
+    mockedSaveStoredWorkspaceState.mockReset();
     mockedListenAppEditorPreferencesChanged.mockReset();
     mockedListenAppLanguageChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
@@ -254,10 +263,17 @@ describe("Markra workspace", () => {
     });
     mockedGetStoredLanguage.mockResolvedValue("en");
     mockedGetStoredTheme.mockResolvedValue("light");
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      filePath: null,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null
+    });
     mockedResetWelcomeDocumentState.mockResolvedValue(undefined);
     mockedSaveStoredAiSettings.mockResolvedValue(undefined);
     mockedSaveStoredLanguage.mockResolvedValue(undefined);
     mockedSaveStoredTheme.mockResolvedValue(undefined);
+    mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
     mockedListenAppLanguageChanged.mockResolvedValue(() => {});
     mockedListenAppThemeChanged.mockResolvedValue(() => {});
     mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);
@@ -279,20 +295,87 @@ describe("Markra workspace", () => {
     expect(screen.getByLabelText("Window drag region")).toBeInTheDocument();
     expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Markdown or Folder" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Open Markdown Folder" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "milkdown");
     expect(container.querySelector("[data-milkdown-root]")).toBeInTheDocument();
     expect(screen.queryByText("文件")).not.toBeInTheDocument();
-    expect(screen.queryByText("AI actions")).not.toBeInTheDocument();
-    expect(container.querySelector(".traffic-light")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toBeInTheDocument();
     expect(shell).toHaveClass("bg-(--bg-primary)");
     expect(shell).toHaveClass("grid-rows-[minmax(0,1fr)]");
     expect(shell).toHaveClass("overscroll-none");
+  });
+
+  it("restores the AI command session when an applied suggestion is undone", async () => {
+    render(<App />);
+
+    await screen.findByText("Welcome to Markra");
+
+    window.dispatchEvent(
+      new CustomEvent(AI_EDITOR_PREVIEW_RESTORE_EVENT, {
+        detail: {
+          result: {
+            from: 1,
+            original: "Original",
+            replacement: "Improved",
+            to: 9,
+            type: "replace"
+          }
+        }
+      })
+    );
+
+    expect(await screen.findByText("AI suggestion ready")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "AI command" })).toHaveAttribute(
+      "placeholder",
+      "Tell AI what else needs to be changed..."
+    );
+  });
+
+  it("restores the last opened markdown file on app launch", async () => {
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      filePath: mockNativePath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Restored file\n\nBack from last launch.",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText("Restored file")).toBeInTheDocument();
+    expect(screen.getByText("Back from last launch.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "native.md" })).toBeInTheDocument();
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockNativePath);
+    expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+  });
+
+  it("restores the last opened markdown folder on app launch", async () => {
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      filePath: null,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: mockFolderPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "index.md", path: "/mock-files/vault/index.md", relativePath: "index.md" },
+      { name: "note.md", path: "/mock-files/vault/docs/note.md", relativePath: "docs/note.md" }
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("vault")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
+    expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
 
   it("loads and persists the app color theme", async () => {
@@ -327,153 +410,6 @@ describe("Markra workspace", () => {
 
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     expect(screen.getByRole("button", { name: "Switch to light theme" })).toBeInTheDocument();
-  });
-
-  it("reveals the inline AI command UI from the editor shortcut", async () => {
-    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
-
-    render(<App />);
-
-    expect(await screen.findByRole("textbox", { name: "Markdown document" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "AI writing command" })).not.toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "j", metaKey: true });
-
-    const aiPrompt = await screen.findByRole("textbox", { name: "AI command" });
-    const aiCommandDialog = screen.getByRole("dialog", { name: "AI writing command" });
-    expect(aiCommandDialog).toBeInTheDocument();
-    expect(aiCommandDialog).toHaveAttribute("data-state", "compact");
-    expect(aiCommandDialog).toHaveClass("transition-[opacity,transform]");
-    expect(aiPrompt.closest(".ai-command-box")).toHaveClass("animate-[markra-ai-command-open_220ms_ease-out_both]");
-    expect(aiPrompt).not.toHaveFocus();
-    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send AI command" })).toBeDisabled();
-
-    fireEvent.click(aiPrompt);
-    expect(await screen.findByRole("button", { name: "Polish" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Rewrite" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue writing" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Summarize" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Translate" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add AI comment" })).not.toBeInTheDocument();
-    expect(aiCommandDialog).toHaveAttribute("data-state", "expanded");
-    expect(aiPrompt).toHaveFocus();
-
-    fireEvent.mouseDown(screen.getByLabelText("Writing surface"));
-    expect(aiCommandDialog).toHaveAttribute("data-state", "collapsing");
-    expect(screen.getByRole("button", { name: "Polish" })).toBeInTheDocument();
-    await waitFor(() => expect(aiCommandDialog).toHaveAttribute("data-state", "compact"));
-    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
-
-    fireEvent.click(aiPrompt);
-    expect(await screen.findByRole("button", { name: "Polish" })).toBeInTheDocument();
-
-    fireEvent.change(aiPrompt, {
-      target: { value: "Rewrite this paragraph" }
-    });
-
-    expect(screen.getByRole("button", { name: "Send AI command" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.getByRole("dialog", { name: "AI writing command" })).toHaveAttribute("data-state", "collapsing");
-    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("dialog", { name: "AI writing command" })).toHaveAttribute("data-state", "compact"));
-    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
-    expect(aiPrompt.closest(".ai-command-box")).not.toHaveClass("animate-[markra-ai-command-open_220ms_ease-out_both]");
-
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.getByRole("dialog", { name: "AI writing command" })).toHaveAttribute("data-state", "closing");
-    expect(aiPrompt.closest(".ai-command-box")).toHaveClass("animate-[markra-ai-command-close_180ms_ease-in_both]");
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "AI writing command" })).not.toBeInTheDocument();
-    });
-  });
-
-  it("submits inline AI commands through the editor-selected model and shows a suggestion", async () => {
-    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
-    mockedGetStoredAiSettings.mockResolvedValue({
-      defaultModelId: "gpt-5.5",
-      defaultProviderId: "openai",
-      providers: [
-        {
-          apiKey: "sk-test",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [
-            {
-              capabilities: ["text", "reasoning", "tools"],
-              enabled: true,
-              id: "gpt-5.5",
-              name: "GPT-5.5"
-            }
-          ],
-          name: "OpenAI",
-          type: "openai"
-        },
-        {
-          apiKey: "anthropic-test",
-          baseUrl: "https://api.anthropic.com/v1",
-          defaultModelId: "claude-sonnet-4-6",
-          enabled: true,
-          id: "anthropic",
-          models: [
-            {
-              capabilities: ["text", "reasoning", "tools"],
-              enabled: true,
-              id: "claude-sonnet-4-6",
-              name: "Claude Sonnet 4.6"
-            }
-          ],
-          name: "Anthropic",
-          type: "anthropic"
-        }
-      ]
-    });
-
-    render(<App />);
-
-    expect(await screen.findByRole("textbox", { name: "Markdown document" })).toBeInTheDocument();
-    await waitFor(() => expect(mockedGetStoredAiSettings).toHaveBeenCalledTimes(1));
-
-    fireEvent.keyDown(window, { key: "j", metaKey: true });
-    const aiPrompt = await screen.findByRole("textbox", { name: "AI command" });
-
-    fireEvent.click(aiPrompt);
-    fireEvent.change(screen.getByRole("combobox", { name: "AI model" }), {
-      target: { value: "anthropic::claude-sonnet-4-6" }
-    });
-    await waitFor(() =>
-      expect(mockedSaveStoredAiSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          defaultModelId: "claude-sonnet-4-6",
-          defaultProviderId: "anthropic"
-        })
-      )
-    );
-
-    fireEvent.change(aiPrompt, {
-      target: { value: "make this cleaner" }
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send AI command" }));
-
-    await waitFor(() =>
-      expect(mockedChatCompletion).toHaveBeenCalledWith(
-        expect.objectContaining({
-          apiKey: "anthropic-test",
-          id: "anthropic"
-        }),
-        "claude-sonnet-4-6",
-        expect.arrayContaining([
-          expect.objectContaining({ role: "system" }),
-          expect.objectContaining({ content: expect.stringContaining("make this cleaner"), role: "user" })
-        ])
-      )
-    );
-    expect(await screen.findByText("AI suggestion ready")).toBeInTheDocument();
-    expect(screen.getByText("Improved AI draft")).toBeInTheDocument();
   });
 
   it("follows the system color scheme when the stored theme preference is system", async () => {
@@ -606,7 +542,6 @@ describe("Markra workspace", () => {
     expect(screen.getByLabelText("API URL")).toHaveValue("https://api.openai.com/v1");
 
     fireEvent.click(screen.getByRole("button", { name: "Add model" }));
-    expect(screen.queryByRole("combobox", { name: "Capability" })).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Capability" })).toBeInTheDocument();
     expect(["Text", "Image", "Vision", "Reasoning", "Tools"].map((label) => screen.getByRole("button", { name: label }))).toHaveLength(5);
     expect(screen.getByRole("button", { name: "Text" })).toHaveAttribute("aria-pressed", "true");
@@ -1221,8 +1156,6 @@ describe("Markra workspace", () => {
       )
     );
 
-    expect((menuHandlers as Record<string, unknown>).newDocument).toBeUndefined();
-    expect((menuHandlers as Record<string, unknown>).openFolder).toBeUndefined();
     expect(screen.getByRole("heading", { name: "native-menu.md" })).toBeInTheDocument();
   });
 

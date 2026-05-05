@@ -18,7 +18,6 @@ describe("NativeTitleBar", () => {
     expect(screen.getByLabelText("Window drag region")).toHaveAttribute("data-tauri-drag-region");
     expect(screen.getByRole("heading", { name: "Draft.md" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Markdown or Folder" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Open Markdown Folder" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
     expect(titlebar).toHaveClass("grid-cols-[110px_minmax(0,1fr)_110px]");

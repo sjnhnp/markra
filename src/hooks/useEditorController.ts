@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { editorViewCtx, type Editor } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
+import type { EditorView } from "@milkdown/kit/prose/view";
 import { getMarkdown } from "@milkdown/kit/utils";
 import type { AiDiffResult, AiSelectionContext } from "../lib/agent/inlineAi";
 import {
@@ -9,6 +10,7 @@ import {
   showAiEditorPreview,
   type AiEditorPreviewLabels
 } from "../lib/aiEditorPreview";
+import { clearAiSelectionHold, showAiSelectionHold } from "../lib/aiSelectionHold";
 import type { MarkdownOutlineItem } from "../lib/markdown";
 
 const outlineScrollTopOffset = 24;
@@ -41,6 +43,36 @@ export function scrollElementToContainerTop(element: Node | null, scrollContaine
   scrollContainer.scrollTop = top;
 }
 
+export function readAiSelectionContextFromView(view: EditorView): AiSelectionContext {
+  const { doc, selection } = view.state;
+
+  if (!selection.empty) {
+    return {
+      from: selection.from,
+      text: doc.textBetween(selection.from, selection.to, "\n"),
+      to: selection.to
+    };
+  }
+
+  const { $from } = selection;
+  if (!$from.parent.isTextblock || $from.parent.textContent.trim().length === 0) {
+    return {
+      from: selection.from,
+      text: "",
+      to: selection.to
+    };
+  }
+
+  const from = $from.start();
+  const to = $from.end();
+
+  return {
+    from,
+    text: doc.textBetween(from, to, "\n"),
+    to
+  };
+}
+
 export function useEditorController() {
   const editorRef = useRef<Editor | null>(null);
   const focusTimerRef = useRef<number | null>(null);
@@ -58,13 +90,7 @@ export function useEditorController() {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
       if (!view) return null;
 
-      const { from, to } = view.state.selection;
-
-      return {
-        from,
-        text: view.state.doc.textBetween(from, to, "\n"),
-        to
-      };
+      return readAiSelectionContextFromView(view);
     } catch {
       return null;
     }
@@ -158,6 +184,17 @@ export function useEditorController() {
     }
   }, []);
 
+  const holdAiSelection = useCallback((selection: AiSelectionContext) => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return;
+
+      showAiSelectionHold(view, selection);
+    } catch {
+      // Losing this decoration should not interrupt the AI command flow.
+    }
+  }, []);
+
   const clearAiPreview = useCallback(() => {
     try {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
@@ -166,6 +203,17 @@ export function useEditorController() {
       clearAiEditorPreview(view);
     } catch {
       // The editor may be unavailable while windows are changing.
+    }
+  }, []);
+
+  const clearAiSelection = useCallback(() => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return;
+
+      clearAiSelectionHold(view);
+    } catch {
+      // The editor may be unavailable while the AI command is closing.
     }
   }, []);
 
@@ -225,9 +273,11 @@ export function useEditorController() {
   return {
     applyAiResult,
     clearAiPreview,
+    clearAiSelection,
     getCurrentMarkdown,
     getSelection,
     handleEditorReady,
+    holdAiSelection,
     insertMarkdownSnippet,
     previewAiResult,
     runEditorShortcut,

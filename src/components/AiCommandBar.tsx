@@ -275,6 +275,12 @@ export function AiCommandBar({
     left: editorLeftInset,
     right: 0
   };
+  const inputPlaceholder =
+    aiResult && aiResult.type !== "error"
+      ? label("app.aiCommandCompactPlaceholder")
+      : showExpandedInput
+        ? label("app.aiCommandPlaceholder")
+        : label("app.aiCommandCompactPlaceholder");
   const selectedModelValue =
     selectedProviderId && selectedModelId ? getAiModelOptionValue(selectedProviderId, selectedModelId) : "";
   const hasSelectedModel = availableModels.some(
@@ -318,8 +324,8 @@ export function AiCommandBar({
         aiResult
           ? "ai-command-box flex min-h-14 flex-col gap-2 border-0 border-t border-(--border-default) bg-transparent p-3 shadow-none"
           : showingExpandedSurface
-            ? `ai-command-box flex min-h-21 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both] " : ""}flex-col gap-2 rounded-lg border border-(--accent) bg-(--bg-primary) p-3 shadow-[0_20px_64px_rgba(0,0,0,0.16)] transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
-            : `ai-command-box flex h-14 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both]" : playCompactOpenAnimation ? "animate-[markra-ai-command-open_220ms_ease-out_both]" : ""} items-center gap-3 rounded-xl border border-(--border-default) bg-(--bg-primary) px-4 py-2 shadow-[0_18px_52px_rgba(0,0,0,0.12)] transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
+            ? `ai-command-box flex min-h-21 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both] " : ""}flex-col gap-2 rounded-lg border border-(--accent) bg-(--bg-primary) p-3 shadow-[var(--ai-command-expanded-shadow)] transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
+            : `ai-command-box flex h-14 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both]" : playCompactOpenAnimation ? "animate-[markra-ai-command-open_220ms_ease-out_both]" : ""} items-center gap-3 rounded-xl border border-(--border-default) bg-(--bg-primary) px-4 py-2 shadow-[var(--ai-command-shadow)] transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
       }
       data-state={commandState}
       onSubmit={handleSubmit}
@@ -338,7 +344,7 @@ export function AiCommandBar({
               : "h-10 min-h-0 flex-1 resize-none overflow-hidden border-0 bg-transparent p-0 text-[16px] leading-10 text-(--text-primary) outline-none placeholder:text-(--text-secondary)"
           }
           value={prompt}
-          placeholder={showExpandedInput ? label("app.aiCommandPlaceholder") : label("app.aiCommandCompactPlaceholder")}
+          placeholder={inputPlaceholder}
           readOnly={submitting}
           aria-busy={submitting}
           rows={showExpandedInput ? 2 : 1}
@@ -397,8 +403,8 @@ export function AiCommandBar({
           <div
             className={
               commandState === "collapsing" || closing
-                ? "ai-command-actions absolute bottom-[calc(100%+10px)] left-0 w-66 animate-[markra-ai-float-out_160ms_ease-in_both] rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.14)] transition-[opacity,transform] duration-160 ease-in max-[760px]:hidden motion-reduce:animate-none motion-reduce:transition-none"
-                : "ai-command-actions absolute bottom-[calc(100%+10px)] left-0 w-66 animate-[markra-ai-float-in_180ms_ease-out_both] rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.14)] transition-[opacity,transform] duration-180 ease-out max-[760px]:hidden motion-reduce:animate-none motion-reduce:transition-none"
+                ? "ai-command-actions absolute bottom-[calc(100%+10px)] left-0 w-66 animate-[markra-ai-float-out_160ms_ease-in_both] rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-3 shadow-[var(--ai-command-popover-shadow)] transition-[opacity,transform] duration-160 ease-in max-[760px]:hidden motion-reduce:animate-none motion-reduce:transition-none"
+                : "ai-command-actions absolute bottom-[calc(100%+10px)] left-0 w-66 animate-[markra-ai-float-in_180ms_ease-out_both] rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-3 shadow-[var(--ai-command-popover-shadow)] transition-[opacity,transform] duration-180 ease-out max-[760px]:hidden motion-reduce:animate-none motion-reduce:transition-none"
             }
             aria-label={label("app.aiQuickActions")}
           >
@@ -427,7 +433,7 @@ export function AiCommandBar({
         ) : null}
 
         {aiResult ? (
-          <div className="ai-command-panel origin-bottom overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) shadow-[0_18px_52px_rgba(0,0,0,0.13)]">
+          <div className="ai-command-panel origin-bottom overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) shadow-[var(--ai-command-panel-shadow)]">
             <div className="flex items-center gap-3 px-3 py-2.5">
               <div className="min-w-0">
                 <div className="truncate text-[13px] leading-5 font-bold text-(--text-heading)">
