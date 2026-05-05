@@ -4,8 +4,15 @@ import { editorViewCtx } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
+import { applyAiEditorResult, clearAiEditorPreview, showAiEditorPreview } from "../lib/aiEditorPreview";
+import type { AiSelectionContext } from "../lib/agent/inlineAi";
 
-async function renderEditor(initialContent = "") {
+async function renderEditor(
+  initialContent = "",
+  options: {
+    onTextSelectionChange?: (selection: AiSelectionContext) => void;
+  } = {}
+) {
   let editor: Editor | null = null;
   const result = render(
     <MarkdownPaper
@@ -14,6 +21,7 @@ async function renderEditor(initialContent = "") {
         editor = instance;
       }}
       onMarkdownChange={() => {}}
+      onTextSelectionChange={options.onTextSelectionChange}
       revision={0}
     />
   );
@@ -73,6 +81,24 @@ function findTextPosition(view: EditorView, text: string, offset = 0) {
 
   if (position === null) {
     throw new Error(`Could not find text in editor: ${text}`);
+  }
+
+  return position;
+}
+
+function findNodeEndPosition(view: EditorView, typeName: string) {
+  let position: number | null = null;
+
+  view.state.doc.descendants((node, nodePosition) => {
+    if (position !== null) return false;
+    if (node.type.name !== typeName) return true;
+
+    position = nodePosition + node.nodeSize;
+    return false;
+  });
+
+  if (position === null) {
+    throw new Error(`Could not find node in editor: ${typeName}`);
   }
 
   return position;
@@ -161,6 +187,112 @@ describe("MarkdownPaper editing", () => {
     const { container } = await renderEditor();
 
     expect(container.querySelector(".paper-scroll")).toHaveClass("overscroll-none");
+  });
+
+  it("renders AI replacement comparison inside the editor", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const to = from + "Original".length;
+
+    showAiEditorPreview(view, {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to,
+      type: "replace"
+    });
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("Original");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-apply")).toHaveAccessibleName("Apply");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-apply svg")).toBeInTheDocument();
+
+    clearAiEditorPreview(view);
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
+  });
+
+  it("does not let markdown replacement preview inherit heading styling", async () => {
+    const { container, view } = await renderEditor("> Original quote\n\n## Existing heading");
+    const from = findTextPosition(view, "Original quote");
+    const to = from + "Original quote".length;
+
+    showAiEditorPreview(view, {
+      from,
+      original: "Original quote",
+      replacement: "> Improved quote",
+      to,
+      type: "replace"
+    });
+
+    const insertedPreview = container.querySelector(".ProseMirror .markra-ai-preview-insert");
+
+    expect(insertedPreview).toHaveTextContent("> Improved quote");
+    expect(insertedPreview?.closest("h1,h2,h3,h4,h5,h6")).toBeNull();
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
+  });
+
+  it("appends AI replacement preview after the original text inside a selected block", async () => {
+    const { container, view } = await renderEditor("> First quote\n>\n> Second quote\n\n## Existing heading");
+    const from = findTextPosition(view, "First quote");
+    const to = findNodeEndPosition(view, "blockquote");
+
+    showAiEditorPreview(view, {
+      from,
+      original: "First quote\n\nSecond quote",
+      replacement: "Improved quote",
+      to,
+      type: "replace"
+    });
+
+    const insertedPreview = container.querySelector(".ProseMirror .markra-ai-preview-insert");
+
+    expect(insertedPreview).toHaveTextContent("Improved quote");
+    expect(insertedPreview?.closest("blockquote")).toBeInTheDocument();
+    expect(insertedPreview?.closest("h1,h2,h3,h4,h5,h6")).toBeNull();
+  });
+
+  it("notifies when the user selects text in the editor", async () => {
+    const onTextSelectionChange = vi.fn();
+    const { view } = await renderEditor("First sentence. Second sentence.", { onTextSelectionChange });
+    const from = findTextPosition(view, "Second");
+    const to = from + "Second sentence.".length;
+
+    selectText(view, from, to);
+
+    expect(onTextSelectionChange).toHaveBeenCalledWith({
+      from,
+      text: "Second sentence.",
+      to
+    });
+  });
+
+  it("restores the pending AI comparison when undoing an applied suggestion", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+
+    showAiEditorPreview(view, result);
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+
+    expect(applyAiEditorResult(view, result)).toBe(true);
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("Improved text");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
+
+    expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("Original");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("Original");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
   });
 
   it("turns typed strong markdown into bold text", async () => {

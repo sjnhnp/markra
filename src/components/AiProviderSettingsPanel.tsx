@@ -214,7 +214,7 @@ function CapabilityPill({ capability, translate }: { capability: AiModelCapabili
 
   return (
     <span
-      className={`inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-4 font-[700] ${capabilityPillClasses[capability]}`}
+      className={`inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-4 font-bold ${capabilityPillClasses[capability]}`}
       aria-label={label}
       title={label}
     >
@@ -256,7 +256,7 @@ function CapabilityPicker({
 
           return (
             <button
-              className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2.5 text-[12px] leading-4 font-[700] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
+              className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2.5 text-[12px] leading-4 font-bold transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
                 isSelected
                   ? `${capabilityPillClasses[capability]} border-transparent`
                   : "border-(--border-default) bg-(--bg-primary) text-(--text-secondary) hover:bg-(--bg-hover)"
@@ -776,7 +776,7 @@ export function AiProviderSettingsPanel({
 
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="m-0 text-[12px] leading-5 font-[700] text-(--text-secondary)">
+                    <p className="m-0 text-[12px] leading-5 font-bold text-(--text-secondary)">
                       {translate("settings.ai.availableModels")}
                     </p>
                     <div className="flex items-center gap-2">
@@ -896,7 +896,7 @@ export function AiProviderSettingsPanel({
                                 }))
                               }
                             />
-                            <span className="min-w-0 truncate text-[13px] leading-5 font-[600] text-(--text-heading)">
+                            <span className="min-w-0 truncate text-[13px] leading-5 font-semibold text-(--text-heading)">
                               {model.name}
                             </span>
                             <CapabilityPills capabilities={model.capabilities} translate={translate} />
@@ -927,7 +927,7 @@ export function AiProviderSettingsPanel({
               </span>
             ) : null}
             <button
-              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-(--accent) bg-(--accent) px-4 text-[13px] leading-5 font-[700] text-(--bg-primary) shadow-[0_8px_20px_rgba(63,102,216,0.24)] transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:bg-(--accent-hover) hover:border-(--accent-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-(--accent) bg-(--accent) px-4 text-[13px] leading-5 font-bold text-(--bg-primary) shadow-[0_8px_20px_rgba(63,102,216,0.24)] transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:bg-(--accent-hover) hover:border-(--accent-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
               type="button"
               aria-label={translate("settings.ai.saveProviders")}
               onClick={onSave}

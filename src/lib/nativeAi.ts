@@ -6,6 +6,12 @@ export type NativeAiHttpRequest = {
   url: string;
 };
 
+export type NativeAiChatRequest = {
+  body: string;
+  headers: Record<string, string>;
+  url: string;
+};
+
 export type NativeAiHttpResponse = {
   body: unknown;
   status: number;
@@ -13,4 +19,8 @@ export type NativeAiHttpResponse = {
 
 export function requestNativeAiJson(request: NativeAiHttpRequest): Promise<NativeAiHttpResponse> {
   return invoke<NativeAiHttpResponse>("request_ai_provider_json", { request });
+}
+
+export function requestNativeChat(request: NativeAiChatRequest): Promise<NativeAiHttpResponse> {
+  return invoke<NativeAiHttpResponse>("request_native_chat", { request });
 }

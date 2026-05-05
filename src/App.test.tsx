@@ -18,20 +18,25 @@ import {
 import {
   consumeWelcomeDocumentState,
   getStoredAiSettings,
+  getStoredEditorPreferences,
   getStoredLanguage,
   getStoredTheme,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
+  saveStoredEditorPreferences,
   saveStoredLanguage,
   saveStoredTheme
 } from "./lib/appSettings";
 import {
+  listenAppEditorPreferencesChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
+  notifyAppEditorPreferencesChanged,
   notifyAppLanguageChanged,
   notifyAppThemeChanged
 } from "./lib/settingsEvents";
 import { fetchAiProviderModels, testAiProviderConnection } from "./lib/aiProviderRequests";
+import { chatCompletion } from "./lib/agent/chatCompletion";
 
 vi.mock("./lib/nativeFile", () => ({
   installNativeMarkdownFileDrop: vi.fn(),
@@ -51,18 +56,23 @@ vi.mock("./lib/nativeMenu", () => ({
 
 vi.mock("./lib/appSettings", () => ({
   consumeWelcomeDocumentState: vi.fn(),
+  defaultEditorPreferences: { autoOpenAiOnSelection: true },
   getStoredAiSettings: vi.fn(),
+  getStoredEditorPreferences: vi.fn(),
   getStoredLanguage: vi.fn(),
   getStoredTheme: vi.fn(),
   resetWelcomeDocumentState: vi.fn(),
   saveStoredAiSettings: vi.fn(),
+  saveStoredEditorPreferences: vi.fn(),
   saveStoredLanguage: vi.fn(),
   saveStoredTheme: vi.fn()
 }));
 
 vi.mock("./lib/settingsEvents", () => ({
+  listenAppEditorPreferencesChanged: vi.fn(),
   listenAppLanguageChanged: vi.fn(),
   listenAppThemeChanged: vi.fn(),
+  notifyAppEditorPreferencesChanged: vi.fn(),
   notifyAppLanguageChanged: vi.fn(),
   notifyAppThemeChanged: vi.fn()
 }));
@@ -70,6 +80,10 @@ vi.mock("./lib/settingsEvents", () => ({
 vi.mock("./lib/aiProviderRequests", () => ({
   fetchAiProviderModels: vi.fn(),
   testAiProviderConnection: vi.fn()
+}));
+
+vi.mock("./lib/agent/chatCompletion", () => ({
+  chatCompletion: vi.fn()
 }));
 
 vi.mock("./lib/nativeWindow", () => ({
@@ -88,18 +102,23 @@ const mockedInstallNativeApplicationMenu = vi.mocked(installNativeApplicationMen
 const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEditorContextMenu);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
+const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPreferences);
 const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
 const mockedGetStoredTheme = vi.mocked(getStoredTheme);
 const mockedResetWelcomeDocumentState = vi.mocked(resetWelcomeDocumentState);
 const mockedSaveStoredAiSettings = vi.mocked(saveStoredAiSettings);
+const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences);
 const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
 const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
+const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
 const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
 const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
+const mockedNotifyAppEditorPreferencesChanged = vi.mocked(notifyAppEditorPreferencesChanged);
 const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
 const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
 const mockedFetchAiProviderModels = vi.mocked(fetchAiProviderModels);
 const mockedTestAiProviderConnection = vi.mocked(testAiProviderConnection);
+const mockedChatCompletion = vi.mocked(chatCompletion);
 
 const mockNativePath = "/mock-files/native.md";
 const mockDroppedPath = "/mock-files/dropped.md";
@@ -167,17 +186,22 @@ describe("Markra workspace", () => {
     mockedInstallNativeEditorContextMenu.mockReset();
     mockedGetStoredLanguage.mockReset();
     mockedGetStoredAiSettings.mockReset();
+    mockedGetStoredEditorPreferences.mockReset();
     mockedGetStoredTheme.mockReset();
     mockedResetWelcomeDocumentState.mockReset();
     mockedSaveStoredAiSettings.mockReset();
+    mockedSaveStoredEditorPreferences.mockReset();
     mockedSaveStoredLanguage.mockReset();
     mockedSaveStoredTheme.mockReset();
+    mockedListenAppEditorPreferencesChanged.mockReset();
     mockedListenAppLanguageChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
+    mockedNotifyAppEditorPreferencesChanged.mockReset();
     mockedNotifyAppLanguageChanged.mockReset();
     mockedNotifyAppThemeChanged.mockReset();
     mockedFetchAiProviderModels.mockReset();
     mockedTestAiProviderConnection.mockReset();
+    mockedChatCompletion.mockReset();
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("data-window");
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
@@ -185,7 +209,9 @@ describe("Markra workspace", () => {
     mockedInstallNativeMarkdownFileDrop.mockResolvedValue(() => {});
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
+    mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
+    mockedGetStoredEditorPreferences.mockResolvedValue({ autoOpenAiOnSelection: true });
     mockedGetStoredAiSettings.mockResolvedValue({
       defaultModelId: "gpt-5.5",
       defaultProviderId: "openai",
@@ -241,6 +267,7 @@ describe("Markra workspace", () => {
       { capabilities: ["image"], enabled: true, id: "gpt-image-1", name: "GPT Image 1" }
     ]);
     mockedTestAiProviderConnection.mockResolvedValue({ message: "Connected", ok: true });
+    mockedChatCompletion.mockResolvedValue({ content: "Improved AI draft", finishReason: "stop" });
     mockSystemColorScheme(false);
   });
 
@@ -346,10 +373,11 @@ describe("Markra workspace", () => {
     });
 
     expect(screen.getByRole("button", { name: "Send AI command" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByRole("dialog", { name: "AI writing command" })).toHaveAttribute("data-state", "collapsing");
-    expect(screen.getByRole("button", { name: "Polish" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("dialog", { name: "AI writing command" })).toHaveAttribute("data-state", "compact"));
     expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
     expect(aiPrompt.closest(".ai-command-box")).not.toHaveClass("animate-[markra-ai-command-open_220ms_ease-out_both]");
@@ -360,6 +388,92 @@ describe("Markra workspace", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "AI writing command" })).not.toBeInTheDocument();
     });
+  });
+
+  it("submits inline AI commands through the editor-selected model and shows a suggestion", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockedGetStoredAiSettings.mockResolvedValue({
+      defaultModelId: "gpt-5.5",
+      defaultProviderId: "openai",
+      providers: [
+        {
+          apiKey: "sk-test",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [
+            {
+              capabilities: ["text", "reasoning", "tools"],
+              enabled: true,
+              id: "gpt-5.5",
+              name: "GPT-5.5"
+            }
+          ],
+          name: "OpenAI",
+          type: "openai"
+        },
+        {
+          apiKey: "anthropic-test",
+          baseUrl: "https://api.anthropic.com/v1",
+          defaultModelId: "claude-sonnet-4-6",
+          enabled: true,
+          id: "anthropic",
+          models: [
+            {
+              capabilities: ["text", "reasoning", "tools"],
+              enabled: true,
+              id: "claude-sonnet-4-6",
+              name: "Claude Sonnet 4.6"
+            }
+          ],
+          name: "Anthropic",
+          type: "anthropic"
+        }
+      ]
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("textbox", { name: "Markdown document" })).toBeInTheDocument();
+    await waitFor(() => expect(mockedGetStoredAiSettings).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(window, { key: "j", metaKey: true });
+    const aiPrompt = await screen.findByRole("textbox", { name: "AI command" });
+
+    fireEvent.click(aiPrompt);
+    fireEvent.change(screen.getByRole("combobox", { name: "AI model" }), {
+      target: { value: "anthropic::claude-sonnet-4-6" }
+    });
+    await waitFor(() =>
+      expect(mockedSaveStoredAiSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          defaultModelId: "claude-sonnet-4-6",
+          defaultProviderId: "anthropic"
+        })
+      )
+    );
+
+    fireEvent.change(aiPrompt, {
+      target: { value: "make this cleaner" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send AI command" }));
+
+    await waitFor(() =>
+      expect(mockedChatCompletion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: "anthropic-test",
+          id: "anthropic"
+        }),
+        "claude-sonnet-4-6",
+        expect.arrayContaining([
+          expect.objectContaining({ role: "system" }),
+          expect.objectContaining({ content: expect.stringContaining("make this cleaner"), role: "user" })
+        ])
+      )
+    );
+    expect(await screen.findByText("AI suggestion ready")).toBeInTheDocument();
+    expect(screen.getByText("Improved AI draft")).toBeInTheDocument();
   });
 
   it("follows the system color scheme when the stored theme preference is system", async () => {

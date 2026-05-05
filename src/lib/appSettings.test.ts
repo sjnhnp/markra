@@ -2,10 +2,12 @@ import { load } from "@tauri-apps/plugin-store";
 import {
   consumeWelcomeDocumentState,
   getStoredAiSettings,
+  getStoredEditorPreferences,
   getStoredLanguage,
   getStoredTheme,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
+  saveStoredEditorPreferences,
   saveStoredLanguage,
   saveStoredTheme
 } from "./appSettings";
@@ -101,6 +103,23 @@ describe("app settings", () => {
     await saveStoredLanguage("ja");
 
     expect(store.set).toHaveBeenCalledWith("language", "ja");
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads enabled AI-on-selection as the default editor preference", async () => {
+    store.get.mockResolvedValue(undefined);
+
+    await expect(getStoredEditorPreferences()).resolves.toEqual({
+      autoOpenAiOnSelection: true
+    });
+
+    expect(store.get).toHaveBeenCalledWith("editorPreferences");
+  });
+
+  it("persists editor preferences", async () => {
+    await saveStoredEditorPreferences({ autoOpenAiOnSelection: false });
+
+    expect(store.set).toHaveBeenCalledWith("editorPreferences", { autoOpenAiOnSelection: false });
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 

@@ -7,10 +7,18 @@ const welcomeDocumentSeenKey = "welcomeDocumentSeen";
 const themeKey = "theme";
 const languageKey = "language";
 const aiProvidersKey = "aiProviders";
+const editorPreferencesKey = "editorPreferences";
 
 export type AppTheme = "light" | "dark" | "system";
 export type ResolvedAppTheme = "light" | "dark";
+export type EditorPreferences = {
+  autoOpenAiOnSelection: boolean;
+};
 export type { AppLanguage };
+
+export const defaultEditorPreferences: EditorPreferences = {
+  autoOpenAiOnSelection: true
+};
 
 function loadSettingsStore() {
   return load(settingsStorePath, { autoSave: false, defaults: {} });
@@ -74,6 +82,20 @@ export async function saveStoredAiSettings(settings: AiProviderSettings) {
   await store.save();
 }
 
+export async function getStoredEditorPreferences(): Promise<EditorPreferences> {
+  const store = await loadSettingsStore();
+  const preferences = await store.get<Partial<EditorPreferences>>(editorPreferencesKey);
+
+  return normalizeEditorPreferences(preferences);
+}
+
+export async function saveStoredEditorPreferences(preferences: EditorPreferences) {
+  const store = await loadSettingsStore();
+
+  await store.set(editorPreferencesKey, normalizeEditorPreferences(preferences));
+  await store.save();
+}
+
 export async function resetWelcomeDocumentState() {
   const store = await loadSettingsStore();
 
@@ -88,3 +110,14 @@ export type {
   AiProviderModel,
   AiProviderSettings
 } from "./aiProviders";
+
+export function normalizeEditorPreferences(value: unknown): EditorPreferences {
+  if (typeof value !== "object" || value === null) return defaultEditorPreferences;
+
+  return {
+    autoOpenAiOnSelection:
+      typeof (value as Partial<EditorPreferences>).autoOpenAiOnSelection === "boolean"
+        ? Boolean((value as Partial<EditorPreferences>).autoOpenAiOnSelection)
+        : defaultEditorPreferences.autoOpenAiOnSelection
+  };
+}

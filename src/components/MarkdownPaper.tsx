@@ -18,9 +18,13 @@ import {
   schema as gfmSchema
 } from "@milkdown/kit/preset/gfm";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
+import { Plugin } from "@milkdown/kit/prose/state";
+import { $prose } from "@milkdown/kit/utils";
 import { markraLiveMarkdownPlugin } from "../lib/markdownInputRules";
 import { markraLinkImageLivePlugin } from "../lib/markdownLinkImageInputRules";
 import { markraMarkdownShortcuts } from "../lib/markdownShortcuts";
+import { markraAiEditorPreviewPlugin } from "../lib/aiEditorPreview";
+import type { AiSelectionContext } from "../lib/agent/inlineAi";
 import { t, type AppLanguage } from "../lib/i18n";
 
 const markraCommonmark = [
@@ -46,6 +50,7 @@ type MarkdownPaperProps = {
   language?: AppLanguage;
   onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => void;
   onMarkdownChange: (content: string) => void;
+  onTextSelectionChange?: (selection: AiSelectionContext) => void;
   revision: number;
 };
 
@@ -55,7 +60,40 @@ type MilkdownSurfaceProps = {
   language: AppLanguage;
   onEditorReady: MarkdownPaperProps["onEditorReady"];
   onMarkdownChange: (content: string) => void;
+  onTextSelectionChange?: (selection: AiSelectionContext) => void;
 };
+
+function markraTextSelectionObserverPlugin(
+  onTextSelectionChange: (selection: AiSelectionContext) => void
+) {
+  return $prose(() => {
+    let lastSignature = "";
+
+    return new Plugin({
+      filterTransaction(transaction, state) {
+        if (!transaction.selectionSet) return true;
+
+        const { selection } = transaction;
+        if (selection.eq(state.selection) || selection.empty) return true;
+
+        const text = transaction.doc.textBetween(selection.from, selection.to, "\n").trim();
+        if (!text) return true;
+
+        const signature = `${selection.from}:${selection.to}:${text}`;
+        if (signature === lastSignature) return true;
+
+        lastSignature = signature;
+        onTextSelectionChange({
+          from: selection.from,
+          text,
+          to: selection.to
+        });
+
+        return true;
+      }
+    });
+  });
+}
 
 function MilkdownInstanceBridge({ autoFocus, onEditorReady }: Pick<MilkdownSurfaceProps, "autoFocus" | "onEditorReady">) {
   const [loading, getEditor] = useInstance();
@@ -79,9 +117,21 @@ function MilkdownInstanceBridge({ autoFocus, onEditorReady }: Pick<MilkdownSurfa
   return null;
 }
 
-function MilkdownSurface({ autoFocus, initialContent, language, onEditorReady, onMarkdownChange }: MilkdownSurfaceProps) {
+function MilkdownSurface({
+  autoFocus,
+  initialContent,
+  language,
+  onEditorReady,
+  onMarkdownChange,
+  onTextSelectionChange
+}: MilkdownSurfaceProps) {
   const initialContentRef = useRef(initialContent);
+  const onTextSelectionChangeRef = useRef(onTextSelectionChange);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
+
+  useEffect(() => {
+    onTextSelectionChangeRef.current = onTextSelectionChange;
+  }, [onTextSelectionChange]);
 
   const createEditor = useCallback(
     (root: HTMLElement) =>
@@ -106,6 +156,12 @@ function MilkdownSurface({ autoFocus, initialContent, language, onEditorReady, o
         .use(markraCommonmark)
         .use(markraGfm)
         .use(markraMarkdownShortcuts)
+        .use(markraAiEditorPreviewPlugin)
+        .use(
+          markraTextSelectionObserverPlugin((selection) => {
+            onTextSelectionChangeRef.current?.(selection);
+          })
+        )
         .use(markraLinkImageLivePlugin)
         .use(markraLiveMarkdownPlugin),
     [markdownDocumentLabel, onMarkdownChange]
@@ -127,6 +183,7 @@ export function MarkdownPaper({
   language = "en",
   onEditorReady,
   onMarkdownChange,
+  onTextSelectionChange,
   revision
 }: MarkdownPaperProps) {
   return (
@@ -147,6 +204,7 @@ export function MarkdownPaper({
             language={language}
             onEditorReady={onEditorReady}
             onMarkdownChange={onMarkdownChange}
+            onTextSelectionChange={onTextSelectionChange}
           />
         </MilkdownProvider>
       </article>

@@ -2,6 +2,13 @@ import { useCallback, useEffect, useRef } from "react";
 import { editorViewCtx, type Editor } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import { getMarkdown } from "@milkdown/kit/utils";
+import type { AiDiffResult, AiSelectionContext } from "../lib/agent/inlineAi";
+import {
+  applyAiEditorResult,
+  clearAiEditorPreview,
+  showAiEditorPreview,
+  type AiEditorPreviewLabels
+} from "../lib/aiEditorPreview";
 import type { MarkdownOutlineItem } from "../lib/markdown";
 
 const outlineScrollTopOffset = 24;
@@ -43,6 +50,23 @@ export function useEditorController() {
       return editorRef.current?.action(getMarkdown()) ?? fallbackContent;
     } catch {
       return fallbackContent;
+    }
+  }, []);
+
+  const getSelection = useCallback((): AiSelectionContext | null => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return null;
+
+      const { from, to } = view.state.selection;
+
+      return {
+        from,
+        text: view.state.doc.textBetween(from, to, "\n"),
+        to
+      };
+    } catch {
+      return null;
     }
   }, []);
 
@@ -109,6 +133,42 @@ export function useEditorController() {
     view.focus();
   }, []);
 
+  const applyAiResult = useCallback((result: AiDiffResult) => {
+    if (result.type === "error") return false;
+
+    try {
+      const editor = editorRef.current;
+      if (!editor) return false;
+
+      const view = editor.action((ctx) => ctx.get(editorViewCtx));
+      return applyAiEditorResult(view, result);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const previewAiResult = useCallback((result: AiDiffResult, labels?: AiEditorPreviewLabels) => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return;
+
+      showAiEditorPreview(view, result, labels);
+    } catch {
+      // AI preview is a visual affordance. Failing to draw it should not block the command flow.
+    }
+  }, []);
+
+  const clearAiPreview = useCallback(() => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return;
+
+      clearAiEditorPreview(view);
+    } catch {
+      // The editor may be unavailable while windows are changing.
+    }
+  }, []);
+
   const selectOutlineItem = useCallback((targetItem: MarkdownOutlineItem, targetIndex: number) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -163,9 +223,13 @@ export function useEditorController() {
   }, []);
 
   return {
+    applyAiResult,
+    clearAiPreview,
     getCurrentMarkdown,
+    getSelection,
     handleEditorReady,
     insertMarkdownSnippet,
+    previewAiResult,
     runEditorShortcut,
     selectOutlineItem
   };

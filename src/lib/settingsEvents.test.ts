@@ -1,7 +1,9 @@
 import { emit, listen } from "@tauri-apps/api/event";
 import {
+  listenAppEditorPreferencesChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
+  notifyAppEditorPreferencesChanged,
   notifyAppLanguageChanged,
   notifyAppThemeChanged
 } from "./settingsEvents";
@@ -70,6 +72,29 @@ describe("settings events", () => {
     expect(mockedEmit).toHaveBeenCalledWith("markra://language-changed", { language: "fr" });
     expect(onLanguageChanged).toHaveBeenCalledWith("fr");
     expect(onLanguageChanged).toHaveBeenCalledTimes(1);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits and listens for editor preference changes inside Tauri", async () => {
+    const unlisten = vi.fn();
+    const onPreferencesChanged = vi.fn();
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppEditorPreferencesChanged(onPreferencesChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await notifyAppEditorPreferencesChanged({ autoOpenAiOnSelection: false });
+    listener?.({ payload: { preferences: { autoOpenAiOnSelection: false } } } as Parameters<NonNullable<typeof listener>>[0]);
+    listener?.({ payload: { preferences: { autoOpenAiOnSelection: "nope" } } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://editor-preferences-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://editor-preferences-changed", {
+      preferences: { autoOpenAiOnSelection: false }
+    });
+    expect(onPreferencesChanged).toHaveBeenCalledWith({ autoOpenAiOnSelection: false });
+    expect(onPreferencesChanged).toHaveBeenCalledTimes(1);
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 });

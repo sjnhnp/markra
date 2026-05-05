@@ -19,8 +19,11 @@ import { useAppTheme } from "../hooks/useAppTheme";
 import { fetchAiProviderModels, testAiProviderConnection } from "../lib/aiProviderRequests";
 import {
   getStoredAiSettings,
+  getStoredEditorPreferences,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
+  saveStoredEditorPreferences,
+  type EditorPreferences,
   type AiProviderConfig,
   type AiProviderModel,
   type AiProviderSettings,
@@ -28,6 +31,7 @@ import {
 } from "../lib/appSettings";
 import { createCustomAiProvider, createDefaultAiSettings } from "../lib/aiProviders";
 import { supportedLanguages, t, type AppLanguage, type I18nKey } from "../lib/i18n";
+import { notifyAppEditorPreferencesChanged } from "../lib/settingsEvents";
 
 type SettingsCategory = "general" | "ai" | "appearance" | "editor" | "markdown" | "shortcuts";
 type Translate = (key: I18nKey) => string;
@@ -249,6 +253,32 @@ function SettingValue({ children }: { children: ReactNode }) {
   );
 }
 
+function SettingsSwitch({
+  checked,
+  label,
+  onChange
+}: {
+  checked: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  return (
+    <button
+      className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-(--border-strong) bg-(--bg-secondary) transition-colors duration-150 ease-out aria-checked:border-(--accent) aria-checked:bg-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+    >
+      <span
+        className="inline-block size-3.5 translate-x-0.75 rounded-full bg-(--text-secondary) transition-transform duration-150 ease-out aria-checked:translate-x-4.5 aria-checked:bg-(--bg-primary)"
+        aria-checked={checked}
+      />
+    </button>
+  );
+}
+
 function SettingsButton({
   children,
   label,
@@ -341,6 +371,7 @@ export function SettingsWindow() {
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("general");
   const [aiSettings, setAiSettings] = useState<AiProviderSettings>(() => createDefaultAiSettings());
   const [aiSettingsSaved, setAiSettingsSaved] = useState(false);
+  const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>({ autoOpenAiOnSelection: true });
   const [selectedAiProviderId, setSelectedAiProviderId] = useState<string | undefined>(() => createDefaultAiSettings().defaultProviderId);
   const [welcomeReset, setWelcomeReset] = useState(false);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
@@ -374,6 +405,18 @@ export function SettingsWindow() {
       if (cancelled) return;
       setAiSettings(settings);
       setSelectedAiProviderId(settings.defaultProviderId ?? settings.providers[0]?.id);
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getStoredEditorPreferences().then((preferences) => {
+      if (!cancelled) setEditorPreferences(preferences);
     }).catch(() => {});
 
     return () => {
@@ -416,6 +459,13 @@ export function SettingsWindow() {
 
   const handleFetchAiProviderModels = useCallback((provider: AiProviderConfig): Promise<AiProviderModel[]> => {
     return fetchAiProviderModels(provider);
+  }, []);
+
+  const handleUpdateEditorPreferences = useCallback((preferences: EditorPreferences) => {
+    setEditorPreferences(preferences);
+    void saveStoredEditorPreferences(preferences)
+      .then(() => notifyAppEditorPreferencesChanged(preferences))
+      .catch(() => {});
   }, []);
 
   return (
@@ -461,7 +511,13 @@ export function SettingsWindow() {
               onSelectTheme={appTheme.selectTheme}
             />
           ) : null}
-          {activeCategory === "editor" ? <EditorSettings translate={translate} /> : null}
+          {activeCategory === "editor" ? (
+            <EditorSettings
+              preferences={editorPreferences}
+              translate={translate}
+              onUpdatePreferences={handleUpdateEditorPreferences}
+            />
+          ) : null}
           {activeCategory === "markdown" ? <MarkdownSettings translate={translate} /> : null}
           {activeCategory === "shortcuts" ? <ShortcutsSettings translate={translate} /> : null}
         </SettingsContent>
@@ -560,9 +616,33 @@ function AppearanceSettings({
   );
 }
 
-function EditorSettings({ translate }: { translate: Translate }) {
+function EditorSettings({
+  onUpdatePreferences,
+  preferences,
+  translate
+}: {
+  onUpdatePreferences: (preferences: EditorPreferences) => void;
+  preferences: EditorPreferences;
+  translate: Translate;
+}) {
   return (
     <SettingsSection label={translate("settings.sections.editing")}>
+      <SettingsRow
+        title={translate("settings.editor.autoOpenAiOnSelection")}
+        description={translate("settings.editor.autoOpenAiOnSelectionDescription")}
+        action={
+          <SettingsSwitch
+            checked={preferences.autoOpenAiOnSelection}
+            label={translate("settings.editor.autoOpenAiOnSelection")}
+            onChange={() =>
+              onUpdatePreferences({
+                ...preferences,
+                autoOpenAiOnSelection: !preferences.autoOpenAiOnSelection
+              })
+            }
+          />
+        }
+      />
       <SettingsRow
         title={translate("settings.editor.bodyFontSize")}
         description={translate("settings.editor.bodyFontSizeDescription")}
