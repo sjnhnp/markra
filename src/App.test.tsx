@@ -198,7 +198,7 @@ describe("Markra workspace", () => {
           id: "openai",
           models: [
             {
-              capability: "text",
+              capabilities: ["text", "reasoning", "tools"],
               enabled: true,
               id: "gpt-5.5",
               name: "GPT-5.5"
@@ -215,7 +215,7 @@ describe("Markra workspace", () => {
           id: "anthropic",
           models: [
             {
-              capability: "text",
+              capabilities: ["text", "vision"],
               enabled: true,
               id: "claude-opus-4-7",
               name: "Claude Opus 4.7"
@@ -237,8 +237,8 @@ describe("Markra workspace", () => {
     mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);
     mockedNotifyAppThemeChanged.mockResolvedValue(undefined);
     mockedFetchAiProviderModels.mockResolvedValue([
-      { capability: "text", enabled: true, id: "gpt-5", name: "GPT-5" },
-      { capability: "image", enabled: true, id: "gpt-image-1", name: "GPT Image 1" }
+      { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "gpt-5", name: "GPT-5" },
+      { capabilities: ["image"], enabled: true, id: "gpt-image-1", name: "GPT Image 1" }
     ]);
     mockedTestAiProviderConnection.mockResolvedValue({ message: "Connected", ok: true });
     mockSystemColorScheme(false);
@@ -480,7 +480,9 @@ describe("Markra workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "AI" }));
 
     expect(await screen.findByRole("button", { name: "OpenAI" })).toHaveAttribute("aria-current", "page");
-    expect(container.querySelector(".ai-settings-layout")).toHaveClass("grid-cols-[16rem_minmax(0,1fr)]");
+    expect(container.querySelector(".ai-settings-layout")).toHaveClass("h-full", "min-h-0", "grid-cols-[16rem_minmax(0,1fr)]");
+    expect(container.querySelector(".ai-settings-layout")?.children).toHaveLength(2);
+    expect(container.querySelector(".ai-provider-list-scroll")).toHaveClass("min-h-0", "overflow-auto");
     expect(screen.getAllByRole("img", { name: "OpenAI logo" })).toHaveLength(2);
     expect(screen.getByLabelText("Search providers")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Add provider" })).toBeInTheDocument();
@@ -490,6 +492,12 @@ describe("Markra workspace", () => {
     expect(screen.getByLabelText("API URL")).toHaveValue("https://api.openai.com/v1");
 
     fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(screen.queryByRole("combobox", { name: "Capability" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Capability" })).toBeInTheDocument();
+    expect(["Text", "Image", "Vision", "Reasoning", "Tools"].map((label) => screen.getByRole("button", { name: label }))).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "Text" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Vision" }));
+    expect(screen.getByRole("button", { name: "Vision" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(screen.getByLabelText("Model ID"), {
       target: { value: "gpt-5.5-thinking" }
     });
@@ -499,6 +507,21 @@ describe("Markra workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add model to provider" }));
 
     expect(screen.getAllByText("GPT-5.5 Thinking").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Edit model GPT-5.5 Thinking" }));
+    expect(screen.getByLabelText("Model ID")).toHaveValue("gpt-5.5-thinking");
+    expect(screen.getByLabelText("Model name")).toHaveValue("GPT-5.5 Thinking");
+    fireEvent.change(screen.getByLabelText("Model ID"), {
+      target: { value: "gpt-5.5-thinking-updated" }
+    });
+    fireEvent.change(screen.getByLabelText("Model name"), {
+      target: { value: "GPT-5.5 Thinking Updated" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Vision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tools" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save model changes" }));
+
+    expect(screen.getAllByText("GPT-5.5 Thinking Updated").length).toBeGreaterThan(0);
+    expect(screen.queryByText("GPT-5.5 Thinking")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("API key"), {
       target: { value: "sk-test" }
@@ -518,13 +541,24 @@ describe("Markra workspace", () => {
         })
       )
     );
-    expect(await screen.findByText("Connected")).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector(".ai-provider-toast")).toHaveTextContent("Connected"));
+    expect(document.querySelector(".ai-provider-toaster")).toHaveStyle({ width: "fit-content" });
+    expect(document.querySelector(".ai-provider-toast")).toHaveClass("ai-provider-toast-centered");
+    expect(document.querySelector(".ai-provider-toast")).toHaveClass("w-fit", "min-w-40");
+    expect(document.querySelector(".ai-provider-toast")).not.toHaveClass("w-[24rem]");
+    expect(document.querySelector(".ai-provider-toast-close")).toBeInTheDocument();
+    expect(document.querySelector(".ai-provider-toast-close")).toHaveClass("absolute", "right-2");
+    expect(document.querySelector(".ai-provider-toast-close")).not.toHaveClass("ml-auto");
+    expect(screen.getAllByText("Connected")).toHaveLength(1);
+    fireEvent.click(document.querySelector(".ai-provider-toast-close") as HTMLElement);
+    await waitFor(() => expect(document.querySelector(".ai-provider-toast")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Get model list" }));
 
     await waitFor(() => expect(mockedFetchAiProviderModels).toHaveBeenCalledWith(expect.objectContaining({ id: "openai" })));
     await waitFor(() => expect(screen.getAllByText("GPT-5").length).toBeGreaterThan(0));
     expect(screen.getAllByText("GPT Image 1").length).toBeGreaterThan(0);
+    await waitFor(() => expect(document.querySelector(".ai-provider-toast")).toHaveTextContent("Model list updated."));
 
     fireEvent.click(screen.getByRole("button", { name: "Save AI providers" }));
 
@@ -539,8 +573,12 @@ describe("Markra workspace", () => {
               id: "openai",
               models: expect.arrayContaining([
                 expect.objectContaining({ id: "gpt-5" }),
-                expect.objectContaining({ id: "gpt-5.5-thinking" }),
-                expect.objectContaining({ capability: "image", id: "gpt-image-1" })
+                expect.objectContaining({ capabilities: ["image"], id: "gpt-image-1" }),
+                expect.objectContaining({
+                  capabilities: ["text", "tools"],
+                  id: "gpt-5.5-thinking-updated",
+                  name: "GPT-5.5 Thinking Updated"
+                })
               ])
             })
           ])
@@ -553,12 +591,20 @@ describe("Markra workspace", () => {
     expect(screen.getByLabelText("Provider name")).toHaveValue("Custom Provider");
     expect(screen.getByLabelText("API style")).toHaveValue("openai-compatible");
     expect(screen.getByLabelText("API URL")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Delete provider" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("API style"), {
       target: { value: "mistral" }
     });
 
     expect(screen.getByLabelText("API URL")).toHaveValue("https://api.mistral.ai/v1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete provider" }));
+
+    expect(screen.queryByRole("button", { name: "Custom Provider" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete provider" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "OpenAI" })).toHaveAttribute("aria-current", "page");
+    await waitFor(() => expect(document.querySelector(".ai-provider-toast")).toHaveTextContent("Provider deleted."));
   });
 
   it("resets the welcome document from settings", async () => {

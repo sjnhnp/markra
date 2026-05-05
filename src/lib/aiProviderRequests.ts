@@ -1,4 +1,5 @@
 import type { AiModelCapability, AiProviderApiStyle, AiProviderConfig, AiProviderModel } from "./aiProviders";
+import { enrichAiProviderModelCapabilities, normalizeAiModelCapabilities } from "./aiProviders";
 import { requestNativeAiJson, type NativeAiHttpRequest, type NativeAiHttpResponse } from "./nativeAi";
 
 export type AiProviderHttpRequest = NativeAiHttpRequest;
@@ -123,13 +124,16 @@ export function parseAiProviderModels(provider: AiProviderConfig, body: unknown)
     const id = readModelId(provider.type, record);
     if (!id || seenIds.has(id)) continue;
 
+    const capabilities = inferModelCapabilities(provider.type, record, id);
+    if (capabilities.length === 0) continue;
+
     seenIds.add(id);
-    models.push({
-      capability: inferModelCapability(provider.type, record, id),
+    models.push(enrichAiProviderModelCapabilities(provider.id, {
+      capabilities,
       enabled: true,
       id,
       name: readModelName(provider.type, record, id)
-    });
+    }));
   }
 
   return models;
@@ -179,54 +183,104 @@ function readModelName(apiStyle: AiProviderApiStyle, record: Record<string, unkn
   return id;
 }
 
-function inferModelCapability(apiStyle: AiProviderApiStyle, record: Record<string, unknown>, id: string): AiModelCapability {
-  if (apiStyle === "google") return inferGoogleCapability(record);
-  if (apiStyle === "openrouter") return inferOpenRouterCapability(record, id);
+function inferModelCapabilities(apiStyle: AiProviderApiStyle, record: Record<string, unknown>, id: string): AiModelCapability[] {
+  if (apiStyle === "google") return inferGoogleCapabilities(record, id);
+  if (apiStyle === "openrouter") return inferOpenRouterCapabilities(record, id);
 
   const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
-  if (type.includes("image")) return "image";
-  if (type.includes("embedding")) return "embedding";
-  if (type.includes("moderation")) return "moderation";
-  if (type.includes("rerank")) return "rerank";
-  if (type.includes("audio")) return "audio";
-  if (type.includes("video")) return "video";
+  if (type.includes("image")) return ["image"];
+  if (isUnsupportedModelCapability(type)) return [];
 
-  return inferCapabilityFromId(id);
+  const capabilities = inferCapabilitiesFromId(id);
+  if (type.includes("vision")) capabilities.push("vision");
+
+  return normalizeAiModelCapabilities(capabilities, []);
 }
 
-function inferGoogleCapability(record: Record<string, unknown>): AiModelCapability {
+function inferGoogleCapabilities(record: Record<string, unknown>, id: string): AiModelCapability[] {
+  const normalizedId = id.toLowerCase();
   const methods = Array.isArray(record.supportedGenerationMethods)
     ? record.supportedGenerationMethods.filter((method): method is string => typeof method === "string")
     : [];
 
-  if (methods.some((method) => method.toLowerCase().includes("embed"))) return "embedding";
+  if (methods.some((method) => method.toLowerCase().includes("embed"))) return [];
+  if (isUnsupportedModelCapability(normalizedId)) return [];
+  if (normalizedId.includes("gemini")) {
+    const capabilities: AiModelCapability[] = [...inferCapabilitiesFromId(id), "vision", "reasoning", "tools"];
+    if (googleGeminiSupportsSearchGrounding(normalizedId)) capabilities.push("web");
 
-  return "text";
+    return normalizeAiModelCapabilities(capabilities, []);
+  }
+
+  return ["text"];
 }
 
-function inferOpenRouterCapability(record: Record<string, unknown>, id: string): AiModelCapability {
+function inferOpenRouterCapabilities(record: Record<string, unknown>, id: string): AiModelCapability[] {
   const architecture = isRecord(record.architecture) ? record.architecture : undefined;
   const modality = typeof architecture?.modality === "string" ? architecture.modality.toLowerCase() : "";
   const outputModalities = Array.isArray(architecture?.output_modalities)
     ? architecture.output_modalities.filter((modality): modality is string => typeof modality === "string")
     : [];
+  const supportedParameters = Array.isArray(architecture?.supported_parameters)
+    ? architecture.supported_parameters.filter((parameter): parameter is string => typeof parameter === "string")
+    : Array.isArray(record.supported_parameters)
+      ? record.supported_parameters.filter((parameter): parameter is string => typeof parameter === "string")
+      : [];
 
-  if (outputModalities.some((modality) => modality.toLowerCase() === "image") || modality.includes("image")) return "image";
-  if (outputModalities.some((modality) => modality.toLowerCase() === "audio") || modality.includes("audio")) return "audio";
+  if (outputModalities.some((modality) => modality.toLowerCase() === "audio") || modality.includes("audio")) return [];
+  if (isUnsupportedModelCapability(modality)) return [];
 
-  return inferCapabilityFromId(id);
+  const capabilities = inferCapabilitiesFromId(id);
+  if (outputModalities.some((modality) => modality.toLowerCase() === "image") || modality.includes("->image")) {
+    capabilities.push("image");
+  }
+  if (modality.includes("image")) capabilities.push("vision");
+  if (supportedParameters.some((parameter) => parameter.toLowerCase().includes("reasoning"))) capabilities.push("reasoning");
+  if (supportedParameters.some((parameter) => parameter.toLowerCase().includes("tool"))) capabilities.push("tools");
+  if (supportedParameters.some((parameter) => parameter.toLowerCase().includes("web"))) capabilities.push("web");
+
+  return normalizeAiModelCapabilities(capabilities, []);
 }
 
-function inferCapabilityFromId(id: string): AiModelCapability {
+function inferCapabilitiesFromId(id: string): AiModelCapability[] {
   const normalizedId = id.toLowerCase();
-  if (normalizedId.includes("embed")) return "embedding";
-  if (normalizedId.includes("image") || normalizedId.includes("dall")) return "image";
-  if (normalizedId.includes("audio") || normalizedId.includes("tts") || normalizedId.includes("whisper")) return "audio";
-  if (normalizedId.includes("moderation")) return "moderation";
-  if (normalizedId.includes("rerank")) return "rerank";
-  if (normalizedId.includes("video") || normalizedId.includes("sora")) return "video";
+  if (normalizedId.includes("image") || normalizedId.includes("dall")) return ["image"];
+  if (isUnsupportedModelCapability(normalizedId)) return [];
 
-  return "text";
+  const capabilities: AiModelCapability[] = ["text"];
+  if (normalizedId.includes("vision")) capabilities.push("vision");
+  if (normalizedId.includes("gpt-5")) capabilities.push("vision", "reasoning", "tools", "web");
+  if (normalizedId.includes("kimi-k2.5")) capabilities.push("vision", "reasoning", "tools");
+  if (normalizedId.includes("deepseek-v4") || normalizedId.includes("deepseek-v3.2") || normalizedId.includes("deepseek-v3-2")) {
+    capabilities.push("reasoning", "tools");
+  }
+  if (normalizedId.includes("qwen3.6-plus") || normalizedId.includes("qwen3.5-flash")) {
+    capabilities.push("vision", "reasoning", "tools", "web");
+  }
+  if (normalizedId.includes("qwen3-max")) capabilities.push("reasoning", "tools", "web");
+  if (normalizedId.includes("reasoning") || normalizedId.includes("thinking") || /(^|[-/:])r1($|[-/:])/.test(normalizedId)) {
+    capabilities.push("reasoning");
+  }
+  if (/(^|[-/:])r1($|[-/:])/.test(normalizedId) && normalizedId.includes("deepseek")) capabilities.push("tools");
+
+  return normalizeAiModelCapabilities(capabilities, []);
+}
+
+function googleGeminiSupportsSearchGrounding(normalizedId: string) {
+  return !normalizedId.includes("3.1-flash-lite");
+}
+
+function isUnsupportedModelCapability(value: string) {
+  return (
+    value.includes("audio") ||
+    value.includes("embed") ||
+    value.includes("moderation") ||
+    value.includes("rerank") ||
+    value.includes("sora") ||
+    value.includes("tts") ||
+    value.includes("video") ||
+    value.includes("whisper")
+  );
 }
 
 function isSuccessfulStatus(status: number) {

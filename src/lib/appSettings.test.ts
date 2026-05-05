@@ -133,7 +133,7 @@ describe("app settings", () => {
       baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
       type: "openai-compatible"
     });
-    expect(settings.providers[0]?.models[0]?.capability).toBe("text");
+    expect(settings.providers[0]?.models[0]?.capabilities).toEqual(["text", "vision", "reasoning", "tools", "web"]);
   });
 
   it("fills default API URLs for stored built-in AI providers without one", async () => {
@@ -297,6 +297,74 @@ describe("app settings", () => {
     ]);
   });
 
+  it("enriches stored built-in AI models with current built-in capabilities", async () => {
+    store.get.mockResolvedValue({
+      defaultModelId: "gemini-3.1-pro-preview",
+      defaultProviderId: "google",
+      providers: [
+        {
+          apiKey: "",
+          baseUrl: "",
+          defaultModelId: "gemini-3.1-pro-preview",
+          enabled: true,
+          id: "google",
+          models: [
+            { capabilities: ["text"], enabled: true, id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" },
+            { capability: "text", enabled: true, id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
+            { capabilities: ["text"], enabled: true, id: "custom-gemini", name: "Custom Gemini" }
+          ],
+          name: "Google",
+          type: "google"
+        }
+      ]
+    });
+
+    const settings = await getStoredAiSettings();
+    const google = settings.providers.find((provider) => provider.id === "google");
+
+    expect(google?.models.find((model) => model.id === "gemini-3.1-pro-preview")?.capabilities).toEqual([
+      "text",
+      "vision",
+      "reasoning",
+      "tools",
+      "web"
+    ]);
+    expect(google?.models.find((model) => model.id === "gemini-3-flash-preview")?.capabilities).toEqual([
+      "text",
+      "vision",
+      "reasoning",
+      "tools",
+      "web"
+    ]);
+    expect(google?.models.find((model) => model.id === "custom-gemini")?.capabilities).toEqual(["text"]);
+  });
+
+  it("normalizes legacy single-capability AI models into multi-capability models", async () => {
+    store.get.mockResolvedValue({
+      defaultModelId: "legacy-vision",
+      defaultProviderId: "custom-provider-1",
+      providers: [
+        {
+          apiKey: "",
+          baseUrl: "https://proxy.example.test/v1",
+          defaultModelId: "legacy-vision",
+          enabled: true,
+          id: "custom-provider-1",
+          models: [{ capability: "vision", enabled: true, id: "legacy-vision", name: "Legacy Vision" }],
+          name: "Custom Provider",
+          type: "openai-compatible"
+        }
+      ]
+    });
+
+    const settings = await getStoredAiSettings();
+
+    expect(settings.providers[0]?.models[0]).toMatchObject({
+      capabilities: ["text", "vision"],
+      id: "legacy-vision"
+    });
+  });
+
   it("persists AI provider settings in the app settings store", async () => {
     const settings = {
       defaultModelId: "gpt-4o",
@@ -310,7 +378,7 @@ describe("app settings", () => {
           id: "openai",
           models: [
             {
-              capability: "text" as const,
+              capabilities: ["text", "reasoning", "tools"] as const,
               enabled: true,
               id: "gpt-4o",
               name: "GPT-4o"

@@ -13,10 +13,10 @@ pub(crate) const OPEN_SETTINGS_WINDOW_COMMAND: &str = "open_settings_window";
 const SETTINGS_WINDOW_LABEL: &str = "markra-settings";
 const SETTINGS_WINDOW_URL: &str = "index.html?settings=1";
 const SETTINGS_WINDOW_TRANSPARENT: bool = true;
-const SETTINGS_WINDOW_WIDTH: f64 = 760.0;
-const SETTINGS_WINDOW_HEIGHT: f64 = 560.0;
-const SETTINGS_WINDOW_MIN_WIDTH: f64 = 680.0;
-const SETTINGS_WINDOW_MIN_HEIGHT: f64 = 500.0;
+const SETTINGS_WINDOW_WIDTH: f64 = 1040.0;
+const SETTINGS_WINDOW_HEIGHT: f64 = 720.0;
+const SETTINGS_WINDOW_MIN_WIDTH: f64 = 860.0;
+const SETTINGS_WINDOW_MIN_HEIGHT: f64 = 600.0;
 const SETTINGS_WINDOW_RESIZABLE: bool = true;
 const SETTINGS_WINDOW_SHADOW: bool = true;
 #[cfg(target_os = "macos")]
@@ -192,8 +192,8 @@ mod tests {
 
     #[test]
     fn settings_window_uses_roomier_default_size() {
-        assert_eq!(settings_window_inner_size(), (760.0, 560.0));
-        assert_eq!(settings_window_min_inner_size(), (680.0, 500.0));
+        assert_eq!(settings_window_inner_size(), (1040.0, 720.0));
+        assert_eq!(settings_window_min_inner_size(), (860.0, 600.0));
         assert!(settings_window_resizable());
     }
 

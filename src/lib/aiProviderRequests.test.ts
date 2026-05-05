@@ -24,6 +24,8 @@ describe("AI provider requests", () => {
   it("ships mainstream providers by default", () => {
     const settings = createDefaultAiSettings();
     const providerIds = settings.providers.map((item) => item.id);
+    const findModelCapabilities = (providerId: string, modelId: string) =>
+      settings.providers.find((item) => item.id === providerId)?.models.find((model) => model.id === modelId)?.capabilities;
 
     expect(providerIds).toEqual(
       expect.arrayContaining([
@@ -72,6 +74,48 @@ describe("AI provider requests", () => {
     expect(settings.providers.find((item) => item.id === "deepseek")?.models.map((model) => model.id)).not.toContain(
       "deepseek-chat"
     );
+    expect(findModelCapabilities("openai", "gpt-5.5")).toEqual(["text", "vision", "reasoning", "tools", "web"]);
+    expect(findModelCapabilities("anthropic", "claude-haiku-4-5")).toEqual([
+      "text",
+      "vision",
+      "reasoning",
+      "tools"
+    ]);
+    expect(findModelCapabilities("google", "gemini-3-flash-preview")).toEqual([
+      "text",
+      "vision",
+      "reasoning",
+      "tools",
+      "web"
+    ]);
+    expect(findModelCapabilities("deepseek", "deepseek-v4-pro")).toEqual(["text", "reasoning", "tools"]);
+    expect(findModelCapabilities("mistral", "mistral-large-latest")).toEqual(["text", "vision", "tools"]);
+    expect(findModelCapabilities("together", "moonshotai/Kimi-K2.5")).toEqual([
+      "text",
+      "vision",
+      "reasoning",
+      "tools"
+    ]);
+    expect(findModelCapabilities("aliyun-bailian", "qwen3.6-plus")).toEqual([
+      "text",
+      "vision",
+      "reasoning",
+      "tools",
+      "web"
+    ]);
+    expect(findModelCapabilities("xiaomi-mimo", "mimo-v2.5")).toEqual([
+      "text",
+      "vision",
+      "reasoning",
+      "tools",
+      "web"
+    ]);
+    expect(findModelCapabilities("volcengine", "doubao-seed-1-6-flash-250715")).toEqual([
+      "text",
+      "vision",
+      "reasoning",
+      "tools"
+    ]);
     expect(settings.providers.find((item) => item.id === "aliyun-bailian")?.models.map((model) => model.id)).toEqual([
       "qwen3.6-plus",
       "qwen3-max",
@@ -172,11 +216,18 @@ describe("AI provider requests", () => {
   it("parses common model list response shapes", () => {
     expect(
       parseAiProviderModels(provider({ type: "openai" }), {
-        data: [{ id: "gpt-5" }, { id: "gpt-image-1", object: "model" }]
+        data: [
+          { id: "gpt-5" },
+          { id: "gpt-image-1", object: "model" },
+          { id: "gpt-4.1-vision-preview" },
+          { id: "text-embedding-3-large" },
+          { id: "gpt-4o-audio-preview" }
+        ]
       })
     ).toEqual([
-      { capability: "text", enabled: true, id: "gpt-5", name: "gpt-5" },
-      { capability: "image", enabled: true, id: "gpt-image-1", name: "gpt-image-1" }
+      { capabilities: ["text", "vision", "reasoning", "tools", "web"], enabled: true, id: "gpt-5", name: "gpt-5" },
+      { capabilities: ["image"], enabled: true, id: "gpt-image-1", name: "gpt-image-1" },
+      { capabilities: ["text", "vision"], enabled: true, id: "gpt-4.1-vision-preview", name: "gpt-4.1-vision-preview" }
     ]);
 
     expect(
@@ -191,7 +242,7 @@ describe("AI provider requests", () => {
       })
     ).toEqual([
       {
-        capability: "text",
+        capabilities: ["text", "vision", "reasoning", "tools", "web"],
         enabled: true,
         id: "gemini-2.5-flash",
         name: "Gemini 2.5 Flash"
@@ -199,10 +250,97 @@ describe("AI provider requests", () => {
     ]);
 
     expect(
+      parseAiProviderModels(provider({ type: "google" }), {
+        models: [
+          {
+            displayName: "Gemini 3.1 Flash TTS Preview",
+            name: "models/gemini-3.1-flash-tts-preview",
+            supportedGenerationMethods: ["generateContent"]
+          }
+        ]
+      })
+    ).toEqual([]);
+
+    expect(
+      parseAiProviderModels(provider({ id: "google", type: "google" }), {
+        models: [
+          {
+            displayName: "Gemini 3.1 Pro Preview",
+            name: "models/gemini-3.1-pro-preview",
+            supportedGenerationMethods: ["generateContent"]
+          }
+        ]
+      })
+    ).toEqual([
+      {
+        capabilities: ["text", "vision", "reasoning", "tools", "web"],
+        enabled: true,
+        id: "gemini-3.1-pro-preview",
+        name: "Gemini 3.1 Pro Preview"
+      }
+    ]);
+
+    expect(
+      parseAiProviderModels(provider({ id: "google", type: "google" }), {
+        models: [
+          {
+            displayName: "Gemini 3.1 Flash-Lite Preview",
+            name: "models/gemini-3.1-flash-lite-preview",
+            supportedGenerationMethods: ["generateContent"]
+          }
+        ]
+      })
+    ).toEqual([
+      {
+        capabilities: ["text", "vision", "reasoning", "tools"],
+        enabled: true,
+        id: "gemini-3.1-flash-lite-preview",
+        name: "Gemini 3.1 Flash-Lite Preview"
+      }
+    ]);
+
+    expect(
       parseAiProviderModels(provider({ type: "together" }), [
         { display_name: "Llama 4", id: "meta-llama/Llama-4", type: "chat" }
       ])
-    ).toEqual([{ capability: "text", enabled: true, id: "meta-llama/Llama-4", name: "Llama 4" }]);
+    ).toEqual([{ capabilities: ["text"], enabled: true, id: "meta-llama/Llama-4", name: "Llama 4" }]);
+
+    expect(
+      parseAiProviderModels(provider({ id: "together", type: "together" }), [
+        { display_name: "Kimi K2.5", id: "moonshotai/Kimi-K2.5", type: "chat" },
+        { display_name: "DeepSeek R1", id: "deepseek-ai/DeepSeek-R1", type: "chat" }
+      ])
+    ).toEqual([
+      {
+        capabilities: ["text", "vision", "reasoning", "tools"],
+        enabled: true,
+        id: "moonshotai/Kimi-K2.5",
+        name: "Kimi K2.5"
+      },
+      { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "deepseek-ai/DeepSeek-R1", name: "DeepSeek R1" }
+    ]);
+
+    expect(
+      parseAiProviderModels(provider({ type: "openrouter" }), {
+        data: [
+          {
+            architecture: {
+              modality: "text+image->text",
+              output_modalities: ["text"],
+              supported_parameters: ["tools", "reasoning"]
+            },
+            id: "anthropic/claude-sonnet-4.6"
+          }
+        ]
+      })
+    ).toEqual([
+      {
+        capabilities: ["text", "vision", "reasoning", "tools"],
+        enabled: true,
+        id: "anthropic/claude-sonnet-4.6",
+        name: "anthropic/claude-sonnet-4.6"
+      }
+    ]);
   });
 
   it("tests and fetches models through an injected native transport", async () => {
@@ -218,7 +356,7 @@ describe("AI provider requests", () => {
       ok: true
     });
     await expect(fetchAiProviderModels(provider({ type: "openai" }), transport)).resolves.toEqual([
-      { capability: "text", enabled: true, id: "gpt-5", name: "gpt-5" }
+      { capabilities: ["text", "vision", "reasoning", "tools", "web"], enabled: true, id: "gpt-5", name: "gpt-5" }
     ]);
     expect(transport).toHaveBeenCalledWith(expect.objectContaining({ url: "https://api.openai.com/v1/models" }));
   });

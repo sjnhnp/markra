@@ -190,7 +190,7 @@ function SettingsContent({
       <div
         className={
           activeCategory === "ai"
-            ? "settings-scroll min-h-0 flex-1 overflow-auto overscroll-none p-0"
+            ? "settings-scroll min-h-0 flex-1 overflow-hidden overscroll-none p-0"
             : "settings-scroll min-h-0 flex-1 overflow-auto overscroll-none px-8 py-7"
         }
       >
