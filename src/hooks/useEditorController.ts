@@ -6,9 +6,13 @@ import type { MarkdownOutlineItem } from "../lib/markdown";
 
 const outlineScrollTopOffset = 24;
 
-export function shouldFocusEditorOnReady() {
+type EditorReadyOptions = {
+  autoFocus?: boolean;
+};
+
+export function shouldFocusEditorOnReady(markdown = "") {
   const params = new URLSearchParams(window.location.search);
-  return params.has("blank") || params.has("path");
+  return params.has("blank") || params.has("path") || markdown.trim() === "";
 }
 
 export function scrollElementToContainerTop(element: Node | null, scrollContainer: Element | null) {
@@ -42,7 +46,7 @@ export function useEditorController() {
     }
   }, []);
 
-  const handleEditorReady = useCallback((editor: Editor | null) => {
+  const handleEditorReady = useCallback((editor: Editor | null, options: EditorReadyOptions = {}) => {
     if (focusTimerRef.current !== null) {
       window.clearTimeout(focusTimerRef.current);
       focusTimerRef.current = null;
@@ -50,7 +54,7 @@ export function useEditorController() {
 
     editorRef.current = editor;
 
-    if (!editor || !shouldFocusEditorOnReady()) return;
+    if (!editor || !options.autoFocus) return;
 
     focusTimerRef.current = window.setTimeout(() => {
       if (editorRef.current !== editor) return;

@@ -41,28 +41,35 @@ const markraGfm = [
 ].flat();
 
 type MarkdownPaperProps = {
+  autoFocus?: boolean;
   initialContent: string;
   language?: AppLanguage;
-  onEditorReady: (editor: Editor | null) => void;
+  onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => void;
   onMarkdownChange: (content: string) => void;
   revision: number;
 };
 
 type MilkdownSurfaceProps = {
+  autoFocus: boolean;
   initialContent: string;
   language: AppLanguage;
-  onEditorReady: (editor: Editor | null) => void;
+  onEditorReady: MarkdownPaperProps["onEditorReady"];
   onMarkdownChange: (content: string) => void;
 };
 
-function MilkdownInstanceBridge({ onEditorReady }: Pick<MilkdownSurfaceProps, "onEditorReady">) {
+function MilkdownInstanceBridge({ autoFocus, onEditorReady }: Pick<MilkdownSurfaceProps, "autoFocus" | "onEditorReady">) {
   const [loading, getEditor] = useInstance();
+  const autoFocusRef = useRef(autoFocus);
+
+  useEffect(() => {
+    autoFocusRef.current = autoFocus;
+  }, [autoFocus]);
 
   useEffect(() => {
     if (loading) return;
 
     const editor = getEditor();
-    onEditorReady(editor);
+    onEditorReady(editor, { autoFocus: autoFocusRef.current });
 
     return () => {
       onEditorReady(null);
@@ -72,7 +79,7 @@ function MilkdownInstanceBridge({ onEditorReady }: Pick<MilkdownSurfaceProps, "o
   return null;
 }
 
-function MilkdownSurface({ initialContent, language, onEditorReady, onMarkdownChange }: MilkdownSurfaceProps) {
+function MilkdownSurface({ autoFocus, initialContent, language, onEditorReady, onMarkdownChange }: MilkdownSurfaceProps) {
   const initialContentRef = useRef(initialContent);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
 
@@ -109,12 +116,13 @@ function MilkdownSurface({ initialContent, language, onEditorReady, onMarkdownCh
   return (
     <>
       <Milkdown />
-      <MilkdownInstanceBridge onEditorReady={onEditorReady} />
+      <MilkdownInstanceBridge autoFocus={autoFocus} onEditorReady={onEditorReady} />
     </>
   );
 }
 
 export function MarkdownPaper({
+  autoFocus = false,
   initialContent,
   language = "en",
   onEditorReady,
@@ -134,6 +142,7 @@ export function MarkdownPaper({
       >
         <MilkdownProvider>
           <MilkdownSurface
+            autoFocus={autoFocus}
             initialContent={initialContent}
             language={language}
             onEditorReady={onEditorReady}

@@ -674,6 +674,16 @@ describe("Markra workspace", () => {
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
 
+  it("focuses the editor when the default launch opens an empty document", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+
+    render(<App />);
+
+    const editor = await screen.findByRole("textbox", { name: "Markdown document" });
+
+    await waitFor(() => expect(editor).toHaveFocus());
+  });
+
   it("focuses the editor when a native new-document window opens", async () => {
     window.history.pushState({}, "", "/?blank=1");
 

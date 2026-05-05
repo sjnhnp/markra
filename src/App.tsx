@@ -6,7 +6,7 @@ import { QuietStatus } from "./components/QuietStatus";
 import { SettingsWindow } from "./components/SettingsWindow";
 import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppTheme } from "./hooks/useAppTheme";
-import { useEditorController } from "./hooks/useEditorController";
+import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
 import {
@@ -127,6 +127,7 @@ export default function App() {
         ) : null}
 
         <MarkdownPaper
+          autoFocus={shouldFocusEditorOnReady(document.content)}
           initialContent={document.content}
           language={appLanguage.language}
           onEditorReady={editor.handleEditorReady}
