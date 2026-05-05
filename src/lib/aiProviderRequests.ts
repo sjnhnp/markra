@@ -1,4 +1,4 @@
-import type { AiModelCapability, AiProviderConfig, AiProviderModel, AiProviderType } from "./aiProviders";
+import type { AiModelCapability, AiProviderApiStyle, AiProviderConfig, AiProviderModel } from "./aiProviders";
 import { requestNativeAiJson, type NativeAiHttpRequest, type NativeAiHttpResponse } from "./nativeAi";
 
 export type AiProviderHttpRequest = NativeAiHttpRequest;
@@ -13,7 +13,7 @@ type ProviderEndpoint = {
 
 const anthropicVersion = "2023-06-01";
 
-const endpointByProviderType: Record<AiProviderType, ProviderEndpoint> = {
+const endpointByApiStyle: Record<AiProviderApiStyle, ProviderEndpoint> = {
   anthropic: {
     auth: "anthropic",
     baseUrl: "https://api.anthropic.com/v1",
@@ -77,7 +77,7 @@ const endpointByProviderType: Record<AiProviderType, ProviderEndpoint> = {
 };
 
 export function buildAiProviderModelsRequest(provider: AiProviderConfig): AiProviderHttpRequest {
-  const endpoint = endpointByProviderType[provider.type];
+  const endpoint = endpointByApiStyle[provider.type];
   const baseUrl = provider.baseUrl?.trim() || endpoint.baseUrl;
   if (!baseUrl) throw new Error("API URL is required.");
 
@@ -151,37 +151,37 @@ function joinApiUrl(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
-function readModelRecords(providerType: AiProviderType, body: unknown): Record<string, unknown>[] {
+function readModelRecords(apiStyle: AiProviderApiStyle, body: unknown): Record<string, unknown>[] {
   if (Array.isArray(body)) return body.filter(isRecord);
   if (!isRecord(body)) return [];
 
   if (Array.isArray(body.data)) return body.data.filter(isRecord);
   if (Array.isArray(body.models)) return body.models.filter(isRecord);
-  if (providerType === "xai" && Array.isArray(body.language_models)) return body.language_models.filter(isRecord);
+  if (apiStyle === "xai" && Array.isArray(body.language_models)) return body.language_models.filter(isRecord);
 
   return [];
 }
 
-function readModelId(providerType: AiProviderType, record: Record<string, unknown>) {
+function readModelId(apiStyle: AiProviderApiStyle, record: Record<string, unknown>) {
   const id = typeof record.id === "string" ? record.id : undefined;
   const name = typeof record.name === "string" ? record.name : undefined;
 
-  if (providerType === "google" && name?.startsWith("models/")) return name.slice("models/".length);
+  if (apiStyle === "google" && name?.startsWith("models/")) return name.slice("models/".length);
 
   return id ?? name;
 }
 
-function readModelName(providerType: AiProviderType, record: Record<string, unknown>, id: string) {
+function readModelName(apiStyle: AiProviderApiStyle, record: Record<string, unknown>, id: string) {
   if (typeof record.displayName === "string") return record.displayName;
   if (typeof record.display_name === "string") return record.display_name;
-  if (typeof record.name === "string" && !(providerType === "google" && record.name.startsWith("models/"))) return record.name;
+  if (typeof record.name === "string" && !(apiStyle === "google" && record.name.startsWith("models/"))) return record.name;
 
   return id;
 }
 
-function inferModelCapability(providerType: AiProviderType, record: Record<string, unknown>, id: string): AiModelCapability {
-  if (providerType === "google") return inferGoogleCapability(record);
-  if (providerType === "openrouter") return inferOpenRouterCapability(record, id);
+function inferModelCapability(apiStyle: AiProviderApiStyle, record: Record<string, unknown>, id: string): AiModelCapability {
+  if (apiStyle === "google") return inferGoogleCapability(record);
+  if (apiStyle === "openrouter") return inferOpenRouterCapability(record, id);
 
   const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
   if (type.includes("image")) return "image";

@@ -187,21 +187,21 @@ describe("Markra workspace", () => {
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
     mockedGetStoredAiSettings.mockResolvedValue({
-      defaultModelId: "gpt-4o",
+      defaultModelId: "gpt-5.5",
       defaultProviderId: "openai",
       providers: [
         {
           apiKey: "",
           baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-4o",
+          defaultModelId: "gpt-5.5",
           enabled: false,
           id: "openai",
           models: [
             {
               capability: "text",
               enabled: true,
-              id: "gpt-4o",
-              name: "GPT-4o"
+              id: "gpt-5.5",
+              name: "GPT-5.5"
             }
           ],
           name: "OpenAI",
@@ -210,15 +210,15 @@ describe("Markra workspace", () => {
         {
           apiKey: "",
           baseUrl: "https://api.anthropic.com/v1",
-          defaultModelId: "claude-sonnet",
+          defaultModelId: "claude-opus-4-7",
           enabled: false,
           id: "anthropic",
           models: [
             {
               capability: "text",
               enabled: true,
-              id: "claude-sonnet",
-              name: "Claude Sonnet"
+              id: "claude-opus-4-7",
+              name: "Claude Opus 4.7"
             }
           ],
           name: "Anthropic",
@@ -485,9 +485,20 @@ describe("Markra workspace", () => {
     expect(screen.getByLabelText("Search providers")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Add provider" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Provider name")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Provider type")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("API style")).not.toBeInTheDocument();
     expect(screen.getByLabelText("API key")).toHaveValue("");
     expect(screen.getByLabelText("API URL")).toHaveValue("https://api.openai.com/v1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    fireEvent.change(screen.getByLabelText("Model ID"), {
+      target: { value: "gpt-5.5-thinking" }
+    });
+    fireEvent.change(screen.getByLabelText("Model name"), {
+      target: { value: "GPT-5.5 Thinking" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add model to provider" }));
+
+    expect(screen.getAllByText("GPT-5.5 Thinking").length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText("API key"), {
       target: { value: "sk-test" }
@@ -528,6 +539,7 @@ describe("Markra workspace", () => {
               id: "openai",
               models: expect.arrayContaining([
                 expect.objectContaining({ id: "gpt-5" }),
+                expect.objectContaining({ id: "gpt-5.5-thinking" }),
                 expect.objectContaining({ capability: "image", id: "gpt-image-1" })
               ])
             })
@@ -539,10 +551,10 @@ describe("Markra workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
 
     expect(screen.getByLabelText("Provider name")).toHaveValue("Custom Provider");
-    expect(screen.getByLabelText("Provider type")).toHaveValue("openai-compatible");
+    expect(screen.getByLabelText("API style")).toHaveValue("openai-compatible");
     expect(screen.getByLabelText("API URL")).toHaveValue("");
 
-    fireEvent.change(screen.getByLabelText("Provider type"), {
+    fireEvent.change(screen.getByLabelText("API style"), {
       target: { value: "mistral" }
     });
 

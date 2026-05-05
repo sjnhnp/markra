@@ -121,6 +121,18 @@ describe("app settings", () => {
     expect(settings.providers.find((provider) => provider.id === "azure-openai")?.baseUrl).toBe(
       "https://your-resource-name.openai.azure.com"
     );
+    expect(settings.providers.find((provider) => provider.id === "aliyun-bailian")).toMatchObject({
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      type: "openai-compatible"
+    });
+    expect(settings.providers.find((provider) => provider.id === "xiaomi-mimo")).toMatchObject({
+      baseUrl: "https://api.xiaomimimo.com/v1",
+      type: "openai-compatible"
+    });
+    expect(settings.providers.find((provider) => provider.id === "volcengine")).toMatchObject({
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      type: "openai-compatible"
+    });
     expect(settings.providers[0]?.models[0]?.capability).toBe("text");
   });
 
@@ -142,6 +154,16 @@ describe("app settings", () => {
         {
           apiKey: "",
           baseUrl: "",
+          defaultModelId: "qwen3.6-plus",
+          enabled: false,
+          id: "aliyun-bailian",
+          models: [{ capability: "text", enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+          name: "Qwen",
+          type: "openai-compatible"
+        },
+        {
+          apiKey: "",
+          baseUrl: "",
           defaultModelId: "default",
           enabled: false,
           id: "custom-provider-1",
@@ -155,7 +177,45 @@ describe("app settings", () => {
     const settings = await getStoredAiSettings();
 
     expect(settings.providers.find((provider) => provider.id === "openai")?.baseUrl).toBe("https://api.openai.com/v1");
+    expect(settings.providers.find((provider) => provider.id === "aliyun-bailian")?.baseUrl).toBe(
+      "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    );
     expect(settings.providers.find((provider) => provider.id === "custom-provider-1")?.baseUrl).toBe("");
+  });
+
+  it("removes the legacy OpenAI Compatible built-in provider while preserving custom compatible providers", async () => {
+    store.get.mockResolvedValue({
+      defaultModelId: "default",
+      defaultProviderId: "openai-compatible",
+      providers: [
+        {
+          apiKey: "",
+          baseUrl: "",
+          defaultModelId: "default",
+          enabled: false,
+          id: "openai-compatible",
+          models: [{ capability: "text", enabled: true, id: "default", name: "Default model" }],
+          name: "OpenAI Compatible",
+          type: "openai-compatible"
+        },
+        {
+          apiKey: "",
+          baseUrl: "https://proxy.example.test/v1",
+          defaultModelId: "writer-model",
+          enabled: true,
+          id: "custom-provider-1",
+          models: [{ capability: "text", enabled: true, id: "writer-model", name: "Writer Model" }],
+          name: "Custom Provider",
+          type: "openai-compatible"
+        }
+      ]
+    });
+
+    const settings = await getStoredAiSettings();
+
+    expect(settings.defaultProviderId).toBe("custom-provider-1");
+    expect(settings.providers.map((provider) => provider.id)).toEqual(["custom-provider-1"]);
+    expect(settings.providers[0]?.type).toBe("openai-compatible");
   });
 
   it("refreshes stale built-in AI provider model defaults from stored settings", async () => {
@@ -193,9 +253,9 @@ describe("app settings", () => {
     const openai = settings.providers.find((provider) => provider.id === "openai");
     const deepseek = settings.providers.find((provider) => provider.id === "deepseek");
 
-    expect(settings.defaultModelId).toBe("gpt-5.4");
-    expect(openai?.defaultModelId).toBe("gpt-5.4");
-    expect(openai?.models.map((model) => model.id)).toEqual(["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-image-1.5"]);
+    expect(settings.defaultModelId).toBe("gpt-5.5");
+    expect(openai?.defaultModelId).toBe("gpt-5.5");
+    expect(openai?.models.map((model) => model.id)).toEqual(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-image-2"]);
     expect(deepseek?.defaultModelId).toBe("deepseek-v4-pro");
     expect(deepseek?.models.map((model) => model.id)).toEqual(["deepseek-v4-pro", "deepseek-v4-flash"]);
   });

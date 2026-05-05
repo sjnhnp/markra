@@ -1,7 +1,7 @@
 import { Check, KeyRound, Plus, Search } from "lucide-react";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import azureAiLogo from "../assets/provider-logos/azure-ai.svg";
-import anthropicLogo from "../assets/provider-logos/anthropic.svg";
+import claudeLogo from "../assets/provider-logos/claude.svg";
 import deepseekLogo from "../assets/provider-logos/deepseek.svg";
 import geminiLogo from "../assets/provider-logos/gemini.svg";
 import grokLogo from "../assets/provider-logos/grok.svg";
@@ -10,9 +10,18 @@ import mistralLogo from "../assets/provider-logos/mistral.svg";
 import ollamaLogo from "../assets/provider-logos/ollama.svg";
 import openAiLogo from "../assets/provider-logos/openai.svg";
 import openRouterLogo from "../assets/provider-logos/openrouter.svg";
+import qwenLogo from "../assets/provider-logos/qwen.svg";
 import togetherLogo from "../assets/provider-logos/together.svg";
-import type { AiProviderConfig, AiProviderModel, AiProviderSettings, AiProviderType } from "../lib/appSettings";
-import { aiProviderTypes, defaultApiUrlForProviderType } from "../lib/aiProviders";
+import volcengineLogo from "../assets/provider-logos/volcengine.svg";
+import xiaomiMimoLogo from "../assets/provider-logos/xiaomi-mimo.svg";
+import type {
+  AiModelCapability,
+  AiProviderApiStyle,
+  AiProviderConfig,
+  AiProviderModel,
+  AiProviderSettings,
+} from "../lib/appSettings";
+import { aiProviderApiStyles, defaultApiUrlForApiStyle } from "../lib/aiProviders";
 import type { I18nKey } from "../lib/i18n";
 
 type Translate = (key: I18nKey) => string;
@@ -36,8 +45,16 @@ type ProviderActionState = {
   status: "error" | "idle" | "success";
 };
 
-const providerLogoByType: Partial<Record<AiProviderType, string>> = {
-  anthropic: anthropicLogo,
+type ModelDraft = {
+  capability: AiModelCapability;
+  id: string;
+  name: string;
+};
+
+const aiModelCapabilities: AiModelCapability[] = ["text", "image", "audio", "video", "embedding", "rerank", "moderation"];
+
+const providerLogoByType: Partial<Record<AiProviderApiStyle, string>> = {
+  anthropic: claudeLogo,
   "azure-openai": azureAiLogo,
   deepseek: deepseekLogo,
   google: geminiLogo,
@@ -48,6 +65,12 @@ const providerLogoByType: Partial<Record<AiProviderType, string>> = {
   openrouter: openRouterLogo,
   together: togetherLogo,
   xai: grokLogo
+};
+
+const providerLogoById: Partial<Record<string, string>> = {
+  "aliyun-bailian": qwenLogo,
+  "volcengine": volcengineLogo,
+  "xiaomi-mimo": xiaomiMimoLogo
 };
 
 function SettingsTextField({
@@ -114,8 +137,8 @@ function SettingsSection({ children, label }: { children: ReactNode; label: stri
   );
 }
 
-function providerTypeLabel(type: AiProviderType) {
-  const labels: Record<AiProviderType, string> = {
+function apiStyleLabel(type: AiProviderApiStyle) {
+  const labels: Record<AiProviderApiStyle, string> = {
     anthropic: "Anthropic",
     "azure-openai": "Azure OpenAI",
     deepseek: "DeepSeek",
@@ -145,7 +168,7 @@ function updateProvider(
 }
 
 function ProviderBadge({ provider }: { provider: AiProviderConfig }) {
-  const logo = providerLogoByType[provider.type];
+  const logo = providerLogoById[provider.id] ?? providerLogoByType[provider.type];
 
   return (
     <span className="inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--border-default) bg-[oklch(0.985_0.004_255)] text-[11px] leading-none font-[750] text-(--accent)">
@@ -202,7 +225,7 @@ function ActionButton({
 }) {
   return (
     <button
-      className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[650] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) disabled:cursor-default disabled:opacity-60 disabled:hover:bg-(--bg-primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+      className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[650] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) disabled:cursor-default disabled:opacity-60 disabled:hover:bg-(--bg-primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
       type="button"
       aria-label={label}
       disabled={disabled}
@@ -211,6 +234,14 @@ function ActionButton({
       {children}
     </button>
   );
+}
+
+function createEmptyModelDraft(): ModelDraft {
+  return {
+    capability: "text",
+    id: "",
+    name: ""
+  };
 }
 
 export function AiProviderSettingsPanel({
@@ -226,6 +257,8 @@ export function AiProviderSettingsPanel({
   onUpdateSettings
 }: AiProviderSettingsPanelProps) {
   const [actionState, setActionState] = useState<ProviderActionState>({ status: "idle" });
+  const [isAddingModel, setIsAddingModel] = useState(false);
+  const [modelDraft, setModelDraft] = useState<ModelDraft>(() => createEmptyModelDraft());
   const [providerSearch, setProviderSearch] = useState("");
   const selectedProvider = settings.providers.find((provider) => provider.id === selectedProviderId) ?? settings.providers[0];
   const normalizedProviderSearch = providerSearch.trim().toLowerCase();
@@ -243,6 +276,12 @@ export function AiProviderSettingsPanel({
   );
 
   const modelOptions = selectedProvider?.models ?? [];
+  const canAddModel = modelDraft.id.trim().length > 0;
+
+  useEffect(() => {
+    setIsAddingModel(false);
+    setModelDraft(createEmptyModelDraft());
+  }, [selectedProvider?.id]);
 
   const handleTestProvider = useCallback(() => {
     if (!selectedProvider) return;
@@ -267,10 +306,11 @@ export function AiProviderSettingsPanel({
     void onFetchModels(selectedProvider)
       .then((models) => {
         const enabledByModelId = new Map(selectedProvider.models.map((model) => [model.id, model.enabled]));
+        const fetchedModelIds = new Set(models.map((model) => model.id));
         const mergedModels = models.map((model) => ({
           ...model,
           enabled: enabledByModelId.get(model.id) ?? model.enabled
-        }));
+        })).concat(selectedProvider.models.filter((model) => !fetchedModelIds.has(model.id)));
         const defaultModelId = mergedModels.some((model) => model.id === selectedProvider.defaultModelId)
           ? selectedProvider.defaultModelId
           : mergedModels[0]?.id;
@@ -290,6 +330,37 @@ export function AiProviderSettingsPanel({
         setActionState({ message: error instanceof Error ? error.message : String(error), status: "error" });
       });
   }, [onFetchModels, onUpdateSettings, selectedProvider, settings, translate]);
+
+  const handleAddModel = useCallback(() => {
+    if (!selectedProvider) return;
+
+    const id = modelDraft.id.trim();
+    if (!id) return;
+
+    const model: AiProviderModel = {
+      capability: modelDraft.capability,
+      enabled: true,
+      id,
+      name: modelDraft.name.trim() || id
+    };
+
+    onUpdateSettings(
+      updateProvider(settings, selectedProvider.id, (provider) => {
+        const hasModel = provider.models.some((item) => item.id === model.id);
+        const models = hasModel
+          ? provider.models.map((item) => (item.id === model.id ? model : item))
+          : [...provider.models, model];
+
+        return {
+          ...provider,
+          defaultModelId: provider.defaultModelId || model.id,
+          models
+        };
+      })
+    );
+    setIsAddingModel(false);
+    setModelDraft(createEmptyModelDraft());
+  }, [modelDraft, onUpdateSettings, selectedProvider, settings]);
 
   return (
     <div className="ai-settings-layout grid min-h-full grid-cols-[16rem_minmax(0,1fr)] max-[860px]:grid-cols-1">
@@ -355,7 +426,7 @@ export function AiProviderSettingsPanel({
                 </h3>
                 {isCustomProvider ? (
                   <p className="m-0 text-[12px] leading-5 text-(--text-secondary)">
-                    {providerTypeLabel(selectedProvider.type)}
+                    {apiStyleLabel(selectedProvider.type)}
                   </p>
                 ) : null}
               </div>
@@ -380,20 +451,20 @@ export function AiProviderSettingsPanel({
                       value={selectedProvider.name}
                       onChange={(name) => updateSelectedProvider((provider) => ({ ...provider, name }))}
                     />
-                    <SettingsSelectField<AiProviderType>
-                      label={translate("settings.ai.providerType")}
+                    <SettingsSelectField<AiProviderApiStyle>
+                      label={translate("settings.ai.apiStyle")}
                       value={selectedProvider.type}
                       onChange={(type) =>
                         updateSelectedProvider((provider) => ({
                           ...provider,
-                          baseUrl: provider.baseUrl || defaultApiUrlForProviderType(type),
+                          baseUrl: provider.baseUrl || defaultApiUrlForApiStyle(type),
                           type
                         }))
                       }
                     >
-                      {aiProviderTypes.map((type) => (
+                      {aiProviderApiStyles.map((type) => (
                         <option key={type} value={type}>
-                          {providerTypeLabel(type)}
+                          {apiStyleLabel(type)}
                         </option>
                       ))}
                     </SettingsSelectField>
@@ -451,14 +522,67 @@ export function AiProviderSettingsPanel({
                     <p className="m-0 text-[12px] leading-5 font-[700] text-(--text-secondary)">
                       {translate("settings.ai.availableModels")}
                     </p>
-                    <ActionButton
-                      label={translate("settings.ai.getModelList")}
-                      disabled={actionState.pending === "models"}
-                      onClick={handleFetchModels}
-                    >
-                      {actionState.pending === "models" ? translate("settings.ai.fetchingModels") : translate("settings.ai.getModelList")}
-                    </ActionButton>
+                    <div className="flex items-center gap-2">
+                      <ActionButton label={translate("settings.ai.addModel")} onClick={() => setIsAddingModel(true)}>
+                        <Plus aria-hidden="true" size={14} />
+                        {translate("settings.ai.addModel")}
+                      </ActionButton>
+                      <ActionButton
+                        label={translate("settings.ai.getModelList")}
+                        disabled={actionState.pending === "models"}
+                        onClick={handleFetchModels}
+                      >
+                        {actionState.pending === "models" ? translate("settings.ai.fetchingModels") : translate("settings.ai.getModelList")}
+                      </ActionButton>
+                    </div>
                   </div>
+
+                  {isAddingModel ? (
+                    <div className="mb-3 grid gap-3 rounded-md bg-(--bg-secondary) p-3">
+                      <div className="grid gap-3 min-[780px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem]">
+                        <SettingsTextField
+                          label={translate("settings.ai.modelId")}
+                          value={modelDraft.id}
+                          onChange={(id) => setModelDraft((draft) => ({ ...draft, id }))}
+                        />
+                        <SettingsTextField
+                          label={translate("settings.ai.modelName")}
+                          value={modelDraft.name}
+                          onChange={(name) => setModelDraft((draft) => ({ ...draft, name }))}
+                        />
+                        <SettingsSelectField<AiModelCapability>
+                          label={translate("settings.ai.modelCapability")}
+                          value={modelDraft.capability}
+                          onChange={(capability) => setModelDraft((draft) => ({ ...draft, capability }))}
+                        >
+                          {aiModelCapabilities.map((capability) => (
+                            <option key={capability} value={capability}>
+                              {capability}
+                            </option>
+                          ))}
+                        </SettingsSelectField>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <ActionButton
+                          label={translate("settings.ai.cancelAddModel")}
+                          onClick={() => {
+                            setIsAddingModel(false);
+                            setModelDraft(createEmptyModelDraft());
+                          }}
+                        >
+                          {translate("settings.ai.cancelAddModel")}
+                        </ActionButton>
+                        <ActionButton
+                          label={translate("settings.ai.addModelToProvider")}
+                          disabled={!canAddModel}
+                          onClick={handleAddModel}
+                        >
+                          {translate("settings.ai.addModelToProvider")}
+                        </ActionButton>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="divide-y divide-(--border-default)">
                     {modelOptions.map((model) => (
                       <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2" key={model.id}>

@@ -3,6 +3,15 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
 
 const chunkSizeLimit = 450 * 1024;
+const imageAssetPattern = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i;
+
+function outputAssetFileName(asset: { names?: string[]; originalFileNames?: string[] }) {
+  const sourceName = asset.names?.[0] ?? asset.originalFileNames?.[0] ?? "";
+
+  if (imageAssetPattern.test(sourceName)) return "assets/images/[name]-[hash][extname]";
+
+  return "assets/[name]-[hash][extname]";
+}
 
 function dependencyPattern(dependencies: string[]) {
   const dependencySource = dependencies.map((dependency) => dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
@@ -42,8 +51,15 @@ function vendorChunkName(id: string) {
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
+    assetsInlineLimit: (filePath) => {
+      // Keep provider SVG logos as standalone assets instead of embedding them into JS chunks.
+      if (filePath.toLowerCase().endsWith(".svg")) return false;
+
+      return undefined;
+    },
     rolldownOptions: {
       output: {
+        assetFileNames: outputAssetFileName,
         codeSplitting: {
           groups: [
             {

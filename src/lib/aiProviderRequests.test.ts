@@ -35,36 +35,60 @@ describe("AI provider requests", () => {
         "groq",
         "openrouter",
         "together",
+        "aliyun-bailian",
+        "xiaomi-mimo",
+        "volcengine",
         "xai",
-        "ollama",
-        "openai-compatible"
+        "ollama"
       ])
     );
-    expect(settings.defaultModelId).toBe("gpt-5.4");
+    expect(providerIds).not.toContain("openai-compatible");
+    expect(settings.defaultModelId).toBe("gpt-5.5");
     expect(settings.providers).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ defaultModelId: "gpt-5.4", id: "openai" }),
-        expect.objectContaining({ defaultModelId: "claude-sonnet-4-5", id: "anthropic" }),
+        expect.objectContaining({ defaultModelId: "gpt-5.5", id: "openai" }),
+        expect.objectContaining({ defaultModelId: "claude-opus-4-7", id: "anthropic" }),
         expect.objectContaining({ defaultModelId: "gemini-3.1-pro-preview", id: "google" }),
         expect.objectContaining({ defaultModelId: "deepseek-v4-pro", id: "deepseek" }),
         expect.objectContaining({ defaultModelId: "mistral-medium-latest", id: "mistral" }),
         expect.objectContaining({ defaultModelId: "groq/compound", id: "groq" }),
         expect.objectContaining({ defaultModelId: "openrouter/auto", id: "openrouter" }),
         expect.objectContaining({ defaultModelId: "moonshotai/Kimi-K2.5", id: "together" }),
+        expect.objectContaining({ defaultModelId: "qwen3.6-plus", id: "aliyun-bailian", type: "openai-compatible" }),
+        expect.objectContaining({ defaultModelId: "mimo-v2.5-pro", id: "xiaomi-mimo", type: "openai-compatible" }),
+        expect.objectContaining({ defaultModelId: "doubao-seed-1-6-flash-250715", id: "volcengine", type: "openai-compatible" }),
         expect.objectContaining({ defaultModelId: "grok-4.3", id: "xai" }),
         expect.objectContaining({ defaultModelId: "gpt-5.4", id: "azure-openai" }),
         expect.objectContaining({ defaultModelId: "llama3.3", id: "ollama" })
       ])
     );
     expect(settings.providers.find((item) => item.id === "openai")?.models.map((model) => model.id)).toEqual([
+      "gpt-5.5",
       "gpt-5.4",
       "gpt-5.4-mini",
       "gpt-5.4-nano",
-      "gpt-image-1.5"
+      "gpt-image-2"
     ]);
     expect(settings.providers.find((item) => item.id === "deepseek")?.models.map((model) => model.id)).not.toContain(
       "deepseek-chat"
     );
+    expect(settings.providers.find((item) => item.id === "aliyun-bailian")?.models.map((model) => model.id)).toEqual([
+      "qwen3.6-plus",
+      "qwen3-max",
+      "qwen3-coder-plus",
+      "qwen3.5-flash"
+    ]);
+    expect(settings.providers.find((item) => item.id === "xiaomi-mimo")?.models.map((model) => model.id)).toEqual([
+      "mimo-v2.5-pro",
+      "mimo-v2.5",
+      "mimo-v2.5-flash"
+    ]);
+    expect(settings.providers.find((item) => item.id === "volcengine")?.models.map((model) => model.id)).toEqual([
+      "doubao-seed-1-6-flash-250715",
+      "doubao-seed-1-6-thinking-250715",
+      "deepseek-v3-2-250915",
+      "deepseek-r1-250528"
+    ]);
   });
 
   it("builds provider-specific model list requests", () => {
@@ -109,6 +133,39 @@ describe("AI provider requests", () => {
     });
     expect(buildAiProviderModelsRequest(provider({ type: "openai-compatible", baseUrl: "https://example.test/v1" }))).toMatchObject({
       url: "https://example.test/v1/models"
+    });
+    expect(
+      buildAiProviderModelsRequest(
+        provider({
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          id: "aliyun-bailian",
+          type: "openai-compatible"
+        })
+      )
+    ).toMatchObject({
+      url: "https://dashscope.aliyuncs.com/compatible-mode/v1/models"
+    });
+    expect(
+      buildAiProviderModelsRequest(
+        provider({
+          baseUrl: "https://api.xiaomimimo.com/v1",
+          id: "xiaomi-mimo",
+          type: "openai-compatible"
+        })
+      )
+    ).toMatchObject({
+      url: "https://api.xiaomimimo.com/v1/models"
+    });
+    expect(
+      buildAiProviderModelsRequest(
+        provider({
+          baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+          id: "volcengine",
+          type: "openai-compatible"
+        })
+      )
+    ).toMatchObject({
+      url: "https://ark.cn-beijing.volces.com/api/v3/models"
     });
   });
 

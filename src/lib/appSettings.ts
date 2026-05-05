@@ -81,4 +81,10 @@ export async function resetWelcomeDocumentState() {
   await store.save();
 }
 
-export type { AiProviderConfig, AiProviderModel, AiProviderSettings, AiProviderType } from "./aiProviders";
+export type {
+  AiModelCapability,
+  AiProviderApiStyle,
+  AiProviderConfig,
+  AiProviderModel,
+  AiProviderSettings
+} from "./aiProviders";
