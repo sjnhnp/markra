@@ -1,4 +1,5 @@
 import {
+  Bot,
   FileText,
   Keyboard,
   Languages,
@@ -11,13 +12,24 @@ import {
   Sun,
   type LucideIcon
 } from "lucide-react";
-import { Children, useCallback, useLayoutEffect, useState, type ReactNode } from "react";
+import { AiProviderSettingsPanel } from "./AiProviderSettingsPanel";
+import { Children, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { useAppLanguage } from "../hooks/useAppLanguage";
 import { useAppTheme } from "../hooks/useAppTheme";
-import { resetWelcomeDocumentState, type AppTheme } from "../lib/appSettings";
+import { fetchAiProviderModels, testAiProviderConnection } from "../lib/aiProviderRequests";
+import {
+  getStoredAiSettings,
+  resetWelcomeDocumentState,
+  saveStoredAiSettings,
+  type AiProviderConfig,
+  type AiProviderModel,
+  type AiProviderSettings,
+  type AppTheme
+} from "../lib/appSettings";
+import { createCustomAiProvider, createDefaultAiSettings } from "../lib/aiProviders";
 import { supportedLanguages, t, type AppLanguage, type I18nKey } from "../lib/i18n";
 
-type SettingsCategory = "general" | "appearance" | "editor" | "markdown" | "shortcuts";
+type SettingsCategory = "general" | "ai" | "appearance" | "editor" | "markdown" | "shortcuts";
 type Translate = (key: I18nKey) => string;
 
 type SettingsCategoryDefinition = {
@@ -57,6 +69,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: SlidersHorizontal,
     id: "general",
     labelKey: "settings.categories.general"
+  },
+  {
+    icon: Bot,
+    id: "ai",
+    labelKey: "settings.categories.ai"
   },
   {
     icon: Palette,
@@ -170,7 +187,15 @@ function SettingsContent({
         </h2>
       </header>
 
-      <div className="settings-scroll min-h-0 flex-1 overflow-auto overscroll-none px-8 py-7">{children}</div>
+      <div
+        className={
+          activeCategory === "ai"
+            ? "settings-scroll min-h-0 flex-1 overflow-auto overscroll-none p-0"
+            : "settings-scroll min-h-0 flex-1 overflow-auto overscroll-none px-8 py-7"
+        }
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -314,8 +339,15 @@ export function SettingsWindow() {
   const appTheme = useAppTheme();
   const appLanguage = useAppLanguage();
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("general");
+  const [aiSettings, setAiSettings] = useState<AiProviderSettings>(() => createDefaultAiSettings());
+  const [aiSettingsSaved, setAiSettingsSaved] = useState(false);
+  const [selectedAiProviderId, setSelectedAiProviderId] = useState<string | undefined>(() => createDefaultAiSettings().defaultProviderId);
   const [welcomeReset, setWelcomeReset] = useState(false);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
+  const selectedAiProvider = useMemo(
+    () => aiSettings.providers.find((provider) => provider.id === selectedAiProviderId) ?? aiSettings.providers[0],
+    [aiSettings.providers, selectedAiProviderId]
+  );
 
   useLayoutEffect(() => {
     document.documentElement.dataset.window = "settings";
@@ -333,6 +365,57 @@ export function SettingsWindow() {
     void resetWelcomeDocumentState().then(() => {
       setWelcomeReset(true);
     }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getStoredAiSettings().then((settings) => {
+      if (cancelled) return;
+      setAiSettings(settings);
+      setSelectedAiProviderId(settings.defaultProviderId ?? settings.providers[0]?.id);
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleAddAiProvider = useCallback(() => {
+    setAiSettingsSaved(false);
+    setAiSettings((currentSettings) => {
+      const provider = createCustomAiProvider(currentSettings.providers.length + 1);
+      setSelectedAiProviderId(provider.id);
+
+      return {
+        ...currentSettings,
+        providers: [...currentSettings.providers, provider]
+      };
+    });
+  }, []);
+
+  const handleUpdateAiSettings = useCallback((settings: AiProviderSettings) => {
+    setAiSettingsSaved(false);
+    setAiSettings(settings);
+  }, []);
+
+  const handleSaveAiSettings = useCallback(() => {
+    const settingsToSave = {
+      ...aiSettings,
+      defaultProviderId: selectedAiProvider?.id ?? aiSettings.defaultProviderId,
+      defaultModelId: selectedAiProvider?.defaultModelId ?? aiSettings.defaultModelId
+    };
+
+    void saveStoredAiSettings(settingsToSave).then(() => {
+      setAiSettings(settingsToSave);
+      setAiSettingsSaved(true);
+    }).catch(() => {});
+  }, [aiSettings, selectedAiProvider]);
+
+  const handleTestAiProvider = useCallback((provider: AiProviderConfig) => testAiProviderConnection(provider), []);
+
+  const handleFetchAiProviderModels = useCallback((provider: AiProviderConfig): Promise<AiProviderModel[]> => {
+    return fetchAiProviderModels(provider);
   }, []);
 
   return (
@@ -355,6 +438,20 @@ export function SettingsWindow() {
               welcomeReset={welcomeReset}
               onResetWelcomeDocument={handleResetWelcomeDocument}
               onSelectLanguage={appLanguage.selectLanguage}
+            />
+          ) : null}
+          {activeCategory === "ai" ? (
+            <AiProviderSettingsPanel
+              saved={aiSettingsSaved}
+              selectedProviderId={selectedAiProvider?.id}
+              settings={aiSettings}
+              translate={translate}
+              onAddProvider={handleAddAiProvider}
+              onFetchModels={handleFetchAiProviderModels}
+              onSave={handleSaveAiSettings}
+              onSelectProvider={setSelectedAiProviderId}
+              onTestProvider={handleTestAiProvider}
+              onUpdateSettings={handleUpdateAiSettings}
             />
           ) : null}
           {activeCategory === "appearance" ? (

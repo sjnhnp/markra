@@ -1,9 +1,11 @@
 import { load } from "@tauri-apps/plugin-store";
 import {
   consumeWelcomeDocumentState,
+  getStoredAiSettings,
   getStoredLanguage,
   getStoredTheme,
   resetWelcomeDocumentState,
+  saveStoredAiSettings,
   saveStoredLanguage,
   saveStoredTheme
 } from "./appSettings";
@@ -106,6 +108,163 @@ describe("app settings", () => {
     await resetWelcomeDocumentState();
 
     expect(store.delete).toHaveBeenCalledWith("welcomeDocumentSeen");
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads default AI provider settings when none are stored", async () => {
+    store.get.mockResolvedValue(undefined);
+
+    const settings = await getStoredAiSettings();
+
+    expect(store.get).toHaveBeenCalledWith("aiProviders");
+    expect(settings.providers.map((provider) => provider.id)).toContain("openai");
+    expect(settings.providers.find((provider) => provider.id === "azure-openai")?.baseUrl).toBe(
+      "https://your-resource-name.openai.azure.com"
+    );
+    expect(settings.providers[0]?.models[0]?.capability).toBe("text");
+  });
+
+  it("fills default API URLs for stored built-in AI providers without one", async () => {
+    store.get.mockResolvedValue({
+      defaultModelId: "gpt-4o",
+      defaultProviderId: "openai",
+      providers: [
+        {
+          apiKey: "",
+          baseUrl: "",
+          defaultModelId: "gpt-4o",
+          enabled: false,
+          id: "openai",
+          models: [{ capability: "text", enabled: true, id: "gpt-4o", name: "GPT-4o" }],
+          name: "OpenAI",
+          type: "openai"
+        },
+        {
+          apiKey: "",
+          baseUrl: "",
+          defaultModelId: "default",
+          enabled: false,
+          id: "custom-provider-1",
+          models: [{ capability: "text", enabled: true, id: "default", name: "Default model" }],
+          name: "Custom Provider",
+          type: "openai-compatible"
+        }
+      ]
+    });
+
+    const settings = await getStoredAiSettings();
+
+    expect(settings.providers.find((provider) => provider.id === "openai")?.baseUrl).toBe("https://api.openai.com/v1");
+    expect(settings.providers.find((provider) => provider.id === "custom-provider-1")?.baseUrl).toBe("");
+  });
+
+  it("refreshes stale built-in AI provider model defaults from stored settings", async () => {
+    store.get.mockResolvedValue({
+      defaultModelId: "gpt-4o",
+      defaultProviderId: "openai",
+      providers: [
+        {
+          apiKey: "",
+          baseUrl: "",
+          defaultModelId: "gpt-4o",
+          enabled: false,
+          id: "openai",
+          models: [{ capability: "text", enabled: true, id: "gpt-4o", name: "GPT-4o" }],
+          name: "OpenAI",
+          type: "openai"
+        },
+        {
+          apiKey: "",
+          baseUrl: "",
+          defaultModelId: "deepseek-chat",
+          enabled: false,
+          id: "deepseek",
+          models: [
+            { capability: "text", enabled: true, id: "deepseek-chat", name: "DeepSeek Chat" },
+            { capability: "text", enabled: true, id: "deepseek-reasoner", name: "DeepSeek Reasoner" }
+          ],
+          name: "DeepSeek",
+          type: "deepseek"
+        }
+      ]
+    });
+
+    const settings = await getStoredAiSettings();
+    const openai = settings.providers.find((provider) => provider.id === "openai");
+    const deepseek = settings.providers.find((provider) => provider.id === "deepseek");
+
+    expect(settings.defaultModelId).toBe("gpt-5.4");
+    expect(openai?.defaultModelId).toBe("gpt-5.4");
+    expect(openai?.models.map((model) => model.id)).toEqual(["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-image-1.5"]);
+    expect(deepseek?.defaultModelId).toBe("deepseek-v4-pro");
+    expect(deepseek?.models.map((model) => model.id)).toEqual(["deepseek-v4-pro", "deepseek-v4-flash"]);
+  });
+
+  it("preserves user-added AI provider models during normalization", async () => {
+    store.get.mockResolvedValue({
+      defaultModelId: "gpt-custom",
+      defaultProviderId: "openai",
+      providers: [
+        {
+          apiKey: "",
+          baseUrl: "https://proxy.example.test/v1",
+          defaultModelId: "gpt-custom",
+          enabled: true,
+          id: "openai",
+          models: [{ capability: "text", enabled: true, id: "gpt-custom", name: "GPT Custom" }],
+          name: "OpenAI",
+          type: "openai"
+        },
+        {
+          apiKey: "",
+          baseUrl: "",
+          defaultModelId: "writer-model",
+          enabled: true,
+          id: "custom-provider-1",
+          models: [{ capability: "text", enabled: true, id: "writer-model", name: "Writer Model" }],
+          name: "Custom Provider",
+          type: "openai-compatible"
+        }
+      ]
+    });
+
+    const settings = await getStoredAiSettings();
+
+    expect(settings.defaultModelId).toBe("gpt-custom");
+    expect(settings.providers.find((provider) => provider.id === "openai")?.models.map((model) => model.id)).toEqual(["gpt-custom"]);
+    expect(settings.providers.find((provider) => provider.id === "custom-provider-1")?.models.map((model) => model.id)).toEqual([
+      "writer-model"
+    ]);
+  });
+
+  it("persists AI provider settings in the app settings store", async () => {
+    const settings = {
+      defaultModelId: "gpt-4o",
+      defaultProviderId: "openai",
+      providers: [
+        {
+          apiKey: "test-key",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-4o",
+          enabled: true,
+          id: "openai",
+          models: [
+            {
+              capability: "text" as const,
+              enabled: true,
+              id: "gpt-4o",
+              name: "GPT-4o"
+            }
+          ],
+          name: "OpenAI",
+          type: "openai" as const
+        }
+      ]
+    };
+
+    await saveStoredAiSettings(settings);
+
+    expect(store.set).toHaveBeenCalledWith("aiProviders", settings);
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 });

@@ -17,9 +17,11 @@ import {
 } from "./lib/nativeMenu";
 import {
   consumeWelcomeDocumentState,
+  getStoredAiSettings,
   getStoredLanguage,
   getStoredTheme,
   resetWelcomeDocumentState,
+  saveStoredAiSettings,
   saveStoredLanguage,
   saveStoredTheme
 } from "./lib/appSettings";
@@ -29,6 +31,7 @@ import {
   notifyAppLanguageChanged,
   notifyAppThemeChanged
 } from "./lib/settingsEvents";
+import { fetchAiProviderModels, testAiProviderConnection } from "./lib/aiProviderRequests";
 
 vi.mock("./lib/nativeFile", () => ({
   installNativeMarkdownFileDrop: vi.fn(),
@@ -48,9 +51,11 @@ vi.mock("./lib/nativeMenu", () => ({
 
 vi.mock("./lib/appSettings", () => ({
   consumeWelcomeDocumentState: vi.fn(),
+  getStoredAiSettings: vi.fn(),
   getStoredLanguage: vi.fn(),
   getStoredTheme: vi.fn(),
   resetWelcomeDocumentState: vi.fn(),
+  saveStoredAiSettings: vi.fn(),
   saveStoredLanguage: vi.fn(),
   saveStoredTheme: vi.fn()
 }));
@@ -60,6 +65,11 @@ vi.mock("./lib/settingsEvents", () => ({
   listenAppThemeChanged: vi.fn(),
   notifyAppLanguageChanged: vi.fn(),
   notifyAppThemeChanged: vi.fn()
+}));
+
+vi.mock("./lib/aiProviderRequests", () => ({
+  fetchAiProviderModels: vi.fn(),
+  testAiProviderConnection: vi.fn()
 }));
 
 vi.mock("./lib/nativeWindow", () => ({
@@ -77,15 +87,19 @@ const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
 const mockedInstallNativeApplicationMenu = vi.mocked(installNativeApplicationMenu);
 const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEditorContextMenu);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
+const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
 const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
 const mockedGetStoredTheme = vi.mocked(getStoredTheme);
 const mockedResetWelcomeDocumentState = vi.mocked(resetWelcomeDocumentState);
+const mockedSaveStoredAiSettings = vi.mocked(saveStoredAiSettings);
 const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
 const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
 const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
 const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
 const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
 const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
+const mockedFetchAiProviderModels = vi.mocked(fetchAiProviderModels);
+const mockedTestAiProviderConnection = vi.mocked(testAiProviderConnection);
 
 const mockNativePath = "/mock-files/native.md";
 const mockDroppedPath = "/mock-files/dropped.md";
@@ -152,14 +166,18 @@ describe("Markra workspace", () => {
     mockedInstallNativeApplicationMenu.mockReset();
     mockedInstallNativeEditorContextMenu.mockReset();
     mockedGetStoredLanguage.mockReset();
+    mockedGetStoredAiSettings.mockReset();
     mockedGetStoredTheme.mockReset();
     mockedResetWelcomeDocumentState.mockReset();
+    mockedSaveStoredAiSettings.mockReset();
     mockedSaveStoredLanguage.mockReset();
     mockedSaveStoredTheme.mockReset();
     mockedListenAppLanguageChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
     mockedNotifyAppLanguageChanged.mockReset();
     mockedNotifyAppThemeChanged.mockReset();
+    mockedFetchAiProviderModels.mockReset();
+    mockedTestAiProviderConnection.mockReset();
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("data-window");
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
@@ -168,15 +186,61 @@ describe("Markra workspace", () => {
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
+    mockedGetStoredAiSettings.mockResolvedValue({
+      defaultModelId: "gpt-4o",
+      defaultProviderId: "openai",
+      providers: [
+        {
+          apiKey: "",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-4o",
+          enabled: false,
+          id: "openai",
+          models: [
+            {
+              capability: "text",
+              enabled: true,
+              id: "gpt-4o",
+              name: "GPT-4o"
+            }
+          ],
+          name: "OpenAI",
+          type: "openai"
+        },
+        {
+          apiKey: "",
+          baseUrl: "https://api.anthropic.com/v1",
+          defaultModelId: "claude-sonnet",
+          enabled: false,
+          id: "anthropic",
+          models: [
+            {
+              capability: "text",
+              enabled: true,
+              id: "claude-sonnet",
+              name: "Claude Sonnet"
+            }
+          ],
+          name: "Anthropic",
+          type: "anthropic"
+        }
+      ]
+    });
     mockedGetStoredLanguage.mockResolvedValue("en");
     mockedGetStoredTheme.mockResolvedValue("light");
     mockedResetWelcomeDocumentState.mockResolvedValue(undefined);
+    mockedSaveStoredAiSettings.mockResolvedValue(undefined);
     mockedSaveStoredLanguage.mockResolvedValue(undefined);
     mockedSaveStoredTheme.mockResolvedValue(undefined);
     mockedListenAppLanguageChanged.mockResolvedValue(() => {});
     mockedListenAppThemeChanged.mockResolvedValue(() => {});
     mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);
     mockedNotifyAppThemeChanged.mockResolvedValue(undefined);
+    mockedFetchAiProviderModels.mockResolvedValue([
+      { capability: "text", enabled: true, id: "gpt-5", name: "GPT-5" },
+      { capability: "image", enabled: true, id: "gpt-image-1", name: "GPT Image 1" }
+    ]);
+    mockedTestAiProviderConnection.mockResolvedValue({ message: "Connected", ok: true });
     mockSystemColorScheme(false);
   });
 
@@ -378,7 +442,7 @@ describe("Markra workspace", () => {
     expect(settingsGroups[0]).not.toHaveClass("divide-y");
     expect(settingsGroups.at(-1)).toHaveClass("divide-y");
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
-    expect(categoryButtons).toHaveLength(5);
+    expect(categoryButtons).toHaveLength(6);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
     expect(categoryButtons[1]).not.toHaveAttribute("aria-current");
     const languageSelect = container.querySelector("select");
@@ -393,8 +457,8 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedSaveStoredLanguage).toHaveBeenCalledWith("zh-CN"));
     await waitFor(() => expect(mockedNotifyAppLanguageChanged).toHaveBeenCalledWith("zh-CN"));
 
-    fireEvent.click(categoryButtons[1]);
-    expect(categoryButtons[1]).toHaveAttribute("aria-current", "page");
+    fireEvent.click(categoryButtons[2]);
+    expect(categoryButtons[2]).toHaveAttribute("aria-current", "page");
     const themeGroup = container.querySelector('[role="group"]');
     expect(themeGroup).toBeInTheDocument();
     const themeButtons = themeGroup?.querySelectorAll("button");
@@ -405,6 +469,84 @@ describe("Markra workspace", () => {
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     await waitFor(() => expect(mockedSaveStoredTheme).toHaveBeenCalledWith("dark"));
     await waitFor(() => expect(mockedNotifyAppThemeChanged).toHaveBeenCalledWith("dark"));
+  });
+
+  it("edits and stores AI provider settings from the settings window", async () => {
+    window.history.pushState({}, "", "/?settings=1");
+
+    const { container } = render(<App />);
+
+    await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "AI" }));
+
+    expect(await screen.findByRole("button", { name: "OpenAI" })).toHaveAttribute("aria-current", "page");
+    expect(container.querySelector(".ai-settings-layout")).toHaveClass("grid-cols-[16rem_minmax(0,1fr)]");
+    expect(screen.getAllByRole("img", { name: "OpenAI logo" })).toHaveLength(2);
+    expect(screen.getByLabelText("Search providers")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Add provider" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Provider name")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Provider type")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("API key")).toHaveValue("");
+    expect(screen.getByLabelText("API URL")).toHaveValue("https://api.openai.com/v1");
+
+    fireEvent.change(screen.getByLabelText("API key"), {
+      target: { value: "sk-test" }
+    });
+    fireEvent.change(screen.getByLabelText("API URL"), {
+      target: { value: "https://api.openai.com/v1" }
+    });
+    fireEvent.click(screen.getByRole("switch", { name: "Enable provider" }));
+    fireEvent.click(screen.getByRole("button", { name: "Test API" }));
+
+    await waitFor(() =>
+      expect(mockedTestAiProviderConnection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: "sk-test",
+          baseUrl: "https://api.openai.com/v1",
+          id: "openai"
+        })
+      )
+    );
+    expect(await screen.findByText("Connected")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Get model list" }));
+
+    await waitFor(() => expect(mockedFetchAiProviderModels).toHaveBeenCalledWith(expect.objectContaining({ id: "openai" })));
+    await waitFor(() => expect(screen.getAllByText("GPT-5").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("GPT Image 1").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save AI providers" }));
+
+    await waitFor(() =>
+      expect(mockedSaveStoredAiSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providers: expect.arrayContaining([
+            expect.objectContaining({
+              apiKey: "sk-test",
+              baseUrl: "https://api.openai.com/v1",
+              enabled: true,
+              id: "openai",
+              models: expect.arrayContaining([
+                expect.objectContaining({ id: "gpt-5" }),
+                expect.objectContaining({ capability: "image", id: "gpt-image-1" })
+              ])
+            })
+          ])
+        })
+      )
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
+
+    expect(screen.getByLabelText("Provider name")).toHaveValue("Custom Provider");
+    expect(screen.getByLabelText("Provider type")).toHaveValue("openai-compatible");
+    expect(screen.getByLabelText("API URL")).toHaveValue("");
+
+    fireEvent.change(screen.getByLabelText("Provider type"), {
+      target: { value: "mistral" }
+    });
+
+    expect(screen.getByLabelText("API URL")).toHaveValue("https://api.mistral.ai/v1");
   });
 
   it("resets the welcome document from settings", async () => {

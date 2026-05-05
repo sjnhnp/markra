@@ -1,10 +1,12 @@
 import { load } from "@tauri-apps/plugin-store";
+import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "./aiProviders";
 import { isAppLanguage, type AppLanguage } from "./i18n";
 
 const settingsStorePath = "settings.json";
 const welcomeDocumentSeenKey = "welcomeDocumentSeen";
 const themeKey = "theme";
 const languageKey = "language";
+const aiProvidersKey = "aiProviders";
 
 export type AppTheme = "light" | "dark" | "system";
 export type ResolvedAppTheme = "light" | "dark";
@@ -58,9 +60,25 @@ export async function saveStoredLanguage(language: AppLanguage) {
   await store.save();
 }
 
+export async function getStoredAiSettings(): Promise<AiProviderSettings> {
+  const store = await loadSettingsStore();
+  const settings = await store.get<AiProviderSettings>(aiProvidersKey);
+
+  return settings ? normalizeAiSettings(settings) : createDefaultAiSettings();
+}
+
+export async function saveStoredAiSettings(settings: AiProviderSettings) {
+  const store = await loadSettingsStore();
+
+  await store.set(aiProvidersKey, settings);
+  await store.save();
+}
+
 export async function resetWelcomeDocumentState() {
   const store = await loadSettingsStore();
 
   await store.delete(welcomeDocumentSeenKey);
   await store.save();
 }
+
+export type { AiProviderConfig, AiProviderModel, AiProviderSettings, AiProviderType } from "./aiProviders";

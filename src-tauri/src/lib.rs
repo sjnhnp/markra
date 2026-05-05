@@ -1,3 +1,4 @@
+mod ai_http;
 mod language;
 mod markdown_files;
 mod menu;
@@ -5,6 +6,7 @@ mod menu_labels;
 mod watcher;
 mod windows;
 
+use ai_http::request_ai_provider_json;
 use markdown_files::{
     list_markdown_files_for_path, open_markdown_file_in_new_window, open_markdown_path,
     read_markdown_file, write_markdown_file,
@@ -57,6 +59,7 @@ pub fn run() {
             read_markdown_file,
             open_blank_editor_window,
             open_settings_window,
+            request_ai_provider_json,
             write_markdown_file,
             watch_markdown_file,
             unwatch_markdown_file
