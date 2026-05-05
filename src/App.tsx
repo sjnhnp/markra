@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { AiCommandBar } from "./components/AiCommandBar";
 import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
 import { NativeTitleBar } from "./components/NativeTitleBar";
@@ -6,6 +7,7 @@ import { QuietStatus } from "./components/QuietStatus";
 import { SettingsWindow } from "./components/SettingsWindow";
 import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppTheme } from "./hooks/useAppTheme";
+import { useAiCommandUi } from "./hooks/useAiCommandUi";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
@@ -28,6 +30,7 @@ export default function App() {
 
   const appTheme = useAppTheme();
   const appLanguage = useAppLanguage();
+  const aiCommand = useAiCommandUi();
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const editor = useEditorController();
   const fileTree = useMarkdownFileTree();
@@ -135,6 +138,15 @@ export default function App() {
           revision={document.revision}
         />
       </div>
+
+      <AiCommandBar
+        language={appLanguage.language}
+        open={aiCommand.open}
+        prompt={aiCommand.prompt}
+        onClose={aiCommand.closeAiCommand}
+        onPromptChange={aiCommand.updatePrompt}
+        onSubmit={aiCommand.submitPrompt}
+      />
 
       <QuietStatus dirty={document.dirty} language={appLanguage.language} wordCount={wordCount} />
     </main>

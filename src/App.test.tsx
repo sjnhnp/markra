@@ -238,6 +238,66 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "Switch to light theme" })).toBeInTheDocument();
   });
 
+  it("reveals the inline AI command UI from the editor shortcut", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+
+    render(<App />);
+
+    expect(await screen.findByRole("textbox", { name: "Markdown document" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "AI writing command" })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "j", metaKey: true });
+
+    const aiPrompt = await screen.findByRole("textbox", { name: "AI command" });
+    const aiCommandDialog = screen.getByRole("dialog", { name: "AI writing command" });
+    expect(aiCommandDialog).toBeInTheDocument();
+    expect(aiCommandDialog).toHaveAttribute("data-state", "compact");
+    expect(aiCommandDialog).toHaveClass("transition-[opacity,transform]");
+    expect(aiPrompt.closest(".ai-command-box")).toHaveClass("animate-[markra-ai-command-open_220ms_ease-out_both]");
+    expect(aiPrompt).not.toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send AI command" })).toBeDisabled();
+
+    fireEvent.click(aiPrompt);
+    expect(await screen.findByRole("button", { name: "Polish" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rewrite" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue writing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Summarize" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Translate" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add AI comment" })).not.toBeInTheDocument();
+    expect(aiCommandDialog).toHaveAttribute("data-state", "expanded");
+    expect(aiPrompt).toHaveFocus();
+
+    fireEvent.mouseDown(screen.getByLabelText("Writing surface"));
+    expect(aiCommandDialog).toHaveAttribute("data-state", "collapsing");
+    expect(screen.getByRole("button", { name: "Polish" })).toBeInTheDocument();
+    await waitFor(() => expect(aiCommandDialog).toHaveAttribute("data-state", "compact"));
+    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
+
+    fireEvent.click(aiPrompt);
+    expect(await screen.findByRole("button", { name: "Polish" })).toBeInTheDocument();
+
+    fireEvent.change(aiPrompt, {
+      target: { value: "Rewrite this paragraph" }
+    });
+
+    expect(screen.getByRole("button", { name: "Send AI command" })).toBeEnabled();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("dialog", { name: "AI writing command" })).toHaveAttribute("data-state", "collapsing");
+    expect(screen.getByRole("button", { name: "Polish" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "AI writing command" })).toHaveAttribute("data-state", "compact"));
+    expect(screen.queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
+    expect(aiPrompt.closest(".ai-command-box")).not.toHaveClass("animate-[markra-ai-command-open_220ms_ease-out_both]");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("dialog", { name: "AI writing command" })).toHaveAttribute("data-state", "closing");
+    expect(aiPrompt.closest(".ai-command-box")).toHaveClass("animate-[markra-ai-command-close_180ms_ease-in_both]");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "AI writing command" })).not.toBeInTheDocument();
+    });
+  });
+
   it("follows the system color scheme when the stored theme preference is system", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockedGetStoredTheme.mockResolvedValue("system");

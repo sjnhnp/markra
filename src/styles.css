@@ -2,6 +2,59 @@
 @import "@milkdown/kit/prose/view/style/prosemirror.css";
 @import "@milkdown/kit/prose/tables/style/tables.css";
 
+@keyframes markra-ai-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes markra-ai-float-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes markra-ai-command-open {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+
+  58% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.012);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes markra-ai-command-close {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
 @layer base {
   :root {
     --bg-primary: #ffffff;
@@ -17,8 +70,8 @@
 
     --border-default: #eeeeee;
     --border-strong: #dddddd;
-    --accent: #5b808d;
-    --accent-hover: #428bca;
+    --accent: #3f66d8;
+    --accent-hover: #2f56c6;
 
     --ai-ghost: #c0c0c0;
     --ai-border: #dddddd;
@@ -47,8 +100,8 @@
 
     --border-default: #333333;
     --border-strong: #444444;
-    --accent: #7ba4d4;
-    --accent-hover: #9bbce3;
+    --accent: #91a7ff;
+    --accent-hover: #b7c5ff;
 
     --ai-ghost: #555555;
     --ai-border: #444444;
