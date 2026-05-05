@@ -5,7 +5,7 @@ import {
   type AiProviderConfig,
   type AiProviderModel,
   type AiProviderSettings
-} from "../lib/appSettings";
+} from "../lib/settings/appSettings";
 
 export type AvailableAiTextModel = {
   id: string;
@@ -21,7 +21,7 @@ export function useAiSettings() {
   useEffect(() => {
     let alive = true;
 
-    void getStoredAiSettings()
+    getStoredAiSettings()
       .then((nextSettings) => {
         if (alive) setSettings(nextSettings);
       })

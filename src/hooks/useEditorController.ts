@@ -3,15 +3,15 @@ import { editorViewCtx, type Editor } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { getMarkdown } from "@milkdown/kit/utils";
-import type { AiDiffResult, AiSelectionContext } from "../lib/agent/inlineAi";
+import type { AiDiffResult, AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import {
   applyAiEditorResult,
   clearAiEditorPreview,
   showAiEditorPreview,
   type AiEditorPreviewLabels
-} from "../lib/aiEditorPreview";
-import { clearAiSelectionHold, showAiSelectionHold } from "../lib/aiSelectionHold";
-import type { MarkdownOutlineItem } from "../lib/markdown";
+} from "../lib/ai/editorPreview";
+import { clearAiSelectionHold, showAiSelectionHold } from "../lib/ai/selectionHold";
+import type { MarkdownOutlineItem } from "../lib/markdown/markdown";
 
 const outlineScrollTopOffset = 24;
 

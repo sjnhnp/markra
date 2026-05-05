@@ -10,8 +10,8 @@ import {
   TableOfContents
 } from "lucide-react";
 import { t, type AppLanguage } from "../lib/i18n";
-import type { MarkdownOutlineItem } from "../lib/markdown";
-import type { NativeMarkdownFolderFile } from "../lib/nativeFile";
+import type { MarkdownOutlineItem } from "../lib/markdown/markdown";
+import type { NativeMarkdownFolderFile } from "../lib/tauri/file";
 
 type MarkdownFileTreeDrawerProps = {
   currentPath: string | null;
@@ -20,9 +20,9 @@ type MarkdownFileTreeDrawerProps = {
   open: boolean;
   outlineItems: MarkdownOutlineItem[];
   rootName: string;
-  onOpenFile: (file: NativeMarkdownFolderFile) => void | Promise<void>;
-  onSelectOutlineItem: (item: MarkdownOutlineItem, index: number) => void;
-  onToggle: () => void;
+  onOpenFile: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
+  onSelectOutlineItem: (item: MarkdownOutlineItem, index: number) => unknown;
+  onToggle: () => unknown;
 };
 
 type FolderNode = {
@@ -186,7 +186,7 @@ export function MarkdownFileTreeDrawer({
               aria-label={node.relativePath}
               title={node.file.path}
               onClick={() => {
-                void onOpenFile(node.file);
+                onOpenFile(node.file);
               }}
             >
               <FileText aria-hidden="true" className="shrink-0" size={15} />

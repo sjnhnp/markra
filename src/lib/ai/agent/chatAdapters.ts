@@ -1,5 +1,5 @@
-import type { AiProviderApiStyle, AiProviderConfig } from "../aiProviders";
-import { isRecord, joinApiUrl } from "../utils";
+import type { AiProviderApiStyle, AiProviderConfig } from "../providers/aiProviders";
+import { isRecord, joinApiUrl } from "../../utils";
 
 export type ChatMessage = {
   content: string;

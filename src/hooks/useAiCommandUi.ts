@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from "react";
-import { buildInlineAiMessages } from "../lib/agent/chatAdapters";
-import { chatCompletion } from "../lib/agent/chatCompletion";
-import { getProviderCapabilities } from "../lib/agent/providerCapabilities";
-import type { AiDiffResult, AiSelectionContext } from "../lib/agent/inlineAi";
-import type { AiProviderConfig } from "../lib/aiProviders";
+import { buildInlineAiMessages } from "../lib/ai/agent/chatAdapters";
+import { chatCompletion } from "../lib/ai/agent/chatCompletion";
+import { getProviderCapabilities } from "../lib/ai/agent/providerCapabilities";
+import type { AiDiffResult, AiSelectionContext } from "../lib/ai/agent/inlineAi";
+import type { AiProviderConfig } from "../lib/ai/providers/aiProviders";
 import type { I18nKey } from "../lib/i18n";
 
 type AiTextDiffResult = Extract<AiDiffResult, { type: "insert" | "replace" }>;
@@ -13,7 +13,7 @@ type AiCommandContext = {
   getPendingResult?: () => AiDiffResult | null;
   getSelection: () => AiSelectionContext | null;
   model: string | null;
-  onAiResult: (result: AiDiffResult) => void;
+  onAiResult: (result: AiDiffResult) => unknown;
   provider: AiProviderConfig | null;
   settingsLoading: boolean;
   translate?: (key: I18nKey) => string;

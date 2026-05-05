@@ -1,6 +1,6 @@
-import type { AiProviderConfig } from "../aiProviders";
-import { requestNativeChat, type NativeAiChatRequest, type NativeAiHttpResponse } from "../nativeAi";
-import { isRecord } from "../utils";
+import type { AiProviderConfig } from "../providers/aiProviders";
+import { requestNativeChat, type NativeAiChatRequest, type NativeAiHttpResponse } from "../../tauri/nativeAi";
+import { isRecord } from "../../utils";
 import { getChatAdapter, type ChatMessage, type ChatResponse } from "./chatAdapters";
 
 export type ChatCompletionTransport = (request: NativeAiChatRequest) => Promise<NativeAiHttpResponse>;

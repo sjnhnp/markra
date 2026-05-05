@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { getStoredAiSettings, saveStoredAiSettings } from "../lib/appSettings";
+import { getStoredAiSettings, saveStoredAiSettings } from "../lib/settings/appSettings";
 import { useAiSettings } from "./useAiSettings";
 
-vi.mock("../lib/appSettings", () => ({
+vi.mock("../lib/settings/appSettings", () => ({
   getStoredAiSettings: vi.fn(),
   saveStoredAiSettings: vi.fn()
 }));

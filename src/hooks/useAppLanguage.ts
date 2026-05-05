@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getStoredLanguage, saveStoredLanguage, type AppLanguage } from "../lib/appSettings";
-import { listenAppLanguageChanged, notifyAppLanguageChanged } from "../lib/settingsEvents";
+import { getStoredLanguage, saveStoredLanguage, type AppLanguage } from "../lib/settings/appSettings";
+import { listenAppLanguageChanged, notifyAppLanguageChanged } from "../lib/settings/settingsEvents";
 
 function applyAppLanguage(language: AppLanguage) {
   document.documentElement.lang = language;
@@ -13,7 +13,7 @@ export function useAppLanguage() {
   useEffect(() => {
     let active = true;
 
-    void getStoredLanguage().then((storedLanguage) => {
+    getStoredLanguage().then((storedLanguage) => {
       if (!active) return;
 
       setLanguage(storedLanguage);
@@ -33,9 +33,9 @@ export function useAppLanguage() {
 
   useEffect(() => {
     let active = true;
-    let cleanup: (() => void) | null = null;
+    let cleanup: (() => unknown) | null = null;
 
-    void listenAppLanguageChanged((nextLanguage) => {
+    listenAppLanguageChanged((nextLanguage) => {
       setLanguage(nextLanguage);
       applyAppLanguage(nextLanguage);
       setReady(true);
@@ -59,7 +59,7 @@ export function useAppLanguage() {
     setReady(true);
     applyAppLanguage(nextLanguage);
 
-    void saveStoredLanguage(nextLanguage)
+    saveStoredLanguage(nextLanguage)
       .then(() => notifyAppLanguageChanged(nextLanguage))
       .catch(() => {});
   }, []);

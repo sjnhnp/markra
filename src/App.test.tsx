@@ -9,12 +9,12 @@ import {
   installNativeMarkdownFileDrop,
   listNativeMarkdownFilesForPath,
   watchNativeMarkdownFile
-} from "./lib/nativeFile";
+} from "./lib/tauri/file";
 import {
   installNativeApplicationMenu,
   installNativeEditorContextMenu,
   type NativeMenuHandlers
-} from "./lib/nativeMenu";
+} from "./lib/tauri/menu";
 import {
   consumeWelcomeDocumentState,
   getStoredAiSettings,
@@ -28,7 +28,7 @@ import {
   saveStoredLanguage,
   saveStoredTheme,
   saveStoredWorkspaceState
-} from "./lib/appSettings";
+} from "./lib/settings/appSettings";
 import {
   listenAppEditorPreferencesChanged,
   listenAppLanguageChanged,
@@ -36,12 +36,12 @@ import {
   notifyAppEditorPreferencesChanged,
   notifyAppLanguageChanged,
   notifyAppThemeChanged
-} from "./lib/settingsEvents";
-import { fetchAiProviderModels, testAiProviderConnection } from "./lib/aiProviderRequests";
-import { chatCompletion } from "./lib/agent/chatCompletion";
-import { AI_EDITOR_PREVIEW_RESTORE_EVENT } from "./lib/aiEditorPreview";
+} from "./lib/settings/settingsEvents";
+import { fetchAiProviderModels, testAiProviderConnection } from "./lib/ai/providers/aiProviderRequests";
+import { chatCompletion } from "./lib/ai/agent/chatCompletion";
+import { AI_EDITOR_PREVIEW_RESTORE_EVENT } from "./lib/ai/editorPreview";
 
-vi.mock("./lib/nativeFile", () => ({
+vi.mock("./lib/tauri/file", () => ({
   installNativeMarkdownFileDrop: vi.fn(),
   openNativeMarkdownFolder: vi.fn(),
   openNativeMarkdownFileInNewWindow: vi.fn(),
@@ -52,12 +52,12 @@ vi.mock("./lib/nativeFile", () => ({
   listNativeMarkdownFilesForPath: vi.fn()
 }));
 
-vi.mock("./lib/nativeMenu", () => ({
+vi.mock("./lib/tauri/menu", () => ({
   installNativeApplicationMenu: vi.fn(),
   installNativeEditorContextMenu: vi.fn()
 }));
 
-vi.mock("./lib/appSettings", () => ({
+vi.mock("./lib/settings/appSettings", () => ({
   consumeWelcomeDocumentState: vi.fn(),
   defaultEditorPreferences: { autoOpenAiOnSelection: true },
   getStoredAiSettings: vi.fn(),
@@ -73,7 +73,7 @@ vi.mock("./lib/appSettings", () => ({
   saveStoredWorkspaceState: vi.fn()
 }));
 
-vi.mock("./lib/settingsEvents", () => ({
+vi.mock("./lib/settings/settingsEvents", () => ({
   listenAppEditorPreferencesChanged: vi.fn(),
   listenAppLanguageChanged: vi.fn(),
   listenAppThemeChanged: vi.fn(),
@@ -82,16 +82,16 @@ vi.mock("./lib/settingsEvents", () => ({
   notifyAppThemeChanged: vi.fn()
 }));
 
-vi.mock("./lib/aiProviderRequests", () => ({
+vi.mock("./lib/ai/providers/aiProviderRequests", () => ({
   fetchAiProviderModels: vi.fn(),
   testAiProviderConnection: vi.fn()
 }));
 
-vi.mock("./lib/agent/chatCompletion", () => ({
+vi.mock("./lib/ai/agent/chatCompletion", () => ({
   chatCompletion: vi.fn()
 }));
 
-vi.mock("./lib/nativeWindow", () => ({
+vi.mock("./lib/tauri/window", () => ({
   setNativeWindowTitle: vi.fn()
 }));
 
@@ -134,23 +134,23 @@ const mockUntitledPath = "/mock-files/Untitled.md";
 
 function mockSystemColorScheme(initiallyDark: boolean) {
   let matches = initiallyDark;
-  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const listeners = new Set<(event: MediaQueryListEvent) => unknown>();
   const mediaQueryList = {
     get matches() {
       return matches;
     },
     media: "(prefers-color-scheme: dark)",
     onchange: null,
-    addEventListener: vi.fn((_event: "change", listener: (event: MediaQueryListEvent) => void) => {
+    addEventListener: vi.fn((_event: "change", listener: (event: MediaQueryListEvent) => unknown) => {
       listeners.add(listener);
     }),
-    removeEventListener: vi.fn((_event: "change", listener: (event: MediaQueryListEvent) => void) => {
+    removeEventListener: vi.fn((_event: "change", listener: (event: MediaQueryListEvent) => unknown) => {
       listeners.delete(listener);
     }),
-    addListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+    addListener: vi.fn((listener: (event: MediaQueryListEvent) => unknown) => {
       listeners.add(listener);
     }),
-    removeListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+    removeListener: vi.fn((listener: (event: MediaQueryListEvent) => unknown) => {
       listeners.delete(listener);
     }),
     dispatchEvent: vi.fn()
@@ -395,7 +395,7 @@ describe("Markra workspace", () => {
   });
 
   it("updates the editor window when another window changes the theme", async () => {
-    let onThemeChanged: ((theme: "light" | "dark" | "system") => void) | null = null;
+    let onThemeChanged: ((theme: "light" | "dark" | "system") => unknown) | null = null;
     mockedListenAppThemeChanged.mockImplementation(async (listener) => {
       onThemeChanged = listener;
       return () => {};
@@ -431,7 +431,7 @@ describe("Markra workspace", () => {
 
   it("reinstalls native menus when another window changes the language", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
-    let onLanguageChanged: ((language: "en" | "zh-CN" | "fr") => void) | null = null;
+    let onLanguageChanged: ((language: "en" | "zh-CN" | "fr") => unknown) | null = null;
     mockedListenAppLanguageChanged.mockImplementation(async (listener) => {
       onLanguageChanged = listener;
       return () => {};
@@ -450,7 +450,7 @@ describe("Markra workspace", () => {
 
   it("waits for the stored language before replacing the Rust startup menu", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
-    let resolveLanguage: ((language: "fr") => void) | null = null;
+    let resolveLanguage: ((language: "fr") => unknown) | null = null;
     mockedGetStoredLanguage.mockReturnValue(
       new Promise((resolve) => {
         resolveLanguage = resolve;
@@ -1160,7 +1160,7 @@ describe("Markra workspace", () => {
   });
 
   it("reloads the current file when a native watcher reports an external change", async () => {
-    let emitExternalChange: (path: string) => void | Promise<void> = () => {};
+    let emitExternalChange: (path: string) => unknown | Promise<unknown> = () => {};
 
     mockOpenMarkdownFile({
       content: "# Native file\n\nOpened from disk.",

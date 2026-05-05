@@ -3,7 +3,7 @@ import {
   getChatAdapter,
   type ChatMessage
 } from "./chatAdapters";
-import type { AiProviderConfig } from "../aiProviders";
+import type { AiProviderConfig } from "../providers/aiProviders";
 
 function provider(overrides: Partial<AiProviderConfig>): AiProviderConfig {
   return {

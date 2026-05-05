@@ -1,14 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { listNativeMarkdownFilesForPath, openNativeMarkdownFolder } from "../lib/nativeFile";
-import { saveStoredWorkspaceState } from "../lib/appSettings";
+import { listNativeMarkdownFilesForPath, openNativeMarkdownFolder } from "../lib/tauri/file";
+import { saveStoredWorkspaceState } from "../lib/settings/appSettings";
 import { useMarkdownFileTree } from "./useMarkdownFileTree";
 
-vi.mock("../lib/nativeFile", () => ({
+vi.mock("../lib/tauri/file", () => ({
   listNativeMarkdownFilesForPath: vi.fn(),
   openNativeMarkdownFolder: vi.fn()
 }));
 
-vi.mock("../lib/appSettings", () => ({
+vi.mock("../lib/settings/appSettings", () => ({
   saveStoredWorkspaceState: vi.fn()
 }));
 

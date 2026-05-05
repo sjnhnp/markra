@@ -16,7 +16,7 @@ import { AiProviderSettingsPanel } from "./AiProviderSettingsPanel";
 import { Children, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { useAppLanguage } from "../hooks/useAppLanguage";
 import { useAppTheme } from "../hooks/useAppTheme";
-import { fetchAiProviderModels, testAiProviderConnection } from "../lib/aiProviderRequests";
+import { fetchAiProviderModels, testAiProviderConnection } from "../lib/ai/providers/aiProviderRequests";
 import {
   getStoredAiSettings,
   getStoredEditorPreferences,
@@ -28,10 +28,10 @@ import {
   type AiProviderModel,
   type AiProviderSettings,
   type AppTheme
-} from "../lib/appSettings";
-import { createCustomAiProvider, createDefaultAiSettings } from "../lib/aiProviders";
+} from "../lib/settings/appSettings";
+import { createCustomAiProvider, createDefaultAiSettings } from "../lib/ai/providers/aiProviders";
 import { supportedLanguages, t, type AppLanguage, type I18nKey } from "../lib/i18n";
-import { notifyAppEditorPreferencesChanged } from "../lib/settingsEvents";
+import { notifyAppEditorPreferencesChanged } from "../lib/settings/settingsEvents";
 
 type SettingsCategory = "general" | "ai" | "appearance" | "editor" | "markdown" | "shortcuts";
 type Translate = (key: I18nKey) => string;
@@ -113,7 +113,7 @@ function SettingsSidebar({
   translate
 }: {
   activeCategory: SettingsCategory;
-  onCategoryChange: (category: SettingsCategory) => void;
+  onCategoryChange: (category: SettingsCategory) => unknown;
   translate: Translate;
 }) {
   return (
@@ -151,7 +151,7 @@ function SettingsNavButton({
 }: {
   active: boolean;
   category: SettingsCategoryDefinition;
-  onClick: () => void;
+  onClick: () => unknown;
   translate: Translate;
 }) {
   const Icon = category.icon;
@@ -260,7 +260,7 @@ function SettingsSwitch({
 }: {
   checked: boolean;
   label: string;
-  onChange: () => void;
+  onChange: () => unknown;
 }) {
   return (
     <button
@@ -286,7 +286,7 @@ function SettingsButton({
 }: {
   children: ReactNode;
   label: string;
-  onClick: () => void;
+  onClick: () => unknown;
 }) {
   return (
     <button
@@ -307,7 +307,7 @@ function LanguageSelect({
 }: {
   language: AppLanguage;
   label: string;
-  onSelectLanguage: (language: AppLanguage) => void;
+  onSelectLanguage: (language: AppLanguage) => unknown;
 }) {
   return (
     <div className="relative inline-flex items-center">
@@ -333,7 +333,7 @@ function ThemeSegmentedControl({
   selectedTheme,
   translate
 }: {
-  onSelectTheme: (theme: AppTheme) => void;
+  onSelectTheme: (theme: AppTheme) => unknown;
   selectedTheme: AppTheme;
   translate: Translate;
 }) {
@@ -393,7 +393,7 @@ export function SettingsWindow() {
   }, [translate]);
 
   const handleResetWelcomeDocument = useCallback(() => {
-    void resetWelcomeDocumentState().then(() => {
+    resetWelcomeDocumentState().then(() => {
       setWelcomeReset(true);
     }).catch(() => {});
   }, []);
@@ -401,7 +401,7 @@ export function SettingsWindow() {
   useEffect(() => {
     let cancelled = false;
 
-    void getStoredAiSettings().then((settings) => {
+    getStoredAiSettings().then((settings) => {
       if (cancelled) return;
       setAiSettings(settings);
       setSelectedAiProviderId(settings.defaultProviderId ?? settings.providers[0]?.id);
@@ -415,7 +415,7 @@ export function SettingsWindow() {
   useEffect(() => {
     let cancelled = false;
 
-    void getStoredEditorPreferences().then((preferences) => {
+    getStoredEditorPreferences().then((preferences) => {
       if (!cancelled) setEditorPreferences(preferences);
     }).catch(() => {});
 
@@ -449,7 +449,7 @@ export function SettingsWindow() {
       defaultModelId: selectedAiProvider?.defaultModelId ?? aiSettings.defaultModelId
     };
 
-    void saveStoredAiSettings(settingsToSave).then(() => {
+    saveStoredAiSettings(settingsToSave).then(() => {
       setAiSettings(settingsToSave);
       setAiSettingsSaved(true);
     }).catch(() => {});
@@ -463,7 +463,7 @@ export function SettingsWindow() {
 
   const handleUpdateEditorPreferences = useCallback((preferences: EditorPreferences) => {
     setEditorPreferences(preferences);
-    void saveStoredEditorPreferences(preferences)
+    saveStoredEditorPreferences(preferences)
       .then(() => notifyAppEditorPreferencesChanged(preferences))
       .catch(() => {});
   }, []);
@@ -534,8 +534,8 @@ function GeneralSettings({
   welcomeReset
 }: {
   language: AppLanguage;
-  onResetWelcomeDocument: () => void;
-  onSelectLanguage: (language: AppLanguage) => void;
+  onResetWelcomeDocument: () => unknown;
+  onSelectLanguage: (language: AppLanguage) => unknown;
   translate: Translate;
   welcomeReset: boolean;
 }) {
@@ -599,7 +599,7 @@ function AppearanceSettings({
   selectedTheme,
   translate
 }: {
-  onSelectTheme: (theme: AppTheme) => void;
+  onSelectTheme: (theme: AppTheme) => unknown;
   selectedTheme: AppTheme;
   translate: Translate;
 }) {
@@ -621,7 +621,7 @@ function EditorSettings({
   preferences,
   translate
 }: {
-  onUpdatePreferences: (preferences: EditorPreferences) => void;
+  onUpdatePreferences: (preferences: EditorPreferences) => unknown;
   preferences: EditorPreferences;
   translate: Translate;
 }) {

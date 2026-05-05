@@ -7,9 +7,9 @@ import {
 } from "@tauri-apps/api/menu";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { t, type AppLanguage, type I18nKey } from "./i18n";
+import { t, type AppLanguage, type I18nKey } from "../i18n";
 
-export type NativeMenuHandlers = Partial<Record<NativeMenuCommand, () => void | Promise<void>>>;
+export type NativeMenuHandlers = Partial<Record<NativeMenuCommand, () => unknown | Promise<unknown>>>;
 
 export type NativeMenuCommand =
   | "openDocument"
@@ -34,21 +34,21 @@ type NativeMenuCommandPayload = {
   command: NativeMenuCommand;
 };
 
-function runNativeMenuAction(handler: (() => void | Promise<void>) | undefined) {
+function runNativeMenuAction(handler: (() => unknown | Promise<unknown>) | undefined) {
   if (!handler) return;
 
-  void Promise.resolve(handler()).catch(() => {});
+  Promise.resolve(handler()).catch(() => {});
 }
 
 function invokeNativeWindowCommand(command: "open_blank_editor_window" | "open_settings_window") {
-  void invoke(command).catch(() => {});
+  invoke(command).catch(() => {});
 }
 
 function customItem(
   id: string,
   text: string,
   accelerator: string | undefined,
-  handler: (() => void | Promise<void>) | undefined
+  handler: (() => unknown | Promise<unknown>) | undefined
 ): MenuItemOptions {
   return {
     id,
@@ -265,7 +265,7 @@ export async function installNativeEditorContextMenu(
       if (!element?.closest(".markdown-paper")) return;
 
       event.preventDefault();
-      void menu.popup();
+      menu.popup();
     };
 
     target.addEventListener("contextmenu", handleContextMenu);

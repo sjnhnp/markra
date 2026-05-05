@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { initialMarkdown } from "../constants/initialMarkdown";
-import { consumeWelcomeDocumentState, getStoredWorkspaceState, saveStoredWorkspaceState } from "../lib/appSettings";
-import { getMarkdownOutline, getWordCount } from "../lib/markdown";
+import { consumeWelcomeDocumentState, getStoredWorkspaceState, saveStoredWorkspaceState } from "../lib/settings/appSettings";
+import { getMarkdownOutline, getWordCount } from "../lib/markdown/markdown";
 import {
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
@@ -10,8 +10,8 @@ import {
   watchNativeMarkdownFile,
   type NativeMarkdownFile,
   type NativeMarkdownFolderFile
-} from "../lib/nativeFile";
-import { setNativeWindowTitle } from "../lib/nativeWindow";
+} from "../lib/tauri/file";
+import { setNativeWindowTitle } from "../lib/tauri/window";
 import type { DocumentState } from "../types/document";
 
 function isBlankEditorWindow() {
@@ -38,12 +38,12 @@ function isPristineUntitledDocument(document: DocumentState) {
 
 type UseMarkdownDocumentOptions = {
   getCurrentMarkdown: (fallbackContent: string) => string;
-  onTreeRootFromFolderPath: (path: string, name: string) => void;
-  onTreeRootFromFilePath: (path: string) => void;
+  onTreeRootFromFolderPath: (path: string, name: string) => unknown;
+  onTreeRootFromFilePath: (path: string) => unknown;
 };
 
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
-  void saveStoredWorkspaceState(patch).catch(() => {});
+  saveStoredWorkspaceState(patch).catch(() => {});
 }
 
 export function useMarkdownDocument({
@@ -148,7 +148,7 @@ export function useMarkdownDocument({
   );
 
   const handleSaveClick = useCallback(() => {
-    void saveCurrentDocument(false);
+    saveCurrentDocument(false);
   }, [saveCurrentDocument]);
 
   const handleDroppedMarkdownPath = useCallback(
@@ -168,7 +168,7 @@ export function useMarkdownDocument({
 
   useEffect(() => {
     const title = document.dirty ? `${document.name} *` : document.name;
-    void setNativeWindowTitle(title);
+    setNativeWindowTitle(title);
   }, [document.name, document.dirty]);
 
   useEffect(() => {
@@ -177,7 +177,7 @@ export function useMarkdownDocument({
 
     let active = true;
 
-    void readNativeMarkdownFile(path).then((file) => {
+    readNativeMarkdownFile(path).then((file) => {
       if (!active) return;
       applyNativeMarkdownFile(file);
     }).catch(() => {});
@@ -192,7 +192,7 @@ export function useMarkdownDocument({
 
     let active = true;
 
-    void (async () => {
+    (async () => {
       let restoredWorkspace = false;
 
       try {
@@ -243,9 +243,9 @@ export function useMarkdownDocument({
     if (!document.path) return;
 
     let active = true;
-    let unwatch: (() => void) | null = null;
+    let unwatch: (() => unknown) | null = null;
 
-    void watchNativeMarkdownFile(document.path, async (changedPath) => {
+    watchNativeMarkdownFile(document.path, async (changedPath) => {
       if (!active) return;
 
       // External edits rebuild the editor so the visible document mirrors disk.

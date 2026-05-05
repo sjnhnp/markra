@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { saveStoredWorkspaceState } from "../lib/appSettings";
+import { saveStoredWorkspaceState } from "../lib/settings/appSettings";
 import {
   listNativeMarkdownFilesForPath,
   openNativeMarkdownFolder,
   type NativeMarkdownFolderFile
-} from "../lib/nativeFile";
+} from "../lib/tauri/file";
 import { folderNameFromDocumentPath, pathNameFromPath } from "../lib/utils";
 
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
-  void saveStoredWorkspaceState(patch).catch(() => {});
+  saveStoredWorkspaceState(patch).catch(() => {});
 }
 
 export function useMarkdownFileTree() {
@@ -66,7 +66,7 @@ export function useMarkdownFileTree() {
     (fallbackPath: string | null = null) => {
       setOpen((currentOpen) => {
         const nextOpen = !currentOpen;
-        if (nextOpen) void refresh(fallbackPath);
+        if (nextOpen) refresh(fallbackPath);
         persistWorkspaceState({ fileTreeOpen: nextOpen });
         return nextOpen;
       });
@@ -89,7 +89,7 @@ export function useMarkdownFileTree() {
       };
     }
 
-    void listNativeMarkdownFilesForPath(sourcePath).then((nextFiles) => {
+    listNativeMarkdownFilesForPath(sourcePath).then((nextFiles) => {
       if (active) setFiles(nextFiles);
     }).catch(() => {
       if (active) setFiles([]);

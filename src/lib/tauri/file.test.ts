@@ -12,7 +12,7 @@ import {
   readNativeMarkdownFile,
   saveNativeMarkdownFile,
   watchNativeMarkdownFile
-} from "./nativeFile";
+} from "./file";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn()
@@ -226,9 +226,9 @@ describe("native file access", () => {
   });
 
   it("starts and stops a native watcher for the selected markdown path", async () => {
-    const unlisten: () => void = vi.fn();
+    const unlisten: () => unknown = vi.fn();
     const onChange = vi.fn();
-    let emitChange: (path: string) => void = () => {};
+    let emitChange: (path: string) => unknown = () => {};
 
     mockedListen.mockImplementation(async (_, handler) => {
       emitChange = (path) => {
@@ -262,7 +262,7 @@ describe("native file access", () => {
   it("routes dropped markdown files from the native window event", async () => {
     const unlisten = vi.fn();
     const onDrop = vi.fn();
-    let emitDragDrop: (event: unknown) => void = () => {};
+    let emitDragDrop: (event: unknown) => unknown = () => {};
     onDragDropEvent.mockImplementation(async (handler) => {
       emitDragDrop = handler;
       return unlisten;

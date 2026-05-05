@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getStoredTheme, saveStoredTheme, type AppTheme, type ResolvedAppTheme } from "../lib/appSettings";
-import { listenAppThemeChanged, notifyAppThemeChanged } from "../lib/settingsEvents";
+import { getStoredTheme, saveStoredTheme, type AppTheme, type ResolvedAppTheme } from "../lib/settings/appSettings";
+import { listenAppThemeChanged, notifyAppThemeChanged } from "../lib/settings/settingsEvents";
 
 const systemDarkThemeQuery = "(prefers-color-scheme: dark)";
 
@@ -27,7 +27,7 @@ export function useAppTheme() {
   useEffect(() => {
     let active = true;
 
-    void getStoredTheme().then((storedTheme) => {
+    getStoredTheme().then((storedTheme) => {
       if (active) setTheme(storedTheme);
     }).catch(() => {});
 
@@ -58,9 +58,9 @@ export function useAppTheme() {
 
   useEffect(() => {
     let active = true;
-    let cleanup: (() => void) | null = null;
+    let cleanup: (() => unknown) | null = null;
 
-    void listenAppThemeChanged((nextTheme) => {
+    listenAppThemeChanged((nextTheme) => {
       if (active) setTheme(nextTheme);
     }).then((stopListening) => {
       if (!active) {
@@ -79,14 +79,14 @@ export function useAppTheme() {
 
   const selectTheme = useCallback((nextTheme: AppTheme) => {
     setTheme(nextTheme);
-    void saveStoredTheme(nextTheme).then(() => notifyAppThemeChanged(nextTheme)).catch(() => {});
+    saveStoredTheme(nextTheme).then(() => notifyAppThemeChanged(nextTheme)).catch(() => {});
   }, []);
 
   const toggleTheme = useCallback(() => {
     const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
 
     setTheme(nextTheme);
-    void saveStoredTheme(nextTheme).then(() => notifyAppThemeChanged(nextTheme)).catch(() => {});
+    saveStoredTheme(nextTheme).then(() => notifyAppThemeChanged(nextTheme)).catch(() => {});
   }, [resolvedTheme]);
 
   return {

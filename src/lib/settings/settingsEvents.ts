@@ -1,6 +1,6 @@
 import { emit, listen } from "@tauri-apps/api/event";
 import { isAppTheme, normalizeEditorPreferences, type AppTheme, type EditorPreferences } from "./appSettings";
-import { isAppLanguage, type AppLanguage } from "./i18n";
+import { isAppLanguage, type AppLanguage } from "../i18n";
 
 const themeChangedEvent = "markra://theme-changed";
 const languageChangedEvent = "markra://language-changed";
@@ -28,7 +28,7 @@ export async function notifyAppThemeChanged(theme: AppTheme) {
   await emit(themeChangedEvent, { theme });
 }
 
-export async function listenAppThemeChanged(onThemeChanged: (theme: AppTheme) => void) {
+export async function listenAppThemeChanged(onThemeChanged: (theme: AppTheme) => unknown) {
   if (!hasTauriRuntime()) return () => {};
 
   return listen<ThemeChangedPayload>(themeChangedEvent, (event) => {
@@ -44,7 +44,7 @@ export async function notifyAppLanguageChanged(language: AppLanguage) {
   await emit(languageChangedEvent, { language });
 }
 
-export async function listenAppLanguageChanged(onLanguageChanged: (language: AppLanguage) => void) {
+export async function listenAppLanguageChanged(onLanguageChanged: (language: AppLanguage) => unknown) {
   if (!hasTauriRuntime()) return () => {};
 
   return listen<LanguageChangedPayload>(languageChangedEvent, (event) => {
@@ -61,7 +61,7 @@ export async function notifyAppEditorPreferencesChanged(preferences: EditorPrefe
 }
 
 export async function listenAppEditorPreferencesChanged(
-  onPreferencesChanged: (preferences: EditorPreferences) => void
+  onPreferencesChanged: (preferences: EditorPreferences) => unknown
 ) {
   if (!hasTauriRuntime()) return () => {};
 

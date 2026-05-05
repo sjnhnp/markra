@@ -1,7 +1,7 @@
 import { load } from "@tauri-apps/plugin-store";
-import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "./aiProviders";
-import { isAppLanguage, type AppLanguage } from "./i18n";
-import { normalizeNullableString } from "./utils";
+import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "../ai/providers/aiProviders";
+import { isAppLanguage, type AppLanguage } from "../i18n";
+import { normalizeNullableString } from "../utils";
 
 const settingsStorePath = "settings.json";
 const welcomeDocumentSeenKey = "welcomeDocumentSeen";
@@ -140,7 +140,7 @@ export type {
   AiProviderConfig,
   AiProviderModel,
   AiProviderSettings
-} from "./aiProviders";
+} from "../ai/providers/aiProviders";
 
 export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   if (typeof value !== "object" || value === null) return defaultEditorPreferences;

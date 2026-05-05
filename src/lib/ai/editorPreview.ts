@@ -3,7 +3,7 @@ import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 import type { AiDiffResult } from "./agent/inlineAi";
-import { clampNumber } from "./utils";
+import { clampNumber } from "../utils";
 
 export const AI_EDITOR_PREVIEW_ACTION_EVENT = "markra-ai-preview-action";
 export const AI_EDITOR_PREVIEW_RESTORE_EVENT = "markra-ai-preview-restore";
@@ -327,7 +327,7 @@ function createActionButton(
   return button;
 }
 
-function showCopySuccessFeedback(button: HTMLButtonElement, copiedLabel: string, scheduleRestore: () => void) {
+function showCopySuccessFeedback(button: HTMLButtonElement, copiedLabel: string, scheduleRestore: () => unknown) {
   button.dataset.copied = "true";
   button.classList.add("markra-ai-preview-copied");
   button.setAttribute("aria-label", copiedLabel);

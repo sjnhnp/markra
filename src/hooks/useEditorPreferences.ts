@@ -3,8 +3,8 @@ import {
   defaultEditorPreferences,
   getStoredEditorPreferences,
   type EditorPreferences
-} from "../lib/appSettings";
-import { listenAppEditorPreferencesChanged } from "../lib/settingsEvents";
+} from "../lib/settings/appSettings";
+import { listenAppEditorPreferencesChanged } from "../lib/settings/settingsEvents";
 
 export function useEditorPreferences() {
   const [preferences, setPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
@@ -12,9 +12,9 @@ export function useEditorPreferences() {
 
   useEffect(() => {
     let alive = true;
-    let stopListening: (() => void) | null = null;
+    let stopListening: (() => unknown) | null = null;
 
-    void getStoredEditorPreferences()
+    getStoredEditorPreferences()
       .then((storedPreferences) => {
         if (alive) setPreferences(storedPreferences);
       })
@@ -25,7 +25,7 @@ export function useEditorPreferences() {
         if (alive) setLoading(false);
       });
 
-    void listenAppEditorPreferencesChanged((nextPreferences) => {
+    listenAppEditorPreferencesChanged((nextPreferences) => {
       if (alive) setPreferences(nextPreferences);
     }).then((cleanup) => {
       if (!alive) {

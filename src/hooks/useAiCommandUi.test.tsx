@@ -1,9 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
-import { chatCompletion } from "../lib/agent/chatCompletion";
+import { chatCompletion } from "../lib/ai/agent/chatCompletion";
 import { useAiCommandUi } from "./useAiCommandUi";
-import type { AiProviderConfig } from "../lib/aiProviders";
+import type { AiProviderConfig } from "../lib/ai/providers/aiProviders";
 
-vi.mock("../lib/agent/chatCompletion", () => ({
+vi.mock("../lib/ai/agent/chatCompletion", () => ({
   chatCompletion: vi.fn()
 }));
 
@@ -194,7 +194,7 @@ describe("useAiCommandUi", () => {
 
   it("interrupts an in-flight AI request and ignores its eventual response", async () => {
     const onAiResult = vi.fn();
-    let resolveCompletion: (value: { content: string; finishReason: string }) => void = () => {};
+    let resolveCompletion: (value: { content: string; finishReason: string }) => unknown = () => {};
     mockedChatCompletion.mockReturnValue(
       new Promise((resolve) => {
         resolveCompletion = resolve;
@@ -215,7 +215,7 @@ describe("useAiCommandUi", () => {
       result.current.updatePrompt("make it clearer");
     });
 
-    let submitPromise: Promise<void>;
+    let submitPromise: Promise<unknown>;
     act(() => {
       submitPromise = result.current.submitPrompt();
     });

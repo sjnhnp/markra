@@ -1,25 +1,25 @@
 import { useEffect, useMemo } from "react";
-import { installNativeMarkdownFileDrop } from "../lib/nativeFile";
+import { installNativeMarkdownFileDrop } from "../lib/tauri/file";
 import {
   installNativeApplicationMenu,
   installNativeEditorContextMenu,
   type NativeMenuHandlers
-} from "../lib/nativeMenu";
+} from "../lib/tauri/menu";
 import type { AppLanguage } from "../lib/i18n";
 
 type NativeMenuHandlerOptions = {
-  insertMarkdownSnippet: (open: string, close: string, placeholder: string) => void;
-  openDocument: () => void | Promise<void>;
-  runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "shiftKey">) => void;
-  saveDocument: () => void | Promise<void>;
-  saveDocumentAs: () => void | Promise<void>;
+  insertMarkdownSnippet: (open: string, close: string, placeholder: string) => unknown;
+  openDocument: () => unknown | Promise<unknown>;
+  runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "shiftKey">) => unknown;
+  saveDocument: () => unknown | Promise<unknown>;
+  saveDocumentAs: () => unknown | Promise<unknown>;
 };
 
 type ApplicationShortcutOptions = {
-  openDocument: () => void | Promise<void>;
-  openFolder: () => void | Promise<void>;
-  saveDocument: () => void | Promise<void>;
-  saveDocumentAs: () => void | Promise<void>;
+  openDocument: () => unknown | Promise<unknown>;
+  openFolder: () => unknown | Promise<unknown>;
+  saveDocument: () => unknown | Promise<unknown>;
+  saveDocumentAs: () => unknown | Promise<unknown>;
 };
 
 export function useNativeMenuHandlers({
@@ -53,12 +53,12 @@ export function useNativeMenuHandlers({
   );
 }
 
-export function useNativeMarkdownDrop(onDrop: (path: string) => void | Promise<void>) {
+export function useNativeMarkdownDrop(onDrop: (path: string) => unknown | Promise<unknown>) {
   useEffect(() => {
     let active = true;
-    let cleanup: (() => void) | null = null;
+    let cleanup: (() => unknown) | null = null;
 
-    void installNativeMarkdownFileDrop(onDrop).then((stopListening) => {
+    installNativeMarkdownFileDrop(onDrop).then((stopListening) => {
       if (!active) {
         stopListening();
         return;
@@ -79,9 +79,9 @@ export function useNativeMenus(handlers: NativeMenuHandlers, language: AppLangua
     if (!language) return;
 
     let active = true;
-    let cleanup: (() => void) | null = null;
+    let cleanup: (() => unknown) | null = null;
 
-    void installNativeApplicationMenu(handlers, language).then((stopListening) => {
+    installNativeApplicationMenu(handlers, language).then((stopListening) => {
       if (!active) {
         stopListening();
         return;
@@ -100,9 +100,9 @@ export function useNativeMenus(handlers: NativeMenuHandlers, language: AppLangua
     if (!language) return;
 
     let active = true;
-    let cleanup: (() => void) | null = null;
+    let cleanup: (() => unknown) | null = null;
 
-    void installNativeEditorContextMenu(globalThis.document, handlers, language).then((removeContextMenu) => {
+    installNativeEditorContextMenu(globalThis.document, handlers, language).then((removeContextMenu) => {
       if (!active) {
         removeContextMenu();
         return;
@@ -132,16 +132,16 @@ export function useApplicationShortcuts({
       const key = event.key.toLowerCase();
       if (key === "s" && event.shiftKey) {
         event.preventDefault();
-        void saveDocumentAs();
+        saveDocumentAs();
       } else if (key === "s") {
         event.preventDefault();
-        void saveDocument();
+        saveDocument();
       } else if (key === "o" && event.shiftKey) {
         event.preventDefault();
-        void openFolder();
+        openFolder();
       } else if (key === "o") {
         event.preventDefault();
-        void openDocument();
+        openDocument();
       }
     };
 

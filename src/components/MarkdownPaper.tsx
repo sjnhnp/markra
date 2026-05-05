@@ -20,12 +20,12 @@ import {
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { Plugin } from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
-import { markraLiveMarkdownPlugin } from "../lib/markdownInputRules";
-import { markraLinkImageLivePlugin } from "../lib/markdownLinkImageInputRules";
-import { markraMarkdownShortcuts } from "../lib/markdownShortcuts";
-import { markraAiEditorPreviewPlugin } from "../lib/aiEditorPreview";
-import { markraAiSelectionHoldPlugin } from "../lib/aiSelectionHold";
-import type { AiSelectionContext } from "../lib/agent/inlineAi";
+import { markraLiveMarkdownPlugin } from "../lib/markdown/inputRules";
+import { markraLinkImageLivePlugin } from "../lib/markdown/linkImageInputRules";
+import { markraMarkdownShortcuts } from "../lib/markdown/shortcuts";
+import { markraAiEditorPreviewPlugin } from "../lib/ai/editorPreview";
+import { markraAiSelectionHoldPlugin } from "../lib/ai/selectionHold";
+import type { AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import { t, type AppLanguage } from "../lib/i18n";
 
 const markraCommonmark = [
@@ -49,9 +49,9 @@ type MarkdownPaperProps = {
   autoFocus?: boolean;
   initialContent: string;
   language?: AppLanguage;
-  onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => void;
-  onMarkdownChange: (content: string) => void;
-  onTextSelectionChange?: (selection: AiSelectionContext | null) => void;
+  onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => unknown;
+  onMarkdownChange: (content: string) => unknown;
+  onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
   revision: number;
 };
 
@@ -60,12 +60,12 @@ type MilkdownSurfaceProps = {
   initialContent: string;
   language: AppLanguage;
   onEditorReady: MarkdownPaperProps["onEditorReady"];
-  onMarkdownChange: (content: string) => void;
+  onMarkdownChange: (content: string) => unknown;
   onTextSelectionChange?: MarkdownPaperProps["onTextSelectionChange"];
 };
 
 function markraTextSelectionObserverPlugin(
-  onTextSelectionChange: (selection: AiSelectionContext | null) => void
+  onTextSelectionChange: (selection: AiSelectionContext | null) => unknown
 ) {
   return $prose(() => {
     let lastSignature = "";

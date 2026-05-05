@@ -1,4 +1,4 @@
-import { supportedLanguages, t } from "./i18n";
+import { supportedLanguages, t } from "./index";
 
 describe("i18n", () => {
   it("ships common app languages with English as the first default", () => {

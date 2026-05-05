@@ -6,7 +6,7 @@ import {
   installNativeApplicationMenu,
   listenNativeApplicationMenuCommands,
   type NativeMenuHandlers
-} from "./nativeMenu";
+} from "./menu";
 
 vi.mock("@tauri-apps/api/menu", () => ({
   Menu: {

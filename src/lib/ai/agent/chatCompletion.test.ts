@@ -1,5 +1,5 @@
 import { chatCompletion } from "./chatCompletion";
-import type { AiProviderConfig } from "../aiProviders";
+import type { AiProviderConfig } from "../providers/aiProviders";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
   return {

@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { fileNameFromPath, firstMarkdownPath } from "./utils";
+import { fileNameFromPath, firstMarkdownPath } from "../utils";
 
 type MarkdownFileResponse = {
   path: string;
@@ -62,8 +62,8 @@ export type SavedNativeMarkdownFile = {
   name: string;
 };
 
-export type NativeMarkdownFileChangeHandler = (path: string) => void | Promise<void>;
-export type NativeMarkdownFileDropHandler = (path: string) => void | Promise<void>;
+export type NativeMarkdownFileChangeHandler = (path: string) => unknown | Promise<unknown>;
+export type NativeMarkdownFileDropHandler = (path: string) => unknown | Promise<unknown>;
 
 type MarkdownFileChangedPayload = {
   path: string;
@@ -184,7 +184,7 @@ export async function saveNativeMarkdownFile({
 export async function watchNativeMarkdownFile(path: string, onChange: NativeMarkdownFileChangeHandler) {
   const unlisten = await listen<MarkdownFileChangedPayload>(markdownFileChangedEvent, (event) => {
     if (event.payload.path !== path) return;
-    void onChange(event.payload.path);
+    onChange(event.payload.path);
   });
 
   try {
@@ -196,7 +196,7 @@ export async function watchNativeMarkdownFile(path: string, onChange: NativeMark
 
   return () => {
     unlisten();
-    void invoke("unwatch_markdown_file", { path });
+    invoke("unwatch_markdown_file", { path });
   };
 }
 
@@ -208,7 +208,7 @@ export async function installNativeMarkdownFileDrop(onDrop: NativeMarkdownFileDr
       const path = firstMarkdownPath(event.payload.paths);
       if (!path) return;
 
-      void onDrop(path);
+      onDrop(path);
     });
   } catch {
     return () => {};

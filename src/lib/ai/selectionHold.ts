@@ -3,7 +3,7 @@ import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 import type { AiSelectionContext } from "./agent/inlineAi";
-import { clampNumber } from "./utils";
+import { clampNumber } from "../utils";
 
 type AiSelectionHoldMeta =
   | {

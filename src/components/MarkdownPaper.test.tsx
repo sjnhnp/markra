@@ -11,15 +11,15 @@ import {
   applyAiEditorResult,
   clearAiEditorPreview,
   showAiEditorPreview
-} from "../lib/aiEditorPreview";
+} from "../lib/ai/editorPreview";
 import { readAiSelectionContextFromView } from "../hooks/useEditorController";
-import type { AiSelectionContext } from "../lib/agent/inlineAi";
-import { clearAiSelectionHold, showAiSelectionHold } from "../lib/aiSelectionHold";
+import type { AiSelectionContext } from "../lib/ai/agent/inlineAi";
+import { clearAiSelectionHold, showAiSelectionHold } from "../lib/ai/selectionHold";
 
 async function renderEditor(
   initialContent = "",
   options: {
-    onTextSelectionChange?: (selection: AiSelectionContext | null) => void;
+    onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
   } = {}
 ) {
   let editor: Editor | null = null;

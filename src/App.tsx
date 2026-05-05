@@ -20,13 +20,13 @@ import {
   useNativeMenus
 } from "./hooks/useNativeBindings";
 import { t, type I18nKey } from "./lib/i18n";
-import type { AiDiffResult, AiSelectionContext } from "./lib/agent/inlineAi";
+import type { AiDiffResult, AiSelectionContext } from "./lib/ai/agent/inlineAi";
 import {
   AI_EDITOR_PREVIEW_ACTION_EVENT,
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
   type AiEditorPreviewActionDetail,
   type AiEditorPreviewRestoreDetail
-} from "./lib/aiEditorPreview";
+} from "./lib/ai/editorPreview";
 
 function isSettingsWindowRoute() {
   return new URLSearchParams(window.location.search).has("settings");
@@ -147,7 +147,7 @@ export default function App() {
   const handleCopyAiResult = useCallback((restoredResult?: AiDiffResult | null) => {
     const result = restoredResult ?? aiResult;
     if (!result || result.type === "error") return;
-    void navigator.clipboard?.writeText(result.replacement);
+    navigator.clipboard?.writeText(result.replacement);
   }, [aiResult]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
   const rawFileTreeRootName = rootNameForDocument(document.path);

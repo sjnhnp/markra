@@ -28,6 +28,7 @@ This document only defines engineering conventions for this repository.
 - Split reusable UI into components instead of concentrating layout and behavior in `App.tsx`.
 - Keep business logic, platform integration, and editor adapter logic in clear modules.
 - Prefer established libraries for mature domains such as editor behavior, Markdown parsing, and platform APIs.
+- Do not use the TypeScript `void` keyword or operator. Use `unknown`, omit explicit callback return annotations when practical, or call promises directly with their own error handling.
 - Do not revert user changes unless explicitly requested.
 
 ## Testing Boundaries

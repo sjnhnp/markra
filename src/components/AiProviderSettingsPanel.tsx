@@ -29,14 +29,16 @@ import qwenLogo from "../assets/provider-logos/qwen.svg";
 import togetherLogo from "../assets/provider-logos/together.svg";
 import volcengineLogo from "../assets/provider-logos/volcengine.svg";
 import xiaomiMimoLogo from "../assets/provider-logos/xiaomi-mimo.svg";
-import type {
-  AiModelCapability,
-  AiProviderApiStyle,
-  AiProviderConfig,
-  AiProviderModel,
-  AiProviderSettings,
-} from "../lib/appSettings";
-import { aiProviderApiStyles, defaultApiUrlForApiStyle, normalizeAiModelCapabilities } from "../lib/aiProviders";
+import {
+  aiProviderApiStyles,
+  defaultApiUrlForApiStyle,
+  normalizeAiModelCapabilities,
+  type AiModelCapability,
+  type AiProviderApiStyle,
+  type AiProviderConfig,
+  type AiProviderModel,
+  type AiProviderSettings,
+} from "../lib/ai/providers/aiProviders";
 import type { I18nKey } from "../lib/i18n";
 
 type Translate = (key: I18nKey) => string;
@@ -46,12 +48,12 @@ type AiProviderSettingsPanelProps = {
   selectedProviderId?: string;
   settings: AiProviderSettings;
   translate: Translate;
-  onAddProvider: () => void;
+  onAddProvider: () => unknown;
   onFetchModels: (provider: AiProviderConfig) => Promise<AiProviderModel[]>;
-  onSave: () => void;
-  onSelectProvider: (providerId: string) => void;
+  onSave: () => unknown;
+  onSelectProvider: (providerId: string) => unknown;
   onTestProvider: (provider: AiProviderConfig) => Promise<{ message: string; ok: boolean }>;
-  onUpdateSettings: (settings: AiProviderSettings) => void;
+  onUpdateSettings: (settings: AiProviderSettings) => unknown;
 };
 
 type ProviderActionState = {
@@ -96,7 +98,7 @@ function SettingsTextField({
   value
 }: {
   label: string;
-  onChange: (value: string) => void;
+  onChange: (value: string) => unknown;
   type?: "password" | "text";
   value: string;
 }) {
@@ -122,7 +124,7 @@ function SettingsSelectField<TValue extends string>({
 }: {
   children: ReactNode;
   label: string;
-  onChange: (value: TValue) => void;
+  onChange: (value: TValue) => unknown;
   value: TValue;
 }) {
   return (
@@ -241,7 +243,7 @@ function CapabilityPicker({
   value
 }: {
   label: string;
-  onChange: (value: AiModelCapability[]) => void;
+  onChange: (value: AiModelCapability[]) => unknown;
   translate: Translate;
   value: AiModelCapability[];
 }) {
@@ -313,7 +315,7 @@ function ProviderSwitch({
 }: {
   checked: boolean;
   label: string;
-  onChange: () => void;
+  onChange: () => unknown;
 }) {
   return (
     <button
@@ -341,7 +343,7 @@ function ActionButton({
   children: ReactNode;
   disabled?: boolean;
   label: string;
-  onClick: () => void;
+  onClick: () => unknown;
 }) {
   return (
     <button
@@ -451,7 +453,7 @@ export function AiProviderSettingsPanel({
     if (!selectedProvider) return;
 
     setActionState({ pending: "test", status: "idle" });
-    void onTestProvider(selectedProvider)
+    onTestProvider(selectedProvider)
       .then((result) => {
         setActionState({
           message: result.ok ? translate("settings.ai.apiConnected") : result.message,
@@ -467,7 +469,7 @@ export function AiProviderSettingsPanel({
     if (!selectedProvider) return;
 
     setActionState({ pending: "models", status: "idle" });
-    void onFetchModels(selectedProvider)
+    onFetchModels(selectedProvider)
       .then((models) => {
         const enabledByModelId = new Map(selectedProvider.models.map((model) => [model.id, model.enabled]));
         const fetchedModelIds = new Set(models.map((model) => model.id));

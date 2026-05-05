@@ -10,7 +10,7 @@ import {
   Square,
   type LucideIcon
 } from "lucide-react";
-import type { AiDiffResult } from "../lib/agent/inlineAi";
+import type { AiDiffResult } from "../lib/ai/agent/inlineAi";
 import { t, type AppLanguage, type I18nKey } from "../lib/i18n";
 
 type AiCommandAction = {
@@ -63,11 +63,11 @@ type AiCommandBarProps = {
   selectedModelId?: string | null;
   selectedProviderId?: string | null;
   submitting?: boolean;
-  onClose: () => void;
-  onInterrupt?: () => void;
-  onPromptChange: (prompt: string) => void;
-  onSelectModel?: (providerId: string, modelId: string) => void;
-  onSubmit: () => void;
+  onClose: () => unknown;
+  onInterrupt?: () => unknown;
+  onPromptChange: (prompt: string) => unknown;
+  onSelectModel?: (providerId: string, modelId: string) => unknown;
+  onSubmit: () => unknown;
 };
 
 export function AiCommandBar({

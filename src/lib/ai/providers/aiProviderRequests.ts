@@ -1,7 +1,7 @@
 import type { AiModelCapability, AiProviderApiStyle, AiProviderConfig, AiProviderModel } from "./aiProviders";
 import { enrichAiProviderModelCapabilities, normalizeAiModelCapabilities } from "./aiProviders";
-import { requestNativeAiJson, type NativeAiHttpRequest, type NativeAiHttpResponse } from "./nativeAi";
-import { isRecord, joinApiUrl } from "./utils";
+import { requestNativeAiJson, type NativeAiHttpRequest, type NativeAiHttpResponse } from "../../tauri/nativeAi";
+import { isRecord, joinApiUrl } from "../../utils";
 
 export type AiProviderHttpRequest = NativeAiHttpRequest;
 export type AiProviderHttpResponse = NativeAiHttpResponse;

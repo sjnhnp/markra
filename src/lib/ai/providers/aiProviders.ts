@@ -1,4 +1,4 @@
-import { isRecord } from "./utils";
+import { isRecord } from "../../utils";
 
 export const aiProviderApiStyles = [
   "openai",
