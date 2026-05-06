@@ -7,6 +7,7 @@ import {
   type Message,
   type Model,
   type StopReason,
+  type ThinkingContent,
   type TextContent
 } from "@mariozechner/pi-ai";
 import type { AiProviderConfig } from "../providers/aiProviders";
@@ -20,6 +21,8 @@ type InlineAiSuggestionContext = {
   original: string;
   replacement: string;
 };
+
+type AssistantContentBlock = TextContent | ThinkingContent;
 
 export type InlineAiAgentTarget = {
   from?: number;
@@ -166,19 +169,85 @@ async function streamNativeChatCompletion({
     return;
   }
 
+  const contentBlocks: AssistantContentBlock[] = [];
+  let currentBlock: AssistantContentBlock | null = null;
   const partial = createAssistantMessage(model);
   let streamedContent = "";
   stream.push({ partial, type: "start" });
-  stream.push({ contentIndex: 0, partial, type: "text_start" });
+
+  const finishCurrentBlock = () => {
+    if (!currentBlock) return;
+
+    const contentIndex = contentBlocks.indexOf(currentBlock);
+    const partialMessage = createAssistantMessage(model, contentBlocks);
+    if (currentBlock.type === "text") {
+      stream.push({
+        content: currentBlock.text,
+        contentIndex,
+        partial: partialMessage,
+        type: "text_end"
+      });
+    } else {
+      stream.push({
+        content: currentBlock.thinking,
+        contentIndex,
+        partial: partialMessage,
+        type: "thinking_end"
+      });
+    }
+    currentBlock = null;
+  };
+  const ensureTextBlock = () => {
+    if (currentBlock?.type === "text") return currentBlock;
+
+    finishCurrentBlock();
+    const block: TextContent = { text: "", type: "text" };
+    currentBlock = block;
+    contentBlocks.push(block);
+    stream.push({
+      contentIndex: contentBlocks.length - 1,
+      partial: createAssistantMessage(model, contentBlocks),
+      type: "text_start"
+    });
+
+    return block;
+  };
+  const ensureThinkingBlock = () => {
+    if (currentBlock?.type === "thinking") return currentBlock;
+
+    finishCurrentBlock();
+    const block: ThinkingContent = { thinking: "", type: "thinking" };
+    currentBlock = block;
+    contentBlocks.push(block);
+    stream.push({
+      contentIndex: contentBlocks.length - 1,
+      partial: createAssistantMessage(model, contentBlocks),
+      type: "thinking_start"
+    });
+
+    return block;
+  };
 
   const response = await complete(provider, model.id, messagesFromPiContext(context), {
     onDelta: (delta) => {
       streamedContent += delta;
+      const textBlock = ensureTextBlock();
+      textBlock.text += delta;
       stream.push({
-        contentIndex: 0,
+        contentIndex: contentBlocks.indexOf(textBlock),
         delta,
-        partial: createAssistantMessage(model, streamedContent),
+        partial: createAssistantMessage(model, contentBlocks),
         type: "text_delta"
+      });
+    },
+    onThinkingDelta: (delta) => {
+      const thinkingBlock = ensureThinkingBlock();
+      thinkingBlock.thinking += delta;
+      stream.push({
+        contentIndex: contentBlocks.indexOf(thinkingBlock),
+        delta,
+        partial: createAssistantMessage(model, contentBlocks),
+        type: "thinking_delta"
       });
     },
     thinkingEnabled
@@ -189,21 +258,18 @@ async function streamNativeChatCompletion({
   }
 
   const finalContent = response.content || streamedContent;
-  const finalMessage = createAssistantMessage(model, finalContent, stopReasonFromFinishReason(response.finishReason));
   if (!streamedContent && finalContent) {
+    const textBlock = ensureTextBlock();
+    textBlock.text += finalContent;
     stream.push({
-      contentIndex: 0,
+      contentIndex: contentBlocks.indexOf(textBlock),
       delta: finalContent,
-      partial: finalMessage,
+      partial: createAssistantMessage(model, contentBlocks),
       type: "text_delta"
     });
   }
-  stream.push({
-    content: finalContent,
-    contentIndex: 0,
-    partial: finalMessage,
-    type: "text_end"
-  });
+  finishCurrentBlock();
+  const finalMessage = createAssistantMessage(model, contentBlocks, stopReasonFromFinishReason(response.finishReason));
   stream.push({
     message: finalMessage,
     reason: finalMessage.stopReason === "length" ? "length" : "stop",
@@ -265,10 +331,16 @@ function assistantTextContent(message: AssistantMessage) {
   return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
 }
 
-function createAssistantMessage(model: Model<any>, content = "", stopReason: StopReason = "stop"): AssistantMessage {
+function createAssistantMessage(
+  model: Model<any>,
+  content: string | AssistantContentBlock[] = "",
+  stopReason: StopReason = "stop"
+): AssistantMessage {
   return {
     api: model.api,
-    content: content ? [{ text: content, type: "text" }] : [],
+    content: typeof content === "string"
+      ? content ? [{ text: content, type: "text" }] : []
+      : cloneAssistantContent(content),
     model: model.id,
     provider: model.provider,
     role: "assistant",
@@ -276,6 +348,14 @@ function createAssistantMessage(model: Model<any>, content = "", stopReason: Sto
     timestamp: Date.now(),
     usage: emptyUsage()
   };
+}
+
+function cloneAssistantContent(content: AssistantContentBlock[]): AssistantContentBlock[] {
+  return content.map((block) => {
+    if (block.type === "text") return { ...block };
+
+    return { ...block };
+  });
 }
 
 function emptyUsage() {

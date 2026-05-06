@@ -45,7 +45,7 @@ describe("NativeTitleBar", () => {
 
     const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
 
-    expect(toggle.closest(".titlebar-spacer")).toHaveClass("pl-24");
+    expect(toggle.closest(".titlebar-spacer")).toHaveClass("pl-22");
     expect(toggle.closest(".titlebar-spacer")).toHaveClass("h-10");
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(toggle).toContainElement(container.querySelector(".lucide-panel-left"));

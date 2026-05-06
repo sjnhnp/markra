@@ -17,6 +17,7 @@ export type ChatCompletionStreamTransport = (
 
 export type ChatCompletionStreamOptions = {
   onDelta?: (delta: string) => unknown;
+  onThinkingDelta?: (delta: string) => unknown;
   streamTransport?: ChatCompletionStreamTransport;
   thinkingEnabled?: boolean;
 };
@@ -48,6 +49,7 @@ export async function chatCompletionStream(
   messages: ChatMessage[],
   {
     onDelta,
+    onThinkingDelta,
     streamTransport = requestNativeChatStream,
     thinkingEnabled
   }: ChatCompletionStreamOptions = {}
@@ -65,6 +67,8 @@ export async function chatCompletionStream(
       content += parsed.contentDelta;
       onDelta?.(parsed.contentDelta);
     }
+
+    if (parsed.thinkingDelta) onThinkingDelta?.(parsed.thinkingDelta);
 
     if (parsed.finishReason) finishReason = parsed.finishReason;
   };

@@ -26,6 +26,7 @@ export type ChatStreamEventResult = {
   contentDelta?: string;
   done?: boolean;
   finishReason?: string;
+  thinkingDelta?: string;
 };
 
 export type ChatAdapter = {
@@ -257,11 +258,26 @@ function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult 
   const choices = Array.isArray(record.choices) ? record.choices : [];
   const firstChoice = isRecord(choices[0]) ? choices[0] : {};
   const delta = isRecord(firstChoice.delta) ? firstChoice.delta : {};
+  const result: ChatStreamEventResult = {};
+  const contentDelta = typeof delta.content === "string" && delta.content.length > 0 ? delta.content : undefined;
+  const thinkingDelta = readOpenAiCompatibleThinkingDelta(delta);
 
-  return {
-    contentDelta: typeof delta.content === "string" ? delta.content : undefined,
-    finishReason: typeof firstChoice.finish_reason === "string" ? firstChoice.finish_reason : undefined
-  };
+  if (contentDelta) result.contentDelta = contentDelta;
+  if (thinkingDelta) result.thinkingDelta = thinkingDelta;
+  if (typeof firstChoice.finish_reason === "string") result.finishReason = firstChoice.finish_reason;
+
+  return result;
+}
+
+function readOpenAiCompatibleThinkingDelta(delta: Record<string, unknown>) {
+  const thinkingFields = ["reasoning_content", "reasoning", "reasoning_text"];
+
+  for (const field of thinkingFields) {
+    const value = delta[field];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+
+  return undefined;
 }
 
 export { buildInlineAiMessages } from "./inlinePrompt";

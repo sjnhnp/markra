@@ -76,6 +76,31 @@ describe("AI chat adapters", () => {
     });
   });
 
+  it("parses DeepSeek reasoning stream fields separately from final text", () => {
+    const adapter = getChatAdapter("deepseek");
+
+    expect(
+      adapter.parseStreamEvent({
+        choices: [{ delta: { reasoning_content: "checking context" } }]
+      })
+    ).toEqual({ thinkingDelta: "checking context" });
+    expect(
+      adapter.parseStreamEvent({
+        choices: [{ delta: { reasoning: "double checking" } }]
+      })
+    ).toEqual({ thinkingDelta: "double checking" });
+    expect(
+      adapter.parseStreamEvent({
+        choices: [{ delta: { reasoning_text: "one more pass" } }]
+      })
+    ).toEqual({ thinkingDelta: "one more pass" });
+    expect(
+      adapter.parseStreamEvent({
+        choices: [{ delta: { content: "Final answer" }, finish_reason: "stop" }]
+      })
+    ).toEqual({ contentDelta: "Final answer", finishReason: "stop" });
+  });
+
   it("builds provider-specific chat requests for Anthropic, Google, and Azure", () => {
     expect(getChatAdapter("anthropic").buildRequest(provider({ type: "anthropic" }), "claude-opus-4-7", messages)).toMatchObject({
       body: {

@@ -55,7 +55,9 @@ describe("chatCompletion", () => {
 
   it("streams provider SSE chunks through the native transport", async () => {
     const onDelta = vi.fn();
+    const onThinkingDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"choices":[{"delta":{"reasoning_content":"Thinking"}}]}\n\n');
       onChunk('data: {"choices":[{"delta":{"content":"Better "}}]}\n\n');
       onChunk('data: {"choices":[{"delta":{"content":"text"},"finish_reason":"stop"}]}\n\n');
       onChunk("data: [DONE]\n\n");
@@ -66,6 +68,7 @@ describe("chatCompletion", () => {
     await expect(
       chatCompletionStream(provider(), "gpt-5.5", [{ content: "Hi", role: "user" }], {
         onDelta,
+        onThinkingDelta,
         streamTransport
       })
     ).resolves.toEqual({
@@ -84,6 +87,7 @@ describe("chatCompletion", () => {
       }),
       expect.any(Function)
     );
+    expect(onThinkingDelta).toHaveBeenCalledWith("Thinking");
     expect(onDelta).toHaveBeenNthCalledWith(1, "Better ");
     expect(onDelta).toHaveBeenNthCalledWith(2, "text");
   });

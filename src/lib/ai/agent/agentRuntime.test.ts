@@ -83,7 +83,9 @@ describe("inline AI agent runtime", () => {
 
   it("forwards streaming deltas into pi-agent message update events", async () => {
     const deltas: string[] = [];
+    const thinkingDeltas: string[] = [];
     const complete = vi.fn(async (_provider, _model, _messages, options) => {
+      options?.onThinkingDelta?.("Checking context");
       options?.onDelta?.("Better ");
       options?.onDelta?.("body");
 
@@ -97,6 +99,9 @@ describe("inline AI agent runtime", () => {
         documentPath: "/vault/README.md",
         model: "gpt-5.5",
         onEvent: (event) => {
+          if (event.type === "message_update" && event.assistantMessageEvent.type === "thinking_delta") {
+            thinkingDeltas.push(event.assistantMessageEvent.delta);
+          }
           if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
             deltas.push(event.assistantMessageEvent.delta);
           }
@@ -113,6 +118,7 @@ describe("inline AI agent runtime", () => {
       })
     ).resolves.toEqual({ content: "Better body", finishReason: "stop" });
 
+    expect(thinkingDeltas).toEqual(["Checking context"]);
     expect(deltas).toEqual(["Better ", "body"]);
   });
 });
