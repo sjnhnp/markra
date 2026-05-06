@@ -37,8 +37,12 @@ export type AiProviderConfig = {
 };
 
 export type AiProviderSettings = {
+  agentDefaultModelId?: string;
+  agentDefaultProviderId?: string;
   defaultModelId?: string;
   defaultProviderId?: string;
+  inlineDefaultModelId?: string;
+  inlineDefaultProviderId?: string;
   providers: AiProviderConfig[];
 };
 
@@ -300,8 +304,12 @@ const legacyBuiltInProviderIds = new Set(["openai-compatible"]);
 
 export function createDefaultAiSettings(): AiProviderSettings {
   return {
+    agentDefaultModelId: "gpt-5.5",
+    agentDefaultProviderId: "openai",
     defaultModelId: "gpt-5.5",
     defaultProviderId: "openai",
+    inlineDefaultModelId: "gpt-5.5",
+    inlineDefaultProviderId: "openai",
     providers: defaultProviderTemplates.map(cloneProvider)
   };
 }
@@ -344,10 +352,24 @@ export function normalizeAiSettings(value: unknown): AiProviderSettings {
   const defaultModelId = selectedProvider?.models.some((model) => model.id === storedDefaultModelId)
     ? storedDefaultModelId
     : selectedProvider?.defaultModelId;
+  const inlineDefaultProviderId =
+    typeof value.inlineDefaultProviderId === "string" && providers.some((provider) => provider.id === value.inlineDefaultProviderId)
+      ? value.inlineDefaultProviderId
+      : defaultProviderId;
+  const inlineDefaultModelId = typeof value.inlineDefaultModelId === "string" ? value.inlineDefaultModelId : defaultModelId;
+  const agentDefaultProviderId =
+    typeof value.agentDefaultProviderId === "string" && providers.some((provider) => provider.id === value.agentDefaultProviderId)
+      ? value.agentDefaultProviderId
+      : defaultProviderId;
+  const agentDefaultModelId = typeof value.agentDefaultModelId === "string" ? value.agentDefaultModelId : defaultModelId;
 
   return {
+    agentDefaultModelId,
+    agentDefaultProviderId,
     defaultModelId,
     defaultProviderId,
+    inlineDefaultModelId,
+    inlineDefaultProviderId,
     providers
   };
 }

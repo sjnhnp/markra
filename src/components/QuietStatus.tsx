@@ -11,7 +11,7 @@ export function QuietStatus({ dirty, language = "en", wordCount }: QuietStatusPr
 
   return (
     <footer
-      className="quiet-status fixed right-4.5 bottom-3 flex gap-2.5 text-[12px] text-(--text-secondary) opacity-0 transition-opacity duration-150 ease-out group-hover/app:opacity-[0.68] focus-within:opacity-[0.68]"
+      className="quiet-status pointer-events-none absolute right-4.5 bottom-3 flex justify-end gap-2.5 text-[12px] leading-5 text-(--text-secondary) opacity-[0.68]"
       aria-label={label("app.documentStatus")}
     >
       <span>

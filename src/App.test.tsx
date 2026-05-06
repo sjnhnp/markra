@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import App from "./App";
 import {
   openNativeMarkdownFolder,
@@ -31,9 +31,11 @@ import {
   saveStoredWorkspaceState
 } from "./lib/settings/appSettings";
 import {
+  listenAppAiSettingsChanged,
   listenAppEditorPreferencesChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
+  notifyAppAiSettingsChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppLanguageChanged,
   notifyAppThemeChanged
@@ -75,9 +77,11 @@ vi.mock("./lib/settings/appSettings", () => ({
 }));
 
 vi.mock("./lib/settings/settingsEvents", () => ({
+  listenAppAiSettingsChanged: vi.fn(),
   listenAppEditorPreferencesChanged: vi.fn(),
   listenAppLanguageChanged: vi.fn(),
   listenAppThemeChanged: vi.fn(),
+  notifyAppAiSettingsChanged: vi.fn(),
   notifyAppEditorPreferencesChanged: vi.fn(),
   notifyAppLanguageChanged: vi.fn(),
   notifyAppThemeChanged: vi.fn()
@@ -120,9 +124,11 @@ const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences)
 const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
 const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
 const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
+const mockedListenAppAiSettingsChanged = vi.mocked(listenAppAiSettingsChanged);
 const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
 const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
 const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
+const mockedNotifyAppAiSettingsChanged = vi.mocked(notifyAppAiSettingsChanged);
 const mockedNotifyAppEditorPreferencesChanged = vi.mocked(notifyAppEditorPreferencesChanged);
 const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
 const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
@@ -206,9 +212,11 @@ describe("Markra workspace", () => {
     mockedSaveStoredLanguage.mockReset();
     mockedSaveStoredTheme.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
+    mockedListenAppAiSettingsChanged.mockReset();
     mockedListenAppEditorPreferencesChanged.mockReset();
     mockedListenAppLanguageChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
+    mockedNotifyAppAiSettingsChanged.mockReset();
     mockedNotifyAppEditorPreferencesChanged.mockReset();
     mockedNotifyAppLanguageChanged.mockReset();
     mockedNotifyAppThemeChanged.mockReset();
@@ -223,6 +231,7 @@ describe("Markra workspace", () => {
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenSettingsWindow.mockResolvedValue(undefined);
+    mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
     mockedGetStoredEditorPreferences.mockResolvedValue({ autoOpenAiOnSelection: true });
@@ -308,6 +317,9 @@ describe("Markra workspace", () => {
     expect(screen.queryByText("文件")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toBeInTheDocument();
+    expect(container.querySelector(".quiet-status")?.closest(".editor-content-slot")).toBeInTheDocument();
+    expect(container.querySelector(".editor-content-slot")).toHaveClass("h-full", "min-h-0", "overflow-hidden");
+    expect(container.querySelector(".quiet-status")).not.toHaveClass("fixed");
     expect(shell).toHaveClass("bg-(--bg-primary)");
     expect(shell).toHaveClass("grid-rows-[minmax(0,1fr)]");
     expect(shell).toHaveClass("overscroll-none");
@@ -321,6 +333,49 @@ describe("Markra workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 
     expect(mockedOpenSettingsWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a right-side AI Agent workspace from the titlebar", async () => {
+    mockedGetStoredAiSettings.mockResolvedValue({
+      defaultModelId: "gpt-5.5",
+      defaultProviderId: "openai",
+      providers: [
+        {
+          apiKey: "sk-test",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [
+            {
+              capabilities: ["text", "reasoning", "tools"],
+              enabled: true,
+              id: "gpt-5.5",
+              name: "GPT-5.5"
+            }
+          ],
+          name: "OpenAI",
+          type: "openai"
+        }
+      ]
+    });
+    const { container } = render(<App />);
+
+    await screen.findByText("Welcome to Markra");
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle AI Agent" }));
+
+    expect(screen.getByRole("button", { name: "Toggle AI Agent" })).toHaveAttribute("aria-pressed", "true");
+    const agentPanel = screen.getByRole("complementary", { name: "AI Agent" });
+    expect(agentPanel).toBeInTheDocument();
+    expect(within(agentPanel).getAllByText("OpenAI · GPT-5.5")[0]).toBeInTheDocument();
+    expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveValue("openai::gpt-5.5");
+    expect(container.querySelector(".editor-agent-layout")).toHaveClass("grid-cols-[minmax(0,1fr)_24rem]");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close AI Agent" }));
+
+    expect(screen.getByRole("button", { name: "Toggle AI Agent" })).toHaveAttribute("aria-pressed", "false");
+    expect(container.querySelector(".editor-agent-layout")).toHaveClass("grid-cols-[minmax(0,1fr)_0rem]");
   });
 
   it("restores the AI command session when an applied suggestion is undone", async () => {

@@ -267,13 +267,15 @@ describe("AiCommandBar", () => {
             id: "gpt-5.5",
             name: "GPT-5.5",
             providerId: "openai",
-            providerName: "OpenAI"
+            providerName: "OpenAI",
+            providerType: "openai"
           },
           {
             id: "claude-sonnet-4-6",
             name: "Claude Sonnet 4.6",
             providerId: "anthropic",
-            providerName: "Anthropic"
+            providerName: "Anthropic",
+            providerType: "anthropic"
           }
         ]}
         editorLeftInset="18rem"
@@ -296,10 +298,12 @@ describe("AiCommandBar", () => {
       left: "18rem",
       right: "0px"
     });
-    expect(screen.getByRole("combobox", { name: "AI model" }).closest(".ai-command-footer")).toHaveClass("justify-end");
-    fireEvent.change(screen.getByRole("combobox", { name: "AI model" }), {
-      target: { value: "anthropic::claude-sonnet-4-6" }
-    });
+    const modelPicker = screen.getByRole("combobox", { name: "AI model" });
+    expect(modelPicker.closest(".ai-command-footer")).toHaveClass("justify-end");
+    expect(screen.getByAltText("OpenAI logo")).toBeInTheDocument();
+    fireEvent.click(modelPicker);
+    expect(screen.getByAltText("Anthropic logo")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("option")[1]!);
 
     expect(onSelectModel).toHaveBeenCalledWith("anthropic", "claude-sonnet-4-6");
   });

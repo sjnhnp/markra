@@ -13,7 +13,7 @@ import {
   type AiProviderSettings,
   type EditorPreferences
 } from "../lib/settings/appSettings";
-import { notifyAppEditorPreferencesChanged } from "../lib/settings/settingsEvents";
+import { notifyAppAiSettingsChanged, notifyAppEditorPreferencesChanged } from "../lib/settings/settingsEvents";
 import { useAppLanguage } from "./useAppLanguage";
 import { useAppTheme } from "./useAppTheme";
 
@@ -108,6 +108,7 @@ export function useSettingsWindowState() {
     saveStoredAiSettings(settingsToSave).then(() => {
       setAiSettings(settingsToSave);
       setAiSettingsSaved(true);
+      notifyAppAiSettingsChanged(settingsToSave).catch(() => {});
     }).catch(() => {});
   }, [aiSettings, selectedAiProvider]);
 

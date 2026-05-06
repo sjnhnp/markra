@@ -19,7 +19,9 @@ import {
   Square,
   type LucideIcon
 } from "lucide-react";
+import { AiModelPicker, type AiModelPickerOption } from "./AiModelPicker";
 import type { AiDiffResult, AiEditIntent } from "../lib/ai/agent/inlineAi";
+import type { AiProviderApiStyle } from "../lib/settings/appSettings";
 import { t, type AppLanguage, type I18nKey } from "../lib/i18n";
 
 type AiCommandAction = {
@@ -28,11 +30,8 @@ type AiCommandAction = {
   labelKey: I18nKey;
 };
 
-type AiCommandModelOption = {
-  id: string;
-  name: string;
-  providerId: string;
-  providerName: string;
+type AiCommandModelOption = AiModelPickerOption & {
+  providerType?: AiProviderApiStyle;
 };
 
 type AiCommandSubmitOptions = {
@@ -84,6 +83,7 @@ type AiCommandBarProps = {
   aiResult?: AiDiffResult | null;
   availableModels?: AiCommandModelOption[];
   editorLeftInset?: string;
+  editorRightInset?: string;
   language?: AppLanguage;
   open: boolean;
   prompt: string;
@@ -102,6 +102,7 @@ export function AiCommandBar({
   aiResult = null,
   availableModels = [],
   editorLeftInset = "0px",
+  editorRightInset = "0px",
   language = "en",
   open,
   prompt,
@@ -376,7 +377,7 @@ export function AiCommandBar({
   const commandWidthClassName = showExpandedInput ? "max-w-205" : "max-w-176";
   const commandLayerStyle: CSSProperties = {
     left: editorLeftInset,
-    right: 0
+    right: editorRightInset
   };
   const inputPlaceholder =
     aiResult && aiResult.type !== "error"
@@ -384,26 +385,12 @@ export function AiCommandBar({
       : showExpandedInput
         ? label("app.aiCommandPlaceholder")
         : label("app.aiCommandCompactPlaceholder");
-  const selectedModelValue =
-    selectedProviderId && selectedModelId ? getAiModelOptionValue(selectedProviderId, selectedModelId) : "";
-  const hasSelectedModel = availableModels.some(
-    (model) => getAiModelOptionValue(model.providerId, model.id) === selectedModelValue
-  );
-  const modelSelectValue = hasSelectedModel ? selectedModelValue : "";
   const showModelSelector = showExpandedInput && availableModels.length > 1 && Boolean(onSelectModel);
   const showAgentStatus = showExpandedInput && submitting;
   const showThinkingToggle = showExpandedInput && supportsThinking;
   const compactLoadingText = activeQuickActionIntent
     ? label(aiCommandLoadingLabelKeys[activeQuickActionIntent])
     : label("app.aiAgentThinking");
-  const handleModelChange = (value: string) => {
-    if (!onSelectModel) return;
-
-    const modelSelection = parseAiModelOptionValue(value);
-    if (!modelSelection) return;
-
-    onSelectModel(modelSelection.providerId, modelSelection.modelId);
-  };
   const renderSubmitButton = (compactSize: boolean) => (
     <button
       className={
@@ -444,8 +431,8 @@ export function AiCommandBar({
     <form
       className={
         unifiedExpandedSurface
-            ? `ai-command-box flex min-h-21 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both] " : ""}flex-col gap-2 rounded-lg border border-(--accent) bg-(--bg-primary) p-3 shadow-[var(--ai-command-expanded-shadow)] transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
-            : `ai-command-box flex h-14 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both]" : playCompactOpenAnimation ? "animate-[markra-ai-command-open_220ms_ease-out_both]" : ""} items-center gap-3 rounded-xl border border-(--border-default) bg-(--bg-primary) px-4 py-2 shadow-[var(--ai-command-shadow)] transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
+            ? `ai-command-box flex min-h-21 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both] " : ""}flex-col gap-2 rounded-lg border border-(--accent) bg-(--bg-primary) p-3 shadow-(--ai-command-expanded-shadow) transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
+            : `ai-command-box flex h-14 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both]" : playCompactOpenAnimation ? "animate-[markra-ai-command-open_220ms_ease-out_both]" : ""} items-center gap-3 rounded-xl border border-(--border-default) bg-(--bg-primary) px-4 py-2 shadow-(--ai-command-shadow) transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
       }
       data-state={commandState}
       onSubmit={handleSubmit}
@@ -510,31 +497,16 @@ export function AiCommandBar({
           ) : null}
           <div className="flex shrink-0 items-center gap-2">
             {showModelSelector ? (
-              <div className="flex min-w-0 items-center">
-                <label className="sr-only" htmlFor="markra-ai-model-select">
-                  {label("app.aiModelSelector")}
-                </label>
-                <select
-                  id="markra-ai-model-select"
-                  className="h-7 max-w-68 cursor-pointer rounded-md border border-(--border-default) bg-(--bg-secondary) px-2 text-[12px] leading-5 font-[560] text-(--text-secondary) outline-none transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus:border-(--accent) focus:text-(--text-primary) disabled:cursor-default disabled:opacity-50"
-                  value={modelSelectValue}
-                  disabled={submitting}
-                  aria-label={label("app.aiModelSelector")}
-                  onChange={(event) => handleModelChange(event.target.value)}
-                >
-                  <option value="" disabled>
-                    {label("app.aiModelSelector")}
-                  </option>
-                  {availableModels.map((model) => (
-                    <option
-                      key={getAiModelOptionValue(model.providerId, model.id)}
-                      value={getAiModelOptionValue(model.providerId, model.id)}
-                    >
-                      {model.providerName} · {model.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <AiModelPicker
+                ariaLabel={label("app.aiModelSelector")}
+                disabled={submitting}
+                models={availableModels}
+                selectedModelId={selectedModelId}
+                selectedProviderId={selectedProviderId}
+                variant="footer"
+                onSelect={onSelectModel}
+                translate={(key) => label(key)}
+              />
             ) : null}
             {renderSubmitButton(true)}
           </div>
@@ -559,8 +531,8 @@ export function AiCommandBar({
           <div
             className={
               commandState === "collapsing" || closing
-                ? "ai-command-actions absolute bottom-[calc(100%+10px)] left-0 w-66 animate-[markra-ai-float-out_160ms_ease-in_both] rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-3 shadow-[var(--ai-command-popover-shadow)] transition-[opacity,transform] duration-160 ease-in max-[760px]:hidden motion-reduce:animate-none motion-reduce:transition-none"
-                : "ai-command-actions absolute bottom-[calc(100%+10px)] left-0 w-66 animate-[markra-ai-float-in_180ms_ease-out_both] rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-3 shadow-[var(--ai-command-popover-shadow)] transition-[opacity,transform] duration-180 ease-out max-[760px]:hidden motion-reduce:animate-none motion-reduce:transition-none"
+                ? "ai-command-actions absolute bottom-[calc(100%+10px)] left-0 w-66 animate-[markra-ai-float-out_160ms_ease-in_both] rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-3 shadow-(--ai-command-popover-shadow) transition-[opacity,transform] duration-160 ease-in max-[760px]:hidden motion-reduce:animate-none motion-reduce:transition-none"
+                : "ai-command-actions absolute bottom-[calc(100%+10px)] left-0 w-66 animate-[markra-ai-float-in_180ms_ease-out_both] rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-3 shadow-(--ai-command-popover-shadow) transition-[opacity,transform] duration-180 ease-out max-[760px]:hidden motion-reduce:animate-none motion-reduce:transition-none"
             }
             aria-label={label("app.aiQuickActions")}
           >
@@ -592,17 +564,4 @@ export function AiCommandBar({
       </div>
     </section>
   );
-}
-
-function getAiModelOptionValue(providerId: string, modelId: string) {
-  return `${providerId}::${modelId}`;
-}
-
-function parseAiModelOptionValue(value: string) {
-  const [providerId, ...modelIdParts] = value.split("::");
-  const modelId = modelIdParts.join("::");
-
-  if (!providerId || !modelId) return null;
-
-  return { modelId, providerId };
 }

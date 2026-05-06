@@ -1,8 +1,9 @@
-import { FileText, FolderOpen, Moon, PanelLeft, Save, Sun } from "lucide-react";
+import { Bot, FileText, FolderOpen, Moon, PanelLeft, Save, Sun } from "lucide-react";
 import type { ResolvedAppTheme } from "../lib/settings/appSettings";
 import { t, type AppLanguage } from "../lib/i18n";
 
 type NativeTitleBarProps = {
+  aiAgentOpen: boolean;
   dirty: boolean;
   documentName: string;
   language?: AppLanguage;
@@ -10,11 +11,13 @@ type NativeTitleBarProps = {
   theme: ResolvedAppTheme;
   onOpenMarkdown: () => unknown;
   onSaveMarkdown: () => unknown;
+  onToggleAiAgent: () => unknown;
   onToggleMarkdownFiles: () => unknown;
   onToggleTheme: () => unknown;
 };
 
 export function NativeTitleBar({
+  aiAgentOpen,
   dirty,
   documentName,
   language = "en",
@@ -22,6 +25,7 @@ export function NativeTitleBar({
   theme,
   onOpenMarkdown,
   onSaveMarkdown,
+  onToggleAiAgent,
   onToggleMarkdownFiles,
   onToggleTheme
 }: NativeTitleBarProps) {
@@ -30,7 +34,7 @@ export function NativeTitleBar({
 
   return (
     <header
-      className="native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[132px_minmax(0,1fr)_132px] select-none items-center [-webkit-user-select:none]"
+      className="native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[132px_minmax(0,1fr)_164px] select-none items-center [-webkit-user-select:none]"
       aria-label={label("app.windowDragRegion")}
       data-tauri-drag-region
     >
@@ -58,9 +62,23 @@ export function NativeTitleBar({
         ) : null}
       </h1>
       <div
-        className="document-actions flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 transition-opacity duration-150 ease-out group-hover/titlebar:opacity-100 focus-within:opacity-100"
+        className="document-actions flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none"
         aria-label={label("app.fileActions")}
+        style={{ transform: aiAgentOpen ? "translateX(-24rem)" : undefined }}
       >
+        <button
+          className={`inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 p-0 transition-[background-color,color,opacity] duration-150 ease-out focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none ${
+            aiAgentOpen
+              ? "bg-(--bg-active) text-(--text-heading) opacity-100"
+              : "bg-transparent text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading)"
+          }`}
+          type="button"
+          onClick={onToggleAiAgent}
+          aria-label={label("app.toggleAiAgent")}
+          aria-pressed={aiAgentOpen}
+        >
+          <Bot aria-hidden="true" size={15} />
+        </button>
         <button
           className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
           type="button"

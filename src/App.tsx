@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
+import { AiAgentPanel } from "./components/AiAgentPanel";
 import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
 import { NativeTitleBar } from "./components/NativeTitleBar";
@@ -43,6 +44,7 @@ export default function App() {
   const appLanguage = useAppLanguage();
   const aiSettings = useAiSettings();
   const editorPreferences = useEditorPreferences();
+  const [aiAgentOpen, setAiAgentOpen] = useState(false);
   const [aiResult, setAiResult] = useState<AiDiffResult | null>(null);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
   const aiResultRef = useRef<AiDiffResult | null>(null);
@@ -88,6 +90,19 @@ export default function App() {
   }, []);
   const getPendingAiResult = useCallback(() => aiResultRef.current, []);
   const hasActiveAiSelection = Boolean(activeAiSelection?.text.trim());
+  const selectedInlineAiModel =
+    aiSettings.availableTextModels.find(
+      (model) => model.providerId === aiSettings.inlineProvider?.id && model.id === aiSettings.inlineModelId
+    ) ?? aiSettings.availableTextModels[0];
+  const selectedAiAgentModel =
+    aiSettings.availableTextModels.find(
+      (model) => model.providerId === aiSettings.agentProvider?.id && model.id === aiSettings.agentModelId
+    ) ?? aiSettings.availableTextModels[0];
+  const aiAgentProviderName = selectedAiAgentModel?.providerName ?? aiSettings.agentProvider?.name ?? null;
+  const aiAgentModelName = selectedAiAgentModel?.name ?? aiSettings.agentModelId ?? null;
+  const editorAgentLayoutClassName = `editor-agent-layout grid min-h-0 transition-[grid-template-columns] duration-220 ease-out motion-reduce:transition-none ${
+    aiAgentOpen ? "grid-cols-[minmax(0,1fr)_24rem]" : "grid-cols-[minmax(0,1fr)_0rem]"
+  }`;
   const handleAiResult = useCallback(
     (result: AiDiffResult) => {
       editor.clearAiSelection();
@@ -106,9 +121,9 @@ export default function App() {
     getDocumentContent: getAiDocumentContent,
     getPendingResult: getPendingAiResult,
     getSelection: getActiveAiSelection,
-    model: aiSettings.defaultModelId,
+    model: aiSettings.inlineModelId,
     onAiResult: handleAiResult,
-    provider: aiSettings.activeProvider,
+    provider: aiSettings.inlineProvider,
     settingsLoading: aiSettings.loading,
     translate,
     translationTargetLanguage: aiTranslationLanguageName(appLanguage.ready ? appLanguage.language : "en"),
@@ -155,6 +170,9 @@ export default function App() {
     navigator.clipboard?.writeText(result.replacement);
   }, [aiResult]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
+  const handleAiAgentToggle = useCallback(() => {
+    setAiAgentOpen((open) => !open);
+  }, []);
   const handleOpenSettings = useCallback(() => {
     openSettingsWindow().catch(() => {});
   }, []);
@@ -165,7 +183,7 @@ export default function App() {
       : rawFileTreeRootName === "Files"
         ? translate("app.files")
         : rawFileTreeRootName;
-  const supportsAiThinking = aiSettings.activeProvider?.type === "deepseek";
+  const supportsAiThinking = selectedInlineAiModel?.capabilities.includes("reasoning") ?? false;
   const nativeMenuHandlers = useNativeMenuHandlers({
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
     openDocument: openMarkdownFile,
@@ -229,6 +247,7 @@ export default function App() {
       <AppToaster language={appLanguage.language} />
       <main className="app-shell group/app relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden overscroll-none bg-(--bg-primary) text-(--text-primary)">
         <NativeTitleBar
+          aiAgentOpen={aiAgentOpen}
           dirty={document.dirty}
           documentName={document.name}
           language={appLanguage.language}
@@ -236,6 +255,7 @@ export default function App() {
           theme={appTheme.resolvedTheme}
           onOpenMarkdown={openMarkdownFile}
           onSaveMarkdown={handleSaveClick}
+          onToggleAiAgent={handleAiAgentToggle}
           onToggleMarkdownFiles={handleFileTreeToggle}
           onToggleTheme={appTheme.toggleTheme}
         />
@@ -257,36 +277,53 @@ export default function App() {
             />
           </div>
 
-          <MarkdownPaper
-            autoFocus={shouldFocusEditorOnReady(document.content)}
-            initialContent={document.content}
-            language={appLanguage.language}
-            onEditorReady={editor.handleEditorReady}
-            onMarkdownChange={handleMarkdownChange}
-            onTextSelectionChange={handleTextSelectionChange}
-            revision={document.revision}
-          />
+          <div className={editorAgentLayoutClassName}>
+            <div className="editor-content-slot relative h-full min-h-0 overflow-hidden">
+              <MarkdownPaper
+                autoFocus={shouldFocusEditorOnReady(document.content)}
+                initialContent={document.content}
+                language={appLanguage.language}
+                onEditorReady={editor.handleEditorReady}
+                onMarkdownChange={handleMarkdownChange}
+                onTextSelectionChange={handleTextSelectionChange}
+                revision={document.revision}
+              />
+              <QuietStatus dirty={document.dirty} language={appLanguage.language} wordCount={wordCount} />
+            </div>
+            <div className="ai-agent-panel-slot relative z-20 min-h-0 overflow-hidden">
+              <AiAgentPanel
+                availableModels={aiSettings.availableTextModels}
+                language={appLanguage.language}
+                modelName={aiAgentModelName}
+                open={aiAgentOpen}
+                providerName={aiAgentProviderName}
+                selectedModelId={aiSettings.agentModelId}
+                selectedProviderId={aiSettings.agentProviderId}
+                onClose={() => setAiAgentOpen(false)}
+                onSelectModel={aiSettings.selectAgentModel}
+              />
+            </div>
+          </div>
         </div>
 
         <AiCommandBar
           aiResult={aiResult}
           availableModels={aiSettings.availableTextModels}
           editorLeftInset={fileTreeOpen ? "18rem" : "0px"}
+          editorRightInset={aiAgentOpen ? "24rem" : "0px"}
           language={appLanguage.language}
           open={aiCommand.open && (hasActiveAiSelection || Boolean(aiResult))}
           prompt={aiCommand.prompt}
-          selectedModelId={aiSettings.defaultModelId}
-          selectedProviderId={aiSettings.activeProvider?.id ?? null}
+          selectedModelId={aiSettings.inlineModelId}
+          selectedProviderId={aiSettings.inlineProviderId}
           submitting={aiCommand.submitting}
           supportsThinking={supportsAiThinking}
           onClose={handleAiCommandClose}
           onInterrupt={aiCommand.interruptPrompt}
           onPromptChange={aiCommand.updatePrompt}
-          onSelectModel={aiSettings.selectEditorModel}
+          onSelectModel={aiSettings.selectInlineModel}
           onSubmit={aiCommand.submitPrompt}
         />
-
-        <QuietStatus dirty={document.dirty} language={appLanguage.language} wordCount={wordCount} />
       </main>
     </>
   );

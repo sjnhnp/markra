@@ -196,6 +196,7 @@ describe("MarkdownPaper editing", () => {
     const { container } = await renderEditor();
 
     expect(container.querySelector(".paper-scroll")).toHaveClass("overscroll-none");
+    expect(container.querySelector(".paper-scroll")).toHaveClass("h-full", "min-h-0", "overflow-auto");
   });
 
   it("renders AI replacement comparison inside the editor", async () => {

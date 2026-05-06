@@ -1,10 +1,18 @@
 import { emit, listen } from "@tauri-apps/api/event";
-import { isAppTheme, normalizeEditorPreferences, type AppTheme, type EditorPreferences } from "./appSettings";
+import { normalizeAiSettings } from "../ai/providers/aiProviders";
+import {
+  isAppTheme,
+  normalizeEditorPreferences,
+  type AiProviderSettings,
+  type AppTheme,
+  type EditorPreferences
+} from "./appSettings";
 import { isAppLanguage, type AppLanguage } from "../i18n";
 
 const themeChangedEvent = "markra://theme-changed";
 const languageChangedEvent = "markra://language-changed";
 const editorPreferencesChangedEvent = "markra://editor-preferences-changed";
+const aiSettingsChangedEvent = "markra://ai-settings-changed";
 
 type ThemeChangedPayload = {
   theme: AppTheme;
@@ -16,6 +24,10 @@ type LanguageChangedPayload = {
 
 type EditorPreferencesChangedPayload = {
   preferences: EditorPreferences;
+};
+
+type AiSettingsChangedPayload = {
+  settings: AiProviderSettings;
 };
 
 function hasTauriRuntime() {
@@ -70,5 +82,19 @@ export async function listenAppEditorPreferencesChanged(
     if (preferences.autoOpenAiOnSelection === event.payload.preferences.autoOpenAiOnSelection) {
       onPreferencesChanged(preferences);
     }
+  });
+}
+
+export async function notifyAppAiSettingsChanged(settings: AiProviderSettings) {
+  if (!hasTauriRuntime()) return;
+
+  await emit(aiSettingsChangedEvent, { settings });
+}
+
+export async function listenAppAiSettingsChanged(onAiSettingsChanged: (settings: AiProviderSettings) => unknown) {
+  if (!hasTauriRuntime()) return () => {};
+
+  return listen<AiSettingsChangedPayload>(aiSettingsChangedEvent, (event) => {
+    onAiSettingsChanged(normalizeAiSettings(event.payload.settings));
   });
 }
