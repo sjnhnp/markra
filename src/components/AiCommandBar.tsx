@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent
+} from "react";
 import {
   ArrowUp,
   FileText,
@@ -67,7 +75,7 @@ type AiCommandBarProps = {
   onInterrupt?: () => unknown;
   onPromptChange: (prompt: string) => unknown;
   onSelectModel?: (providerId: string, modelId: string) => unknown;
-  onSubmit: () => unknown;
+  onSubmit: (promptOverride?: string) => unknown;
 };
 
 export function AiCommandBar({
@@ -258,19 +266,47 @@ export function AiCommandBar({
     onPromptChange(nextPrompt);
   };
 
+  const insertPromptNewline = (input: HTMLTextAreaElement) => {
+    if (submitting) return;
+
+    const start = input.selectionStart ?? prompt.length;
+    const end = input.selectionEnd ?? start;
+    const cursor = start + 1;
+    const nextPrompt = `${prompt.slice(0, start)}\n${prompt.slice(end)}`;
+
+    handlePromptChange(nextPrompt);
+    window.setTimeout(() => {
+      input.focus();
+      input.setSelectionRange(cursor, cursor);
+    }, 0);
+  };
+
+  const handlePromptKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+
+    event.preventDefault();
+    if (event.ctrlKey) {
+      insertPromptNewline(event.currentTarget);
+      return;
+    }
+
+    if (!canSubmit) return;
+    onSubmit();
+  };
+
   const handleQuickAction = (action: AiCommandAction) => {
     if (submitting) return;
 
     const quickPrompt = label(action.labelKey);
     setQuickActionsVisible(false);
     onPromptChange(quickPrompt);
-    window.setTimeout(() => {
-      inputRef.current?.focus();
-    }, 0);
+    onSubmit(quickPrompt);
   };
 
+  const activeExpandedSurface = showingExpandedSurface || submitting;
+  const unifiedExpandedSurface = activeExpandedSurface || Boolean(aiResult);
   const showQuickActions = showingExpandedSurface && !aiResult && quickActionsVisible && !submitting;
-  const showExpandedInput = showingExpandedSurface || Boolean(aiResult);
+  const showExpandedInput = unifiedExpandedSurface;
   const commandLayerStyle: CSSProperties = {
     left: editorLeftInset,
     right: 0
@@ -288,6 +324,7 @@ export function AiCommandBar({
   );
   const modelSelectValue = hasSelectedModel ? selectedModelValue : "";
   const showModelSelector = showExpandedInput && availableModels.length > 1 && Boolean(onSelectModel);
+  const showAgentStatus = showExpandedInput && submitting;
   const handleModelChange = (value: string) => {
     if (!onSelectModel) return;
 
@@ -318,12 +355,19 @@ export function AiCommandBar({
       )}
     </button>
   );
+  const renderAgentStatus = () => (
+    <div
+      className="flex min-w-0 flex-1 items-center text-[12px] leading-5 font-[560] text-(--text-secondary)"
+      role="status"
+      aria-live="polite"
+    >
+      <span className="ai-command-thinking-text truncate">{label("app.aiAgentThinking")}</span>
+    </div>
+  );
   const commandForm = (
     <form
       className={
-        aiResult
-          ? "ai-command-box flex min-h-14 flex-col gap-2 border-0 border-t border-(--border-default) bg-transparent p-3 shadow-none"
-          : showingExpandedSurface
+        unifiedExpandedSurface
             ? `ai-command-box flex min-h-21 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both] " : ""}flex-col gap-2 rounded-lg border border-(--accent) bg-(--bg-primary) p-3 shadow-[var(--ai-command-expanded-shadow)] transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
             : `ai-command-box flex h-14 origin-bottom ${closing ? "animate-[markra-ai-command-close_180ms_ease-in_both]" : playCompactOpenAnimation ? "animate-[markra-ai-command-open_220ms_ease-out_both]" : ""} items-center gap-3 rounded-xl border border-(--border-default) bg-(--bg-primary) px-4 py-2 shadow-[var(--ai-command-shadow)] transition-[border-color,box-shadow,opacity,transform] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none`
       }
@@ -351,40 +395,50 @@ export function AiCommandBar({
           onClick={expandCommand}
           onChange={(event) => handlePromptChange(event.target.value)}
           onFocus={expandCommand}
+          onKeyDown={handlePromptKeyDown}
           aria-label={label("app.aiCommandInput")}
         />
         {!showExpandedInput ? renderSubmitButton(false) : null}
       </div>
       {showExpandedInput ? (
-        <div className="ai-command-footer flex w-full items-center justify-end gap-2">
-          {showModelSelector ? (
-            <div className="flex min-w-0 items-center">
-              <label className="sr-only" htmlFor="markra-ai-model-select">
-                {label("app.aiModelSelector")}
-              </label>
-              <select
-                id="markra-ai-model-select"
-                className="h-7 max-w-68 cursor-pointer rounded-md border border-(--border-default) bg-(--bg-secondary) px-2 text-[12px] leading-5 font-[560] text-(--text-secondary) outline-none transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus:border-(--accent) focus:text-(--text-primary) disabled:cursor-default disabled:opacity-50"
-                value={modelSelectValue}
-                disabled={submitting}
-                aria-label={label("app.aiModelSelector")}
-                onChange={(event) => handleModelChange(event.target.value)}
-              >
-                <option value="" disabled>
+        <div
+          className={
+            showAgentStatus
+              ? "ai-command-footer flex w-full items-center justify-between gap-3"
+              : "ai-command-footer flex w-full items-center justify-end gap-2"
+          }
+        >
+          {showAgentStatus ? renderAgentStatus() : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {showModelSelector ? (
+              <div className="flex min-w-0 items-center">
+                <label className="sr-only" htmlFor="markra-ai-model-select">
                   {label("app.aiModelSelector")}
-                </option>
-                {availableModels.map((model) => (
-                  <option
-                    key={getAiModelOptionValue(model.providerId, model.id)}
-                    value={getAiModelOptionValue(model.providerId, model.id)}
-                  >
-                    {model.providerName} · {model.name}
+                </label>
+                <select
+                  id="markra-ai-model-select"
+                  className="h-7 max-w-68 cursor-pointer rounded-md border border-(--border-default) bg-(--bg-secondary) px-2 text-[12px] leading-5 font-[560] text-(--text-secondary) outline-none transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus:border-(--accent) focus:text-(--text-primary) disabled:cursor-default disabled:opacity-50"
+                  value={modelSelectValue}
+                  disabled={submitting}
+                  aria-label={label("app.aiModelSelector")}
+                  onChange={(event) => handleModelChange(event.target.value)}
+                >
+                  <option value="" disabled>
+                    {label("app.aiModelSelector")}
                   </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          {renderSubmitButton(true)}
+                  {availableModels.map((model) => (
+                    <option
+                      key={getAiModelOptionValue(model.providerId, model.id)}
+                      value={getAiModelOptionValue(model.providerId, model.id)}
+                    >
+                      {model.providerName} · {model.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            {renderSubmitButton(true)}
+          </div>
         </div>
       ) : null}
     </form>
@@ -432,23 +486,7 @@ export function AiCommandBar({
           </div>
         ) : null}
 
-        {aiResult ? (
-          <div className="ai-command-panel origin-bottom overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) shadow-[var(--ai-command-panel-shadow)]">
-            <div className="flex items-center gap-3 px-3 py-2.5">
-              <div className="min-w-0">
-                <div className="truncate text-[13px] leading-5 font-bold text-(--text-heading)">
-                  {aiResult.type === "error" ? label("app.aiSuggestionError") : label("app.aiSuggestionReady")}
-                </div>
-                {aiResult.type === "error" ? (
-                  <p className="m-0 truncate text-[12px] leading-4 text-(--text-secondary)">{aiResult.message}</p>
-                ) : null}
-              </div>
-            </div>
-            {commandForm}
-          </div>
-        ) : (
-          commandForm
-        )}
+        {commandForm}
       </div>
     </section>
   );

@@ -5,8 +5,8 @@ import {
   FileText,
   Folder,
   FolderTree,
-  List,
   Search,
+  Settings,
   TableOfContents
 } from "lucide-react";
 import { t, type AppLanguage } from "../lib/i18n";
@@ -21,8 +21,8 @@ type MarkdownFileTreeDrawerProps = {
   outlineItems: MarkdownOutlineItem[];
   rootName: string;
   onOpenFile: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
+  onOpenSettings?: () => unknown | Promise<unknown>;
   onSelectOutlineItem: (item: MarkdownOutlineItem, index: number) => unknown;
-  onToggle: () => unknown;
 };
 
 type FolderNode = {
@@ -116,8 +116,8 @@ export function MarkdownFileTreeDrawer({
   outlineItems,
   rootName,
   onOpenFile,
-  onSelectOutlineItem,
-  onToggle
+  onOpenSettings = () => {},
+  onSelectOutlineItem
 }: MarkdownFileTreeDrawerProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
   const [viewMode, setViewMode] = useState<"files" | "outline">("files");
@@ -204,11 +204,10 @@ export function MarkdownFileTreeDrawer({
       <button
         className="fixed bottom-3 left-3 z-30 inline-flex size-7 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent p-0 text-(--text-secondary) opacity-40 transition-[background-color,color,opacity] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100 focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:opacity-100 focus-visible:outline-none"
         type="button"
-        aria-label={label("app.toggleMarkdownFiles")}
-        aria-pressed={open}
-        onClick={onToggle}
+        aria-label={label("settings.title")}
+        onClick={onOpenSettings}
       >
-        <List aria-hidden="true" size={15} />
+        <Settings aria-hidden="true" size={15} />
       </button>
 
       {open ? (

@@ -12,14 +12,25 @@ export type ChatRequest = {
   url: string;
 };
 
+export type ChatRequestOptions = {
+  stream?: boolean;
+};
+
 export type ChatResponse = {
   content: string;
   finishReason?: string;
 };
 
+export type ChatStreamEventResult = {
+  contentDelta?: string;
+  done?: boolean;
+  finishReason?: string;
+};
+
 export type ChatAdapter = {
-  buildRequest: (config: AiProviderConfig, model: string, messages: ChatMessage[]) => ChatRequest;
+  buildRequest: (config: AiProviderConfig, model: string, messages: ChatMessage[], options?: ChatRequestOptions) => ChatRequest;
   parseResponse: (body: unknown) => ChatResponse;
+  parseStreamEvent: (body: unknown) => ChatStreamEventResult;
 };
 
 const anthropicVersion = "2023-06-01";
@@ -33,7 +44,7 @@ const defaultChatBaseUrlByApiStyle: Partial<Record<AiProviderApiStyle, string>> 
 };
 
 const openAiCompatibleAdapter: ChatAdapter = {
-  buildRequest(config, model, messages) {
+  buildRequest(config, model, messages, options = {}) {
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle[config.type] || "";
     if (!baseUrl) throw new Error("API URL is required.");
 
@@ -41,6 +52,7 @@ const openAiCompatibleAdapter: ChatAdapter = {
       body: {
         messages,
         model,
+        ...(options.stream ? { stream: true } : {}),
         temperature: 0.7
       },
       headers: {
@@ -61,11 +73,12 @@ const openAiCompatibleAdapter: ChatAdapter = {
       content,
       finishReason: typeof firstChoice.finish_reason === "string" ? firstChoice.finish_reason : undefined
     };
-  }
+  },
+  parseStreamEvent: parseOpenAiCompatibleStreamEvent
 };
 
 const anthropicAdapter: ChatAdapter = {
-  buildRequest(config, model, messages) {
+  buildRequest(config, model, messages, options = {}) {
     const systemMessage = messages.find((message) => message.role === "system");
     const nonSystemMessages = messages.filter((message) => message.role !== "system");
 
@@ -77,6 +90,7 @@ const anthropicAdapter: ChatAdapter = {
           role: message.role
         })),
         model,
+        ...(options.stream ? { stream: true } : {}),
         ...(systemMessage ? { system: systemMessage.content } : {})
       },
       headers: {
@@ -99,16 +113,37 @@ const anthropicAdapter: ChatAdapter = {
       content,
       finishReason: typeof record.stop_reason === "string" ? record.stop_reason : undefined
     };
+  },
+  parseStreamEvent(body) {
+    const record = isRecord(body) ? body : {};
+    if (record.type === "message_stop") return { done: true };
+
+    if (record.type === "content_block_delta") {
+      const delta = isRecord(record.delta) ? record.delta : {};
+      return {
+        contentDelta: typeof delta.text === "string" ? delta.text : undefined
+      };
+    }
+
+    if (record.type === "message_delta") {
+      const delta = isRecord(record.delta) ? record.delta : {};
+      return {
+        finishReason: typeof delta.stop_reason === "string" ? delta.stop_reason : undefined
+      };
+    }
+
+    return {};
   }
 };
 
 const azureAdapter: ChatAdapter = {
-  buildRequest(config, model, messages) {
+  buildRequest(config, model, messages, options = {}) {
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle["azure-openai"]!;
 
     return {
       body: {
         messages,
+        ...(options.stream ? { stream: true } : {}),
         temperature: 0.7
       },
       headers: {
@@ -118,11 +153,12 @@ const azureAdapter: ChatAdapter = {
       url: `${joinApiUrl(baseUrl, `/openai/deployments/${encodeURIComponent(model)}/chat/completions`)}?api-version=${azureApiVersion}`
     };
   },
-  parseResponse: openAiCompatibleAdapter.parseResponse
+  parseResponse: openAiCompatibleAdapter.parseResponse,
+  parseStreamEvent: openAiCompatibleAdapter.parseStreamEvent
 };
 
 const googleAdapter: ChatAdapter = {
-  buildRequest(config, model, messages) {
+  buildRequest(config, model, messages, options = {}) {
     const systemMessage = messages.find((message) => message.role === "system");
     const contents = messages
       .filter((message) => message.role !== "system")
@@ -140,7 +176,9 @@ const googleAdapter: ChatAdapter = {
         ...(systemMessage ? { systemInstruction: { parts: [{ text: systemMessage.content }] } } : {})
       },
       headers: { "content-type": "application/json" },
-      url: `${joinApiUrl(baseUrl, `/models/${encodeURIComponent(model)}:generateContent`)}?key=${key}`
+      url: options.stream
+        ? `${joinApiUrl(baseUrl, `/models/${encodeURIComponent(model)}:streamGenerateContent`)}?key=${key}&alt=sse`
+        : `${joinApiUrl(baseUrl, `/models/${encodeURIComponent(model)}:generateContent`)}?key=${key}`
     };
   },
   parseResponse(body) {
@@ -155,6 +193,22 @@ const googleAdapter: ChatAdapter = {
         .filter(isRecord)
         .map((part) => (typeof part.text === "string" ? part.text : ""))
         .join("")
+    };
+  },
+  parseStreamEvent(body) {
+    const record = isRecord(body) ? body : {};
+    const candidates = Array.isArray(record.candidates) ? record.candidates : [];
+    const candidate = isRecord(candidates[0]) ? candidates[0] : {};
+    const content = isRecord(candidate.content) ? candidate.content : {};
+    const parts = Array.isArray(content.parts) ? content.parts : [];
+    const contentDelta = parts
+      .filter(isRecord)
+      .map((part) => (typeof part.text === "string" ? part.text : ""))
+      .join("");
+
+    return {
+      contentDelta: contentDelta || undefined,
+      finishReason: typeof candidate.finishReason === "string" ? candidate.finishReason : undefined
     };
   }
 };
@@ -176,6 +230,20 @@ const adapterByApiStyle: Record<AiProviderApiStyle, ChatAdapter> = {
 
 export function getChatAdapter(apiStyle: AiProviderApiStyle): ChatAdapter {
   return adapterByApiStyle[apiStyle] ?? openAiCompatibleAdapter;
+}
+
+function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult {
+  if (body === "[DONE]") return { done: true };
+
+  const record = isRecord(body) ? body : {};
+  const choices = Array.isArray(record.choices) ? record.choices : [];
+  const firstChoice = isRecord(choices[0]) ? choices[0] : {};
+  const delta = isRecord(firstChoice.delta) ? firstChoice.delta : {};
+
+  return {
+    contentDelta: typeof delta.content === "string" ? delta.content : undefined,
+    finishReason: typeof firstChoice.finish_reason === "string" ? firstChoice.finish_reason : undefined
+  };
 }
 
 type InlineAiSuggestionContext = {

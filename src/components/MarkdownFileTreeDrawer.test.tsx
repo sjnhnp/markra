@@ -8,7 +8,8 @@ const markdownFiles = [
 ];
 
 describe("MarkdownFileTreeDrawer", () => {
-  it("uses a file-list icon for the launcher", () => {
+  it("keeps settings fixed in the lower-left", () => {
+    const onOpenSettings = vi.fn();
     const { container } = render(
       <MarkdownFileTreeDrawer
         currentPath={null}
@@ -17,19 +18,24 @@ describe("MarkdownFileTreeDrawer", () => {
         outlineItems={[]}
         rootName="Obsidian Vault"
         onOpenFile={() => {}}
+        onOpenSettings={onOpenSettings}
         onSelectOutlineItem={() => {}}
-        onToggle={() => {}}
       />
     );
 
-    const launcher = screen.getByRole("button", { name: "Toggle Markdown files" });
+    const settings = screen.getByRole("button", { name: "Settings" });
 
-    expect(launcher).toContainElement(container.querySelector(".lucide-list"));
-    expect(launcher).not.toContainElement(container.querySelector(".lucide-files"));
+    expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
+    expect(settings).toHaveClass("fixed", "bottom-3", "left-3");
+    expect(settings).toContainElement(container.querySelector(".lucide-settings"));
+
+    fireEvent.click(settings);
+
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the drawer toggle fixed in the lower-left while open", () => {
-    render(
+  it("keeps the drawer header focused on file and outline view controls", () => {
+    const { container } = render(
       <MarkdownFileTreeDrawer
         currentPath="/vault/Untitled.md"
         files={markdownFiles}
@@ -38,14 +44,14 @@ describe("MarkdownFileTreeDrawer", () => {
         rootName="Obsidian Vault"
         onOpenFile={() => {}}
         onSelectOutlineItem={() => {}}
-        onToggle={() => {}}
       />
     );
 
-    const launcher = screen.getByRole("button", { name: "Toggle Markdown files" });
+    const outlineSwitch = screen.getByRole("button", { name: "Show outline" });
 
-    expect(launcher).toHaveClass("fixed");
-    expect(launcher).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
+    expect(outlineSwitch.closest(".markdown-file-tree")).toBeInTheDocument();
+    expect(outlineSwitch).toContainElement(container.querySelector(".lucide-table-of-contents"));
   });
 
   it("renders a folder-style markdown file tree with folders collapsed by default", () => {
@@ -59,7 +65,6 @@ describe("MarkdownFileTreeDrawer", () => {
         rootName="Obsidian Vault"
         onOpenFile={openFile}
         onSelectOutlineItem={() => {}}
-        onToggle={() => {}}
       />
     );
 
@@ -91,7 +96,6 @@ describe("MarkdownFileTreeDrawer", () => {
         rootName="Obsidian Vault"
         onOpenFile={() => {}}
         onSelectOutlineItem={() => {}}
-        onToggle={() => {}}
       />
     );
 
@@ -110,7 +114,6 @@ describe("MarkdownFileTreeDrawer", () => {
         rootName="Obsidian Vault"
         onOpenFile={() => {}}
         onSelectOutlineItem={() => {}}
-        onToggle={() => {}}
       />
     );
 
@@ -133,7 +136,6 @@ describe("MarkdownFileTreeDrawer", () => {
         rootName="Obsidian Vault"
         onOpenFile={() => {}}
         onSelectOutlineItem={selectOutlineItem}
-        onToggle={() => {}}
       />
     );
 
@@ -172,7 +174,6 @@ describe("MarkdownFileTreeDrawer", () => {
         rootName="Obsidian Vault"
         onOpenFile={() => {}}
         onSelectOutlineItem={selectOutlineItem}
-        onToggle={() => {}}
       />
     );
 
@@ -198,7 +199,6 @@ describe("MarkdownFileTreeDrawer", () => {
         rootName="Obsidian Vault"
         onOpenFile={() => {}}
         onSelectOutlineItem={() => {}}
-        onToggle={() => {}}
       />
     );
 

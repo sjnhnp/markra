@@ -18,4 +18,14 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("font-size: inherit");
     expect(styles).toContain("font-weight: inherit");
   });
+
+  it("keeps AI diff action controls visually quiet until interaction", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain(".markdown-paper .markra-ai-preview-actions-quiet");
+    expect(styles).toContain("opacity: 0.58");
+    expect(styles).not.toContain("opacity-0");
+    expect(styles).toContain(".markdown-paper .markra-ai-preview-widget:hover .markra-ai-preview-actions-quiet");
+    expect(styles).toContain(".markdown-paper .markra-ai-preview-widget:focus-within .markra-ai-preview-actions-quiet");
+  });
 });

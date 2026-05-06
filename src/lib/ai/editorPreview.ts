@@ -246,7 +246,7 @@ function buildAiPreviewDecorations(
 
   const decorations = [
     Decoration.widget(appendPosition, () => createPreviewWidget(result, labels), {
-      key: `markra-ai-preview-insert-${from}-${to}`,
+      key: `markra-ai-preview-insert-${from}-${to}-${previewKeySegment(result.replacement)}`,
       side: -1
     })
   ];
@@ -260,6 +260,16 @@ function buildAiPreviewDecorations(
   }
 
   return DecorationSet.create(doc, decorations);
+}
+
+function previewKeySegment(text: string) {
+  let hash = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  }
+
+  return `${text.length}-${hash.toString(36)}`;
 }
 
 const defaultLabels: AiEditorPreviewLabels = {
@@ -279,7 +289,7 @@ function createPreviewWidget(result: AiTextDiffResult, labels: AiEditorPreviewLa
   inserted.textContent = result.replacement;
 
   const actions = document.createElement("span");
-  actions.className = "markra-ai-preview-actions";
+  actions.className = "markra-ai-preview-actions markra-ai-preview-actions-quiet";
   actions.contentEditable = "false";
   actions.append(
     createActionButton("copy", labels.copy, result, labels.copied),

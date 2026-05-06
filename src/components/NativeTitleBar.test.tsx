@@ -7,9 +7,11 @@ describe("NativeTitleBar", () => {
       <NativeTitleBar
         dirty={false}
         documentName="Draft.md"
+        markdownFilesOpen={false}
         theme="light"
         onOpenMarkdown={() => {}}
         onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
         onToggleTheme={() => {}}
       />
     );
@@ -20,7 +22,34 @@ describe("NativeTitleBar", () => {
     expect(screen.getByRole("button", { name: "Open Markdown or Folder" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toBeInTheDocument();
     expect(titlebar).toHaveClass("grid-cols-[110px_minmax(0,1fr)_110px]");
+  });
+
+  it("places the markdown files toggle in the traffic-light side of the titlebar", () => {
+    const toggleMarkdownFiles = vi.fn();
+    const { container } = render(
+      <NativeTitleBar
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen
+        theme="light"
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={toggleMarkdownFiles}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+
+    expect(toggle.closest(".titlebar-spacer")).toHaveClass("pl-20");
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(toggle).toContainElement(container.querySelector(".lucide-panel-left"));
+
+    fireEvent.click(toggle);
+
+    expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 
   it("shows the inverse theme action", () => {
@@ -29,9 +58,11 @@ describe("NativeTitleBar", () => {
       <NativeTitleBar
         dirty={false}
         documentName="Draft.md"
+        markdownFilesOpen={false}
         theme="dark"
         onOpenMarkdown={() => {}}
         onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
         onToggleTheme={toggleTheme}
       />
     );

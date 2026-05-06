@@ -21,6 +21,7 @@ import {
   useNativeMenus
 } from "./hooks/useNativeBindings";
 import { t, type I18nKey } from "./lib/i18n";
+import { openSettingsWindow } from "./lib/tauri/window";
 import type { AiDiffResult, AiSelectionContext } from "./lib/ai/agent/inlineAi";
 import {
   AI_EDITOR_PREVIEW_ACTION_EVENT,
@@ -101,6 +102,7 @@ export default function App() {
     [editor, translate, updateAiResult]
   );
   const aiCommand = useAiCommandUi({
+    documentPath: document.path,
     getDocumentContent: getAiDocumentContent,
     getPendingResult: getPendingAiResult,
     getSelection: getActiveAiSelection,
@@ -108,7 +110,8 @@ export default function App() {
     onAiResult: handleAiResult,
     provider: aiSettings.activeProvider,
     settingsLoading: aiSettings.loading,
-    translate
+    translate,
+    workspaceFiles: fileTreeFiles
   });
   const restoreAiCommand = aiCommand.restoreAiCommand;
   const handleAiCommandClose = useCallback(() => {
@@ -151,6 +154,9 @@ export default function App() {
     navigator.clipboard?.writeText(result.replacement);
   }, [aiResult]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
+  const handleOpenSettings = useCallback(() => {
+    openSettingsWindow().catch(() => {});
+  }, []);
   const rawFileTreeRootName = rootNameForDocument(document.path);
   const fileTreeRootName =
     rawFileTreeRootName === "No folder"
@@ -224,9 +230,11 @@ export default function App() {
           dirty={document.dirty}
           documentName={document.name}
           language={appLanguage.language}
+          markdownFilesOpen={fileTreeOpen}
           theme={appTheme.resolvedTheme}
           onOpenMarkdown={openMarkdownFile}
           onSaveMarkdown={handleSaveClick}
+          onToggleMarkdownFiles={handleFileTreeToggle}
           onToggleTheme={appTheme.toggleTheme}
         />
 
@@ -241,8 +249,8 @@ export default function App() {
             outlineItems={outlineItems}
             rootName={fileTreeRootName}
             onOpenFile={openTreeMarkdownFile}
+            onOpenSettings={handleOpenSettings}
             onSelectOutlineItem={editor.selectOutlineItem}
-            onToggle={handleFileTreeToggle}
           />
         ) : null}
 
@@ -256,8 +264,8 @@ export default function App() {
               outlineItems={outlineItems}
               rootName={fileTreeRootName}
               onOpenFile={openTreeMarkdownFile}
+              onOpenSettings={handleOpenSettings}
               onSelectOutlineItem={editor.selectOutlineItem}
-              onToggle={handleFileTreeToggle}
             />
           ) : null}
 

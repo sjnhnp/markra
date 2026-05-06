@@ -1,4 +1,4 @@
-import { chatCompletion } from "./chatCompletion";
+import { chatCompletion, chatCompletionStream } from "./chatCompletion";
 import type { AiProviderConfig } from "../providers/aiProviders";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
@@ -51,5 +51,40 @@ describe("chatCompletion", () => {
     await expect(chatCompletion(provider(), "gpt-5.5", [{ content: "Hi", role: "user" }], transport)).rejects.toThrow(
       "Invalid API key"
     );
+  });
+
+  it("streams provider SSE chunks through the native transport", async () => {
+    const onDelta = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"choices":[{"delta":{"content":"Better "}}]}\n\n');
+      onChunk('data: {"choices":[{"delta":{"content":"text"},"finish_reason":"stop"}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+
+    await expect(
+      chatCompletionStream(provider(), "gpt-5.5", [{ content: "Hi", role: "user" }], {
+        onDelta,
+        streamTransport
+      })
+    ).resolves.toEqual({
+      content: "Better text",
+      finishReason: "stop"
+    });
+
+    expect(streamTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: JSON.stringify({
+          messages: [{ content: "Hi", role: "user" }],
+          model: "gpt-5.5",
+          stream: true,
+          temperature: 0.7
+        })
+      }),
+      expect.any(Function)
+    );
+    expect(onDelta).toHaveBeenNthCalledWith(1, "Better ");
+    expect(onDelta).toHaveBeenNthCalledWith(2, "text");
   });
 });

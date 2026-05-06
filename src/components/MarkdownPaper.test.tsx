@@ -214,6 +214,7 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("Original");
     expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
     expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toHaveClass("markra-ai-preview-actions-quiet");
     expect(container.querySelector(".ProseMirror .markra-ai-preview-apply")).toHaveAccessibleName("Apply");
     expect(container.querySelector(".ProseMirror .markra-ai-preview-apply svg")).toBeInTheDocument();
 
@@ -221,6 +222,31 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).not.toBeInTheDocument();
     expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
+  });
+
+  it("updates an existing AI replacement preview when streaming text grows", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const to = from + "Original".length;
+
+    showAiEditorPreview(view, {
+      from,
+      original: "Original",
+      replacement: "I",
+      to,
+      type: "replace"
+    });
+    showAiEditorPreview(view, {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to,
+      type: "replace"
+    });
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+
+    clearAiEditorPreview(view);
   });
 
   it("shows inline success feedback when copying an AI suggestion", async () => {

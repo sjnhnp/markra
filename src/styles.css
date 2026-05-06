@@ -55,6 +55,20 @@
   }
 }
 
+@keyframes markra-ai-thinking-breathe {
+  0% {
+    opacity: 0.52;
+  }
+
+  50% {
+    opacity: 0.82;
+  }
+
+  100% {
+    opacity: 0.52;
+  }
+}
+
 @layer base {
   :root {
     --bg-primary: #ffffff;
@@ -306,7 +320,8 @@
   }
 
   .markdown-paper .markra-ai-preview-delete {
-    @apply rounded-[3px] bg-red-500/10 text-(--text-secondary) line-through decoration-red-500/70 decoration-2;
+    @apply rounded-[3px] text-(--text-secondary) line-through decoration-red-500/50 decoration-1;
+    background: color-mix(in srgb, oklch(63.7% 0.237 25.331) 7%, transparent);
   }
 
   .markdown-paper .markra-ai-selection-hold {
@@ -330,7 +345,8 @@
   }
 
   .markdown-paper .markra-ai-preview-insert {
-    @apply inline-block max-w-full rounded-[3px] bg-emerald-500/12;
+    @apply inline-block max-w-full rounded-[3px];
+    background: color-mix(in srgb, oklch(69.6% 0.17 162.48) 9%, transparent);
     color: inherit;
     font-family: inherit;
     font-size: inherit;
@@ -344,18 +360,32 @@
   }
 
   .markdown-paper .markra-ai-preview-actions {
-    @apply absolute right-1 bottom-[calc(100%+8px)] z-20 inline-flex items-center gap-0.5 rounded-lg border border-(--border-default) bg-(--bg-primary) p-0.5 shadow-[var(--ai-preview-action-shadow)];
+    @apply absolute right-0 bottom-[calc(100%+6px)] z-20 inline-flex items-center gap-0.5 rounded-md border border-(--border-default) bg-(--bg-primary) p-0.5 shadow-[var(--ai-preview-action-shadow)];
     font-size: 12px;
     line-height: 1;
     white-space: nowrap;
   }
 
+  .markdown-paper .markra-ai-preview-actions-quiet {
+    @apply scale-[0.98] border-transparent transition-[opacity,transform,border-color,background-color] duration-150 ease-out;
+    opacity: 0.58;
+    background: color-mix(in srgb, var(--bg-primary) 86%, transparent);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+    transform-origin: right bottom;
+  }
+
+  .markdown-paper .markra-ai-preview-widget:hover .markra-ai-preview-actions-quiet,
+  .markdown-paper .markra-ai-preview-widget:focus-within .markra-ai-preview-actions-quiet {
+    @apply scale-100 border-(--border-default);
+    opacity: 1;
+  }
+
   .markdown-paper .markra-ai-preview-action {
-    @apply inline-flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none;
+    @apply inline-flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none;
   }
 
   .markdown-paper .markra-ai-preview-apply {
-    @apply bg-(--accent-soft) text-(--accent) hover:bg-(--accent) hover:text-(--bg-primary) focus-visible:bg-(--accent) focus-visible:text-(--bg-primary);
+    @apply text-(--accent) hover:bg-(--accent-soft) hover:text-(--accent-hover) focus-visible:bg-(--accent-soft) focus-visible:text-(--accent-hover);
   }
 
   .markdown-paper .markra-ai-preview-copied {
@@ -386,5 +416,17 @@
   .markdown-paper::selection,
   .markdown-paper *::selection {
     background: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  .ai-command-thinking-text {
+    color: color-mix(in srgb, var(--text-secondary) 68%, transparent);
+    animation: markra-ai-thinking-breathe 1.8s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ai-command-thinking-text {
+      animation: none;
+      opacity: 0.68;
+    }
   }
 }

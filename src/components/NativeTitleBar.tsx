@@ -1,4 +1,4 @@
-import { FileText, FolderOpen, Moon, Save, Sun } from "lucide-react";
+import { FileText, FolderOpen, Moon, PanelLeft, Save, Sun } from "lucide-react";
 import type { ResolvedAppTheme } from "../lib/settings/appSettings";
 import { t, type AppLanguage } from "../lib/i18n";
 
@@ -6,9 +6,11 @@ type NativeTitleBarProps = {
   dirty: boolean;
   documentName: string;
   language?: AppLanguage;
+  markdownFilesOpen: boolean;
   theme: ResolvedAppTheme;
   onOpenMarkdown: () => unknown;
   onSaveMarkdown: () => unknown;
+  onToggleMarkdownFiles: () => unknown;
   onToggleTheme: () => unknown;
 };
 
@@ -16,9 +18,11 @@ export function NativeTitleBar({
   dirty,
   documentName,
   language = "en",
+  markdownFilesOpen,
   theme,
   onOpenMarkdown,
   onSaveMarkdown,
+  onToggleMarkdownFiles,
   onToggleTheme
 }: NativeTitleBarProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
@@ -30,7 +34,17 @@ export function NativeTitleBar({
       aria-label={label("app.windowDragRegion")}
       data-tauri-drag-region
     >
-      <div className="titlebar-spacer h-full" data-tauri-drag-region />
+      <div className="titlebar-spacer flex h-full items-center pl-20" data-tauri-drag-region>
+        <button
+          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent p-0 text-(--text-secondary) opacity-55 transition-[background-color,color,opacity] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100 focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:opacity-100 focus-visible:outline-none"
+          type="button"
+          aria-label={label("app.toggleMarkdownFiles")}
+          aria-pressed={markdownFilesOpen}
+          onClick={onToggleMarkdownFiles}
+        >
+          <PanelLeft aria-hidden="true" size={15} />
+        </button>
+      </div>
       <h1
         className="native-title m-0 flex min-w-0 items-center justify-center gap-1.5 text-[14px] font-[650] tracking-normal text-(--text-primary)"
         data-tauri-drag-region

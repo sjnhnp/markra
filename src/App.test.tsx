@@ -15,6 +15,7 @@ import {
   installNativeEditorContextMenu,
   type NativeMenuHandlers
 } from "./lib/tauri/menu";
+import { openSettingsWindow } from "./lib/tauri/window";
 import {
   consumeWelcomeDocumentState,
   getStoredAiSettings,
@@ -92,6 +93,7 @@ vi.mock("./lib/ai/agent/chatCompletion", () => ({
 }));
 
 vi.mock("./lib/tauri/window", () => ({
+  openSettingsWindow: vi.fn(),
   setNativeWindowTitle: vi.fn()
 }));
 
@@ -105,6 +107,7 @@ const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesFo
 const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
 const mockedInstallNativeApplicationMenu = vi.mocked(installNativeApplicationMenu);
 const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEditorContextMenu);
+const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
 const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPreferences);
@@ -191,6 +194,7 @@ describe("Markra workspace", () => {
     mockedWatchNativeMarkdownFile.mockReset();
     mockedInstallNativeApplicationMenu.mockReset();
     mockedInstallNativeEditorContextMenu.mockReset();
+    mockedOpenSettingsWindow.mockReset();
     mockedGetStoredLanguage.mockReset();
     mockedGetStoredAiSettings.mockReset();
     mockedGetStoredEditorPreferences.mockReset();
@@ -218,6 +222,7 @@ describe("Markra workspace", () => {
     mockedInstallNativeMarkdownFileDrop.mockResolvedValue(() => {});
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
+    mockedOpenSettingsWindow.mockResolvedValue(undefined);
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
     mockedGetStoredEditorPreferences.mockResolvedValue({ autoOpenAiOnSelection: true });
@@ -308,6 +313,16 @@ describe("Markra workspace", () => {
     expect(shell).toHaveClass("overscroll-none");
   });
 
+  it("opens settings from the lower-left settings launcher", async () => {
+    render(<App />);
+
+    await screen.findByText("Welcome to Markra");
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(mockedOpenSettingsWindow).toHaveBeenCalledTimes(1);
+  });
+
   it("restores the AI command session when an applied suggestion is undone", async () => {
     render(<App />);
 
@@ -327,7 +342,11 @@ describe("Markra workspace", () => {
       })
     );
 
-    expect(await screen.findByText("AI suggestion ready")).toBeInTheDocument();
+    const commandInput = await screen.findByRole("textbox", { name: "AI command" });
+
+    expect(screen.queryByText("AI suggestion ready")).not.toBeInTheDocument();
+    expect(commandInput.closest(".ai-command-panel")).not.toBeInTheDocument();
+    expect(commandInput.closest(".ai-command-box")).toHaveClass("border-(--accent)", "rounded-lg");
     expect(screen.getByRole("textbox", { name: "AI command" })).toHaveAttribute(
       "placeholder",
       "Tell AI what else needs to be changed..."

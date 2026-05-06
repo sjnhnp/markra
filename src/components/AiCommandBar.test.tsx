@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { AiCommandBar } from "./AiCommandBar";
 
 describe("AiCommandBar", () => {
-  it("keeps result details and actions out of the bottom command surface", () => {
+  it("keeps result follow-up input aligned with the pre-generation command UI", () => {
     render(
       <AiCommandBar
         aiResult={{
@@ -22,14 +22,18 @@ describe("AiCommandBar", () => {
       />
     );
 
-    expect(screen.getByText("AI suggestion ready")).toBeInTheDocument();
+    const commandBox = screen.getByRole("textbox", { name: "AI command" }).closest(".ai-command-box");
+
+    expect(screen.queryByText("AI suggestion ready")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "AI command" }).closest(".ai-command-panel")).not.toBeInTheDocument();
+    expect(commandBox).toHaveClass("min-h-21", "rounded-lg", "border", "border-(--accent)");
+    expect(commandBox).toHaveClass("shadow-[var(--ai-command-expanded-shadow)]");
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
     expect(screen.queryByText("Original")).not.toBeInTheDocument();
     expect(screen.queryByText("Improved")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "AI command" }).closest(".ai-command-panel")).toBeInTheDocument();
   });
 
   it("keeps the result follow-up field ready for another instruction", () => {
@@ -88,8 +92,77 @@ describe("AiCommandBar", () => {
     expect(onInterrupt).toHaveBeenCalledTimes(1);
   });
 
-  it("uses quick actions and hides the toolkit once the user types", async () => {
+  it("shows a quiet thinking status while AI is running", () => {
+    render(
+      <AiCommandBar
+        language="zh-CN"
+        open
+        prompt="rewrite"
+        submitting
+        onClose={vi.fn()}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    const status = screen.getByRole("status");
+
+    expect(status).toHaveTextContent(/^正在思考$/);
+    expect(status).toHaveClass("text-(--text-secondary)");
+    expect(screen.getByText("正在思考")).toHaveClass("ai-command-thinking-text");
+    expect(screen.queryByText("Reading context")).not.toBeInTheDocument();
+    expect(screen.queryByText("Generating suggestion")).not.toBeInTheDocument();
+  });
+
+  it("submits with Enter instead of inserting a newline", () => {
     const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt="rewrite"
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "AI command" }), { key: "Enter" });
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onPromptChange).not.toHaveBeenCalled();
+  });
+
+  it("inserts a newline with Ctrl+Enter", () => {
+    const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt="helloworld"
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    const input = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "AI command" });
+    input.setSelectionRange(5, 5);
+    fireEvent.keyDown(input, { ctrlKey: true, key: "Enter" });
+
+    expect(onPromptChange).toHaveBeenCalledWith("hello\nworld");
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("uses quick actions, sends them immediately, and hides the toolkit once the user types", async () => {
+    const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
 
     render(
       <AiCommandBar
@@ -99,7 +172,7 @@ describe("AiCommandBar", () => {
         submitting={false}
         onClose={vi.fn()}
         onPromptChange={onPromptChange}
-        onSubmit={vi.fn()}
+        onSubmit={onSubmit}
       />
     );
 
@@ -112,6 +185,7 @@ describe("AiCommandBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Polish" }));
 
     expect(onPromptChange).toHaveBeenCalledWith("Polish");
+    expect(onSubmit).toHaveBeenCalledWith("Polish");
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: "custom request" } });

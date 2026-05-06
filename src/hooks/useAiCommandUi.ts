@@ -1,14 +1,17 @@
 import { useCallback, useRef, useState } from "react";
-import { buildInlineAiMessages } from "../lib/ai/agent/chatAdapters";
-import { chatCompletion } from "../lib/ai/agent/chatCompletion";
+import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import { runInlineAiAgent } from "../lib/ai/agent/agentRuntime";
+import type { AgentWorkspaceFile } from "../lib/ai/agent/agentTools";
 import { getProviderCapabilities } from "../lib/ai/agent/providerCapabilities";
 import type { AiDiffResult, AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import type { AiProviderConfig } from "../lib/ai/providers/aiProviders";
 import type { I18nKey } from "../lib/i18n";
 
 type AiTextDiffResult = Extract<AiDiffResult, { type: "insert" | "replace" }>;
+export type AiCommandStatus = "idle" | "composing" | "thinking" | "streaming" | "suggestion" | "error";
 
 type AiCommandContext = {
+  documentPath?: string | null;
   getDocumentContent: () => string;
   getPendingResult?: () => AiDiffResult | null;
   getSelection: () => AiSelectionContext | null;
@@ -17,13 +20,15 @@ type AiCommandContext = {
   provider: AiProviderConfig | null;
   settingsLoading: boolean;
   translate?: (key: I18nKey) => string;
+  workspaceFiles?: AgentWorkspaceFile[];
 };
 
 export function useAiCommandUi(ctx: AiCommandContext) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [status, setStatus] = useState<AiCommandStatus>("idle");
   const requestIdRef = useRef(0);
+  const submitting = isSubmittingStatus(status);
 
   const openAiCommand = useCallback((selectionOverride?: AiSelectionContext | null) => {
     const selection = selectionOverride === undefined ? ctx.getSelection() : selectionOverride;
@@ -35,55 +40,88 @@ export function useAiCommandUi(ctx: AiCommandContext) {
 
   const closeAiCommand = useCallback(() => {
     setOpen(false);
+    setStatus((currentStatus) => (isSubmittingStatus(currentStatus) ? currentStatus : "idle"));
   }, []);
 
   const restoreAiCommand = useCallback(() => {
     setOpen(true);
+    setStatus("suggestion");
   }, []);
 
   const interruptPrompt = useCallback(() => {
     requestIdRef.current += 1;
-    setSubmitting(false);
+    setStatus("idle");
   }, []);
 
   const updatePrompt = useCallback((nextPrompt: string) => {
     setPrompt(nextPrompt);
+    setStatus((currentStatus) => {
+      if (isSubmittingStatus(currentStatus)) return currentStatus;
+      if (nextPrompt.trim().length > 0) return "composing";
+
+      return currentStatus === "suggestion" ? "suggestion" : "idle";
+    });
   }, []);
 
-  const submitPrompt = useCallback(async () => {
-    const trimmedPrompt = prompt.trim();
+  const submitPrompt = useCallback(async (promptOverride?: string) => {
+    const trimmedPrompt = (promptOverride ?? prompt).trim();
     if (!trimmedPrompt || submitting) return;
     const message = (key: I18nKey) => ctx.translate?.(key) ?? key;
 
     if (ctx.settingsLoading) {
       ctx.onAiResult({ message: message("app.aiSettingsLoading"), type: "error" });
+      setStatus("error");
       return;
     }
 
     if (!ctx.provider || !ctx.model) {
       ctx.onAiResult({ message: message("app.aiMissingProvider"), type: "error" });
+      setStatus("error");
       return;
     }
 
     const capabilities = getProviderCapabilities(ctx.provider.id, ctx.provider.type);
     if (!capabilities.chat) {
       ctx.onAiResult({ message: message("app.aiProviderUnsupported"), type: "error" });
+      setStatus("error");
+      return;
+    }
+
+    const documentContent = ctx.getDocumentContent();
+    const selection = ctx.getSelection();
+    const target = getAiCommandTarget(selection, ctx.getPendingResult?.());
+    if (!target) {
+      setStatus("idle");
       return;
     }
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    setSubmitting(true);
+    setStatus("thinking");
     try {
-      const selection = ctx.getSelection();
-      const target = getAiCommandTarget(selection, ctx.getPendingResult?.());
-      if (!target) return;
+      const response = await runInlineAiAgent({
+        documentContent,
+        documentPath: ctx.documentPath ?? null,
+        model: ctx.model,
+        prompt: trimmedPrompt,
+        provider: ctx.provider,
+        target,
+        onEvent: (event) => {
+          if (requestIdRef.current !== requestId) return;
+          setStatus(agentStatusFromEvent(event));
+          const streamedReplacement = agentReplacementFromEvent(event);
+          if (!streamedReplacement) return;
 
-      const response = await chatCompletion(
-        ctx.provider,
-        ctx.model,
-        buildInlineAiMessages(trimmedPrompt, target.promptText, ctx.getDocumentContent(), target.suggestionContext)
-      );
+          ctx.onAiResult({
+            from: target.from,
+            original: target.original,
+            replacement: streamedReplacement,
+            to: target.to,
+            type: target.type
+          });
+        },
+        workspaceFiles: ctx.workspaceFiles ?? []
+      });
       if (requestIdRef.current !== requestId) return;
 
       ctx.onAiResult({
@@ -94,14 +132,14 @@ export function useAiCommandUi(ctx: AiCommandContext) {
         type: target.type
       });
       setPrompt("");
+      setStatus("suggestion");
     } catch (error) {
       if (requestIdRef.current !== requestId) return;
       ctx.onAiResult({
         message: error instanceof Error ? error.message : message("app.aiRequestFailed"),
         type: "error"
       });
-    } finally {
-      if (requestIdRef.current === requestId) setSubmitting(false);
+      setStatus("error");
     }
   }, [ctx, prompt, submitting]);
 
@@ -112,10 +150,31 @@ export function useAiCommandUi(ctx: AiCommandContext) {
     open,
     prompt,
     restoreAiCommand,
+    status,
     submitPrompt,
     submitting,
     updatePrompt
   };
+}
+
+function isSubmittingStatus(status: AiCommandStatus) {
+  return status === "thinking" || status === "streaming";
+}
+
+function agentStatusFromEvent(event: AgentEvent): AiCommandStatus {
+  if (event.type === "agent_start") return "thinking";
+  if (event.type === "message_start") return "thinking";
+  if (event.type === "message_update") return "streaming";
+
+  return "thinking";
+}
+
+function agentReplacementFromEvent(event: AgentEvent) {
+  if (event.type !== "message_update" || event.message.role !== "assistant") return null;
+  if (event.assistantMessageEvent.type !== "text_delta" && event.assistantMessageEvent.type !== "text_end") return null;
+
+  const text = event.message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
+  return text.trim().length > 0 ? text : null;
 }
 
 function hasSelectedText(selection: AiSelectionContext | null | undefined): selection is AiSelectionContext {

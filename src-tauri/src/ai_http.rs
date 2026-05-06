@@ -4,6 +4,7 @@ use std::time::Duration;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use tauri::ipc::Channel;
 
 const AI_PROVIDER_REQUEST_TIMEOUT_SECS: u64 = 20;
 const AI_CHAT_REQUEST_TIMEOUT_SECS: u64 = 60;
@@ -31,6 +32,13 @@ pub(crate) struct AiProviderJsonResponse {
     body: Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub(crate) enum NativeChatStreamEvent {
+    Chunk { chunk: String },
+    Done { status: u16 },
+}
+
 #[tauri::command]
 pub(crate) async fn request_ai_provider_json(
     request: AiProviderJsonRequest,
@@ -43,6 +51,14 @@ pub(crate) async fn request_native_chat(
     request: ChatCompletionRequest,
 ) -> Result<AiProviderJsonResponse, String> {
     execute_native_chat_request(request).await
+}
+
+#[tauri::command]
+pub(crate) async fn request_native_chat_stream(
+    request: ChatCompletionRequest,
+    on_event: Channel<NativeChatStreamEvent>,
+) -> Result<AiProviderJsonResponse, String> {
+    execute_native_chat_stream_request(request, on_event).await
 }
 
 async fn execute_ai_provider_json_request(
@@ -90,6 +106,99 @@ async fn execute_native_chat_request(
     let body = response_body_json(&text);
 
     Ok(AiProviderJsonResponse { status, body })
+}
+
+async fn execute_native_chat_stream_request(
+    request: ChatCompletionRequest,
+    on_event: Channel<NativeChatStreamEvent>,
+) -> Result<AiProviderJsonResponse, String> {
+    let url = validated_http_url(&request.url)?;
+    let headers = parse_headers(&request.headers)?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(AI_CHAT_REQUEST_TIMEOUT_SECS))
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    let mut response = client
+        .post(url)
+        .headers(headers)
+        .body(request.body)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    let status = response.status().as_u16();
+
+    if !response.status().is_success() {
+        let text = response.text().await.map_err(|error| error.to_string())?;
+        return Ok(AiProviderJsonResponse {
+            status,
+            body: response_body_json(&text),
+        });
+    }
+
+    let mut pending_utf8 = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|error| error.to_string())? {
+        let Some(chunk) = take_utf8_text(&mut pending_utf8, &chunk) else {
+            continue;
+        };
+
+        on_event
+            .send(NativeChatStreamEvent::Chunk { chunk })
+            .map_err(|error| error.to_string())?;
+    }
+
+    if !pending_utf8.is_empty() {
+        let chunk = String::from_utf8_lossy(&pending_utf8).to_string();
+        pending_utf8.clear();
+        on_event
+            .send(NativeChatStreamEvent::Chunk { chunk })
+            .map_err(|error| error.to_string())?;
+    }
+
+    on_event
+        .send(NativeChatStreamEvent::Done { status })
+        .map_err(|error| error.to_string())?;
+
+    Ok(AiProviderJsonResponse {
+        status,
+        body: Value::Null,
+    })
+}
+
+fn take_utf8_text(pending: &mut Vec<u8>, chunk: &[u8]) -> Option<String> {
+    pending.extend_from_slice(chunk);
+
+    match std::str::from_utf8(pending) {
+        Ok(text) => {
+            let text = text.to_string();
+            pending.clear();
+            if text.is_empty() {
+                None
+            } else {
+                Some(text)
+            }
+        }
+        Err(error) if error.error_len().is_some() => {
+            let text = String::from_utf8_lossy(pending).to_string();
+            pending.clear();
+            if text.is_empty() {
+                None
+            } else {
+                Some(text)
+            }
+        }
+        Err(error) => {
+            let valid_up_to = error.valid_up_to();
+            if valid_up_to == 0 {
+                return None;
+            }
+
+            let text = String::from_utf8_lossy(&pending[..valid_up_to]).to_string();
+            let incomplete = pending[valid_up_to..].to_vec();
+            *pending = incomplete;
+            Some(text)
+        }
+    }
 }
 
 fn validated_ai_provider_url(request: &AiProviderJsonRequest) -> Result<reqwest::Url, String> {
@@ -156,11 +265,8 @@ mod tests {
 
     #[test]
     fn rejects_non_get_requests() {
-        let error = validated_ai_provider_url(&request(
-            "POST",
-            "https://api.openai.com/v1/models",
-        ))
-        .expect_err("POST should be rejected");
+        let error = validated_ai_provider_url(&request("POST", "https://api.openai.com/v1/models"))
+            .expect_err("POST should be rejected");
 
         assert!(error.contains("Only GET"));
     }
@@ -200,5 +306,30 @@ mod tests {
             response_body_json("Unauthorized"),
             json!({ "message": "Unauthorized" })
         );
+    }
+
+    #[test]
+    fn serializes_native_chat_stream_events_for_frontend_channels() {
+        let event = NativeChatStreamEvent::Chunk {
+            chunk: "data: test".to_string(),
+        };
+
+        assert_eq!(
+            serde_json::to_value(event).expect("event should serialize"),
+            json!({ "type": "chunk", "chunk": "data: test" })
+        );
+    }
+
+    #[test]
+    fn preserves_utf8_stream_chunks_split_across_boundaries() {
+        let bytes = "你好".as_bytes();
+        let mut pending = Vec::new();
+
+        assert_eq!(take_utf8_text(&mut pending, &bytes[..1]), None);
+        assert_eq!(
+            take_utf8_text(&mut pending, &bytes[1..]),
+            Some("你好".to_string())
+        );
+        assert!(pending.is_empty());
     }
 }

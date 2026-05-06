@@ -37,12 +37,26 @@ const milkdownDependencies = dependencyPattern([
 ]);
 const tauriDependencies = dependencyPattern(["@tauri-apps"]);
 const iconDependencies = dependencyPattern(["lucide-react", "lucide-static"]);
+const piAgentDependencies = dependencyPattern(["@mariozechner/pi-agent-core", "@mariozechner/pi-ai", "typebox"]);
+const aiSdkDependencies = dependencyPattern([
+  "@anthropic-ai",
+  "@aws-sdk",
+  "@google",
+  "@mistralai",
+  "openai",
+  "partial-json",
+  "proxy-agent",
+  "undici",
+  "zod-to-json-schema"
+]);
 
 function vendorChunkName(id: string) {
   if (reactDependencies.test(id)) return "react-vendor";
   if (milkdownDependencies.test(id)) return "milkdown-vendor";
   if (tauriDependencies.test(id)) return "tauri-vendor";
   if (iconDependencies.test(id)) return "icons-vendor";
+  if (piAgentDependencies.test(id)) return "pi-agent-vendor";
+  if (aiSdkDependencies.test(id)) return "ai-sdk-vendor";
   if (id.includes("node_modules")) return "vendor";
 
   return null;
