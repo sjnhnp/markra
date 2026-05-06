@@ -6,6 +6,7 @@ use tauri::{utils::config::Color, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const BLANK_EDITOR_WINDOW_LABEL_PREFIX: &str = "markra-editor-";
 const BLANK_EDITOR_WINDOW_URL: &str = "index.html?blank=1";
+const MAIN_WINDOW_LABEL: &str = "main";
 #[cfg(test)]
 pub(crate) const OPEN_BLANK_EDITOR_WINDOW_COMMAND: &str = "open_blank_editor_window";
 #[cfg(test)]
@@ -21,6 +22,10 @@ const SETTINGS_WINDOW_RESIZABLE: bool = true;
 const SETTINGS_WINDOW_SHADOW: bool = true;
 #[cfg(target_os = "macos")]
 const SETTINGS_WINDOW_HIDDEN_TITLE: bool = true;
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHT_X: f64 = 20.0;
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHT_TOP_INSET: f64 = 22.0;
 
 static NEXT_EDITOR_WINDOW_ID: AtomicUsize = AtomicUsize::new(1);
 
@@ -46,6 +51,143 @@ fn encode_url_query_component(value: &str) -> String {
     }
 
     encoded
+}
+
+#[cfg(target_os = "macos")]
+fn apply_macos_traffic_light_position<R>(window: &tauri::WebviewWindow<R>)
+where
+    R: tauri::Runtime,
+{
+    let Ok(ns_window) = window.ns_window() else {
+        return;
+    };
+    schedule_macos_traffic_light_position(ns_window);
+}
+
+#[cfg(target_os = "macos")]
+fn apply_macos_window_traffic_light_position<R>(window: &tauri::Window<R>)
+where
+    R: tauri::Runtime,
+{
+    let Ok(ns_window) = window.ns_window() else {
+        return;
+    };
+    schedule_macos_traffic_light_position(ns_window);
+}
+
+#[cfg(target_os = "macos")]
+fn schedule_macos_traffic_light_position(ns_window: *mut std::ffi::c_void) {
+    if ns_window.is_null() {
+        return;
+    }
+
+    let ns_window = ns_window as usize;
+
+    dispatch2::run_on_main(move |_| {
+        let ns_window = ns_window as *mut std::ffi::c_void;
+        inset_macos_traffic_lights(ns_window);
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn inset_macos_traffic_lights(ns_window: *mut std::ffi::c_void) {
+    use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
+
+    // Match Wry's native inset strategy: move the titlebar container itself,
+    // then place the standard buttons horizontally inside that container.
+    let window = unsafe { &*ns_window.cast::<NSWindow>() };
+    let Some(close) = window.standardWindowButton(NSWindowButton::CloseButton) else {
+        return;
+    };
+    let Some(miniaturize) = window.standardWindowButton(NSWindowButton::MiniaturizeButton) else {
+        return;
+    };
+    let zoom = window.standardWindowButton(NSWindowButton::ZoomButton);
+
+    let Some(button_container) = (unsafe { NSView::superview(&close) }) else {
+        return;
+    };
+    let Some(titlebar_container) = (unsafe { NSView::superview(&button_container) }) else {
+        return;
+    };
+
+    let close_frame = NSView::frame(&close);
+    let titlebar_height = close_frame.size.height + TRAFFIC_LIGHT_TOP_INSET;
+    let mut titlebar_frame = NSView::frame(&titlebar_container);
+    titlebar_frame.size.height = titlebar_height;
+    titlebar_frame.origin.y = window.frame().size.height - titlebar_height;
+    titlebar_container.setFrame(titlebar_frame);
+
+    let miniaturize_frame = NSView::frame(&miniaturize);
+    let space_between = miniaturize_frame.origin.x - close_frame.origin.x;
+    let mut buttons = vec![close, miniaturize];
+
+    if let Some(zoom) = zoom {
+        buttons.push(zoom);
+    }
+
+    for (index, button) in buttons.into_iter().enumerate() {
+        let mut frame = NSView::frame(&button);
+        frame.origin.x = TRAFFIC_LIGHT_X + index as f64 * space_between;
+        button.setFrameOrigin(frame.origin);
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn apply_webview_window_chrome<R>(webview: &tauri::Webview<R>)
+where
+    R: tauri::Runtime,
+{
+    let Ok(ns_window) = webview.window().ns_window() else {
+        return;
+    };
+    schedule_macos_traffic_light_position(ns_window);
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn apply_webview_window_chrome<R>(_webview: &tauri::Webview<R>)
+where
+    R: tauri::Runtime,
+{
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn apply_window_event_chrome<R>(window: &tauri::Window<R>, event: &tauri::WindowEvent)
+where
+    R: tauri::Runtime,
+{
+    match event {
+        tauri::WindowEvent::Focused(true)
+        | tauri::WindowEvent::Resized(_)
+        | tauri::WindowEvent::ScaleFactorChanged { .. } => {
+            apply_macos_window_traffic_light_position(window);
+        }
+        _ => {}
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn apply_window_event_chrome<R>(_window: &tauri::Window<R>, _event: &tauri::WindowEvent)
+where
+    R: tauri::Runtime,
+{
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn apply_main_window_chrome<R>(app: &tauri::App<R>)
+where
+    R: tauri::Runtime,
+{
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        apply_macos_traffic_light_position(&window);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn apply_main_window_chrome<R>(_app: &tauri::App<R>)
+where
+    R: tauri::Runtime,
+{
 }
 
 pub(crate) fn editor_window_url_for_path(path: &str) -> String {
@@ -75,8 +217,14 @@ where
             .title_bar_style(TitleBarStyle::Overlay)
             .hidden_title(true);
 
-        if let Err(error) = builder.build() {
-            eprintln!("failed to create blank editor window: {error}");
+        match builder.build() {
+            Ok(window) => {
+                #[cfg(target_os = "macos")]
+                apply_macos_traffic_light_position(&window);
+            }
+            Err(error) => {
+                eprintln!("failed to create blank editor window: {error}");
+            }
         }
     });
 }
@@ -161,8 +309,14 @@ where
             .title_bar_style(settings_window_title_bar_style())
             .hidden_title(settings_window_hidden_title());
 
-        if let Err(error) = builder.build() {
-            eprintln!("failed to create settings window: {error}");
+        match builder.build() {
+            Ok(window) => {
+                #[cfg(target_os = "macos")]
+                apply_macos_traffic_light_position(&window);
+            }
+            Err(error) => {
+                eprintln!("failed to create settings window: {error}");
+            }
         }
     });
 }

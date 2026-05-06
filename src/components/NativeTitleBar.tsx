@@ -30,11 +30,11 @@ export function NativeTitleBar({
 
   return (
     <header
-      className="native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-9.5 grid-cols-[110px_minmax(0,1fr)_110px] select-none items-center [-webkit-user-select:none]"
+      className="native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[132px_minmax(0,1fr)_132px] select-none items-center [-webkit-user-select:none]"
       aria-label={label("app.windowDragRegion")}
       data-tauri-drag-region
     >
-      <div className="titlebar-spacer flex h-full items-center pl-20" data-tauri-drag-region>
+      <div className="titlebar-spacer flex h-10 items-center pl-22" data-tauri-drag-region>
         <button
           className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) opacity-55 transition-[background-color,color,opacity] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100 focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:opacity-100 focus-visible:outline-none"
           type="button"
@@ -46,7 +46,7 @@ export function NativeTitleBar({
         </button>
       </div>
       <h1
-        className="native-title m-0 flex min-w-0 items-center justify-center gap-1.5 text-[14px] font-[650] tracking-normal text-(--text-primary)"
+        className="native-title m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary)"
         data-tauri-drag-region
       >
         <FileText aria-hidden="true" size={15} />
@@ -58,7 +58,7 @@ export function NativeTitleBar({
         ) : null}
       </h1>
       <div
-        className="document-actions flex items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 transition-opacity duration-150 ease-out group-hover/titlebar:opacity-100 focus-within:opacity-100"
+        className="document-actions flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 transition-opacity duration-150 ease-out group-hover/titlebar:opacity-100 focus-within:opacity-100"
         aria-label={label("app.fileActions")}
       >
         <button

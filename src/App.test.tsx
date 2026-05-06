@@ -713,6 +713,7 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("complementary", { name: "Markdown file tree" })).not.toHaveClass("fixed");
     expect(container.querySelector(".workspace-layout")).toHaveClass("grid-cols-[18rem_minmax(0,1fr)]");
+    expect(container.querySelector(".workspace-layout")).toHaveClass("transition-[grid-template-columns]");
     expect(container.querySelector(".file-tree-scroll")).toHaveClass("overscroll-none");
     expect(screen.getByText("Files")).toBeInTheDocument();
     expect(screen.getByText("mock-files")).toBeInTheDocument();

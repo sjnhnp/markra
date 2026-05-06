@@ -18,6 +18,7 @@ use menu::{
 use tauri::Emitter;
 use watcher::{unwatch_markdown_file, watch_markdown_file, MarkdownWatcherState};
 use windows::{
+    apply_main_window_chrome, apply_webview_window_chrome, apply_window_event_chrome,
     open_blank_editor_window, open_settings_window, spawn_blank_editor_window,
     spawn_settings_window,
 };
@@ -28,6 +29,16 @@ pub fn run() {
         .manage(MarkdownWatcherState::default())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            apply_main_window_chrome(app);
+            Ok(())
+        })
+        .on_page_load(|webview, _| {
+            apply_webview_window_chrome(webview);
+        })
+        .on_window_event(|window, event| {
+            apply_window_event_chrome(window, event);
+        })
         .menu(create_application_menu)
         .on_menu_event(|app, event| {
             let command = event.id().as_ref();

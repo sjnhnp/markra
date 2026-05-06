@@ -126,6 +126,9 @@ export function MarkdownFileTreeDrawer({
   const tree = useMemo(() => filterMarkdownFileTree(buildMarkdownFileTree(files), searchQuery), [files, searchQuery]);
   const showingOutline = viewMode === "outline";
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
+  const drawerStateClass = open
+    ? "translate-x-0 opacity-100"
+    : "pointer-events-none -translate-x-4 opacity-0";
 
   const toggleFolder = (relativePath: string) => {
     setExpandedFolders((current) => {
@@ -210,100 +213,100 @@ export function MarkdownFileTreeDrawer({
         <Settings aria-hidden="true" size={15} />
       </button>
 
-      {open ? (
-        <aside
-          className="markdown-file-tree flex h-full min-h-0 w-72 flex-col border-r border-(--border-default) bg-(--bg-secondary) pt-9.5"
-          aria-label={label("app.markdownFileTree")}
-        >
-          <div className="grid h-10 grid-cols-[40px_minmax(0,1fr)_40px] items-center border-b border-(--border-default)">
-            <button
-              className="inline-flex size-10 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-              type="button"
-              aria-label={showingOutline ? label("app.showFiles") : label("app.showOutline")}
-              onClick={() => setViewMode((mode) => (mode === "files" ? "outline" : "files"))}
-            >
-              {showingOutline ? (
-                <FolderTree aria-hidden="true" size={16} />
-              ) : (
-                <TableOfContents aria-hidden="true" size={16} />
-              )}
-            </button>
-            <h2 className="m-0 truncate text-center text-[14px] font-[560] tracking-normal text-(--text-heading)">
-              {showingOutline ? label("app.outline") : label("app.files")}
-            </h2>
-            <button
-              className="inline-flex size-10 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-              type="button"
-              aria-label={label("app.searchMarkdownFiles")}
-              aria-pressed={searchOpen}
-              disabled={showingOutline}
-              onClick={() => {
-                if (searchOpen) setSearchQuery("");
-                setSearchOpen((open) => !open);
-              }}
-            >
-              <Search aria-hidden="true" size={16} />
-            </button>
+      <aside
+        className={`markdown-file-tree flex h-full min-h-0 w-72 flex-col border-r border-(--border-default) bg-(--bg-secondary) pt-10 will-change-transform transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}
+        aria-label={label("app.markdownFileTree")}
+        aria-hidden={!open}
+        inert={!open}
+      >
+        <div className="grid h-10 grid-cols-[40px_minmax(0,1fr)_40px] items-center border-b border-(--border-default)">
+          <button
+            className="inline-flex size-10 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+            type="button"
+            aria-label={showingOutline ? label("app.showFiles") : label("app.showOutline")}
+            onClick={() => setViewMode((mode) => (mode === "files" ? "outline" : "files"))}
+          >
+            {showingOutline ? (
+              <FolderTree aria-hidden="true" size={16} />
+            ) : (
+              <TableOfContents aria-hidden="true" size={16} />
+            )}
+          </button>
+          <h2 className="m-0 truncate text-center text-[14px] font-[560] tracking-normal text-(--text-heading)">
+            {showingOutline ? label("app.outline") : label("app.files")}
+          </h2>
+          <button
+            className="inline-flex size-10 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+            type="button"
+            aria-label={label("app.searchMarkdownFiles")}
+            aria-pressed={searchOpen}
+            disabled={showingOutline}
+            onClick={() => {
+              if (searchOpen) setSearchQuery("");
+              setSearchOpen((open) => !open);
+            }}
+          >
+            <Search aria-hidden="true" size={16} />
+          </button>
+        </div>
+
+        {!showingOutline && searchOpen ? (
+          <>
+            <label className="sr-only" htmlFor="markra-file-search">
+              {label("app.searchMarkdownFiles")}
+            </label>
+            <input
+              id="markra-file-search"
+              className="h-8 border-0 border-b border-(--border-default) bg-transparent px-3 text-[12px] text-(--text-primary) outline-none placeholder:text-(--text-secondary) focus:border-(--border-strong)"
+              type="search"
+              value={searchQuery}
+              placeholder={label("app.searchPlaceholder")}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </>
+        ) : null}
+
+        {showingOutline ? (
+          <div className="file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4">
+            {outlineItems.length > 0 ? (
+              <ol className="m-0 list-none p-0" aria-label={label("app.documentOutline")}>
+                {outlineItems.map((item, index) => (
+                  <li key={`${item.level}-${item.title}-${index}`}>
+                    <button
+                      className="h-8 w-full cursor-pointer truncate border-0 bg-transparent py-0 pr-3 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                      style={{ paddingLeft: `${12 + (item.level - 1) * 14}px` }}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => onSelectOutlineItem(item, index)}
+                    >
+                      {item.title}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">{label("app.noHeadings")}</p>
+            )}
           </div>
+        ) : (
+          <>
+            <div className="flex h-9 items-center gap-1 px-4 text-[13px] text-(--text-secondary)">
+              <Folder aria-hidden="true" size={16} />
+              <span className="min-w-0 truncate">{rootName}</span>
+            </div>
 
-          {!showingOutline && searchOpen ? (
-            <>
-              <label className="sr-only" htmlFor="markra-file-search">
-                {label("app.searchMarkdownFiles")}
-              </label>
-              <input
-                id="markra-file-search"
-                className="h-8 border-0 border-b border-(--border-default) bg-transparent px-3 text-[12px] text-(--text-primary) outline-none placeholder:text-(--text-secondary) focus:border-(--border-strong)"
-                type="search"
-                value={searchQuery}
-                placeholder={label("app.searchPlaceholder")}
-                onChange={(event) => setSearchQuery(event.target.value)}
-              />
-            </>
-          ) : null}
-
-          {showingOutline ? (
             <div className="file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4">
-              {outlineItems.length > 0 ? (
-                <ol className="m-0 list-none p-0" aria-label={label("app.documentOutline")}>
-                  {outlineItems.map((item, index) => (
-                    <li key={`${item.level}-${item.title}-${index}`}>
-                      <button
-                        className="h-8 w-full cursor-pointer truncate border-0 bg-transparent py-0 pr-3 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                        style={{ paddingLeft: `${12 + (item.level - 1) * 14}px` }}
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => onSelectOutlineItem(item, index)}
-                      >
-                        {item.title}
-                      </button>
-                    </li>
-                  ))}
-                </ol>
+              {tree.length > 0 ? (
+                renderNodes(tree)
               ) : (
-                <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">{label("app.noHeadings")}</p>
+                <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">
+                  {label("app.noMarkdownFiles")}
+                </p>
               )}
             </div>
-          ) : (
-            <>
-              <div className="flex h-9 items-center gap-1 px-4 text-[13px] text-(--text-secondary)">
-                <Folder aria-hidden="true" size={16} />
-                <span className="min-w-0 truncate">{rootName}</span>
-              </div>
-
-              <div className="file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4">
-                {tree.length > 0 ? (
-                  renderNodes(tree)
-                ) : (
-                  <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">
-                    {label("app.noMarkdownFiles")}
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-        </aside>
-      ) : null}
+          </>
+        )}
+      </aside>
     </>
   );
 }

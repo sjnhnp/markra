@@ -17,8 +17,8 @@ export function useMarkdownFileTree() {
   const [sourcePath, setSourcePath] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const workspaceLayoutClassName = open
-    ? "workspace-layout grid h-full min-h-0 grid-cols-[18rem_minmax(0,1fr)]"
-    : "workspace-layout grid h-full min-h-0 grid-cols-[minmax(0,1fr)]";
+    ? "workspace-layout grid h-full min-h-0 grid-cols-[18rem_minmax(0,1fr)] overflow-hidden transition-[grid-template-columns] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+    : "workspace-layout grid h-full min-h-0 grid-cols-[0rem_minmax(0,1fr)] overflow-hidden transition-[grid-template-columns] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]";
 
   const refresh = useCallback(
     async (fallbackPath: string | null = null) => {

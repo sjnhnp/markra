@@ -28,6 +28,8 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
     expect(settings).toHaveClass("fixed", "bottom-3", "left-3");
     expect(settings).toContainElement(container.querySelector(".lucide-settings"));
+    expect(container.querySelector(".markdown-file-tree")).toHaveClass("opacity-0", "-translate-x-4");
+    expect(container.querySelector(".markdown-file-tree")).toHaveAttribute("aria-hidden", "true");
 
     fireEvent.click(settings);
 
@@ -73,6 +75,7 @@ describe("MarkdownFileTreeDrawer", () => {
 
     expect(sidebar).toBeInTheDocument();
     expect(sidebar).not.toHaveClass("fixed");
+    expect(sidebar).toHaveClass("transition-[transform,opacity]", "translate-x-0", "opacity-100");
     expect(screen.getByText("Files")).toBeInTheDocument();
     expect(screen.getByText("Obsidian Vault")).toBeInTheDocument();
     expect(folder).toHaveAttribute("aria-expanded", "false");

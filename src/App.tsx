@@ -242,22 +242,8 @@ export default function App() {
 
         <span className="screen-reader-title sr-only">{document.name}</span>
 
-        {!fileTreeOpen ? (
-          <MarkdownFileTreeDrawer
-            currentPath={document.path}
-            files={fileTreeFiles}
-            language={appLanguage.language}
-            open={false}
-            outlineItems={outlineItems}
-            rootName={fileTreeRootName}
-            onOpenFile={openTreeMarkdownFile}
-            onOpenSettings={handleOpenSettings}
-            onSelectOutlineItem={editor.selectOutlineItem}
-          />
-        ) : null}
-
         <div className={workspaceLayoutClassName}>
-          {fileTreeOpen ? (
+          <div className="markdown-file-tree-slot min-h-0 overflow-hidden">
             <MarkdownFileTreeDrawer
               currentPath={document.path}
               files={fileTreeFiles}
@@ -269,7 +255,7 @@ export default function App() {
               onOpenSettings={handleOpenSettings}
               onSelectOutlineItem={editor.selectOutlineItem}
             />
-          ) : null}
+          </div>
 
           <MarkdownPaper
             autoFocus={shouldFocusEditorOnReady(document.content)}
