@@ -590,24 +590,24 @@ describe("Markra workspace", () => {
         })
       )
     );
-    await waitFor(() => expect(document.querySelector(".ai-provider-toast")).toHaveTextContent("Connected"));
-    expect(document.querySelector(".ai-provider-toaster")).toHaveStyle({ width: "fit-content" });
-    expect(document.querySelector(".ai-provider-toast")).toHaveClass("ai-provider-toast-centered");
-    expect(document.querySelector(".ai-provider-toast")).toHaveClass("w-fit", "min-w-40");
-    expect(document.querySelector(".ai-provider-toast")).not.toHaveClass("w-[24rem]");
-    expect(document.querySelector(".ai-provider-toast-close")).toBeInTheDocument();
-    expect(document.querySelector(".ai-provider-toast-close")).toHaveClass("absolute", "right-2");
-    expect(document.querySelector(".ai-provider-toast-close")).not.toHaveClass("ml-auto");
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Connected"));
+    expect(document.querySelector(".app-toaster")).toHaveStyle({ width: "fit-content" });
+    expect(document.querySelector(".app-toast")).toHaveClass("app-toast-centered");
+    expect(document.querySelector(".app-toast")).toHaveClass("w-fit", "min-w-40");
+    expect(document.querySelector(".app-toast")).not.toHaveClass("w-[24rem]");
+    expect(document.querySelector(".app-toast-close")).toBeInTheDocument();
+    expect(document.querySelector(".app-toast-close")).toHaveClass("absolute", "right-2");
+    expect(document.querySelector(".app-toast-close")).not.toHaveClass("ml-auto");
     expect(screen.getAllByText("Connected")).toHaveLength(1);
-    fireEvent.click(document.querySelector(".ai-provider-toast-close") as HTMLElement);
-    await waitFor(() => expect(document.querySelector(".ai-provider-toast")).not.toBeInTheDocument());
+    fireEvent.click(document.querySelector(".app-toast-close") as HTMLElement);
+    await waitFor(() => expect(document.querySelector(".app-toast")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Get model list" }));
 
     await waitFor(() => expect(mockedFetchAiProviderModels).toHaveBeenCalledWith(expect.objectContaining({ id: "openai" })));
     await waitFor(() => expect(screen.getAllByText("GPT-5").length).toBeGreaterThan(0));
     expect(screen.getAllByText("GPT Image 1").length).toBeGreaterThan(0);
-    await waitFor(() => expect(document.querySelector(".ai-provider-toast")).toHaveTextContent("Model list updated."));
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Model list updated."));
 
     fireEvent.click(screen.getByRole("button", { name: "Save AI providers" }));
 
@@ -653,7 +653,7 @@ describe("Markra workspace", () => {
     expect(screen.queryByRole("button", { name: "Custom Provider" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete provider" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "OpenAI" })).toHaveAttribute("aria-current", "page");
-    await waitFor(() => expect(document.querySelector(".ai-provider-toast")).toHaveTextContent("Provider deleted."));
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Provider deleted."));
   });
 
   it("resets the welcome document from settings", async () => {

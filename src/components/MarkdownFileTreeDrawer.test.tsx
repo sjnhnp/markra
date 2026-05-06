@@ -100,6 +100,25 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(screen.getByRole("group", { name: "deploy children" })).toHaveClass("border-l");
   });
 
+  it("keeps nested files visually deeper than their parent folder", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+        onToggle={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "deploy" }));
+
+    expect(screen.getByRole("button", { name: "deploy/deploy.md" })).toHaveClass("pl-8");
+  });
+
   it("uses semantic icons when switching between file and outline views", () => {
     const selectOutlineItem = vi.fn();
     const { container } = render(

@@ -146,10 +146,11 @@ export function MarkdownFileTreeDrawer({
       aria-label={treeLabel}
     >
       {nodes.map((node) => {
+        const rowIndentClass = "pl-8";
         const rowBranchClass =
           depth === 0
             ? ""
-            : "before:absolute before:left-[-1px] before:top-1/2 before:h-px before:w-3 before:bg-(--border-default)";
+            : "before:absolute before:left-[-1px] before:top-1/2 before:h-px before:w-6 before:bg-(--border-default)";
 
         if (node.type === "folder") {
           const expanded = searchQuery.trim().length > 0 || expandedFolders.has(node.relativePath);
@@ -157,7 +158,7 @@ export function MarkdownFileTreeDrawer({
           return (
             <li key={node.relativePath}>
               <button
-                className={`relative flex h-8 w-full cursor-pointer items-center gap-1 border-0 bg-transparent py-0 pr-2 pl-3 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none ${rowBranchClass}`}
+                className={`relative flex h-8 w-full cursor-pointer items-center gap-1 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none ${rowIndentClass} ${rowBranchClass}`}
                 type="button"
                 aria-expanded={expanded}
                 onClick={() => toggleFolder(node.relativePath)}
@@ -180,7 +181,7 @@ export function MarkdownFileTreeDrawer({
         return (
           <li key={node.file.path}>
             <button
-              className={`relative grid h-8 w-full cursor-pointer grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 pl-3 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) ${rowBranchClass}`}
+              className={`relative grid h-8 w-full cursor-pointer grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) ${rowIndentClass} ${rowBranchClass}`}
               type="button"
               aria-current={active ? "page" : undefined}
               aria-label={node.relativePath}

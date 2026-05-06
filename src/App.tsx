@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
@@ -216,40 +217,27 @@ export default function App() {
   }, [restoreAiCommand, updateAiResult]);
 
   return (
-    <main className="app-shell group/app relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden overscroll-none bg-(--bg-primary) text-(--text-primary)">
-      <NativeTitleBar
-        dirty={document.dirty}
-        documentName={document.name}
-        language={appLanguage.language}
-        theme={appTheme.resolvedTheme}
-        onOpenMarkdown={openMarkdownFile}
-        onSaveMarkdown={handleSaveClick}
-        onToggleTheme={appTheme.toggleTheme}
-      />
-
-      <span className="screen-reader-title sr-only">{document.name}</span>
-
-      {!fileTreeOpen ? (
-        <MarkdownFileTreeDrawer
-          currentPath={document.path}
-          files={fileTreeFiles}
+    <>
+      <AppToaster language={appLanguage.language} />
+      <main className="app-shell group/app relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden overscroll-none bg-(--bg-primary) text-(--text-primary)">
+        <NativeTitleBar
+          dirty={document.dirty}
+          documentName={document.name}
           language={appLanguage.language}
-          open={false}
-          outlineItems={outlineItems}
-          rootName={fileTreeRootName}
-          onOpenFile={openTreeMarkdownFile}
-          onSelectOutlineItem={editor.selectOutlineItem}
-          onToggle={handleFileTreeToggle}
+          theme={appTheme.resolvedTheme}
+          onOpenMarkdown={openMarkdownFile}
+          onSaveMarkdown={handleSaveClick}
+          onToggleTheme={appTheme.toggleTheme}
         />
-      ) : null}
 
-      <div className={workspaceLayoutClassName}>
-        {fileTreeOpen ? (
+        <span className="screen-reader-title sr-only">{document.name}</span>
+
+        {!fileTreeOpen ? (
           <MarkdownFileTreeDrawer
             currentPath={document.path}
             files={fileTreeFiles}
             language={appLanguage.language}
-            open
+            open={false}
             outlineItems={outlineItems}
             rootName={fileTreeRootName}
             onOpenFile={openTreeMarkdownFile}
@@ -258,35 +246,51 @@ export default function App() {
           />
         ) : null}
 
-        <MarkdownPaper
-          autoFocus={shouldFocusEditorOnReady(document.content)}
-          initialContent={document.content}
+        <div className={workspaceLayoutClassName}>
+          {fileTreeOpen ? (
+            <MarkdownFileTreeDrawer
+              currentPath={document.path}
+              files={fileTreeFiles}
+              language={appLanguage.language}
+              open
+              outlineItems={outlineItems}
+              rootName={fileTreeRootName}
+              onOpenFile={openTreeMarkdownFile}
+              onSelectOutlineItem={editor.selectOutlineItem}
+              onToggle={handleFileTreeToggle}
+            />
+          ) : null}
+
+          <MarkdownPaper
+            autoFocus={shouldFocusEditorOnReady(document.content)}
+            initialContent={document.content}
+            language={appLanguage.language}
+            onEditorReady={editor.handleEditorReady}
+            onMarkdownChange={handleMarkdownChange}
+            onTextSelectionChange={handleTextSelectionChange}
+            revision={document.revision}
+          />
+        </div>
+
+        <AiCommandBar
+          aiResult={aiResult}
+          availableModels={aiSettings.availableTextModels}
+          editorLeftInset={fileTreeOpen ? "18rem" : "0px"}
           language={appLanguage.language}
-          onEditorReady={editor.handleEditorReady}
-          onMarkdownChange={handleMarkdownChange}
-          onTextSelectionChange={handleTextSelectionChange}
-          revision={document.revision}
+          open={aiCommand.open && (hasActiveAiSelection || Boolean(aiResult))}
+          prompt={aiCommand.prompt}
+          selectedModelId={aiSettings.defaultModelId}
+          selectedProviderId={aiSettings.activeProvider?.id ?? null}
+          submitting={aiCommand.submitting}
+          onClose={handleAiCommandClose}
+          onInterrupt={aiCommand.interruptPrompt}
+          onPromptChange={aiCommand.updatePrompt}
+          onSelectModel={aiSettings.selectEditorModel}
+          onSubmit={aiCommand.submitPrompt}
         />
-      </div>
 
-      <AiCommandBar
-        aiResult={aiResult}
-        availableModels={aiSettings.availableTextModels}
-        editorLeftInset={fileTreeOpen ? "18rem" : "0px"}
-        language={appLanguage.language}
-        open={aiCommand.open && (hasActiveAiSelection || Boolean(aiResult))}
-        prompt={aiCommand.prompt}
-        selectedModelId={aiSettings.defaultModelId}
-        selectedProviderId={aiSettings.activeProvider?.id ?? null}
-        submitting={aiCommand.submitting}
-        onClose={handleAiCommandClose}
-        onInterrupt={aiCommand.interruptPrompt}
-        onPromptChange={aiCommand.updatePrompt}
-        onSelectModel={aiSettings.selectEditorModel}
-        onSubmit={aiCommand.submitPrompt}
-      />
-
-      <QuietStatus dirty={document.dirty} language={appLanguage.language} wordCount={wordCount} />
-    </main>
+        <QuietStatus dirty={document.dirty} language={appLanguage.language} wordCount={wordCount} />
+      </main>
+    </>
   );
 }
