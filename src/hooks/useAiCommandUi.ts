@@ -28,6 +28,10 @@ export type AiCommandSubmitOptions = {
   thinkingEnabled?: boolean;
 };
 
+type RestoreAiCommandOptions = {
+  reopen?: boolean;
+};
+
 export function useAiCommandUi(ctx: AiCommandContext) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -48,8 +52,8 @@ export function useAiCommandUi(ctx: AiCommandContext) {
     setStatus((currentStatus) => (isSubmittingStatus(currentStatus) ? currentStatus : "idle"));
   }, []);
 
-  const restoreAiCommand = useCallback(() => {
-    setOpen(true);
+  const restoreAiCommand = useCallback((options: RestoreAiCommandOptions = {}) => {
+    if (options.reopen ?? true) setOpen(true);
     setStatus("suggestion");
   }, []);
 

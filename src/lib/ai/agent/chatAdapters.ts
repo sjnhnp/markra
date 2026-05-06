@@ -1,3 +1,4 @@
+import type { Tool } from "@mariozechner/pi-ai";
 import type { AiProviderApiStyle, AiProviderConfig } from "../providers/aiProviders";
 import { isRecord, joinApiUrl } from "../../utils";
 
@@ -15,11 +16,26 @@ export type ChatRequest = {
 export type ChatRequestOptions = {
   stream?: boolean;
   thinkingEnabled?: boolean;
+  tools?: Tool[];
+};
+
+export type ChatToolCall = {
+  arguments: Record<string, unknown>;
+  id: string;
+  name: string;
+};
+
+export type ChatToolCallDelta = {
+  argumentsDelta?: string;
+  id?: string;
+  index: number;
+  nameDelta?: string;
 };
 
 export type ChatResponse = {
   content: string;
   finishReason?: string;
+  toolCalls?: ChatToolCall[];
 };
 
 export type ChatStreamEventResult = {
@@ -27,6 +43,7 @@ export type ChatStreamEventResult = {
   done?: boolean;
   finishReason?: string;
   thinkingDelta?: string;
+  toolCallDeltas?: ChatToolCallDelta[];
 };
 
 export type ChatAdapter = {
@@ -55,6 +72,19 @@ const openAiCompatibleAdapter: ChatAdapter = {
         messages,
         model,
         ...(options.stream ? { stream: true } : {}),
+        ...(options.tools?.length
+          ? {
+              tool_choice: "auto",
+              tools: options.tools.map((tool) => ({
+                function: {
+                  description: tool.description,
+                  name: tool.name,
+                  parameters: tool.parameters
+                },
+                type: "function"
+              }))
+            }
+          : {}),
         temperature: 0.7
       },
       headers: {
@@ -70,10 +100,12 @@ const openAiCompatibleAdapter: ChatAdapter = {
     const firstChoice = isRecord(choices[0]) ? choices[0] : {};
     const message = isRecord(firstChoice.message) ? firstChoice.message : {};
     const content = typeof message.content === "string" ? message.content : "";
+    const toolCalls = readOpenAiCompatibleToolCalls(message);
 
     return {
       content,
-      finishReason: typeof firstChoice.finish_reason === "string" ? firstChoice.finish_reason : undefined
+      finishReason: normalizeFinishReason(typeof firstChoice.finish_reason === "string" ? firstChoice.finish_reason : undefined),
+      ...(toolCalls.length ? { toolCalls } : {})
     };
   },
   parseStreamEvent: parseOpenAiCompatibleStreamEvent
@@ -110,6 +142,15 @@ const anthropicAdapter: ChatAdapter = {
         })),
         model,
         ...(options.stream ? { stream: true } : {}),
+        ...(options.tools?.length
+          ? {
+              tools: options.tools.map((tool) => ({
+                description: tool.description,
+                input_schema: tool.parameters,
+                name: tool.name
+              }))
+            }
+          : {}),
         ...(systemMessage ? { system: systemMessage.content } : {})
       },
       headers: {
@@ -125,20 +166,51 @@ const anthropicAdapter: ChatAdapter = {
     const contentBlocks = Array.isArray(record.content) ? record.content : [];
     const content = contentBlocks
       .filter(isRecord)
-      .map((block) => (typeof block.text === "string" ? block.text : ""))
+      .map((block) => (block.type === "text" && typeof block.text === "string" ? block.text : ""))
       .join("");
+    const toolCalls = contentBlocks.flatMap(readAnthropicToolCall);
 
     return {
       content,
-      finishReason: typeof record.stop_reason === "string" ? record.stop_reason : undefined
+      finishReason: normalizeFinishReason(typeof record.stop_reason === "string" ? record.stop_reason : undefined),
+      ...(toolCalls.length ? { toolCalls } : {})
     };
   },
   parseStreamEvent(body) {
     const record = isRecord(body) ? body : {};
     if (record.type === "message_stop") return { done: true };
 
+    if (record.type === "content_block_start") {
+      const block = isRecord(record.content_block) ? record.content_block : {};
+      const index = typeof record.index === "number" ? record.index : 0;
+      if (block.type !== "tool_use") return {};
+
+      return {
+        toolCallDeltas: [
+          {
+            argumentsDelta: typeof block.input === "object" && block.input !== null ? JSON.stringify(block.input) : undefined,
+            id: typeof block.id === "string" ? block.id : undefined,
+            index,
+            nameDelta: typeof block.name === "string" ? block.name : undefined
+          }
+        ]
+      };
+    }
+
     if (record.type === "content_block_delta") {
       const delta = isRecord(record.delta) ? record.delta : {};
+      const index = typeof record.index === "number" ? record.index : 0;
+      if (delta.type === "input_json_delta") {
+        return {
+          toolCallDeltas: [
+            {
+              argumentsDelta: typeof delta.partial_json === "string" ? delta.partial_json : undefined,
+              index
+            }
+          ]
+        };
+      }
+
       return {
         contentDelta: typeof delta.text === "string" ? delta.text : undefined
       };
@@ -147,7 +219,7 @@ const anthropicAdapter: ChatAdapter = {
     if (record.type === "message_delta") {
       const delta = isRecord(record.delta) ? record.delta : {};
       return {
-        finishReason: typeof delta.stop_reason === "string" ? delta.stop_reason : undefined
+        finishReason: normalizeFinishReason(typeof delta.stop_reason === "string" ? delta.stop_reason : undefined)
       };
     }
 
@@ -163,6 +235,19 @@ const azureAdapter: ChatAdapter = {
       body: {
         messages,
         ...(options.stream ? { stream: true } : {}),
+        ...(options.tools?.length
+          ? {
+              tool_choice: "auto",
+              tools: options.tools.map((tool) => ({
+                function: {
+                  description: tool.description,
+                  name: tool.name,
+                  parameters: tool.parameters
+                },
+                type: "function"
+              }))
+            }
+          : {}),
         temperature: 0.7
       },
       headers: {
@@ -261,10 +346,12 @@ function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult 
   const result: ChatStreamEventResult = {};
   const contentDelta = typeof delta.content === "string" && delta.content.length > 0 ? delta.content : undefined;
   const thinkingDelta = readOpenAiCompatibleThinkingDelta(delta);
+  const toolCallDeltas = readOpenAiCompatibleToolCallDeltas(delta);
 
   if (contentDelta) result.contentDelta = contentDelta;
   if (thinkingDelta) result.thinkingDelta = thinkingDelta;
-  if (typeof firstChoice.finish_reason === "string") result.finishReason = firstChoice.finish_reason;
+  if (toolCallDeltas.length > 0) result.toolCallDeltas = toolCallDeltas;
+  if (typeof firstChoice.finish_reason === "string") result.finishReason = normalizeFinishReason(firstChoice.finish_reason);
 
   return result;
 }
@@ -278,6 +365,73 @@ function readOpenAiCompatibleThinkingDelta(delta: Record<string, unknown>) {
   }
 
   return undefined;
+}
+
+function readOpenAiCompatibleToolCalls(message: Record<string, unknown>): ChatToolCall[] {
+  const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+
+  return toolCalls.flatMap((toolCall) => {
+    if (!isRecord(toolCall)) return [];
+    const functionPayload = isRecord(toolCall.function) ? toolCall.function : {};
+    const id = typeof toolCall.id === "string" ? toolCall.id : "";
+    const name = typeof functionPayload.name === "string" ? functionPayload.name : "";
+    const rawArguments = typeof functionPayload.arguments === "string" ? functionPayload.arguments : "";
+    if (!id || !name) return [];
+
+    return [
+      {
+        arguments: parseToolArguments(rawArguments),
+        id,
+        name
+      }
+    ];
+  });
+}
+
+function readOpenAiCompatibleToolCallDeltas(delta: Record<string, unknown>): ChatToolCallDelta[] {
+  const toolCalls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
+
+  return toolCalls.flatMap((toolCall) => {
+    if (!isRecord(toolCall)) return [];
+    const functionPayload = isRecord(toolCall.function) ? toolCall.function : {};
+
+    return [
+      {
+        argumentsDelta: typeof functionPayload.arguments === "string" ? functionPayload.arguments : undefined,
+        id: typeof toolCall.id === "string" ? toolCall.id : undefined,
+        index: typeof toolCall.index === "number" ? toolCall.index : 0,
+        nameDelta: typeof functionPayload.name === "string" ? functionPayload.name : undefined
+      }
+    ];
+  });
+}
+
+function readAnthropicToolCall(block: unknown): ChatToolCall[] {
+  if (!isRecord(block) || block.type !== "tool_use") return [];
+
+  return [
+    {
+      arguments: isRecord(block.input) ? block.input : {},
+      id: typeof block.id === "string" ? block.id : "",
+      name: typeof block.name === "string" ? block.name : ""
+    }
+  ].filter((toolCall) => toolCall.id && toolCall.name);
+}
+
+function normalizeFinishReason(finishReason: string | undefined) {
+  if (finishReason === "tool_calls" || finishReason === "tool_use") return "toolUse";
+  return finishReason;
+}
+
+function parseToolArguments(rawArguments: string) {
+  if (!rawArguments.trim()) return {};
+
+  try {
+    const parsed = JSON.parse(rawArguments) as unknown;
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 export { buildInlineAiMessages } from "./inlinePrompt";

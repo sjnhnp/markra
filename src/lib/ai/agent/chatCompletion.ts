@@ -7,7 +7,12 @@ import {
   type NativeAiStreamResponse
 } from "../../tauri/nativeAi";
 import { isRecord } from "../../utils";
-import { getChatAdapter, type ChatMessage, type ChatResponse } from "./chatAdapters";
+import {
+  getChatAdapter,
+  type ChatMessage,
+  type ChatResponse,
+  type ChatToolCallDelta
+} from "./chatAdapters";
 
 export type ChatCompletionTransport = (request: NativeAiChatRequest) => Promise<NativeAiHttpResponse>;
 export type ChatCompletionStreamTransport = (
@@ -18,8 +23,10 @@ export type ChatCompletionStreamTransport = (
 export type ChatCompletionStreamOptions = {
   onDelta?: (delta: string) => unknown;
   onThinkingDelta?: (delta: string) => unknown;
+  onToolCallDelta?: (delta: ChatToolCallDelta) => unknown;
   streamTransport?: ChatCompletionStreamTransport;
   thinkingEnabled?: boolean;
+  tools?: import("@mariozechner/pi-ai").Tool[];
 };
 
 export async function chatCompletion(
@@ -50,14 +57,17 @@ export async function chatCompletionStream(
   {
     onDelta,
     onThinkingDelta,
+    onToolCallDelta,
     streamTransport = requestNativeChatStream,
-    thinkingEnabled
+    thinkingEnabled,
+    tools
   }: ChatCompletionStreamOptions = {}
 ): Promise<ChatResponse> {
   const adapter = getChatAdapter(provider.type);
-  const request = adapter.buildRequest(provider, model, messages, { stream: true, thinkingEnabled });
+  const request = adapter.buildRequest(provider, model, messages, { stream: true, thinkingEnabled, tools });
   let content = "";
   let finishReason: string | undefined;
+  const toolCalls = new Map<number, { argumentsText: string; id: string; name: string }>();
   const parser = createServerSentEventParser();
   const processStreamEvent = (event: unknown) => {
     const parsed = adapter.parseStreamEvent(event);
@@ -69,6 +79,16 @@ export async function chatCompletionStream(
     }
 
     if (parsed.thinkingDelta) onThinkingDelta?.(parsed.thinkingDelta);
+    if (parsed.toolCallDeltas?.length) {
+      for (const delta of parsed.toolCallDeltas) {
+        const currentToolCall = toolCalls.get(delta.index) ?? { argumentsText: "", id: "", name: "" };
+        currentToolCall.argumentsText += delta.argumentsDelta ?? "";
+        currentToolCall.id = delta.id ?? currentToolCall.id;
+        currentToolCall.name += delta.nameDelta ?? "";
+        toolCalls.set(delta.index, currentToolCall);
+        onToolCallDelta?.(delta);
+      }
+    }
 
     if (parsed.finishReason) finishReason = parsed.finishReason;
   };
@@ -91,7 +111,16 @@ export async function chatCompletionStream(
 
   return {
     content,
-    finishReason
+    finishReason,
+    ...(toolCalls.size > 0
+      ? {
+          toolCalls: [...toolCalls.entries()].map(([, toolCall]) => ({
+            arguments: parseToolArguments(toolCall.argumentsText),
+            id: toolCall.id,
+            name: toolCall.name
+          }))
+        }
+      : {})
   };
 }
 
@@ -138,4 +167,15 @@ function parseServerSentEventBlock(block: string) {
   if (data === "[DONE]") return ["[DONE]"];
 
   return [JSON.parse(data) as unknown];
+}
+
+function parseToolArguments(rawArguments: string) {
+  if (!rawArguments.trim()) return {};
+
+  try {
+    const parsed = JSON.parse(rawArguments) as unknown;
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }

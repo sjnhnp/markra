@@ -1,6 +1,6 @@
 import { render, waitFor } from "@testing-library/react";
 import type { Editor } from "@milkdown/kit/core";
-import { editorViewCtx } from "@milkdown/kit/core";
+import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
@@ -39,6 +39,7 @@ async function renderEditor(
 
   return {
     ...result,
+    editor: editor!,
     view: editor!.action((ctx) => ctx.get(editorViewCtx))
   };
 }
@@ -343,6 +344,54 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps multiline markdown replacement preview out of the current heading block", async () => {
+    const { container, view } = await renderEditor("# Original title\n\nBody");
+    const from = findTextPosition(view, "Original title");
+    const to = from + "Original title".length;
+
+    showAiEditorPreview(view, {
+      from,
+      original: "Original title",
+      replacement: "# Improved title\n\nVersion: v1\n\nBody paragraph.",
+      to,
+      type: "replace"
+    });
+
+    const previewWidget = container.querySelector(".ProseMirror .markra-ai-preview-widget");
+    const insertedPreview = container.querySelector(".ProseMirror .markra-ai-preview-insert");
+
+    expect(previewWidget).toHaveClass("markra-ai-preview-widget-block");
+    expect(insertedPreview).toHaveTextContent("# Improved title");
+    expect(insertedPreview).toHaveTextContent("Body paragraph.");
+    expect(insertedPreview?.closest("h1,h2,h3,h4,h5,h6")).toBeNull();
+
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("applies multiline markdown replacement as parsed document blocks", async () => {
+    const { container, editor, view } = await renderEditor("# Original title\n\nTail");
+    const from = findTextPosition(view, "Original title");
+    const result = {
+      from,
+      original: "Original title",
+      replacement: "# Improved title\n\nVersion: v1\n\nBody paragraph.",
+      to: from + "Original title".length,
+      type: "replace" as const
+    };
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+
+    expect(applyAiEditorResult(view, result, { parseMarkdown })).toBe(true);
+
+    expect(container.querySelector(".ProseMirror h1")).toHaveTextContent("Improved title");
+    expect(container.querySelector(".ProseMirror h1")).not.toHaveTextContent("#");
+    expect(container.querySelector(".ProseMirror p")).toHaveTextContent("Version: v1");
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("Tail");
+    expect(view.state.selection.from).toBeLessThanOrEqual(findTextPosition(view, "Tail"));
+
+    await settleMarkdownListener();
+  });
+
   it("notifies when the user selects text in the editor", async () => {
     const onTextSelectionChange = vi.fn();
     const { view } = await renderEditor("First sentence. Second sentence.", { onTextSelectionChange });
@@ -359,7 +408,7 @@ describe("MarkdownPaper editing", () => {
     });
   });
 
-  it("notifies when the editor text selection is cleared", async () => {
+  it("falls back to the current text block when the editor text selection is cleared", async () => {
     const onTextSelectionChange = vi.fn();
     const { view } = await renderEditor("First sentence. Second sentence.", { onTextSelectionChange });
     const from = findTextPosition(view, "Second");
@@ -369,7 +418,13 @@ describe("MarkdownPaper editing", () => {
     selectText(view, from, to);
     moveCursor(view, from);
 
-    expect(onTextSelectionChange).toHaveBeenLastCalledWith(null);
+    expect(onTextSelectionChange).toHaveBeenLastCalledWith({
+      cursor: from,
+      from: 1,
+      source: "block",
+      text: "First sentence. Second sentence.",
+      to: "First sentence. Second sentence.".length + 1
+    });
   });
 
   it("keeps the active text selection when focus moves out of the editor", async () => {
@@ -397,10 +452,28 @@ describe("MarkdownPaper editing", () => {
     moveCursor(view, findTextPosition(view, "paragraph", 2));
 
     expect(readAiSelectionContextFromView(view)).toEqual({
+      cursor: findTextPosition(view, "paragraph", 2),
       from,
       source: "block",
       text: "First paragraph.",
       to
+    });
+    await settleMarkdownListener();
+  });
+
+  it("reports the current text block through the selection callback when only the cursor moves", async () => {
+    const onTextSelectionChange = vi.fn();
+    const { view } = await renderEditor("# Title\n\nFirst paragraph.\n\nSecond paragraph.", { onTextSelectionChange });
+
+    view.focus();
+    moveCursor(view, findTextPosition(view, "paragraph", 2));
+
+    expect(onTextSelectionChange).toHaveBeenLastCalledWith({
+      cursor: findTextPosition(view, "paragraph", 2),
+      from: findTextPosition(view, "First paragraph."),
+      source: "block",
+      text: "First paragraph.",
+      to: findTextPosition(view, "First paragraph.") + "First paragraph.".length
     });
     await settleMarkdownListener();
   });
@@ -556,6 +629,83 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("Original");
     expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
     expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("keeps AI preview actions clickable after mousedown inside the editor widget", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+    const onPreviewAction = vi.fn((event: Event) => {
+      const detail = (event as CustomEvent<AiEditorPreviewActionDetail>).detail;
+      if (detail.action === "apply") applyAiEditorResult(view, detail.result);
+    });
+
+    window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    showAiEditorPreview(view, result);
+
+    const applyButton = container.querySelector<HTMLButtonElement>(".ProseMirror .markra-ai-preview-apply");
+    expect(applyButton).toBeInTheDocument();
+
+    applyButton?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    applyButton?.click();
+
+    expect(onPreviewAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: {
+          action: "apply",
+          result
+        }
+      })
+    );
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("Improved text");
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("applies an AI preview action directly on pointerdown for editor widgets", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+    const onPreviewAction = vi.fn((event: Event) => {
+      const detail = (event as CustomEvent<AiEditorPreviewActionDetail>).detail;
+      if (detail.action === "apply") applyAiEditorResult(view, detail.result);
+    });
+
+    window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    showAiEditorPreview(view, result);
+
+    const applyButton = container.querySelector<HTMLButtonElement>(".ProseMirror .markra-ai-preview-apply");
+    expect(applyButton).toBeInTheDocument();
+
+    applyButton?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+
+    expect(onPreviewAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: {
+          action: "apply",
+          result
+        }
+      })
+    );
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("Improved text");
 
     window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
     clearAiEditorPreview(view);

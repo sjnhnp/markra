@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
-import { editorViewCtx, type Editor } from "@milkdown/kit/core";
+import { editorViewCtx, parserCtx, type Editor } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { getMarkdown } from "@milkdown/kit/utils";
-import type { AiDiffResult, AiSelectionContext } from "../lib/ai/agent/inlineAi";
+import type { AiDiffResult, AiHeadingAnchor, AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import {
   applyAiEditorResult,
   clearAiEditorPreview,
@@ -48,6 +48,7 @@ export function readAiSelectionContextFromView(view: EditorView): AiSelectionCon
 
   if (!selection.empty) {
     return {
+      cursor: selection.to,
       from: selection.from,
       source: "selection",
       text: doc.textBetween(selection.from, selection.to, "\n"),
@@ -58,6 +59,7 @@ export function readAiSelectionContextFromView(view: EditorView): AiSelectionCon
   const { $from } = selection;
   if (!$from.parent.isTextblock || $from.parent.textContent.trim().length === 0) {
     return {
+      cursor: selection.from,
       from: selection.from,
       text: "",
       to: selection.to
@@ -68,6 +70,7 @@ export function readAiSelectionContextFromView(view: EditorView): AiSelectionCon
   const to = $from.end();
 
   return {
+    cursor: selection.from,
     from,
     source: "block",
     text: doc.textBetween(from, to, "\n"),
@@ -95,6 +98,42 @@ export function useEditorController() {
       return readAiSelectionContextFromView(view);
     } catch {
       return null;
+    }
+  }, []);
+
+  const getHeadingAnchors = useCallback((): AiHeadingAnchor[] => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return [];
+
+      const anchors: AiHeadingAnchor[] = [];
+      view.state.doc.descendants((node, position) => {
+        if (node.type.name !== "heading") return true;
+
+        anchors.push({
+          from: position,
+          level: Number(node.attrs.level ?? 1),
+          title: node.textContent.trim(),
+          to: position + node.nodeSize
+        });
+
+        return true;
+      });
+
+      return anchors;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const getDocumentEndPosition = useCallback(() => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return 0;
+
+      return view.state.doc.content.size;
+    } catch {
+      return 0;
     }
   }, []);
 
@@ -169,7 +208,8 @@ export function useEditorController() {
       if (!editor) return false;
 
       const view = editor.action((ctx) => ctx.get(editorViewCtx));
-      return applyAiEditorResult(view, result);
+      const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+      return applyAiEditorResult(view, result, { parseMarkdown });
     } catch {
       return false;
     }
@@ -276,6 +316,8 @@ export function useEditorController() {
     applyAiResult,
     clearAiPreview,
     clearAiSelection,
+    getDocumentEndPosition,
+    getHeadingAnchors,
     getCurrentMarkdown,
     getSelection,
     handleEditorReady,

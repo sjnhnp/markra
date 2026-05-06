@@ -36,6 +36,7 @@ describe("NativeTitleBar", () => {
     const { container } = render(
       <NativeTitleBar
         aiAgentOpen
+        aiAgentWidth={512}
         dirty={false}
         documentName="Draft.md"
         markdownFilesOpen={false}
@@ -52,11 +53,33 @@ describe("NativeTitleBar", () => {
 
     expect(button).toHaveAttribute("aria-pressed", "true");
     expect(button).toContainElement(container.querySelector(".lucide-bot"));
-    expect(container.querySelector(".document-actions")).toHaveStyle({ transform: "translateX(-24rem)" });
+    expect(container.querySelector(".document-actions")).toHaveStyle({ transform: "translateX(-512px)" });
 
     fireEvent.click(button);
 
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps file actions synced immediately while the AI Agent panel is resizing", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen
+        aiAgentResizing
+        aiAgentWidth={448}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".document-actions")).toHaveClass("transition-none");
+    expect(container.querySelector(".document-actions")).toHaveStyle({ transform: "translateX(-448px)" });
   });
 
   it("places the markdown files toggle in the traffic-light side of the titlebar", () => {

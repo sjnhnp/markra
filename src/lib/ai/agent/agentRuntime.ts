@@ -8,7 +8,9 @@ import {
   type Model,
   type StopReason,
   type ThinkingContent,
-  type TextContent
+  type TextContent,
+  type Tool,
+  type ToolCall
 } from "@mariozechner/pi-ai";
 import type { AiProviderConfig } from "../providers/aiProviders";
 import { chatCompletionStream, type ChatCompletionStreamOptions } from "./chatCompletion";
@@ -22,7 +24,7 @@ type InlineAiSuggestionContext = {
   replacement: string;
 };
 
-type AssistantContentBlock = TextContent | ThinkingContent;
+type AssistantContentBlock = TextContent | ThinkingContent | ToolCall;
 
 export type InlineAiAgentTarget = {
   from?: number;
@@ -125,7 +127,7 @@ function formatReadOnlyToolContext(toolResults: Awaited<ReturnType<typeof runRea
   ].join("\n\n");
 }
 
-function createNativeChatStreamFn(
+export function createNativeChatStreamFn(
   provider: AiProviderConfig,
   complete: InlineAiAgentComplete,
   thinkingEnabled: boolean | undefined
@@ -170,6 +172,9 @@ async function streamNativeChatCompletion({
   }
 
   const contentBlocks: AssistantContentBlock[] = [];
+  const toolCallBlocks = new Map<number, ToolCall>();
+  const toolCallArgumentBuffers = new Map<number, string>();
+  const openToolCallIndexes = new Set<number>();
   let currentBlock: AssistantContentBlock | null = null;
   const partial = createAssistantMessage(model);
   let streamedContent = "";
@@ -187,7 +192,7 @@ async function streamNativeChatCompletion({
         partial: partialMessage,
         type: "text_end"
       });
-    } else {
+    } else if (currentBlock.type === "thinking") {
       stream.push({
         content: currentBlock.thinking,
         contentIndex,
@@ -227,6 +232,43 @@ async function streamNativeChatCompletion({
 
     return block;
   };
+  const ensureToolCallBlock = (index: number) => {
+    finishCurrentBlock();
+    const existingBlock = toolCallBlocks.get(index);
+    if (existingBlock) return existingBlock;
+
+    const block: ToolCall = {
+      arguments: {},
+      id: `tool-call-${index + 1}`,
+      name: "",
+      type: "toolCall"
+    };
+    toolCallBlocks.set(index, block);
+    contentBlocks.push(block);
+    openToolCallIndexes.add(index);
+    stream.push({
+      contentIndex: contentBlocks.length - 1,
+      partial: createAssistantMessage(model, contentBlocks),
+      type: "toolcall_start"
+    });
+
+    return block;
+  };
+  const finishToolCallBlocks = () => {
+    for (const index of [...openToolCallIndexes].sort((left, right) => left - right)) {
+      const block = toolCallBlocks.get(index);
+      if (!block) continue;
+
+      block.arguments = parseToolCallArguments(toolCallArgumentBuffers.get(index) ?? "");
+      stream.push({
+        contentIndex: contentBlocks.indexOf(block),
+        partial: createAssistantMessage(model, contentBlocks),
+        toolCall: { ...block, arguments: structuredClone(block.arguments) },
+        type: "toolcall_end"
+      });
+      openToolCallIndexes.delete(index);
+    }
+  };
 
   const response = await complete(provider, model.id, messagesFromPiContext(context), {
     onDelta: (delta) => {
@@ -250,12 +292,44 @@ async function streamNativeChatCompletion({
         type: "thinking_delta"
       });
     },
-    thinkingEnabled
+    onToolCallDelta: (delta) => {
+      const toolCallBlock = ensureToolCallBlock(delta.index);
+      if (delta.id) toolCallBlock.id = delta.id;
+      if (delta.nameDelta) toolCallBlock.name += delta.nameDelta;
+      if (delta.argumentsDelta) {
+        toolCallArgumentBuffers.set(
+          delta.index,
+          `${toolCallArgumentBuffers.get(delta.index) ?? ""}${delta.argumentsDelta}`
+        );
+      }
+
+      const parsedArguments = parseToolCallArguments(toolCallArgumentBuffers.get(delta.index) ?? "");
+      toolCallBlock.arguments = parsedArguments;
+      stream.push({
+        contentIndex: contentBlocks.indexOf(toolCallBlock),
+        delta: delta.argumentsDelta ?? delta.nameDelta ?? "",
+        partial: createAssistantMessage(model, contentBlocks),
+        type: "toolcall_delta"
+      });
+    },
+    thinkingEnabled,
+    tools: context.tools
   });
   if (options?.signal?.aborted) {
     pushAssistantError(stream, model, new Error("Request aborted by user."), options.signal);
     return;
   }
+
+  if (response.toolCalls?.length) {
+    for (const [index, toolCall] of response.toolCalls.entries()) {
+      const block = ensureToolCallBlock(index);
+      block.id = toolCall.id;
+      block.name = toolCall.name;
+      block.arguments = structuredClone(toolCall.arguments);
+      toolCallArgumentBuffers.set(index, JSON.stringify(toolCall.arguments));
+    }
+  }
+  finishToolCallBlocks();
 
   const finalContent = response.content || streamedContent;
   if (!streamedContent && finalContent) {
@@ -269,15 +343,23 @@ async function streamNativeChatCompletion({
     });
   }
   finishCurrentBlock();
-  const finalMessage = createAssistantMessage(model, contentBlocks, stopReasonFromFinishReason(response.finishReason));
+  const finalStopReason = stopReasonFromFinishReason(
+    response.finishReason ?? (response.toolCalls?.length ? "toolUse" : undefined)
+  );
+  const finalMessage = createAssistantMessage(model, contentBlocks, finalStopReason);
   stream.push({
     message: finalMessage,
-    reason: finalMessage.stopReason === "length" ? "length" : "stop",
+    reason:
+      finalMessage.stopReason === "toolUse"
+        ? "toolUse"
+        : finalMessage.stopReason === "length"
+          ? "length"
+          : "stop",
     type: "done"
   });
 }
 
-function createPiAgentModel(provider: AiProviderConfig, modelId: string): Model<any> {
+export function createPiAgentModel(provider: AiProviderConfig, modelId: string): Model<any> {
   return {
     api: "markra-native-chat",
     baseUrl: provider.baseUrl ?? "",
@@ -327,7 +409,7 @@ function piContentToText(content: string | (TextContent | ImageContent)[]) {
   return content.map((part) => (part.type === "text" ? part.text : `[image:${part.mimeType}]`)).join("\n");
 }
 
-function assistantTextContent(message: AssistantMessage) {
+export function assistantTextContent(message: AssistantMessage) {
   return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
 }
 
@@ -352,9 +434,7 @@ function createAssistantMessage(
 
 function cloneAssistantContent(content: AssistantContentBlock[]): AssistantContentBlock[] {
   return content.map((block) => {
-    if (block.type === "text") return { ...block };
-
-    return { ...block };
+    return block.type === "toolCall" ? { ...block, arguments: structuredClone(block.arguments) } : { ...block };
   });
 }
 
@@ -398,4 +478,15 @@ function pushAssistantError(
     reason,
     type: "error"
   });
+}
+
+function parseToolCallArguments(rawArguments: string) {
+  if (!rawArguments.trim()) return {};
+
+  try {
+    const parsed = JSON.parse(rawArguments) as unknown;
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
 }

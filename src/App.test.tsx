@@ -42,7 +42,10 @@ import {
 } from "./lib/settings/settingsEvents";
 import { fetchAiProviderModels, testAiProviderConnection } from "./lib/ai/providers/aiProviderRequests";
 import { chatCompletion } from "./lib/ai/agent/chatCompletion";
-import { AI_EDITOR_PREVIEW_RESTORE_EVENT } from "./lib/ai/editorPreview";
+import {
+  AI_EDITOR_PREVIEW_ACTION_EVENT,
+  AI_EDITOR_PREVIEW_RESTORE_EVENT
+} from "./lib/ai/editorPreview";
 
 vi.mock("./lib/tauri/file", () => ({
   installNativeMarkdownFileDrop: vi.fn(),
@@ -370,15 +373,19 @@ describe("Markra workspace", () => {
     expect(agentPanel).toBeInTheDocument();
     expect(within(agentPanel).getAllByText("OpenAI · GPT-5.5")[0]).toBeInTheDocument();
     expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveTextContent("OpenAI · GPT-5.5");
-    expect(container.querySelector(".editor-agent-layout")).toHaveClass("grid-cols-[minmax(0,1fr)_24rem]");
+    expect((container.querySelector(".editor-agent-layout") as HTMLElement).style.gridTemplateColumns).toBe(
+      "minmax(0,1fr) 384px"
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Close AI Agent" }));
 
     expect(screen.getByRole("button", { name: "Toggle AI Agent" })).toHaveAttribute("aria-pressed", "false");
-    expect(container.querySelector(".editor-agent-layout")).toHaveClass("grid-cols-[minmax(0,1fr)_0rem]");
+    expect((container.querySelector(".editor-agent-layout") as HTMLElement).style.gridTemplateColumns).toBe(
+      "minmax(0,1fr) 0px"
+    );
   });
 
-  it("restores the AI command session when an applied suggestion is undone", async () => {
+  it("restores the pending AI suggestion without reopening the command input when an applied suggestion is undone", async () => {
     render(<App />);
 
     await screen.findByText("Welcome to Markra");
@@ -397,15 +404,44 @@ describe("Markra workspace", () => {
       })
     );
 
-    const commandInput = await screen.findByRole("textbox", { name: "AI command" });
+    await waitFor(() => {
+      expect(screen.queryByRole("textbox", { name: "AI command" })).not.toBeInTheDocument();
+    });
+  });
 
-    expect(screen.queryByText("AI suggestion ready")).not.toBeInTheDocument();
-    expect(commandInput.closest(".ai-command-panel")).not.toBeInTheDocument();
-    expect(commandInput.closest(".ai-command-box")).toHaveClass("border-(--accent)", "rounded-lg");
-    expect(screen.getByRole("textbox", { name: "AI command" })).toHaveAttribute(
-      "placeholder",
-      "Tell AI what else needs to be changed..."
+  it("applies an AI preview action event back into the editor document", async () => {
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      filePath: mockNativePath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "Original text",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    render(<App />);
+
+    await screen.findByText("Original text");
+
+    window.dispatchEvent(
+      new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, {
+        detail: {
+          action: "apply",
+          result: {
+            from: 1,
+            original: "Original",
+            replacement: "Improved",
+            to: 9,
+            type: "replace"
+          }
+        }
+      })
     );
+
+    await waitFor(() => expect(screen.getByText("Improved text")).toBeInTheDocument());
   });
 
   it("restores the last opened markdown file on app launch", async () => {

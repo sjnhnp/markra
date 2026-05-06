@@ -1,47 +1,79 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { ArrowUp, Bot, BrainCircuit, FileText, Globe2, PencilLine, Sparkles, X } from "lucide-react";
 import { AiModelPicker, getAiModelOptionValue, type AiModelPickerOption } from "./AiModelPicker";
+import { AiMarkdownMessage } from "./AiMarkdownMessage";
+import { AiAgentProcessList } from "./AiAgentProcessList";
 import { t, type AppLanguage, type I18nKey } from "../lib/i18n";
 import type { AiModelCapability, AiProviderApiStyle } from "../lib/settings/appSettings";
-
-type AiAgentMessage = {
-  id: number;
-  role: "assistant" | "user";
-  text: string;
-};
+import type { AiAgentPanelMessage } from "../hooks/useAiAgentSession";
+import { clampNumber } from "../lib/utils";
 
 type AiAgentModelOption = AiModelPickerOption & { capabilities: AiModelCapability[] };
 
 type AiAgentPanelProps = {
   availableModels?: AiAgentModelOption[];
+  draft?: string;
   language?: AppLanguage;
+  messages?: AiAgentPanelMessage[];
   modelName?: string | null;
   open: boolean;
   providerName?: string | null;
   selectedModelId?: string | null;
   selectedProviderId?: string | null;
+  status?: "error" | "idle" | "streaming" | "thinking";
+  thinkingEnabled?: boolean;
+  webSearchEnabled?: boolean;
+  maxWidth?: number;
+  minWidth?: number;
+  width?: number;
   onClose: () => unknown;
+  onDraftChange?: (value: string) => unknown;
+  onInterrupt?: () => unknown;
+  onResize?: (width: number) => unknown;
+  onResizeEnd?: () => unknown;
+  onResizeStart?: () => unknown;
   onSelectModel?: (providerId: string, modelId: string) => unknown;
+  onSubmit?: (promptOverride?: string) => unknown;
+  onToggleThinking?: () => unknown;
+  onToggleWebSearch?: () => unknown;
 };
 
 const suggestionIconClassName = "shrink-0 text-(--text-secondary)";
+const defaultMinWidth = 320;
+const defaultMaxWidth = 760;
 
 export function AiAgentPanel({
   availableModels = [],
+  draft = "",
   language = "en",
+  messages = [],
   modelName = null,
   open,
   providerName = null,
   selectedModelId = null,
   selectedProviderId = null,
+  status = "idle",
+  thinkingEnabled = false,
+  webSearchEnabled = false,
+  maxWidth = defaultMaxWidth,
+  minWidth = defaultMinWidth,
+  width,
   onClose,
-  onSelectModel
+  onDraftChange,
+  onInterrupt,
+  onResize,
+  onResizeEnd,
+  onResizeStart,
+  onSelectModel,
+  onSubmit,
+  onToggleThinking,
+  onToggleWebSearch
 }: AiAgentPanelProps) {
-  const [draft, setDraft] = useState("");
-  const [thinkingEnabled, setThinkingEnabled] = useState(false);
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
-  const [messages, setMessages] = useState<AiAgentMessage[]>([]);
+  const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const label = (key: I18nKey) => t(language, key);
+  const resolvedMinWidth = Math.max(240, minWidth);
+  const resolvedMaxWidth = Math.max(resolvedMinWidth, maxWidth);
+  const resolvedWidth = clampNumber(width, resolvedMinWidth, resolvedMaxWidth) ?? null;
   const selectedModelValue =
     selectedProviderId && selectedModelId ? getAiModelOptionValue(selectedProviderId, selectedModelId) : "";
   const selectedModel =
@@ -70,36 +102,98 @@ export function AiAgentPanel({
       label: label("app.aiAgentSuggestionCompareNotes")
     }
   ];
-  const canSend = draft.trim().length > 0;
+  const submitting = status === "thinking" || status === "streaming";
+  const canSend = draft.trim().length > 0 && !submitting;
 
   useEffect(() => {
-    if (!supportsThinking) setThinkingEnabled(false);
-    if (!supportsWebSearch) setWebSearchEnabled(false);
-  }, [supportsThinking, supportsWebSearch]);
+    if (!supportsThinking && thinkingEnabled) onToggleThinking?.();
+    if (!supportsWebSearch && webSearchEnabled) onToggleWebSearch?.();
+  }, [onToggleThinking, onToggleWebSearch, supportsThinking, supportsWebSearch, thinkingEnabled, webSearchEnabled]);
 
-  const sendMessage = (messageText: string) => {
-    const text = messageText.trim();
-    if (!text) return;
+  useEffect(() => {
+    return () => {
+      resizeCleanupRef.current?.();
+      resizeCleanupRef.current = null;
+    };
+  }, []);
 
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      {
-        id: Date.now(),
-        role: "user",
-        text
-      },
-      {
-        id: Date.now() + 1,
-        role: "assistant",
-        text: label("app.aiAgentDraftResponse")
-      }
-    ]);
-    setDraft("");
+  const resizePanel = (nextWidth: number | null) => {
+    if (nextWidth === null) return;
+    onResize?.(nextWidth);
+  };
+
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!onResize || resolvedWidth === null) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const startX = event.clientX;
+    const startWidth = resolvedWidth;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    onResizeStart?.();
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      resizePanel(clampNumber(startWidth + startX - moveEvent.clientX, resolvedMinWidth, resolvedMaxWidth));
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      resizeCleanupRef.current = null;
+      onResizeEnd?.();
+    };
+
+    const handlePointerUp = () => {
+      cleanup();
+    };
+
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = cleanup;
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+  };
+
+  const handleResizeKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!onResize || resolvedWidth === null) return;
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      resizePanel(clampNumber(resolvedWidth + 24, resolvedMinWidth, resolvedMaxWidth));
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      resizePanel(clampNumber(resolvedWidth - 24, resolvedMinWidth, resolvedMaxWidth));
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      resizePanel(resolvedMinWidth);
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      resizePanel(resolvedMaxWidth);
+    }
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    sendMessage(draft);
+    if (!canSend) return;
+    onSubmit?.();
   };
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -107,11 +201,13 @@ export function AiAgentPanel({
     if (event.ctrlKey) return;
 
     event.preventDefault();
-    sendMessage(draft);
+    if (!canSend) return;
+    onSubmit?.();
   };
 
   const handleSuggestion = (suggestion: string) => {
-    sendMessage(suggestion);
+    onDraftChange?.(suggestion);
+    onSubmit?.(suggestion);
   };
 
   return (
@@ -122,7 +218,22 @@ export function AiAgentPanel({
       role="complementary"
       aria-label={label("app.aiAgent")}
       aria-hidden={open ? undefined : true}
+      style={resolvedWidth === null ? undefined : { maxWidth: resolvedWidth, minWidth: resolvedWidth, width: resolvedWidth }}
     >
+      <div
+        className="absolute inset-y-0 left-0 z-30 w-2 cursor-col-resize touch-none outline-none hover:[&>span]:bg-(--accent) focus-visible:[&>span]:bg-(--accent)"
+        role="separator"
+        tabIndex={0}
+        aria-label={label("app.resizeAiAgent")}
+        aria-orientation="vertical"
+        aria-valuemin={resolvedMinWidth}
+        aria-valuemax={resolvedMaxWidth}
+        aria-valuenow={resolvedWidth ?? undefined}
+        onKeyDown={handleResizeKeyDown}
+        onPointerDown={handleResizePointerDown}
+      >
+        <span className="pointer-events-none absolute top-2 bottom-2 left-0 w-px rounded-full bg-transparent transition-colors duration-150 ease-out" />
+      </div>
       <header className="relative z-20 min-h-12 shrink-0 border-b border-(--border-default) px-2 py-1.5">
         <span className="absolute top-1.5 left-2 inline-flex size-8 items-center justify-center text-(--text-secondary)">
           <Bot aria-hidden="true" size={15} />
@@ -189,18 +300,38 @@ export function AiAgentPanel({
             </div>
           ) : (
             <ol className="m-0 grid list-none gap-3 p-0">
-              {messages.map((message) => (
-                <li
-                  className={
-                    message.role === "user"
-                      ? "ml-auto max-w-[82%] rounded-lg bg-(--bg-active) px-3 py-2 text-[13px] leading-5 font-[560] text-(--text-heading)"
-                      : "mr-auto max-w-[86%] rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-2 text-[13px] leading-5 font-[540] text-(--text-primary)"
-                  }
-                  key={message.id}
-                >
-                  {message.text}
-                </li>
-              ))}
+              {messages.map((message) => {
+                if (message.role === "user") {
+                  return (
+                    <li
+                      className="ml-auto max-w-[82%] rounded-lg bg-(--bg-active) px-3 py-2 text-[13px] leading-5 font-[560] text-(--text-heading)"
+                      key={message.id}
+                    >
+                      <AiMarkdownMessage content={message.text} />
+                    </li>
+                  );
+                }
+
+                const assistantBubbleClassName = message.isError
+                  ? "rounded-lg border border-[color:color-mix(in_oklab,var(--danger)_28%,var(--border-default))] bg-[color:color-mix(in_oklab,var(--danger)_8%,var(--bg-primary))] px-3 py-2 text-[13px] leading-5 font-[540] text-(--text-primary)"
+                  : "rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-2 text-[13px] leading-5 font-[540] text-(--text-primary)";
+
+                return (
+                  <li className="mr-auto max-w-[86%]" key={message.id}>
+                    <div className="grid gap-2">
+                      {message.activities?.length ? <AiAgentProcessList activities={message.activities} translate={label} /> : null}
+                      {message.text || message.thinking || message.isError || !message.activities?.length ? (
+                        <div className={assistantBubbleClassName}>
+                          {message.thinking && !message.text ? (
+                            <p className="m-0 text-[12px] leading-5 text-(--text-secondary)">{label("app.aiAgentThinking")}</p>
+                          ) : null}
+                          <AiMarkdownMessage content={message.text} />
+                        </div>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ol>
           )}
         </div>
@@ -217,7 +348,8 @@ export function AiAgentPanel({
               placeholder={label("app.aiAgentPlaceholder")}
               rows={2}
               aria-label={label("app.aiAgentMessage")}
-              onChange={(event) => setDraft(event.target.value)}
+              readOnly={submitting}
+              onChange={(event) => onDraftChange?.(event.target.value)}
               onKeyDown={handleKeyDown}
             />
             <div className="mt-2 flex items-center justify-between gap-3 border-t border-(--border-default) pt-2">
@@ -233,7 +365,7 @@ export function AiAgentPanel({
                   title={label("app.aiDeepThinking")}
                   aria-pressed={thinkingEnabled}
                   disabled={!supportsThinking}
-                  onClick={() => setThinkingEnabled((enabled) => !enabled)}
+                  onClick={onToggleThinking}
                 >
                   <BrainCircuit aria-hidden="true" size={14} />
                   <span>{label("app.aiDeepThinking")}</span>
@@ -249,7 +381,7 @@ export function AiAgentPanel({
                   title={label("app.aiWebSearch")}
                   aria-pressed={webSearchEnabled}
                   disabled={!supportsWebSearch}
-                  onClick={() => setWebSearchEnabled((enabled) => !enabled)}
+                  onClick={onToggleWebSearch}
                 >
                   <Globe2 aria-hidden="true" size={14} />
                   <span>{label("app.aiWebSearch")}</span>
@@ -257,11 +389,12 @@ export function AiAgentPanel({
               </div>
               <button
                 className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-(--bg-active) p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--accent) hover:text-(--bg-primary) focus-visible:bg-(--accent) focus-visible:text-(--bg-primary) focus-visible:outline-none disabled:cursor-default disabled:opacity-40 disabled:hover:bg-(--bg-active) disabled:hover:text-(--text-secondary)"
-                type="submit"
-                disabled={!canSend}
+                type={submitting ? "button" : "submit"}
+                disabled={!canSend && !submitting}
                 aria-label={label("app.aiAgentSend")}
+                onClick={submitting ? onInterrupt : undefined}
               >
-                <ArrowUp aria-hidden="true" size={16} />
+                {submitting ? <X aria-hidden="true" size={16} /> : <ArrowUp aria-hidden="true" size={16} />}
               </button>
             </div>
           </div>

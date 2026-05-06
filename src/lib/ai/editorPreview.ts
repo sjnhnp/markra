@@ -1,5 +1,5 @@
-import type { Node as ProseNode } from "@milkdown/kit/prose/model";
-import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
+import { Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
+import { Plugin, PluginKey, TextSelection, type Transaction } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 import type { AiDiffResult } from "./agent/inlineAi";
@@ -43,6 +43,15 @@ type AiEditorPreviewMeta =
 
 type AiTextDiffResult = Extract<AiDiffResult, { type: "insert" | "replace" }>;
 
+type ApplyAiEditorResultOptions = {
+  parseMarkdown?: (markdown: string) => ProseNode;
+};
+
+type AppliedTransactionResult = {
+  cursor: number;
+  transaction: Transaction;
+};
+
 type AiEditorPreviewSnapshot = {
   labels?: AiEditorPreviewLabels;
   result: AiTextDiffResult;
@@ -65,7 +74,9 @@ export function showAiEditorPreview(view: EditorView, result: AiDiffResult, labe
   const from = result.type === "error" ? null : clampNumber(result.from, 0, docSize);
   const to = result.type === "error" ? null : clampNumber(result.to, 0, docSize);
   const appendPosition =
-    result.type === "error" || from === null || to === null ? null : findInlineAppendPosition(view.state.doc, from, to);
+    result.type === "error" || from === null || to === null
+      ? null
+      : findPreviewAppendPosition(view.state.doc, result, from, to);
   const transaction = view.state.tr.setMeta(aiEditorPreviewKey, {
     kind: "show",
     labels,
@@ -84,24 +95,59 @@ export function clearAiEditorPreview(view: EditorView) {
   view.dispatch(view.state.tr.setMeta(aiEditorPreviewKey, { kind: "clear" } satisfies AiEditorPreviewMeta));
 }
 
-export function applyAiEditorResult(view: EditorView, result: AiDiffResult) {
-  if (!isTextDiffResult(result)) return false;
+export function applyAiEditorResult(view: EditorView, result: AiDiffResult, options: ApplyAiEditorResultOptions = {}) {
+  if (!isTextDiffResult(result)) {
+    console.warn("[markra-ai-preview] apply skipped: non-text result", result);
+    return false;
+  }
 
   const docSize = view.state.doc.content.size;
   const fallbackSelection = view.state.selection;
   const from = clampNumber(result.from ?? fallbackSelection.from, 0, docSize);
   const to = clampNumber(result.to ?? fallbackSelection.to, 0, docSize);
-  if (from === null || to === null) return false;
+  if (from === null || to === null) {
+    console.warn("[markra-ai-preview] apply skipped: invalid range", {
+      docSize,
+      fallbackSelection: {
+        from: fallbackSelection.from,
+        to: fallbackSelection.to
+      },
+      from,
+      result,
+      to
+    });
+    return false;
+  }
 
-  const transaction = view.state.tr.insertText(result.replacement, from, to).setMeta(aiEditorPreviewKey, {
-    kind: "apply",
-    result
-  } satisfies AiEditorPreviewMeta);
-  const cursor = Math.min(transaction.doc.content.size, from + result.replacement.length);
+  console.debug("[markra-ai-preview] apply start", {
+    docSize,
+    from,
+    hasParseMarkdown: typeof options.parseMarkdown === "function",
+    replacementLength: result.replacement.length,
+    to,
+    treatAsBlockMarkdown: shouldTreatReplacementAsBlockMarkdown(result.replacement),
+    type: result.type
+  });
 
-  transaction.setSelection(TextSelection.create(transaction.doc, cursor)).scrollIntoView();
+  const appliedResult = shouldTreatReplacementAsBlockMarkdown(result.replacement) && options.parseMarkdown
+    ? applyParsedMarkdownReplacement(view, result, from, to, options.parseMarkdown)
+    : applyPlainTextReplacement(view, result, from, to);
+  const { cursor, transaction } = appliedResult;
+
+  transaction
+    .setMeta(aiEditorPreviewKey, {
+      kind: "apply",
+      result
+    } satisfies AiEditorPreviewMeta)
+    .setSelection(TextSelection.near(transaction.doc.resolve(cursor), -1))
+    .scrollIntoView();
   view.dispatch(transaction);
   view.focus();
+
+  console.debug("[markra-ai-preview] apply success", {
+    cursor,
+    nextDocSize: transaction.doc.content.size
+  });
 
   return true;
 }
@@ -242,11 +288,12 @@ function buildAiPreviewDecorations(
   const from = clampNumber(result.from, 0, docSize);
   const to = clampNumber(result.to, 0, docSize);
   if (from === null || to === null) return DecorationSet.empty;
-  const appendPosition = findInlineAppendPosition(doc, from, to);
+  const appendPosition = findPreviewAppendPosition(doc, result, from, to);
 
   const decorations = [
     Decoration.widget(appendPosition, () => createPreviewWidget(result, labels), {
       key: `markra-ai-preview-insert-${from}-${to}-${previewKeySegment(result.replacement)}`,
+      stopEvent: (event) => event.target instanceof Node && isPreviewWidgetEventTarget(event.target),
       side: -1
     })
   ];
@@ -281,7 +328,9 @@ const defaultLabels: AiEditorPreviewLabels = {
 
 function createPreviewWidget(result: AiTextDiffResult, labels: AiEditorPreviewLabels) {
   const preview = document.createElement("span");
-  preview.className = "markra-ai-preview-widget";
+  preview.className = shouldTreatReplacementAsBlockMarkdown(result.replacement)
+    ? "markra-ai-preview-widget markra-ai-preview-widget-block"
+    : "markra-ai-preview-widget";
   preview.contentEditable = "false";
 
   const inserted = document.createElement("span");
@@ -310,14 +359,20 @@ function createActionButton(
 ) {
   const button = document.createElement("button");
   let copyFeedbackTimer: number | null = null;
+  let pointerHandled = false;
   button.className = `markra-ai-preview-action markra-ai-preview-${action}`;
   button.type = "button";
   button.setAttribute("aria-label", label);
   button.title = label;
   button.append(createActionIcon(action));
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const triggerAction = () => {
+    console.debug("[markra-ai-preview] dispatch action", {
+      action,
+      from: result.from,
+      replacementLength: result.replacement.length,
+      to: result.to,
+      type: result.type
+    });
     window.dispatchEvent(
       new CustomEvent<AiEditorPreviewActionDetail>(AI_EDITOR_PREVIEW_ACTION_EVENT, {
         detail: { action, result }
@@ -332,6 +387,23 @@ function createActionButton(
         }, 1200);
       });
     }
+  };
+
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    pointerHandled = true;
+    triggerAction();
+  });
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (pointerHandled) {
+      pointerHandled = false;
+      return;
+    }
+
+    triggerAction();
   });
 
   return button;
@@ -386,8 +458,92 @@ function createActionIcon(action: AiEditorPreviewAction) {
   return icon;
 }
 
+function isPreviewWidgetEventTarget(target: Node) {
+  if (!(target instanceof Element)) return false;
+
+  return target.closest(".markra-ai-preview-widget") !== null;
+}
+
 function isTextDiffResult(result: AiDiffResult): result is AiTextDiffResult {
   return result.type === "insert" || result.type === "replace";
+}
+
+function applyParsedMarkdownReplacement(
+  view: EditorView,
+  result: AiTextDiffResult,
+  from: number,
+  to: number,
+  parseMarkdown: (markdown: string) => ProseNode
+) {
+  const parsedDocument = parseMarkdown(result.replacement);
+  const range = result.type === "replace"
+    ? findBlockReplacementRange(view.state.doc, from, to)
+    : findBlockInsertRange(view.state.doc, from);
+  const slice = new Slice(parsedDocument.content, 0, 0);
+  const transaction = view.state.tr.replace(range.from, range.to, slice);
+  const cursor = Math.min(transaction.doc.content.size, range.from + slice.content.size);
+
+  return {
+    cursor,
+    transaction
+  };
+}
+
+function applyPlainTextReplacement(
+  view: EditorView,
+  result: AiTextDiffResult,
+  from: number,
+  to: number
+): AppliedTransactionResult {
+  const transaction = view.state.tr.insertText(result.replacement, from, to);
+  const cursor = Math.min(transaction.doc.content.size, from + result.replacement.length);
+
+  return {
+    cursor,
+    transaction
+  };
+}
+
+function shouldTreatReplacementAsBlockMarkdown(markdown: string) {
+  const trimmed = markdown.trimStart();
+
+  return markdown.includes("\n") || /^(#{1,6}\s|>\s?|[-*+]\s+|\d+\.\s+|```|~~~|\|)/.test(trimmed);
+}
+
+function findPreviewAppendPosition(doc: ProseNode, result: AiTextDiffResult, from: number, to: number) {
+  if (!shouldTreatReplacementAsBlockMarkdown(result.replacement)) return findInlineAppendPosition(doc, from, to);
+
+  return findBlockInsertRange(doc, to).from;
+}
+
+function findBlockReplacementRange(doc: ProseNode, from: number, to: number) {
+  const start = Math.min(from, to);
+  const end = Math.max(from, to);
+  const $from = doc.resolve(start);
+  const $to = doc.resolve(end);
+
+  if ($from.depth > 0 && $from.sameParent($to) && $from.parent.isTextblock) {
+    return {
+      from: $from.before($from.depth),
+      to: $from.after($from.depth)
+    };
+  }
+
+  return { from: start, to: end };
+}
+
+function findBlockInsertRange(doc: ProseNode, position: number) {
+  const resolvedPosition = doc.resolve(position);
+
+  for (let depth = resolvedPosition.depth; depth > 0; depth -= 1) {
+    if (resolvedPosition.node(depth).isTextblock) {
+      const blockEnd = resolvedPosition.after(depth);
+
+      return { from: blockEnd, to: blockEnd };
+    }
+  }
+
+  return { from: position, to: position };
 }
 
 function isUndoShortcut(event: KeyboardEvent) {

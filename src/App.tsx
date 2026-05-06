@@ -10,6 +10,7 @@ import { SettingsWindow } from "./components/SettingsWindow";
 import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useAiCommandUi } from "./hooks/useAiCommandUi";
+import { useAiAgentSession } from "./hooks/useAiAgentSession";
 import { useAiSettings } from "./hooks/useAiSettings";
 import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
@@ -31,6 +32,10 @@ import {
   type AiEditorPreviewRestoreDetail
 } from "./lib/ai/editorPreview";
 
+const aiAgentPanelDefaultWidth = 384;
+const aiAgentPanelMinWidth = 320;
+const aiAgentPanelMaxWidth = 760;
+
 function isSettingsWindowRoute() {
   return new URLSearchParams(window.location.search).has("settings");
 }
@@ -45,6 +50,8 @@ export default function App() {
   const aiSettings = useAiSettings();
   const editorPreferences = useEditorPreferences();
   const [aiAgentOpen, setAiAgentOpen] = useState(false);
+  const [aiAgentPanelWidth, setAiAgentPanelWidth] = useState(aiAgentPanelDefaultWidth);
+  const [aiAgentPanelResizing, setAiAgentPanelResizing] = useState(false);
   const [aiResult, setAiResult] = useState<AiDiffResult | null>(null);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
   const aiResultRef = useRef<AiDiffResult | null>(null);
@@ -89,7 +96,7 @@ export default function App() {
     setAiResult(result);
   }, []);
   const getPendingAiResult = useCallback(() => aiResultRef.current, []);
-  const hasActiveAiSelection = Boolean(activeAiSelection?.text.trim());
+  const hasActiveAiSelection = activeAiSelection?.source === "selection" && Boolean(activeAiSelection.text.trim());
   const selectedInlineAiModel =
     aiSettings.availableTextModels.find(
       (model) => model.providerId === aiSettings.inlineProvider?.id && model.id === aiSettings.inlineModelId
@@ -100,8 +107,11 @@ export default function App() {
     ) ?? aiSettings.availableTextModels[0];
   const aiAgentProviderName = selectedAiAgentModel?.providerName ?? aiSettings.agentProvider?.name ?? null;
   const aiAgentModelName = selectedAiAgentModel?.name ?? aiSettings.agentModelId ?? null;
-  const editorAgentLayoutClassName = `editor-agent-layout grid min-h-0 transition-[grid-template-columns] duration-220 ease-out motion-reduce:transition-none ${
-    aiAgentOpen ? "grid-cols-[minmax(0,1fr)_24rem]" : "grid-cols-[minmax(0,1fr)_0rem]"
+  const aiAgentInset = aiAgentOpen ? `${aiAgentPanelWidth}px` : "0px";
+  const editorAgentLayoutClassName = `editor-agent-layout grid min-h-0 ${
+    aiAgentPanelResizing
+      ? "transition-none"
+      : "transition-[grid-template-columns] duration-220 ease-out motion-reduce:transition-none"
   }`;
   const handleAiResult = useCallback(
     (result: AiDiffResult) => {
@@ -129,6 +139,19 @@ export default function App() {
     translationTargetLanguage: aiTranslationLanguageName(appLanguage.ready ? appLanguage.language : "en"),
     workspaceFiles: fileTreeFiles
   });
+  const aiAgent = useAiAgentSession({
+    documentPath: document.path,
+    getDocumentContent: getAiDocumentContent,
+    getDocumentEndPosition: editor.getDocumentEndPosition,
+    getHeadingAnchors: editor.getHeadingAnchors,
+    getSelection: getActiveAiSelection,
+    model: aiSettings.agentModelId,
+    onAiResult: handleAiResult,
+    provider: aiSettings.agentProvider,
+    settingsLoading: aiSettings.loading,
+    translate,
+    workspaceFiles: fileTreeFiles
+  });
   const restoreAiCommand = aiCommand.restoreAiCommand;
   const handleAiCommandClose = useCallback(() => {
     aiCommand.closeAiCommand();
@@ -143,6 +166,12 @@ export default function App() {
       return;
     }
 
+    if (selection.source !== "selection") {
+      editor.clearAiSelection();
+      if (!aiResultRef.current) aiCommand.closeAiCommand();
+      return;
+    }
+
     editor.holdAiSelection(selection);
 
     if (!editorPreferences.preferences.autoOpenAiOnSelection || aiCommand.open || aiCommand.submitting) return;
@@ -152,8 +181,25 @@ export default function App() {
   const saveDocumentAs = useCallback(() => saveCurrentDocument(true), [saveCurrentDocument]);
   const handleApplyAiResult = useCallback((restoredResult?: AiDiffResult | null) => {
     const result = restoredResult ?? aiResult;
-    if (!result) return;
-    if (editor.applyAiResult(result)) {
+    if (!result) {
+      console.warn("[markra-ai-preview] apply ignored: no pending result", {
+        aiResult,
+        restoredResult
+      });
+      return;
+    }
+
+    console.debug("[markra-ai-preview] app handle apply", {
+      from: result.type === "error" ? null : result.from,
+      replacementLength: result.type === "error" ? null : result.replacement.length,
+      to: result.type === "error" ? null : result.to,
+      type: result.type
+    });
+
+    const applied = editor.applyAiResult(result);
+    console.debug("[markra-ai-preview] app apply result", { applied });
+
+    if (applied) {
       editor.clearAiSelection();
       updateAiResult(null);
       handleAiCommandClose();
@@ -205,6 +251,7 @@ export default function App() {
     const handlePreviewAction = (event: Event) => {
       const detail = (event as CustomEvent<Partial<AiEditorPreviewActionDetail>>).detail;
       const action = detail?.action;
+      console.debug("[markra-ai-preview] app received action event", detail);
 
       if (action === "apply") {
         handleApplyAiResult(detail.result);
@@ -233,7 +280,7 @@ export default function App() {
       if (!result || (result.type !== "insert" && result.type !== "replace")) return;
 
       updateAiResult(result);
-      restoreAiCommand();
+      restoreAiCommand({ reopen: false });
     };
 
     window.addEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, handlePreviewRestore);
@@ -248,6 +295,8 @@ export default function App() {
       <main className="app-shell group/app relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden overscroll-none bg-(--bg-primary) text-(--text-primary)">
         <NativeTitleBar
           aiAgentOpen={aiAgentOpen}
+          aiAgentResizing={aiAgentPanelResizing}
+          aiAgentWidth={aiAgentPanelWidth}
           dirty={document.dirty}
           documentName={document.name}
           language={appLanguage.language}
@@ -277,7 +326,10 @@ export default function App() {
             />
           </div>
 
-          <div className={editorAgentLayoutClassName}>
+          <div
+            className={editorAgentLayoutClassName}
+            style={{ gridTemplateColumns: `minmax(0,1fr) ${aiAgentInset}` }}
+          >
             <div className="editor-content-slot relative h-full min-h-0 overflow-hidden">
               <MarkdownPaper
                 autoFocus={shouldFocusEditorOnReady(document.content)}
@@ -293,14 +345,30 @@ export default function App() {
             <div className="ai-agent-panel-slot relative z-20 min-h-0 overflow-hidden">
               <AiAgentPanel
                 availableModels={aiSettings.availableTextModels}
+                draft={aiAgent.draft}
                 language={appLanguage.language}
+                messages={aiAgent.messages}
                 modelName={aiAgentModelName}
                 open={aiAgentOpen}
                 providerName={aiAgentProviderName}
                 selectedModelId={aiSettings.agentModelId}
                 selectedProviderId={aiSettings.agentProviderId}
+                status={aiAgent.status}
+                thinkingEnabled={aiAgent.thinkingEnabled}
+                webSearchEnabled={aiAgent.webSearchEnabled}
+                maxWidth={aiAgentPanelMaxWidth}
+                minWidth={aiAgentPanelMinWidth}
+                width={aiAgentPanelWidth}
                 onClose={() => setAiAgentOpen(false)}
+                onDraftChange={aiAgent.setDraft}
+                onInterrupt={aiAgent.interrupt}
+                onResize={setAiAgentPanelWidth}
+                onResizeEnd={() => setAiAgentPanelResizing(false)}
+                onResizeStart={() => setAiAgentPanelResizing(true)}
                 onSelectModel={aiSettings.selectAgentModel}
+                onSubmit={aiAgent.submit}
+                onToggleThinking={() => aiAgent.setThinkingEnabled((enabled) => !enabled)}
+                onToggleWebSearch={() => aiAgent.setWebSearchEnabled((enabled) => !enabled)}
               />
             </div>
           </div>
@@ -310,7 +378,7 @@ export default function App() {
           aiResult={aiResult}
           availableModels={aiSettings.availableTextModels}
           editorLeftInset={fileTreeOpen ? "18rem" : "0px"}
-          editorRightInset={aiAgentOpen ? "24rem" : "0px"}
+          editorRightInset={aiAgentInset}
           language={appLanguage.language}
           open={aiCommand.open && (hasActiveAiSelection || Boolean(aiResult))}
           prompt={aiCommand.prompt}

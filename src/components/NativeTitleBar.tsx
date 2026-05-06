@@ -4,6 +4,8 @@ import { t, type AppLanguage } from "../lib/i18n";
 
 type NativeTitleBarProps = {
   aiAgentOpen: boolean;
+  aiAgentResizing?: boolean;
+  aiAgentWidth?: number;
   dirty: boolean;
   documentName: string;
   language?: AppLanguage;
@@ -18,6 +20,8 @@ type NativeTitleBarProps = {
 
 export function NativeTitleBar({
   aiAgentOpen,
+  aiAgentResizing = false,
+  aiAgentWidth = 384,
   dirty,
   documentName,
   language = "en",
@@ -62,9 +66,13 @@ export function NativeTitleBar({
         ) : null}
       </h1>
       <div
-        className="document-actions flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none"
+        className={`document-actions flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
+          aiAgentResizing
+            ? "transition-none"
+            : "transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        }`}
         aria-label={label("app.fileActions")}
-        style={{ transform: aiAgentOpen ? "translateX(-24rem)" : undefined }}
+        style={{ transform: aiAgentOpen ? `translateX(-${aiAgentWidth}px)` : undefined }}
       >
         <button
           className={`inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 p-0 transition-[background-color,color,opacity] duration-150 ease-out focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none ${

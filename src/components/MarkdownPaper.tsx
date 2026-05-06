@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { defaultValueCtx, Editor, editorViewOptionsCtx, rootCtx } from "@milkdown/kit/core";
+import { defaultValueCtx, Editor, editorViewOptionsCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
 import { history } from "@milkdown/kit/plugin/history";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import {
@@ -27,6 +27,7 @@ import { markraAiEditorPreviewPlugin } from "../lib/ai/editorPreview";
 import { markraAiSelectionHoldPlugin } from "../lib/ai/selectionHold";
 import type { AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import { t, type AppLanguage } from "../lib/i18n";
+import { readAiSelectionContextFromView } from "../hooks/useEditorController";
 
 const markraCommonmark = [
   commonmarkSchema,
@@ -80,11 +81,20 @@ function markraTextSelectionObserverPlugin(
             if (selection.empty) {
               if (!view.hasFocus()) return;
 
+              const blockContext = readAiSelectionContextFromView(view);
+              if (blockContext.text.trim()) {
+                const signature = `${blockContext.source ?? "block"}:${blockContext.from}:${blockContext.to}:${blockContext.text}`;
+                if (signature === lastSignature) return;
+
+                lastSignature = signature;
+                onTextSelectionChange(blockContext);
+                return;
+              }
+
               if (lastSignature) {
                 lastSignature = "";
                 onTextSelectionChange(null);
               }
-
               return;
             }
 
@@ -168,8 +178,12 @@ function MilkdownSurface({
               spellcheck: "true"
             }
           }));
-          ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
-            onMarkdownChange(markdown);
+          ctx.get(listenerCtx).updated((editorCtx, doc) => {
+            try {
+              onMarkdownChange(editorCtx.get(serializerCtx)(doc));
+            } catch {
+              // Milkdown can flush a delayed update after teardown in tests or fast window closes.
+            }
           });
         })
         .use(listener)
