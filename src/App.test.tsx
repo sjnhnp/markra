@@ -369,7 +369,7 @@ describe("Markra workspace", () => {
     const agentPanel = screen.getByRole("complementary", { name: "AI Agent" });
     expect(agentPanel).toBeInTheDocument();
     expect(within(agentPanel).getAllByText("OpenAI · GPT-5.5")[0]).toBeInTheDocument();
-    expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveValue("openai::gpt-5.5");
+    expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveTextContent("OpenAI · GPT-5.5");
     expect(container.querySelector(".editor-agent-layout")).toHaveClass("grid-cols-[minmax(0,1fr)_24rem]");
 
     fireEvent.click(screen.getByRole("button", { name: "Close AI Agent" }));

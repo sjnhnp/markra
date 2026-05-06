@@ -27,7 +27,7 @@ describe("AiCommandBar", () => {
     expect(screen.queryByText("AI suggestion ready")).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "AI command" }).closest(".ai-command-panel")).not.toBeInTheDocument();
     expect(commandBox).toHaveClass("min-h-21", "rounded-lg", "border", "border-(--accent)");
-    expect(commandBox).toHaveClass("shadow-[var(--ai-command-expanded-shadow)]");
+    expect(commandBox).toHaveClass("shadow-(--ai-command-expanded-shadow)");
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
     expect(screen.queryByText("Original")).not.toBeInTheDocument();
     expect(screen.queryByText("Improved")).not.toBeInTheDocument();
