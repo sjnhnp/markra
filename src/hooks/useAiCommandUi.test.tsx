@@ -105,10 +105,16 @@ describe("useAiCommandUi", () => {
     expect(mockedRunInlineAiAgent).toHaveBeenCalledWith(expect.objectContaining({
       documentContent: "# Draft\n\nOriginal draft",
       documentPath: "/vault/README.md",
+      intent: "custom",
       model: "gpt-5.5",
       prompt: "make it clearer",
       provider: expect.objectContaining({ id: "openai" }),
-      target: expect.objectContaining({ original: "Original draft", promptText: "Original draft", type: "replace" })
+      target: expect.objectContaining({
+        original: "Original draft",
+        promptText: "Original draft",
+        scope: "selection",
+        type: "replace"
+      })
     }));
     expect(onAiResult).toHaveBeenCalledWith({
       from: 9,
@@ -141,6 +147,106 @@ describe("useAiCommandUi", () => {
       prompt: "Polish"
     }));
     expect(onAiResult).toHaveBeenCalledWith(expect.objectContaining({ replacement: "Better draft" }));
+  });
+
+  it("uses the current Markdown block as the replacement target when no text is selected", async () => {
+    const onAiResult = vi.fn();
+    mockedRunInlineAiAgent.mockResolvedValue({ content: "Better paragraph.", finishReason: "stop" });
+    const { result } = renderHook(() =>
+      useAiCommandUi({
+        getDocumentContent: () => "# Draft\n\nOriginal paragraph.\n\nOther paragraph.",
+        getSelection: () => ({ from: 9, source: "block", text: "Original paragraph.", to: 28 }),
+        model: "gpt-5.5",
+        onAiResult,
+        provider: provider(),
+        settingsLoading: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.submitPrompt("make it clearer");
+    });
+
+    expect(mockedRunInlineAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      target: expect.objectContaining({
+        from: 9,
+        original: "Original paragraph.",
+        promptText: "Original paragraph.",
+        scope: "block",
+        to: 28,
+        type: "replace"
+      })
+    }));
+    expect(onAiResult).toHaveBeenCalledWith({
+      from: 9,
+      original: "Original paragraph.",
+      replacement: "Better paragraph.",
+      to: 28,
+      type: "replace"
+    });
+  });
+
+  it("turns the continue action into an insert after the target instead of replacing it", async () => {
+    const onAiResult = vi.fn();
+    mockedRunInlineAiAgent.mockResolvedValue({ content: "\n\nNext paragraph.", finishReason: "stop" });
+    const { result } = renderHook(() =>
+      useAiCommandUi({
+        getDocumentContent: () => "# Draft\n\nOpening paragraph.",
+        getSelection: () => ({ from: 9, source: "selection", text: "Opening paragraph.", to: 27 }),
+        model: "gpt-5.5",
+        onAiResult,
+        provider: provider(),
+        settingsLoading: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.submitPrompt("Continue writing", "continue");
+    });
+
+    expect(mockedRunInlineAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      intent: "continue",
+      target: expect.objectContaining({
+        from: 27,
+        original: "",
+        promptText: "Opening paragraph.",
+        scope: "selection",
+        to: 27,
+        type: "insert"
+      })
+    }));
+    expect(onAiResult).toHaveBeenCalledWith({
+      from: 27,
+      original: "",
+      replacement: "\n\nNext paragraph.",
+      to: 27,
+      type: "insert"
+    });
+  });
+
+  it("passes the configured app language as the AI translation target", async () => {
+    const onAiResult = vi.fn();
+    mockedRunInlineAiAgent.mockResolvedValue({ content: "你好", finishReason: "stop" });
+    const { result } = renderHook(() =>
+      useAiCommandUi({
+        getDocumentContent: () => "# Draft\n\nHello",
+        getSelection: () => ({ from: 9, source: "selection", text: "Hello", to: 14 }),
+        model: "gpt-5.5",
+        onAiResult,
+        provider: provider(),
+        settingsLoading: false,
+        translationTargetLanguage: "Simplified Chinese"
+      })
+    );
+
+    await act(async () => {
+      await result.current.submitPrompt("Translate", "translate");
+    });
+
+    expect(mockedRunInlineAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      intent: "translate",
+      translationTargetLanguage: "Simplified Chinese"
+    }));
   });
 
   it("keeps the command session open and clears the prompt after a suggestion is ready", async () => {

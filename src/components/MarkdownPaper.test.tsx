@@ -352,6 +352,7 @@ describe("MarkdownPaper editing", () => {
 
     expect(onTextSelectionChange).toHaveBeenCalledWith({
       from,
+      source: "selection",
       text: "Second sentence.",
       to
     });
@@ -396,6 +397,7 @@ describe("MarkdownPaper editing", () => {
 
     expect(readAiSelectionContextFromView(view)).toEqual({
       from,
+      source: "block",
       text: "First paragraph.",
       to
     });

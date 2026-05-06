@@ -3,7 +3,7 @@ import type { AgentEvent } from "@mariozechner/pi-agent-core";
 import { runInlineAiAgent } from "../lib/ai/agent/agentRuntime";
 import type { AgentWorkspaceFile } from "../lib/ai/agent/agentTools";
 import { getProviderCapabilities } from "../lib/ai/agent/providerCapabilities";
-import type { AiDiffResult, AiSelectionContext } from "../lib/ai/agent/inlineAi";
+import type { AiDiffResult, AiEditIntent, AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import type { AiProviderConfig } from "../lib/ai/providers/aiProviders";
 import type { I18nKey } from "../lib/i18n";
 
@@ -20,6 +20,7 @@ type AiCommandContext = {
   provider: AiProviderConfig | null;
   settingsLoading: boolean;
   translate?: (key: I18nKey) => string;
+  translationTargetLanguage?: string;
   workspaceFiles?: AgentWorkspaceFile[];
 };
 
@@ -63,7 +64,7 @@ export function useAiCommandUi(ctx: AiCommandContext) {
     });
   }, []);
 
-  const submitPrompt = useCallback(async (promptOverride?: string) => {
+  const submitPrompt = useCallback(async (promptOverride?: string, intent: AiEditIntent = "custom") => {
     const trimmedPrompt = (promptOverride ?? prompt).trim();
     if (!trimmedPrompt || submitting) return;
     const message = (key: I18nKey) => ctx.translate?.(key) ?? key;
@@ -89,7 +90,7 @@ export function useAiCommandUi(ctx: AiCommandContext) {
 
     const documentContent = ctx.getDocumentContent();
     const selection = ctx.getSelection();
-    const target = getAiCommandTarget(selection, ctx.getPendingResult?.());
+    const target = getAiCommandTarget(selection, ctx.getPendingResult?.(), intent);
     if (!target) {
       setStatus("idle");
       return;
@@ -102,10 +103,12 @@ export function useAiCommandUi(ctx: AiCommandContext) {
       const response = await runInlineAiAgent({
         documentContent,
         documentPath: ctx.documentPath ?? null,
+        intent,
         model: ctx.model,
         prompt: trimmedPrompt,
         provider: ctx.provider,
         target,
+        translationTargetLanguage: ctx.translationTargetLanguage ?? "English",
         onEvent: (event) => {
           if (requestIdRef.current !== requestId) return;
           setStatus(agentStatusFromEvent(event));
@@ -181,12 +184,29 @@ function hasSelectedText(selection: AiSelectionContext | null | undefined): sele
   return Boolean(selection?.text.trim());
 }
 
-function getAiCommandTarget(selection: AiSelectionContext | null, pendingResult: AiDiffResult | null | undefined) {
+function getAiCommandTarget(
+  selection: AiSelectionContext | null,
+  pendingResult: AiDiffResult | null | undefined,
+  intent: AiEditIntent
+) {
   if (hasSelectedText(selection)) {
+    const scope = selection.source ?? "selection";
+    if (intent === "continue") {
+      return {
+        from: selection.to,
+        original: "",
+        promptText: selection.text,
+        scope,
+        to: selection.to,
+        type: "insert" as const
+      };
+    }
+
     return {
       from: selection.from,
       original: selection.text,
       promptText: selection.text,
+      scope,
       to: selection.to,
       type: "replace" as const
     };
@@ -199,6 +219,7 @@ function getAiCommandTarget(selection: AiSelectionContext | null, pendingResult:
     from: pendingResult.from,
     original: pendingResult.original,
     promptText: pendingResult.replacement,
+    scope: "suggestion" as const,
     suggestionContext: {
       original: pendingResult.original,
       replacement: pendingResult.replacement

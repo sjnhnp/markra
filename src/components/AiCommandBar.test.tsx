@@ -185,12 +185,57 @@ describe("AiCommandBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Polish" }));
 
     expect(onPromptChange).toHaveBeenCalledWith("Polish");
-    expect(onSubmit).toHaveBeenCalledWith("Polish");
+    expect(onSubmit).toHaveBeenCalledWith("Polish", "polish");
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: "custom request" } });
 
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
+  });
+
+  it("keeps quick action generation in the compact input style", async () => {
+    const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    const { rerender } = render(
+      <AiCommandBar
+        language="zh-CN"
+        open
+        prompt=""
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("textbox", { name: "AI 命令" }));
+    fireEvent.click(await screen.findByRole("button", { name: "润色" }));
+
+    rerender(
+      <AiCommandBar
+        language="zh-CN"
+        open
+        prompt="润色"
+        submitting
+        onClose={vi.fn()}
+        onInterrupt={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    const status = screen.getByRole("status");
+    const commandBox = status.closest(".ai-command-box");
+
+    expect(onPromptChange).toHaveBeenCalledWith("润色");
+    expect(onSubmit).toHaveBeenCalledWith("润色", "polish");
+    expect(status).toHaveTextContent("润色中……");
+    expect(screen.getByText("润色中……")).toHaveClass("ai-command-inline-loading-text");
+    expect(commandBox).toHaveClass("h-14", "rounded-xl", "border-(--border-default)");
+    expect(commandBox).not.toHaveClass("min-h-21", "border-(--accent)");
+    expect(screen.queryByRole("combobox", { name: "AI 模型" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "中断 AI 命令" })).toBeInTheDocument();
   });
 
   it("keeps the compact command input vertically centered", () => {

@@ -115,13 +115,26 @@ describe("AI chat adapters", () => {
   });
 
   it("builds inline AI messages from selection and document context", () => {
-    expect(buildInlineAiMessages("make it concise", "Selected text", "# Title\n\nSelected text")).toEqual([
+    expect(
+      buildInlineAiMessages({
+        documentContent: "# Title\n\nSelected text",
+        prompt: "make it concise",
+        targetText: "Selected text"
+      })
+    ).toEqual([
       expect.objectContaining({ role: "system" }),
       {
-        content: expect.stringContaining("Instruction:\nmake it concise"),
+        content: expect.stringContaining("User instruction:\nmake it concise"),
         role: "user"
       }
     ]);
-    expect(buildInlineAiMessages("continue", "", "# Title")[1]?.content).toContain("No text is selected");
+    expect(
+      buildInlineAiMessages({
+        documentContent: "# Title",
+        prompt: "continue",
+        targetScope: "block",
+        targetText: "# Title"
+      })[1]?.content
+    ).toContain("Current Markdown block");
   });
 });

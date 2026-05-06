@@ -246,42 +246,4 @@ function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult 
   };
 }
 
-type InlineAiSuggestionContext = {
-  original: string;
-  replacement: string;
-};
-
-export function buildInlineAiMessages(
-  prompt: string,
-  selectedText: string,
-  documentContent: string,
-  suggestionContext?: InlineAiSuggestionContext
-): ChatMessage[] {
-  const trimmedSelection = selectedText.trim();
-  const currentSuggestion = suggestionContext
-    ? [
-        "Current AI suggestion awaiting confirmation:",
-        `Original text:\n${suggestionContext.original}`,
-        `Suggested replacement:\n${suggestionContext.replacement}`
-      ].join("\n\n")
-    : null;
-
-  return [
-    {
-      content:
-        "You are Markra's inline writing assistant. Return only the Markdown text that should be inserted or used as the replacement. Do not wrap the answer in code fences. Do not explain the change.",
-      role: "system"
-    },
-    {
-      content: [
-        `Instruction:\n${prompt.trim()}`,
-        trimmedSelection ? `Selected text:\n${selectedText}` : "No text is selected. Generate text that fits at the current cursor.",
-        currentSuggestion,
-        `Current document:\n${documentContent}`
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-      role: "user"
-    }
-  ];
-}
+export { buildInlineAiMessages } from "./inlinePrompt";

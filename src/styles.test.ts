@@ -28,4 +28,12 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .markra-ai-preview-widget:hover .markra-ai-preview-actions-quiet");
     expect(styles).toContain(".markdown-paper .markra-ai-preview-widget:focus-within .markra-ai-preview-actions-quiet");
   });
+
+  it("includes the inline AI loading shimmer used by compact quick actions", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain("@keyframes markra-ai-inline-shimmer");
+    expect(styles).toContain(".ai-command-inline-loading-text");
+    expect(styles).toContain(".ai-command-inline-loading-text::after");
+  });
 });

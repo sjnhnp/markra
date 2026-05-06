@@ -30,6 +30,20 @@ export const supportedLanguages: Array<{
   { code: "ru", label: "Русский" }
 ];
 
+const aiTranslationLanguageNames: Record<AppLanguage, string> = {
+  de: "German",
+  en: "English",
+  es: "Spanish",
+  fr: "French",
+  it: "Italian",
+  ja: "Japanese",
+  ko: "Korean",
+  "pt-BR": "Brazilian Portuguese",
+  ru: "Russian",
+  "zh-CN": "Simplified Chinese",
+  "zh-TW": "Traditional Chinese"
+};
+
 const dictionaries: Record<AppLanguage, LocaleMessages> = {
   en: enMessages,
   "zh-CN": zhCnMessages,
@@ -46,6 +60,12 @@ const dictionaries: Record<AppLanguage, LocaleMessages> = {
 
 export function isAppLanguage(value: unknown): value is AppLanguage {
   return supportedLanguages.some((language) => language.code === value);
+}
+
+export function aiTranslationLanguageName(language: AppLanguage | null | undefined) {
+  if (!language) return "English";
+
+  return aiTranslationLanguageNames[language] ?? "English";
 }
 
 export function t(language: AppLanguage, key: string) {

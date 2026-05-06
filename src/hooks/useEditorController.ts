@@ -49,6 +49,7 @@ export function readAiSelectionContextFromView(view: EditorView): AiSelectionCon
   if (!selection.empty) {
     return {
       from: selection.from,
+      source: "selection",
       text: doc.textBetween(selection.from, selection.to, "\n"),
       to: selection.to
     };
@@ -68,6 +69,7 @@ export function readAiSelectionContextFromView(view: EditorView): AiSelectionCon
 
   return {
     from,
+    source: "block",
     text: doc.textBetween(from, to, "\n"),
     to
   };

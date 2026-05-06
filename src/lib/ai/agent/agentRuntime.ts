@@ -11,8 +11,10 @@ import {
 } from "@mariozechner/pi-ai";
 import type { AiProviderConfig } from "../providers/aiProviders";
 import { chatCompletionStream, type ChatCompletionStreamOptions } from "./chatCompletion";
-import { buildInlineAiMessages, type ChatMessage, type ChatResponse } from "./chatAdapters";
+import type { ChatMessage, ChatResponse } from "./chatAdapters";
 import { runReadOnlyAgentTools, type AgentWorkspaceFile } from "./agentTools";
+import type { AiEditIntent, AiTargetScope } from "./inlineAi";
+import { buildInlineAiMessages, normalizeInlineAiReplacement } from "./inlinePrompt";
 
 type InlineAiSuggestionContext = {
   original: string;
@@ -23,6 +25,7 @@ export type InlineAiAgentTarget = {
   from?: number;
   original: string;
   promptText: string;
+  scope?: AiTargetScope;
   suggestionContext?: InlineAiSuggestionContext;
   to?: number;
   type: "insert" | "replace";
@@ -39,11 +42,13 @@ export type InlineAiAgentInput = {
   complete?: InlineAiAgentComplete;
   documentContent: string;
   documentPath: string | null;
+  intent?: AiEditIntent;
   model: string;
   onEvent?: (event: AgentEvent) => unknown;
   prompt: string;
   provider: AiProviderConfig;
   target: InlineAiAgentTarget;
+  translationTargetLanguage?: string;
   workspaceFiles?: AgentWorkspaceFile[];
 };
 
@@ -51,11 +56,13 @@ export async function runInlineAiAgent({
   complete = chatCompletionStream,
   documentContent,
   documentPath,
+  intent = "custom",
   model,
   onEvent,
   prompt,
   provider,
   target,
+  translationTargetLanguage,
   workspaceFiles = []
 }: InlineAiAgentInput) {
   const toolResults = await runReadOnlyAgentTools({
@@ -63,7 +70,16 @@ export async function runInlineAiAgent({
     documentPath,
     workspaceFiles
   });
-  const messages = buildInlineAiMessages(prompt, target.promptText, documentContent, target.suggestionContext);
+  const messages = buildInlineAiMessages({
+    documentContent,
+    intent,
+    prompt,
+    suggestionContext: target.suggestionContext,
+    targetScope: target.scope,
+    targetText: target.promptText,
+    targetType: target.type,
+    translationTargetLanguage
+  });
   const systemPrompt = messages.find((message) => message.role === "system")?.content ?? "";
   const userPrompt = [
     ...messages.filter((message) => message.role !== "system").map((message) => message.content),
@@ -90,7 +106,9 @@ export async function runInlineAiAgent({
   await agent.prompt(userPrompt);
 
   return {
-    content: finalContent,
+    content: normalizeInlineAiReplacement(finalContent, {
+      preserveLeadingWhitespace: target.type === "insert"
+    }),
     finishReason
   };
 }

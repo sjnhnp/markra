@@ -69,6 +69,26 @@
   }
 }
 
+@keyframes markra-ai-inline-shimmer {
+  0% {
+    opacity: 0;
+    transform: translateX(-80%) skewX(-10deg);
+  }
+
+  22% {
+    opacity: 0.28;
+  }
+
+  54% {
+    opacity: 0.62;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(420%) skewX(-10deg);
+  }
+}
+
 @layer base {
   :root {
     --bg-primary: #ffffff;
@@ -423,10 +443,41 @@
     animation: markra-ai-thinking-breathe 1.8s ease-in-out infinite;
   }
 
+  .ai-command-inline-loading-text {
+    @apply relative inline-block max-w-full overflow-hidden font-[520];
+    color: color-mix(in srgb, var(--text-secondary) 74%, transparent);
+  }
+
+  .ai-command-inline-loading-text::after {
+    content: "";
+    position: absolute;
+    top: -0.35em;
+    bottom: -0.35em;
+    left: -0.85em;
+    width: 1.35em;
+    border-radius: 999px;
+    background: radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--bg-primary) 96%, transparent) 0%,
+      color-mix(in srgb, var(--bg-primary) 68%, transparent) 46%,
+      transparent 72%
+    );
+    filter: blur(10px);
+    opacity: 0;
+    transform: translateX(-80%) skewX(-10deg);
+    animation: markra-ai-inline-shimmer 1.9s cubic-bezier(0.33, 0, 0.2, 1) infinite;
+    pointer-events: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .ai-command-thinking-text {
       animation: none;
       opacity: 0.68;
+    }
+
+    .ai-command-inline-loading-text::after {
+      animation: none;
+      opacity: 0;
     }
   }
 }

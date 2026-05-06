@@ -18,11 +18,12 @@ import {
   Square,
   type LucideIcon
 } from "lucide-react";
-import type { AiDiffResult } from "../lib/ai/agent/inlineAi";
+import type { AiDiffResult, AiEditIntent } from "../lib/ai/agent/inlineAi";
 import { t, type AppLanguage, type I18nKey } from "../lib/i18n";
 
 type AiCommandAction = {
   icon: LucideIcon;
+  intent: Exclude<AiEditIntent, "custom">;
   labelKey: I18nKey;
 };
 
@@ -41,25 +42,38 @@ const exitDurationMs = 200;
 const aiCommandActions: AiCommandAction[] = [
   {
     icon: Sparkles,
+    intent: "polish",
     labelKey: "app.aiPolish"
   },
   {
     icon: PenLine,
+    intent: "rewrite",
     labelKey: "app.aiRewrite"
   },
   {
     icon: Plus,
+    intent: "continue",
     labelKey: "app.aiContinueWriting"
   },
   {
     icon: FileText,
+    intent: "summarize",
     labelKey: "app.aiSummarize"
   },
   {
     icon: Languages,
+    intent: "translate",
     labelKey: "app.aiTranslate"
   }
 ];
+
+const aiCommandLoadingLabelKeys: Record<Exclude<AiEditIntent, "custom">, I18nKey> = {
+  continue: "app.aiContinuingWriting",
+  polish: "app.aiPolishing",
+  rewrite: "app.aiRewriting",
+  summarize: "app.aiSummarizing",
+  translate: "app.aiTranslating"
+};
 
 type AiCommandBarProps = {
   aiResult?: AiDiffResult | null;
@@ -75,7 +89,7 @@ type AiCommandBarProps = {
   onInterrupt?: () => unknown;
   onPromptChange: (prompt: string) => unknown;
   onSelectModel?: (providerId: string, modelId: string) => unknown;
-  onSubmit: (promptOverride?: string) => unknown;
+  onSubmit: (promptOverride?: string, intent?: AiEditIntent) => unknown;
 };
 
 export function AiCommandBar({
@@ -103,9 +117,11 @@ export function AiCommandBar({
   const [commandState, setCommandState] = useState<AiCommandState>("compact");
   const [closingFromExpanded, setClosingFromExpanded] = useState(false);
   const [entered, setEntered] = useState(false);
+  const [activeQuickActionIntent, setActiveQuickActionIntent] = useState<Exclude<AiEditIntent, "custom"> | null>(null);
   const [playCompactOpenAnimation, setPlayCompactOpenAnimation] = useState(open);
   const [quickActionsVisible, setQuickActionsVisible] = useState(false);
   const [rendered, setRendered] = useState(open);
+  const previousSubmittingRef = useRef(submitting);
   const label = (key: I18nKey) => t(language, key);
   const canSubmit = prompt.trim().length > 0 && !submitting;
   const closing = commandState === "closing";
@@ -144,6 +160,7 @@ export function AiCommandBar({
       clearCollapseTimer();
       clearExitTimer();
       setRendered(true);
+      setActiveQuickActionIntent(null);
       setClosingFromExpanded(false);
       setPlayCompactOpenAnimation(true);
       setQuickActionsVisible(false);
@@ -175,6 +192,11 @@ export function AiCommandBar({
       exitTimerRef.current = null;
     }, exitDurationMs);
   }, [clearCollapseTimer, clearExitTimer, open, setCommandStateValue]);
+
+  useEffect(() => {
+    if (previousSubmittingRef.current && !submitting) setActiveQuickActionIntent(null);
+    previousSubmittingRef.current = submitting;
+  }, [submitting]);
 
   useEffect(() => {
     return () => {
@@ -257,12 +279,16 @@ export function AiCommandBar({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
+    setActiveQuickActionIntent(null);
     onSubmit();
   };
 
   const handlePromptChange = (nextPrompt: string) => {
     if (submitting) return;
-    if (nextPrompt.trim().length > 0) setQuickActionsVisible(false);
+    if (nextPrompt.trim().length > 0) {
+      setActiveQuickActionIntent(null);
+      setQuickActionsVisible(false);
+    }
     onPromptChange(nextPrompt);
   };
 
@@ -291,6 +317,7 @@ export function AiCommandBar({
     }
 
     if (!canSubmit) return;
+    setActiveQuickActionIntent(null);
     onSubmit();
   };
 
@@ -298,15 +325,19 @@ export function AiCommandBar({
     if (submitting) return;
 
     const quickPrompt = label(action.labelKey);
+    setActiveQuickActionIntent(action.intent);
     setQuickActionsVisible(false);
     onPromptChange(quickPrompt);
-    onSubmit(quickPrompt);
+    onSubmit(quickPrompt, action.intent);
   };
 
-  const activeExpandedSurface = showingExpandedSurface || submitting;
-  const unifiedExpandedSurface = activeExpandedSurface || Boolean(aiResult);
+  const quickActionSubmitting = submitting && activeQuickActionIntent !== null;
+  const activeExpandedSurface = showingExpandedSurface || (submitting && !quickActionSubmitting);
+  const unifiedExpandedSurface = quickActionSubmitting ? false : activeExpandedSurface || Boolean(aiResult);
   const showQuickActions = showingExpandedSurface && !aiResult && quickActionsVisible && !submitting;
   const showExpandedInput = unifiedExpandedSurface;
+  const showCompactLoading = quickActionSubmitting && !showExpandedInput;
+  const commandWidthClassName = showExpandedInput ? "max-w-205" : "max-w-176";
   const commandLayerStyle: CSSProperties = {
     left: editorLeftInset,
     right: 0
@@ -325,6 +356,9 @@ export function AiCommandBar({
   const modelSelectValue = hasSelectedModel ? selectedModelValue : "";
   const showModelSelector = showExpandedInput && availableModels.length > 1 && Boolean(onSelectModel);
   const showAgentStatus = showExpandedInput && submitting;
+  const compactLoadingText = activeQuickActionIntent
+    ? label(aiCommandLoadingLabelKeys[activeQuickActionIntent])
+    : label("app.aiAgentThinking");
   const handleModelChange = (value: string) => {
     if (!onSelectModel) return;
 
@@ -364,6 +398,11 @@ export function AiCommandBar({
       <span className="ai-command-thinking-text truncate">{label("app.aiAgentThinking")}</span>
     </div>
   );
+  const renderCompactLoadingStatus = () => (
+    <div className="flex h-10 min-w-0 flex-1 items-center overflow-hidden text-[16px] leading-10" role="status" aria-live="polite">
+      <span className="ai-command-inline-loading-text truncate">{compactLoadingText}</span>
+    </div>
+  );
   const commandForm = (
     <form
       className={
@@ -379,25 +418,29 @@ export function AiCommandBar({
           {label("app.aiCommandInput")}
         </label>
         {!showExpandedInput ? <Sparkles aria-hidden="true" className="shrink-0 self-center text-(--text-secondary)" size={18} /> : null}
-        <textarea
-          id="markra-ai-command-input"
-          ref={inputRef}
-          className={
-            showExpandedInput
-              ? "min-h-10 flex-1 resize-none border-0 bg-transparent p-0 text-[16px] leading-6 text-(--text-primary) outline-none placeholder:text-(--text-secondary)"
-              : "h-10 min-h-0 flex-1 resize-none overflow-hidden border-0 bg-transparent p-0 text-[16px] leading-10 text-(--text-primary) outline-none placeholder:text-(--text-secondary)"
-          }
-          value={prompt}
-          placeholder={inputPlaceholder}
-          readOnly={submitting}
-          aria-busy={submitting}
-          rows={showExpandedInput ? 2 : 1}
-          onClick={expandCommand}
-          onChange={(event) => handlePromptChange(event.target.value)}
-          onFocus={expandCommand}
-          onKeyDown={handlePromptKeyDown}
-          aria-label={label("app.aiCommandInput")}
-        />
+        {showCompactLoading ? (
+          renderCompactLoadingStatus()
+        ) : (
+          <textarea
+            id="markra-ai-command-input"
+            ref={inputRef}
+            className={
+              showExpandedInput
+                ? "min-h-10 flex-1 resize-none border-0 bg-transparent p-0 text-[16px] leading-6 text-(--text-primary) outline-none placeholder:text-(--text-secondary)"
+                : "h-10 min-h-0 flex-1 resize-none overflow-hidden border-0 bg-transparent p-0 text-[16px] leading-10 text-(--text-primary) outline-none placeholder:text-(--text-secondary)"
+            }
+            value={prompt}
+            placeholder={inputPlaceholder}
+            readOnly={submitting}
+            aria-busy={submitting}
+            rows={showExpandedInput ? 2 : 1}
+            onClick={expandCommand}
+            onChange={(event) => handlePromptChange(event.target.value)}
+            onFocus={expandCommand}
+            onKeyDown={handlePromptKeyDown}
+            aria-label={label("app.aiCommandInput")}
+          />
+        )}
         {!showExpandedInput ? renderSubmitButton(false) : null}
       </div>
       {showExpandedInput ? (
@@ -452,7 +495,10 @@ export function AiCommandBar({
       aria-label={label("app.aiCommandDialog")}
       data-state={commandState}
     >
-      <div ref={commandRef} className={`relative w-full max-w-205 ${closing ? "pointer-events-none" : "pointer-events-auto"}`}>
+      <div
+        ref={commandRef}
+        className={`relative w-full ${commandWidthClassName} ${closing ? "pointer-events-none" : "pointer-events-auto"}`}
+      >
         {showQuickActions ? (
           <div
             className={

@@ -20,7 +20,7 @@ import {
   useNativeMenuHandlers,
   useNativeMenus
 } from "./hooks/useNativeBindings";
-import { t, type I18nKey } from "./lib/i18n";
+import { aiTranslationLanguageName, t, type I18nKey } from "./lib/i18n";
 import { openSettingsWindow } from "./lib/tauri/window";
 import type { AiDiffResult, AiSelectionContext } from "./lib/ai/agent/inlineAi";
 import {
@@ -111,6 +111,7 @@ export default function App() {
     provider: aiSettings.activeProvider,
     settingsLoading: aiSettings.loading,
     translate,
+    translationTargetLanguage: aiTranslationLanguageName(appLanguage.ready ? appLanguage.language : "en"),
     workspaceFiles: fileTreeFiles
   });
   const restoreAiCommand = aiCommand.restoreAiCommand;

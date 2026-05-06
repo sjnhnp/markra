@@ -104,6 +104,7 @@ function markraTextSelectionObserverPlugin(
             lastSignature = signature;
             onTextSelectionChange({
               from: selection.from,
+              source: "selection",
               text,
               to: selection.to
             });
