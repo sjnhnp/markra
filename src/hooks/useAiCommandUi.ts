@@ -24,6 +24,10 @@ type AiCommandContext = {
   workspaceFiles?: AgentWorkspaceFile[];
 };
 
+export type AiCommandSubmitOptions = {
+  thinkingEnabled?: boolean;
+};
+
 export function useAiCommandUi(ctx: AiCommandContext) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -64,7 +68,11 @@ export function useAiCommandUi(ctx: AiCommandContext) {
     });
   }, []);
 
-  const submitPrompt = useCallback(async (promptOverride?: string, intent: AiEditIntent = "custom") => {
+  const submitPrompt = useCallback(async (
+    promptOverride?: string,
+    intent: AiEditIntent = "custom",
+    options: AiCommandSubmitOptions = {}
+  ) => {
     const trimmedPrompt = (promptOverride ?? prompt).trim();
     if (!trimmedPrompt || submitting) return;
     const message = (key: I18nKey) => ctx.translate?.(key) ?? key;
@@ -108,6 +116,7 @@ export function useAiCommandUi(ctx: AiCommandContext) {
         prompt: trimmedPrompt,
         provider: ctx.provider,
         target,
+        thinkingEnabled: options.thinkingEnabled,
         translationTargetLanguage: ctx.translationTargetLanguage ?? "English",
         onEvent: (event) => {
           if (requestIdRef.current !== requestId) return;
@@ -126,6 +135,12 @@ export function useAiCommandUi(ctx: AiCommandContext) {
         workspaceFiles: ctx.workspaceFiles ?? []
       });
       if (requestIdRef.current !== requestId) return;
+
+      if (!response.content.trim()) {
+        ctx.onAiResult({ message: message("app.aiEmptyResponse"), type: "error" });
+        setStatus("error");
+        return;
+      }
 
       ctx.onAiResult({
         from: target.from,

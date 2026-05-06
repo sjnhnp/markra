@@ -48,6 +48,7 @@ export type InlineAiAgentInput = {
   prompt: string;
   provider: AiProviderConfig;
   target: InlineAiAgentTarget;
+  thinkingEnabled?: boolean;
   translationTargetLanguage?: string;
   workspaceFiles?: AgentWorkspaceFile[];
 };
@@ -62,6 +63,7 @@ export async function runInlineAiAgent({
   prompt,
   provider,
   target,
+  thinkingEnabled,
   translationTargetLanguage,
   workspaceFiles = []
 }: InlineAiAgentInput) {
@@ -90,7 +92,7 @@ export async function runInlineAiAgent({
       model: createPiAgentModel(provider, model),
       systemPrompt
     },
-    streamFn: createNativeChatStreamFn(provider, complete)
+    streamFn: createNativeChatStreamFn(provider, complete, thinkingEnabled)
   });
   let finalContent = "";
   let finishReason: string | undefined;
@@ -120,7 +122,11 @@ function formatReadOnlyToolContext(toolResults: Awaited<ReturnType<typeof runRea
   ].join("\n\n");
 }
 
-function createNativeChatStreamFn(provider: AiProviderConfig, complete: InlineAiAgentComplete): StreamFn {
+function createNativeChatStreamFn(
+  provider: AiProviderConfig,
+  complete: InlineAiAgentComplete,
+  thinkingEnabled: boolean | undefined
+): StreamFn {
   return (model, context, options) => {
     const stream = createAssistantMessageEventStream();
     streamNativeChatCompletion({
@@ -129,7 +135,8 @@ function createNativeChatStreamFn(provider: AiProviderConfig, complete: InlineAi
       model,
       options,
       provider,
-      stream
+      stream,
+      thinkingEnabled
     }).catch((error) => {
       pushAssistantError(stream, model, error, options?.signal);
     });
@@ -143,7 +150,8 @@ async function streamNativeChatCompletion({
   model,
   options,
   provider,
-  stream
+  stream,
+  thinkingEnabled
 }: {
   complete: InlineAiAgentComplete;
   context: Context;
@@ -151,6 +159,7 @@ async function streamNativeChatCompletion({
   options?: { signal?: AbortSignal };
   provider: AiProviderConfig;
   stream: ReturnType<typeof createAssistantMessageEventStream>;
+  thinkingEnabled: boolean | undefined;
 }) {
   if (options?.signal?.aborted) {
     pushAssistantError(stream, model, new Error("Request aborted by user."), options.signal);
@@ -171,7 +180,8 @@ async function streamNativeChatCompletion({
         partial: createAssistantMessage(model, streamedContent),
         type: "text_delta"
       });
-    }
+    },
+    thinkingEnabled
   });
   if (options?.signal?.aborted) {
     pushAssistantError(stream, model, new Error("Request aborted by user."), options.signal);

@@ -18,6 +18,7 @@ export type ChatCompletionStreamTransport = (
 export type ChatCompletionStreamOptions = {
   onDelta?: (delta: string) => unknown;
   streamTransport?: ChatCompletionStreamTransport;
+  thinkingEnabled?: boolean;
 };
 
 export async function chatCompletion(
@@ -47,11 +48,12 @@ export async function chatCompletionStream(
   messages: ChatMessage[],
   {
     onDelta,
-    streamTransport = requestNativeChatStream
+    streamTransport = requestNativeChatStream,
+    thinkingEnabled
   }: ChatCompletionStreamOptions = {}
 ): Promise<ChatResponse> {
   const adapter = getChatAdapter(provider.type);
-  const request = adapter.buildRequest(provider, model, messages, { stream: true });
+  const request = adapter.buildRequest(provider, model, messages, { stream: true, thinkingEnabled });
   let content = "";
   let finishReason: string | undefined;
   const parser = createServerSentEventParser();

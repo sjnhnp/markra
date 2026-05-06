@@ -14,6 +14,7 @@ export type ChatRequest = {
 
 export type ChatRequestOptions = {
   stream?: boolean;
+  thinkingEnabled?: boolean;
 };
 
 export type ChatResponse = {
@@ -75,6 +76,23 @@ const openAiCompatibleAdapter: ChatAdapter = {
     };
   },
   parseStreamEvent: parseOpenAiCompatibleStreamEvent
+};
+
+const deepseekAdapter: ChatAdapter = {
+  buildRequest(config, model, messages, options = {}) {
+    const request = openAiCompatibleAdapter.buildRequest(config, model, messages, options);
+    const body = isRecord(request.body) ? request.body : {};
+
+    return {
+      ...request,
+      body: {
+        ...body,
+        thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" }
+      }
+    };
+  },
+  parseResponse: openAiCompatibleAdapter.parseResponse,
+  parseStreamEvent: openAiCompatibleAdapter.parseStreamEvent
 };
 
 const anthropicAdapter: ChatAdapter = {
@@ -216,7 +234,7 @@ const googleAdapter: ChatAdapter = {
 const adapterByApiStyle: Record<AiProviderApiStyle, ChatAdapter> = {
   anthropic: anthropicAdapter,
   "azure-openai": azureAdapter,
-  deepseek: openAiCompatibleAdapter,
+  deepseek: deepseekAdapter,
   google: googleAdapter,
   groq: openAiCompatibleAdapter,
   mistral: openAiCompatibleAdapter,

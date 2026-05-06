@@ -125,6 +125,28 @@ describe("useAiCommandUi", () => {
     });
   });
 
+  it("passes command thinking options into the inline agent", async () => {
+    mockedRunInlineAiAgent.mockResolvedValue({ content: "Better draft", finishReason: "stop" });
+    const { result } = renderHook(() =>
+      useAiCommandUi({
+        getDocumentContent: () => "# Draft\n\nOriginal draft",
+        getSelection: () => ({ from: 9, text: "Original draft", to: 23 }),
+        model: "gpt-5.5",
+        onAiResult: vi.fn(),
+        provider: provider({ id: "deepseek", type: "deepseek" }),
+        settingsLoading: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.submitPrompt("make it clearer", "custom", { thinkingEnabled: true });
+    });
+
+    expect(mockedRunInlineAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      thinkingEnabled: true
+    }));
+  });
+
   it("can submit a prompt override before prompt state catches up", async () => {
     const onAiResult = vi.fn();
     mockedRunInlineAiAgent.mockResolvedValue({ content: "Better draft", finishReason: "stop" });
@@ -274,6 +296,36 @@ describe("useAiCommandUi", () => {
     expect(result.current.open).toBe(true);
     expect(result.current.prompt).toBe("");
     expect(onAiResult).toHaveBeenCalledWith(expect.objectContaining({ replacement: "Better draft", type: "replace" }));
+  });
+
+  it("treats an empty AI response as an error instead of a red-only diff", async () => {
+    const onAiResult = vi.fn();
+    mockedRunInlineAiAgent.mockResolvedValue({ content: "   ", finishReason: "stop" });
+    const { result } = renderHook(() =>
+      useAiCommandUi({
+        getDocumentContent: () => "# Draft\n\nOriginal draft",
+        getSelection: () => ({ from: 9, text: "Original draft", to: 23 }),
+        model: "gpt-5.5",
+        onAiResult,
+        provider: provider(),
+        settingsLoading: false,
+        translate: (key) => (key === "app.aiEmptyResponse" ? "AI returned no text." : key)
+      })
+    );
+
+    await act(async () => {
+      await result.current.submitPrompt("make it clearer");
+    });
+
+    expect(onAiResult).toHaveBeenCalledWith({
+      message: "AI returned no text.",
+      type: "error"
+    });
+    expect(onAiResult).not.toHaveBeenCalledWith(expect.objectContaining({
+      replacement: expect.any(String),
+      type: "replace"
+    }));
+    expect(result.current.status).toBe("error");
   });
 
   it("continues from a pending AI suggestion when the editor selection has already moved", async () => {

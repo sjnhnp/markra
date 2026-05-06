@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArrowUp,
+  BrainCircuit,
   FileText,
   Languages,
   LoaderCircle,
@@ -32,6 +33,10 @@ type AiCommandModelOption = {
   name: string;
   providerId: string;
   providerName: string;
+};
+
+type AiCommandSubmitOptions = {
+  thinkingEnabled?: boolean;
 };
 
 type AiCommandState = "compact" | "expanded" | "collapsing" | "closing";
@@ -85,11 +90,12 @@ type AiCommandBarProps = {
   selectedModelId?: string | null;
   selectedProviderId?: string | null;
   submitting?: boolean;
+  supportsThinking?: boolean;
   onClose: () => unknown;
   onInterrupt?: () => unknown;
   onPromptChange: (prompt: string) => unknown;
   onSelectModel?: (providerId: string, modelId: string) => unknown;
-  onSubmit: (promptOverride?: string, intent?: AiEditIntent) => unknown;
+  onSubmit: (promptOverride?: string, intent?: AiEditIntent, options?: AiCommandSubmitOptions) => unknown;
 };
 
 export function AiCommandBar({
@@ -102,6 +108,7 @@ export function AiCommandBar({
   selectedModelId = null,
   selectedProviderId = null,
   submitting = false,
+  supportsThinking = false,
   onClose,
   onInterrupt,
   onPromptChange,
@@ -121,6 +128,7 @@ export function AiCommandBar({
   const [playCompactOpenAnimation, setPlayCompactOpenAnimation] = useState(open);
   const [quickActionsVisible, setQuickActionsVisible] = useState(false);
   const [rendered, setRendered] = useState(open);
+  const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const previousSubmittingRef = useRef(submitting);
   const label = (key: I18nKey) => t(language, key);
   const canSubmit = prompt.trim().length > 0 && !submitting;
@@ -197,6 +205,12 @@ export function AiCommandBar({
     if (previousSubmittingRef.current && !submitting) setActiveQuickActionIntent(null);
     previousSubmittingRef.current = submitting;
   }, [submitting]);
+
+  useEffect(() => {
+    if (supportsThinking) return;
+
+    setThinkingEnabled(false);
+  }, [supportsThinking]);
 
   useEffect(() => {
     return () => {
@@ -276,11 +290,33 @@ export function AiCommandBar({
 
   if (!rendered) return null;
 
+  const thinkingOptions = () => (supportsThinking && thinkingEnabled ? { thinkingEnabled: true } : undefined);
+
+  const submitCurrentPrompt = () => {
+    const options = thinkingOptions();
+    if (options) {
+      onSubmit(undefined, "custom", options);
+      return;
+    }
+
+    onSubmit();
+  };
+
+  const submitPromptOverride = (promptOverride: string, intent: AiEditIntent) => {
+    const options = thinkingOptions();
+    if (options) {
+      onSubmit(promptOverride, intent, options);
+      return;
+    }
+
+    onSubmit(promptOverride, intent);
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
     setActiveQuickActionIntent(null);
-    onSubmit();
+    submitCurrentPrompt();
   };
 
   const handlePromptChange = (nextPrompt: string) => {
@@ -318,7 +354,7 @@ export function AiCommandBar({
 
     if (!canSubmit) return;
     setActiveQuickActionIntent(null);
-    onSubmit();
+    submitCurrentPrompt();
   };
 
   const handleQuickAction = (action: AiCommandAction) => {
@@ -328,7 +364,7 @@ export function AiCommandBar({
     setActiveQuickActionIntent(action.intent);
     setQuickActionsVisible(false);
     onPromptChange(quickPrompt);
-    onSubmit(quickPrompt, action.intent);
+    submitPromptOverride(quickPrompt, action.intent);
   };
 
   const quickActionSubmitting = submitting && activeQuickActionIntent !== null;
@@ -356,6 +392,7 @@ export function AiCommandBar({
   const modelSelectValue = hasSelectedModel ? selectedModelValue : "";
   const showModelSelector = showExpandedInput && availableModels.length > 1 && Boolean(onSelectModel);
   const showAgentStatus = showExpandedInput && submitting;
+  const showThinkingToggle = showExpandedInput && supportsThinking;
   const compactLoadingText = activeQuickActionIntent
     ? label(aiCommandLoadingLabelKeys[activeQuickActionIntent])
     : label("app.aiAgentThinking");
@@ -448,10 +485,29 @@ export function AiCommandBar({
           className={
             showAgentStatus
               ? "ai-command-footer flex w-full items-center justify-between gap-3"
-              : "ai-command-footer flex w-full items-center justify-end gap-2"
+              : showThinkingToggle
+                ? "ai-command-footer flex w-full items-center justify-between gap-3"
+                : "ai-command-footer flex w-full items-center justify-end gap-2"
           }
         >
           {showAgentStatus ? renderAgentStatus() : null}
+          {!showAgentStatus && showThinkingToggle ? (
+            <button
+              className={`inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-[12px] leading-5 font-[620] transition-[background-color,border-color,color,opacity] duration-150 ease-out focus-visible:outline-none disabled:cursor-default disabled:opacity-50 ${
+                thinkingEnabled
+                  ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
+                  : "border-(--border-default) bg-(--bg-secondary) text-(--text-secondary) hover:border-(--accent) hover:text-(--accent)"
+              }`}
+              type="button"
+              aria-label={label("app.aiDeepThinking")}
+              aria-pressed={thinkingEnabled}
+              disabled={submitting}
+              onClick={() => setThinkingEnabled((enabled) => !enabled)}
+            >
+              <BrainCircuit aria-hidden="true" size={14} />
+              <span>{label("app.aiDeepThinking")}</span>
+            </button>
+          ) : null}
           <div className="flex shrink-0 items-center gap-2">
             {showModelSelector ? (
               <div className="flex min-w-0 items-center">

@@ -165,6 +165,7 @@ export default function App() {
       : rawFileTreeRootName === "Files"
         ? translate("app.files")
         : rawFileTreeRootName;
+  const supportsAiThinking = aiSettings.activeProvider?.type === "deepseek";
   const nativeMenuHandlers = useNativeMenuHandlers({
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
     openDocument: openMarkdownFile,
@@ -291,6 +292,7 @@ export default function App() {
           selectedModelId={aiSettings.defaultModelId}
           selectedProviderId={aiSettings.activeProvider?.id ?? null}
           submitting={aiCommand.submitting}
+          supportsThinking={supportsAiThinking}
           onClose={handleAiCommandClose}
           onInterrupt={aiCommand.interruptPrompt}
           onPromptChange={aiCommand.updatePrompt}

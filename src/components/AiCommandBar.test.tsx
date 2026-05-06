@@ -303,4 +303,30 @@ describe("AiCommandBar", () => {
 
     expect(onSelectModel).toHaveBeenCalledWith("anthropic", "claude-sonnet-4-6");
   });
+
+  it("lets DeepSeek commands opt into thinking for a single send", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="zh-CN"
+        open
+        prompt="润色"
+        selectedProviderId="deepseek"
+        submitting={false}
+        supportsThinking
+        onClose={vi.fn()}
+        onPromptChange={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    const input = screen.getByRole("textbox", { name: "AI 命令" });
+    fireEvent.click(input);
+    fireEvent.click(screen.getByRole("button", { name: "深度思考" }));
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(screen.getByRole("button", { name: "深度思考" })).toHaveAttribute("aria-pressed", "true");
+    expect(onSubmit).toHaveBeenCalledWith(undefined, "custom", { thinkingEnabled: true });
+  });
 });

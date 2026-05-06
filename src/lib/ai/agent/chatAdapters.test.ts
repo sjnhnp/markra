@@ -46,6 +46,36 @@ describe("AI chat adapters", () => {
     });
   });
 
+  it("disables DeepSeek thinking by default so inline edits stream final content quickly", () => {
+    const request = getChatAdapter("deepseek").buildRequest(
+      provider({ baseUrl: "https://api.deepseek.com", type: "deepseek" }),
+      "deepseek-v4-flash",
+      messages,
+      { stream: true }
+    );
+
+    expect(request.body).toEqual({
+      messages,
+      model: "deepseek-v4-flash",
+      stream: true,
+      temperature: 0.7,
+      thinking: { type: "disabled" }
+    });
+  });
+
+  it("can enable DeepSeek thinking when the command requests it", () => {
+    const request = getChatAdapter("deepseek").buildRequest(
+      provider({ baseUrl: "https://api.deepseek.com", type: "deepseek" }),
+      "deepseek-v4-flash",
+      messages,
+      { stream: true, thinkingEnabled: true }
+    );
+
+    expect(request.body).toMatchObject({
+      thinking: { type: "enabled" }
+    });
+  });
+
   it("builds provider-specific chat requests for Anthropic, Google, and Azure", () => {
     expect(getChatAdapter("anthropic").buildRequest(provider({ type: "anthropic" }), "claude-opus-4-7", messages)).toMatchObject({
       body: {
