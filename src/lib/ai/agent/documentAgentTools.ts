@@ -11,6 +11,7 @@ type DocumentAgentToolContext = {
   onPreviewResult?: (result: AiDiffResult) => unknown;
   readWorkspaceFile?: (path: string) => Promise<string>;
   selection: AiSelectionContext | null;
+  tableAnchors?: AiDocumentAnchor[];
   workspaceFiles: AgentWorkspaceFile[];
 };
 
@@ -215,7 +216,7 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
         [
           "Locate the most appropriate document anchor for an edit.",
           "Use this before writing when the insertion or replacement location is ambiguous.",
-          "The tool will inspect the current block, headings, and document end, then recommend the best anchor."
+          "The tool will inspect the current block, Markdown tables, headings, and document end, then recommend the best anchor."
         ].join(" "),
       execute: async (_toolCallId, params) => {
         const anchors = buildDocumentAnchors(context);
@@ -237,7 +238,11 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
       name: "locate_markdown_region",
       parameters: Type.Object({
         goal: Type.String({ minLength: 1 }),
-        operation: Type.Optional(Type.String())
+        operation: Type.Optional(Type.Union([
+          Type.Literal("delete"),
+          Type.Literal("insert"),
+          Type.Literal("replace")
+        ]))
       })
     },
     {
@@ -306,7 +311,12 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
     },
     {
       description:
-        "Replace the active selection, current block, or a resolved anchor with new Markdown. Use this when the user asks you to rewrite or fix existing content.",
+        [
+          "Replace the active selection, current block, or a resolved anchor with new Markdown.",
+          "Use this when the user asks you to rewrite or fix existing content.",
+          "Do not use this for complete table replacement; use replace_table with a table anchor instead.",
+          "When replacing only an inline selection, pass plain inline text only; do not pass tables, lists, headings, or multi-line Markdown unless you resolved a block, section, or document anchor."
+        ].join(" "),
       execute: async (_toolCallId, params) => {
         const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "replace");
         if ("error" in writeCheck) return writeCheck.error;
@@ -314,6 +324,8 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
         const args = typedReplaceRegionArgs(params);
         const region = resolveWriteRegion(context, args.anchorId, "replace");
         if ("error" in region) return region.error;
+        const fitCheck = ensureReplacementFitsRegion(context, args.anchorId, args.replacement, region.region);
+        if ("error" in fitCheck) return fitCheck.error;
 
         hasPreparedWrite = true;
         const result: AiDiffResult = {
@@ -334,6 +346,45 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
       name: "replace_region",
       parameters: Type.Object({
         anchorId: Type.Optional(Type.String()),
+        replacement: Type.String({ minLength: 1 })
+      })
+    },
+    {
+      description:
+        [
+          "Replace an entire Markdown table identified by a table anchor.",
+          "Use this for table edits instead of replace_region.",
+          "Call locate_markdown_region or get_available_anchors first and pass a table anchor like table:0."
+        ].join(" "),
+      execute: async (_toolCallId, params) => {
+        const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "replace");
+        if ("error" in writeCheck) return writeCheck.error;
+
+        const args = typedReplaceTableArgs(params);
+        const table = resolveTableAnchor(context, args.anchorId);
+        if ("error" in table) return table.error;
+        const tableCheck = ensureCompleteTableReplacement(args.replacement);
+        if ("error" in tableCheck) return tableCheck.error;
+
+        hasPreparedWrite = true;
+        const result: AiDiffResult = {
+          from: table.anchor.from,
+          original: table.anchor.text ?? sliceDocumentText(context.documentContent, table.anchor.from, table.anchor.to),
+          replacement: args.replacement,
+          to: table.anchor.to,
+          type: "replace"
+        };
+        context.onPreviewResult?.(result);
+
+        return previewPreparedResult(
+          result,
+          `Prepared a table replacement preview for ${table.anchor.title ?? table.anchor.id}.`
+        );
+      },
+      label: "Replace table",
+      name: "replace_table",
+      parameters: Type.Object({
+        anchorId: Type.String({ minLength: 1 }),
         replacement: Type.String({ minLength: 1 })
       })
     },
@@ -470,7 +521,15 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
       parameters: Type.Object({
         anchorId: Type.Optional(Type.String()),
         content: Type.String({ minLength: 1 }),
-        placement: Type.Optional(Type.String())
+        placement: Type.Optional(Type.Union([
+          Type.Literal("after_anchor"),
+          Type.Literal("after_selection"),
+          Type.Literal("after_heading"),
+          Type.Literal("before_anchor"),
+          Type.Literal("before_selection"),
+          Type.Literal("before_heading"),
+          Type.Literal("cursor")
+        ]))
       })
     }
   ];
@@ -504,6 +563,8 @@ function buildDocumentAnchors(context: DocumentAgentToolContext): AiDocumentAnch
     });
   }
 
+  anchors.push(...documentTableAnchors(context));
+
   (context.headingAnchors ?? []).forEach((heading, index) => {
     anchors.push({
       description: `Heading level ${heading.level}: ${heading.title}`,
@@ -525,6 +586,51 @@ function buildDocumentAnchors(context: DocumentAgentToolContext): AiDocumentAnch
   });
 
   return anchors;
+}
+
+type MarkdownLine = {
+  from: number;
+  text: string;
+  to: number;
+};
+
+function buildTableAnchors(context: DocumentAgentToolContext): AiDocumentAnchor[] {
+  const lines = getMarkdownLines(context.documentContent);
+  const anchors: AiDocumentAnchor[] = [];
+
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    const headerLine = lines[index]!;
+    const separatorLine = lines[index + 1]!;
+    if (!looksLikeTableRow(headerLine.text) || !looksLikeTableSeparator(separatorLine.text)) continue;
+
+    let endIndex = index + 2;
+    while (endIndex < lines.length && looksLikeTableRow(lines[endIndex]!.text)) {
+      endIndex += 1;
+    }
+
+    const lastLine = lines[endIndex - 1]!;
+    const from = headerLine.from;
+    const to = lastLine.to;
+    const tableIndex = anchors.length;
+    const title = tableAnchorTitle(context, from, headerLine.text);
+
+    anchors.push({
+      description: tableAnchorDescription(title, headerLine.text),
+      from,
+      id: `table:${tableIndex}`,
+      kind: "table",
+      text: sliceDocumentText(context.documentContent, from, to),
+      title,
+      to
+    });
+    index = endIndex - 1;
+  }
+
+  return anchors;
+}
+
+function documentTableAnchors(context: DocumentAgentToolContext): AiDocumentAnchor[] {
+  return context.tableAnchors ?? buildTableAnchors(context);
 }
 
 function buildSectionAnchors(context: DocumentAgentToolContext): AiDocumentAnchor[] {
@@ -554,6 +660,56 @@ function buildSectionAnchors(context: DocumentAgentToolContext): AiDocumentAncho
   });
 
   return anchors;
+}
+
+function getMarkdownLines(content: string): MarkdownLine[] {
+  const lines: MarkdownLine[] = [];
+  let position = 0;
+
+  while (position < content.length) {
+    const nextBreak = content.indexOf("\n", position);
+    const to = nextBreak === -1 ? content.length : nextBreak;
+    lines.push({
+      from: position,
+      text: content.slice(position, to),
+      to
+    });
+    position = nextBreak === -1 ? content.length : nextBreak + 1;
+  }
+
+  return lines;
+}
+
+function looksLikeTableRow(line: string) {
+  const trimmed = line.trim();
+  if (!trimmed.includes("|")) return false;
+
+  const pipeCount = (trimmed.replace(/\\\|/gu, "").match(/\|/gu) ?? []).length;
+  return pipeCount >= 2 || (trimmed.startsWith("|") && pipeCount >= 1);
+}
+
+function looksLikeTableSeparator(line: string) {
+  const cells = splitTableCells(line);
+  return cells.length >= 2 && cells.every((cell) => /^:?-{3,}:?$/u.test(cell.trim()));
+}
+
+function splitTableCells(line: string) {
+  const trimmed = line.trim().replace(/^\|/u, "").replace(/\|$/u, "");
+  return trimmed.split("|").map((cell) => cell.trim()).filter(Boolean);
+}
+
+function tableAnchorTitle(context: DocumentAgentToolContext, tableFrom: number, headerLine: string) {
+  const heading = [...(context.headingAnchors ?? [])]
+    .filter((item) => item.from <= tableFrom)
+    .sort((left, right) => right.from - left.from)[0];
+  const headerTitle = splitTableCells(headerLine).slice(0, 3).join(" / ");
+
+  return heading?.title ? `${heading.title} table` : `Table: ${headerTitle}`;
+}
+
+function tableAnchorDescription(title: string, headerLine: string) {
+  const headerTitle = splitTableCells(headerLine).slice(0, 3).join(" / ");
+  return headerTitle ? `Markdown table ${title}: ${headerTitle}` : `Markdown table ${title}`;
 }
 
 function formatHeadingOutlineText(headingAnchors: AiHeadingAnchor[]) {
@@ -673,8 +829,9 @@ function beginPreparedWrite(
   }
 
   const requireEditableContext = options.requireEditableContext !== false;
+  const hasStructuralAnchor = (context.headingAnchors ?? []).length > 0 || documentTableAnchors(context).length > 0;
 
-  if (requireEditableContext && mode !== "insert" && !context.selection?.text.trim() && !(context.headingAnchors ?? []).length) {
+  if (requireEditableContext && mode !== "insert" && !context.selection?.text.trim() && !hasStructuralAnchor) {
     return {
       error: toolErrorResult(
         `Cannot ${mode} because there is no active selection, current block, or structural anchor available. Inspect the document first and then resolve a region anchor.`
@@ -728,6 +885,63 @@ function resolveWriteRegion(
         to: anchor.to
       }
     };
+}
+
+function ensureReplacementFitsRegion(
+  context: DocumentAgentToolContext,
+  anchorId: string | undefined,
+  replacement: string,
+  region: { original: string }
+): { error: AgentToolResult<{ message: string }> } | { ok: true } {
+  const isInlineSelection = !anchorId && context.selection?.source !== "block";
+  if (isInlineSelection && looksLikeBlockMarkdown(replacement) && !looksLikeBlockMarkdown(region.original)) {
+    return {
+      error: toolErrorResult(
+        "Cannot replace an inline selection with block-level Markdown. Use plain text for the selected text, or resolve a block, section, or document anchor before replacing a table, list, heading, or multi-paragraph region."
+      )
+    };
+  }
+
+  if (isCompleteMarkdownTableReplacement(replacement)) {
+    const anchor = anchorId
+      ? buildDocumentAnchors(context).find((candidate) => candidate.id === anchorId)
+      : null;
+    if (anchor?.kind !== "table" || !isCompleteMarkdownTableBlock(region.original)) {
+      return {
+        error: toolErrorResult(
+          "Cannot replace this region with a Markdown table because the target is not a complete table anchor. Use replace_table with a table anchor."
+        )
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
+function resolveTableAnchor(
+  context: DocumentAgentToolContext,
+  anchorId: string
+): { error: AgentToolResult<{ message: string }> } | { anchor: AiDocumentAnchor } {
+  const tableAnchor = documentTableAnchors(context).find((candidate) => candidate.id === anchorId);
+  if (!tableAnchor) {
+    return {
+      error: toolErrorResult(`Cannot resolve table anchor "${anchorId}". Read available anchors or locate a table first and use a valid table anchor.`)
+    };
+  }
+
+  return { anchor: tableAnchor };
+}
+
+function ensureCompleteTableReplacement(
+  replacement: string
+): { error: AgentToolResult<{ message: string }> } | { ok: true } {
+  if (!isCompleteMarkdownTableBlock(replacement)) {
+    return {
+      error: toolErrorResult("Cannot replace a table with content that is not a complete Markdown table.")
+    };
+  }
+
+  return { ok: true };
 }
 
 function resolveSectionAnchor(
@@ -894,6 +1108,10 @@ function typedReplaceRegionArgs(params: unknown) {
   return params as { anchorId?: string; replacement: string };
 }
 
+function typedReplaceTableArgs(params: unknown) {
+  return params as { anchorId: string; replacement: string };
+}
+
 function typedDeleteRegionArgs(params: unknown) {
   return params as { anchorId?: string };
 }
@@ -976,6 +1194,40 @@ function insertionPositionForAnchor(anchor: AiDocumentAnchor, placement: Documen
   return anchor.to;
 }
 
+function looksLikeBlockMarkdown(markdown: string) {
+  const trimmed = markdown.trimStart();
+
+  return markdown.includes("\n") || /^(#{1,6}\s|>\s?|[-*+]\s+|\d+\.\s+|```|~~~|\|)/.test(trimmed);
+}
+
+function isCompleteMarkdownTableBlock(markdown: string) {
+  const lines = getMarkdownLines(markdown.trim())
+    .map((line) => line.text)
+    .filter((line) => line.trim().length > 0);
+
+  if (lines.length < 2) return false;
+  if (!looksLikeTableRow(lines[0]!) || !looksLikeTableSeparator(lines[1]!)) return false;
+
+  return lines.slice(2).every((line) => looksLikeTableRow(line));
+}
+
+function isCompleteMarkdownTableReplacement(markdown: string) {
+  if (isCompleteMarkdownTableBlock(markdown)) return true;
+
+  const unwrapped = unwrapMarkdownFence(markdown);
+  return unwrapped !== markdown.trim() && isCompleteMarkdownTableBlock(unwrapped);
+}
+
+function unwrapMarkdownFence(markdown: string) {
+  const trimmed = markdown.trim();
+  const lines = trimmed.split("\n");
+  const firstLine = lines[0]?.trim() ?? "";
+  const lastLine = lines.at(-1)?.trim() ?? "";
+  if (!/^```(?:markdown|md)?\s*$/iu.test(firstLine) || lastLine !== "```") return trimmed;
+
+  return lines.slice(1, -1).join("\n").trim();
+}
+
 function scoreAnchor(anchor: AiDocumentAnchor, normalizedGoal: string, operation: RegionOperation) {
   let score = 0;
 
@@ -1009,6 +1261,16 @@ function scoreAnchor(anchor: AiDocumentAnchor, normalizedGoal: string, operation
     if (operation !== "insert") score += 2;
   }
 
+  if (anchor.kind === "table") {
+    const normalizedTitle = normalizeText(anchor.title ?? "");
+    const normalizedTable = normalizeText(anchor.text ?? "");
+    if (operation !== "insert" && containsAny(normalizedGoal, ["table", "matrix", "grid", "表格", "表"])) score += 22;
+    if (normalizedGoal.includes(normalizedTitle) && normalizedTitle) score += 10;
+    score += overlapScore(normalizedGoal, normalizedTitle) * 2;
+    score += Math.min(12, overlapScore(normalizedGoal, normalizedTable));
+    if (operation !== "insert") score += 4;
+  }
+
   if (anchor.kind === "document_end") {
     if (containsAny(normalizedGoal, ["append", "at the end", "document end", "end of document", "final section", "末尾", "文末", "最后", "结尾", "追加"])) score += 12;
     else score += 1;
@@ -1034,6 +1296,9 @@ function anchorReason(anchor: AiDocumentAnchor, normalizedGoal: string, operatio
   }
   if (anchor.kind === "heading" && scoreAnchor(anchor, normalizedGoal, operation) >= 10) {
     return `The request best matches the heading "${anchor.title ?? ""}".`;
+  }
+  if (anchor.kind === "table" && scoreAnchor(anchor, normalizedGoal, operation) >= 10) {
+    return `The request best matches the Markdown table "${anchor.title ?? ""}".`;
   }
   if (anchor.kind === "document_end") {
     return "The request looks like an append-at-the-end operation.";
@@ -1070,7 +1335,7 @@ function tokenize(value: string) {
 }
 
 function normalizeText(value: string) {
-  return value.toLowerCase().replace(/[`"'“”‘’#*()[\]{}:,.!?]/gu, " ").replace(/\s+/gu, " ").trim();
+  return value.toLowerCase().replace(/[`"'“”‘’#*()[\]{}:,.!?|]/gu, " ").replace(/\s+/gu, " ").trim();
 }
 
 function summarizeAnchorTitle(text: string) {

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
 import { editorViewCtx, parserCtx, type Editor } from "@milkdown/kit/core";
+import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { getMarkdown } from "@milkdown/kit/utils";
-import type { AiDiffResult, AiHeadingAnchor, AiSelectionContext } from "../lib/ai/agent/inlineAi";
+import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import {
   applyAiEditorResult,
   clearAiEditorPreview,
@@ -78,6 +79,91 @@ export function readAiSelectionContextFromView(view: EditorView): AiSelectionCon
   };
 }
 
+export function readAiTableAnchorsFromView(view: EditorView): AiDocumentAnchor[] {
+  const anchors: AiDocumentAnchor[] = [];
+  let currentHeadingTitle: string | null = null;
+
+  view.state.doc.descendants((node, position) => {
+    if (node.type.name === "heading") {
+      currentHeadingTitle = node.textContent.trim() || null;
+      return true;
+    }
+
+    if (node.type.name !== "table") return true;
+
+    const tableMarkdown = tableNodeToMarkdown(node);
+    const tableIndex = anchors.length;
+    const headerTitle = tableHeaderTitle(tableMarkdown);
+    const title = currentHeadingTitle ? `${currentHeadingTitle} table` : `Table: ${headerTitle}`;
+
+    anchors.push({
+      description: headerTitle ? `Markdown table ${title}: ${headerTitle}` : `Markdown table ${title}`,
+      from: position,
+      id: `table:${tableIndex}`,
+      kind: "table",
+      text: tableMarkdown,
+      title,
+      to: position + node.nodeSize
+    });
+
+    return false;
+  });
+
+  return anchors;
+}
+
+function tableNodeToMarkdown(tableNode: ProseNode) {
+  const rows: string[][] = [];
+
+  tableNode.forEach((rowNode) => {
+    const row: string[] = [];
+    rowNode.forEach((cellNode) => {
+      row.push(formatTableCellText(cellNode.textContent));
+    });
+    rows.push(row);
+  });
+
+  if (!rows.length) return "";
+
+  const columnCount = Math.max(...rows.map((row) => row.length));
+  const normalizedRows = rows.map((row) =>
+    Array.from({ length: columnCount }, (_, index) => row[index] ?? "")
+  );
+  const separator = Array.from({ length: columnCount }, (_, index) => {
+    const columnWidth = normalizedRows[0]?.[index]?.length ?? 0;
+
+    return "-".repeat(Math.max(3, columnWidth));
+  });
+
+  return [
+    tableMarkdownRow(normalizedRows[0] ?? []),
+    tableMarkdownRow(separator),
+    ...normalizedRows.slice(1).map((row) => tableMarkdownRow(row))
+  ].join("\n");
+}
+
+function tableMarkdownRow(cells: string[]) {
+  return `| ${cells.join(" | ")} |`;
+}
+
+function formatTableCellText(text: string) {
+  return text.replace(/\s+/gu, " ").replace(/\|/gu, "\\|").trim();
+}
+
+function tableHeaderTitle(tableMarkdown: string) {
+  const headerLine = tableMarkdown.split("\n")[0] ?? "";
+
+  return headerLine
+    .trim()
+    .replace(/^\|/u, "")
+    .replace(/\|$/u, "")
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" / ");
+}
+
 export function useEditorController() {
   const editorRef = useRef<Editor | null>(null);
   const focusTimerRef = useRef<number | null>(null);
@@ -121,6 +207,17 @@ export function useEditorController() {
       });
 
       return anchors;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const getTableAnchors = useCallback((): AiDocumentAnchor[] => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return [];
+
+      return readAiTableAnchorsFromView(view);
     } catch {
       return [];
     }
@@ -320,6 +417,7 @@ export function useEditorController() {
     getHeadingAnchors,
     getCurrentMarkdown,
     getSelection,
+    getTableAnchors,
     handleEditorReady,
     holdAiSelection,
     insertMarkdownSnippet,

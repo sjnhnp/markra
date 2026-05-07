@@ -34,7 +34,7 @@ export type AiDocumentAnchor = {
   description: string;
   from: number;
   id: string;
-  kind: "current_block" | "document" | "document_end" | "heading" | "section";
+  kind: "current_block" | "document" | "document_end" | "heading" | "section" | "table";
   text?: string;
   to: number;
   title?: string;

@@ -396,6 +396,19 @@
     line-height: 1.65;
   }
 
+  .markdown-paper .markra-ai-preview-scope {
+    @apply mr-1 inline-flex shrink-0 items-center rounded border border-(--border-default) bg-(--bg-secondary) px-1.5 py-0.5 text-(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .markdown-paper .markra-ai-preview-widget-block .markra-ai-preview-scope {
+    @apply mt-0;
+  }
+
   .markdown-paper .markra-ai-preview-insert {
     @apply inline-block max-w-full rounded-[3px];
     background: color-mix(in srgb, oklch(69.6% 0.17 162.48) 9%, transparent);

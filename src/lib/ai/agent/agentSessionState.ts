@@ -5,9 +5,18 @@ export type AiAgentSessionMessage = {
   activities?: AiAgentProcessItem[];
   id: number;
   isError?: boolean;
+  preview?: AiAgentSessionPreview;
   role: "assistant" | "user";
   text: string;
   thinking?: string;
+};
+
+export type AiAgentSessionPreview = {
+  from?: number;
+  original: string;
+  replacement: string;
+  to?: number;
+  type: "insert" | "replace";
 };
 
 export type StoredAiAgentSessionState = {
@@ -136,10 +145,29 @@ function normalizeSessionMessage(value: unknown): AiAgentSessionMessage | null {
     activities: activities && activities.length > 0 ? cancelAgentProcesses(activities) : undefined,
     id: value.id,
     isError: value.isError === true,
+    preview: normalizeSessionPreview(value.preview),
     role: value.role,
     text: value.text,
     thinking: typeof value.thinking === "string" ? value.thinking : undefined
   };
+}
+
+function normalizeSessionPreview(value: unknown): AiAgentSessionPreview | undefined {
+  if (!isRecord(value)) return undefined;
+  if (value.type !== "insert" && value.type !== "replace") return undefined;
+  if (typeof value.original !== "string" || typeof value.replacement !== "string") return undefined;
+
+  return {
+    from: normalizeOptionalDocumentPosition(value.from),
+    original: value.original,
+    replacement: value.replacement,
+    to: normalizeOptionalDocumentPosition(value.to),
+    type: value.type
+  };
+}
+
+function normalizeOptionalDocumentPosition(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function normalizeProcessItem(value: unknown): AiAgentProcessItem | null {

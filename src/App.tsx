@@ -165,9 +165,14 @@ export default function App() {
       updateAiResult(result);
       editor.previewAiResult(result, {
         apply: translate("app.aiApply"),
+        chars: translate("app.aiPreviewChars"),
         copied: translate("app.aiCopied"),
         copy: translate("app.aiCopy"),
-        reject: translate("app.aiReject")
+        insertScope: translate("app.aiPreviewInsert"),
+        reject: translate("app.aiReject"),
+        replaceDocumentScope: translate("app.aiPreviewReplaceDocument"),
+        replaceRegionScope: translate("app.aiPreviewReplaceRegion"),
+        replaceSelectionScope: translate("app.aiPreviewReplaceSelection")
       });
     },
     [editor, translate, updateAiResult]
@@ -195,6 +200,7 @@ export default function App() {
     getDocumentEndPosition: editor.getDocumentEndPosition,
     getHeadingAnchors: editor.getHeadingAnchors,
     getSelection: getActiveAiSelection,
+    getTableAnchors: editor.getTableAnchors,
     model: aiSettings.agentModelId,
     onAiResult: handleAiResult,
     onSessionRestore: handleAiAgentSessionRestore,

@@ -1,4 +1,4 @@
-import { runDocumentAiAgent } from "./documentAgent";
+import { runDocumentAiAgent, type DocumentAiHistoryMessage } from "./documentAgent";
 import type { AiProviderConfig } from "../providers/aiProviders";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
@@ -16,6 +16,228 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
 }
 
 describe("document AI agent", () => {
+  it("asks the tool-calling agent to answer in the user's language", async () => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+      expect(messages[0]?.content).toContain("Reply in the user's language");
+
+      return {
+        content: "好的，我会按中文回复。",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# 草稿",
+      documentPath: "/vault/README.md",
+      model: "gpt-5.5",
+      prompt: "帮我看看这份文档",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "好的，我会按中文回复。",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
+  it("passes tool-calling history as transcript messages instead of embedding it in the current prompt", async () => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+      expect(messages.map((message) => message.role)).toEqual(["system", "user", "assistant", "user", "user"]);
+      expect(messages[1]?.content).toBe("Earlier synthetic request");
+      expect(messages[2]?.content).toContain("Earlier synthetic answer");
+      expect(messages[3]?.content).toContain("Document runtime context:");
+      expect(messages[4]?.content).toBe("User request:\nCurrent synthetic request");
+      expect(messages[4]?.content).not.toContain("Conversation so far:");
+
+      return {
+        content: "Current synthetic answer",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Section Alpha",
+      documentPath: "/vault/example.md",
+      history: [
+        { role: "user", text: "Earlier synthetic request" },
+        { role: "assistant", text: "Earlier synthetic answer" }
+      ],
+      model: "gpt-5.5",
+      prompt: "Current synthetic request",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "Current synthetic answer",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
+  it("includes prepared editor preview summaries in tool-calling transcript history", async () => {
+    const history: DocumentAiHistoryMessage[] = [
+      {
+        preview: {
+          from: 10,
+          original: "old-token",
+          replacement: "new-token",
+          to: 19,
+          type: "replace"
+        },
+        role: "assistant",
+        text: "The editor change is ready."
+      }
+    ];
+
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+      expect(messages.map((message) => message.role)).toEqual(["system", "assistant", "user", "user"]);
+      expect(messages[1]?.content).toContain("Prepared editor preview");
+      expect(messages[1]?.content).toContain("old-token");
+      expect(messages[1]?.content).toContain("new-token");
+      expect(messages[2]?.content).toContain("Document runtime context:");
+      expect(messages[3]?.content).toBe("User request:\nFollow-up synthetic request");
+
+      return {
+        content: "Follow-up synthetic answer",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Section Alpha",
+      documentPath: "/vault/example.md",
+      history,
+      model: "gpt-5.5",
+      prompt: "Follow-up synthetic request",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "Follow-up synthetic answer",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
+  it("keeps tool-calling runtime context separate from the current user request", async () => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+      expect(messages.map((message) => message.role)).toEqual(["system", "user", "user"]);
+      expect(messages[1]?.content).toContain("Document runtime context:");
+      expect(messages[1]?.content).toContain("Current selection snapshot:");
+      expect(messages[1]?.content).toContain("Range: 2-13");
+      expect(messages[1]?.content).toContain("Synthetic text");
+      expect(messages[1]?.content).toContain("Web search mode was requested.");
+      expect(messages[2]?.content).toBe("User request:\nRewrite the selected synthetic text");
+      expect(messages[2]?.content).not.toContain("Current selection snapshot:");
+      expect(messages[2]?.content).not.toContain("Web search mode was requested.");
+
+      return {
+        content: "Synthetic response",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Section Alpha",
+      documentPath: "/vault/example.md",
+      model: "gpt-5.5",
+      prompt: "Rewrite the selected synthetic text",
+      provider: provider(),
+      selection: {
+        from: 2,
+        source: "selection",
+        text: "Synthetic text",
+        to: 13
+      },
+      webSearchEnabled: true,
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "Synthetic response",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
+  it("guides the tool-calling agent to use table-specific replacement for table edits", async () => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+      expect(messages[0]?.content).toContain("replace_table");
+      expect(messages[0]?.content).toContain("table anchor");
+
+      return {
+        content: "I will use the table-specific edit path.",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Section Alpha",
+      documentPath: "/vault/example.md",
+      model: "gpt-5.5",
+      prompt: "Update the synthetic table",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "I will use the table-specific edit path.",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
+  it("keeps chat-only context and read-only tool output separate from the current user request", async () => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+      expect(messages.map((message) => message.role)).toEqual(["system", "user", "user", "user"]);
+      expect(messages[1]?.content).toContain("Document runtime context:");
+      expect(messages[1]?.content).toContain("Current cursor snapshot:");
+      expect(messages[2]?.content).toContain("Read-only workspace context:");
+      expect(messages[2]?.content).toContain("Tool: current_document");
+      expect(messages[3]?.content).toBe("User request:\nAnswer with synthetic context");
+      expect(messages[3]?.content).not.toContain("Read-only workspace context:");
+
+      return {
+        content: "Chat-only synthetic response",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Section Alpha",
+      documentPath: "/vault/example.md",
+      model: "local-synthetic-model",
+      prompt: "Answer with synthetic context",
+      provider: provider({
+        id: "ollama",
+        type: "ollama"
+      }),
+      selection: {
+        cursor: 4,
+        from: 4,
+        source: "block",
+        text: "",
+        to: 4
+      },
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "Chat-only synthetic response",
+      finishReason: "stop"
+    });
+  });
+
   it("executes a replace-region tool call and stops for editor confirmation", async () => {
     const onPreviewResult = vi.fn();
     const complete = vi
@@ -75,6 +297,66 @@ describe("document AI agent", () => {
       preparedPreview: true
     });
     expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks multiple write tool calls in the same assistant turn", async () => {
+    const onPreviewResult = vi.fn();
+    const complete = vi
+      .fn()
+      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
+        options?.onToolCallDelta?.({
+          id: "call_replace_document",
+          index: 0,
+          nameDelta: "replace_document"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            replacement: "# Focused note"
+          }),
+          index: 0
+        });
+        options?.onToolCallDelta?.({
+          id: "call_insert_markdown",
+          index: 1,
+          nameDelta: "insert_markdown"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            content: "Extra note",
+            placement: "after_anchor"
+          }),
+          index: 1
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async () => ({
+        content: "I need to choose one editor edit before preparing a preview.",
+        finishReason: "stop"
+      }));
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Old note\n\nBody",
+      documentEndPosition: 16,
+      documentPath: "/vault/README.md",
+      model: "gpt-5.5",
+      onPreviewResult,
+      prompt: "Rewrite this and add a note",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(onPreviewResult).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      content: "I need to choose one editor edit before preparing a preview.",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+    expect(complete).toHaveBeenCalledTimes(2);
   });
 
   it("lets the agent choose where to insert markdown around the current context", async () => {
@@ -145,7 +427,7 @@ describe("document AI agent", () => {
         options?.onToolCallDelta?.({
           argumentsDelta: JSON.stringify({
             anchorId: "document-end",
-            content: "# Alibaba ESA vs Cloudflare",
+            content: "# Synthetic comparison title",
             placement: "before_anchor"
           }),
           index: 0
@@ -164,7 +446,7 @@ describe("document AI agent", () => {
     const result = await runDocumentAiAgent({
       complete,
       documentContent: "",
-      documentPath: "/vault/cf.md",
+      documentPath: "/vault/example.md",
       model: "gpt-5.5",
       onPreviewResult,
       prompt: "Write a comparison",
@@ -175,7 +457,7 @@ describe("document AI agent", () => {
     expect(onPreviewResult).toHaveBeenCalledWith({
       from: 0,
       original: "",
-      replacement: "# Alibaba ESA vs Cloudflare",
+      replacement: "# Synthetic comparison title",
       to: 0,
       type: "insert"
     });
@@ -291,7 +573,7 @@ describe("document AI agent", () => {
         });
         options?.onToolCallDelta?.({
           argumentsDelta: JSON.stringify({
-            replacement: "# ESA cross-border origin problem\n\nFocused comparison."
+            replacement: "# Synthetic focus note\n\nFocused comparison."
           }),
           index: 0
         });
@@ -310,10 +592,10 @@ describe("document AI agent", () => {
       complete,
       documentContent,
       documentEndPosition: documentContent.length,
-      documentPath: "/vault/cf.md",
+      documentPath: "/vault/example.md",
       model: "gpt-5.5",
       onPreviewResult,
-      prompt: "Only keep the ESA cross-border origin problem and a comparison",
+      prompt: "Only keep the synthetic focus note and a comparison",
       provider: provider(),
       workspaceFiles: []
     });
@@ -321,8 +603,79 @@ describe("document AI agent", () => {
     expect(onPreviewResult).toHaveBeenCalledWith({
       from: 0,
       original: documentContent,
-      replacement: "# ESA cross-border origin problem\n\nFocused comparison.",
+      replacement: "# Synthetic focus note\n\nFocused comparison.",
       to: documentContent.length,
+      type: "replace"
+    });
+    expect(result).toEqual({
+      content: "",
+      finishReason: "toolUse",
+      preparedPreview: true
+    });
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it("executes a table replacement tool call and stops for editor confirmation", async () => {
+    const onPreviewResult = vi.fn();
+    const table = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (old-token) |"
+    ].join("\n");
+    const replacement = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (new-token) |"
+    ].join("\n");
+    const documentContent = ["### Section Alpha", "", table, "", "### Section Beta"].join("\n");
+    const tableStart = documentContent.indexOf(table);
+    const complete = vi
+      .fn()
+      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
+        options?.onToolCallDelta?.({
+          id: "call_replace_table",
+          index: 0,
+          nameDelta: "replace_table"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            anchorId: "table:0",
+            replacement
+          }),
+          index: 0
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async () => ({
+        content: "This follow-up should not be requested.",
+        finishReason: "stop"
+      }));
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      headingAnchors: [
+        { from: 0, level: 3, title: "Section Alpha", to: "### Section Alpha".length },
+        { from: documentContent.indexOf("### Section Beta"), level: 3, title: "Section Beta", to: documentContent.length }
+      ],
+      model: "gpt-5.5",
+      onPreviewResult,
+      prompt: "Update only the synthetic table",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: tableStart,
+      original: table,
+      replacement,
+      to: tableStart + table.length,
       type: "replace"
     });
     expect(result).toEqual({

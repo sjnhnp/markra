@@ -12,7 +12,7 @@ import {
   clearAiEditorPreview,
   showAiEditorPreview
 } from "../lib/ai/editorPreview";
-import { readAiSelectionContextFromView } from "../hooks/useEditorController";
+import { readAiSelectionContextFromView, readAiTableAnchorsFromView } from "../hooks/useEditorController";
 import type { AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import { clearAiSelectionHold, showAiSelectionHold } from "../lib/ai/selectionHold";
 
@@ -226,6 +226,46 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
   });
 
+  it("shows AI preview impact scope for selected text", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const to = from + "Original".length;
+
+    showAiEditorPreview(view, {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to,
+      type: "replace"
+    });
+
+    const scope = container.querySelector(".ProseMirror .markra-ai-preview-scope");
+    const toolbar = scope?.closest(".markra-ai-preview-actions");
+    const widget = container.querySelector(".ProseMirror .markra-ai-preview-widget");
+
+    expect(scope).toHaveTextContent("Replace selection");
+    expect(scope).toHaveTextContent("8 chars");
+    expect(toolbar).toHaveClass("markra-ai-preview-actions-quiet");
+    expect(widget?.firstElementChild).toHaveClass("markra-ai-preview-insert");
+  });
+
+  it("shows AI preview impact scope for whole-document replacements", async () => {
+    const { container, view } = await renderEditor("Original text");
+
+    showAiEditorPreview(view, {
+      from: 0,
+      original: "Original text",
+      replacement: "Focused note",
+      to: view.state.doc.content.size,
+      type: "replace"
+    });
+
+    const scope = container.querySelector(".ProseMirror .markra-ai-preview-scope");
+
+    expect(scope).toHaveTextContent("Replace entire document");
+    expect(scope).toHaveTextContent("13 chars");
+  });
+
   it("updates an existing AI replacement preview when streaming text grows", async () => {
     const { container, view } = await renderEditor("Original text");
     const from = findTextPosition(view, "Original");
@@ -389,6 +429,78 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror")?.textContent).toContain("Tail");
     expect(view.state.selection.from).toBeLessThanOrEqual(findTextPosition(view, "Tail"));
 
+    await settleMarkdownListener();
+  });
+
+  it("previews and applies a full Markdown table replacement from editor table anchors", async () => {
+    const table = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (old-token) |"
+    ].join("\n");
+    const replacement = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (new-token) |"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(["### Section Alpha", "", table, "", "Tail"].join("\n"));
+    const [tableAnchor] = readAiTableAnchorsFromView(view);
+
+    expect(tableAnchor).toEqual(expect.objectContaining({
+      id: "table:0",
+      kind: "table",
+      text: table
+    }));
+    expect(tableAnchor?.from).toBeGreaterThan(0);
+    expect(tableAnchor?.to).toBeGreaterThan(tableAnchor?.from ?? 0);
+
+    const result = {
+      from: tableAnchor?.from,
+      original: tableAnchor?.text ?? table,
+      replacement,
+      to: tableAnchor?.to,
+      type: "replace" as const
+    };
+    showAiEditorPreview(view, result);
+
+    const insertedPreview = container.querySelector(".ProseMirror .markra-ai-preview-insert");
+    expect(insertedPreview).toHaveTextContent("new-token");
+    expect(insertedPreview?.closest("td,th")).toBeNull();
+
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+    expect(applyAiEditorResult(view, result, { parseMarkdown })).toBe(true);
+    expect(container.querySelector(".ProseMirror table")).toHaveTextContent("new-token");
+    expect(container.querySelector(".ProseMirror table")).not.toHaveTextContent("old-token");
+
+    await settleMarkdownListener();
+  });
+
+  it("keeps an applied block markdown preview cleared when the replacement still contains the original heading text", async () => {
+    const { container, editor, view } = await renderEditor("### Section Alpha\n\nOld body\n\nTail");
+    const from = findTextPosition(view, "Section Alpha");
+    const result = {
+      from,
+      original: "Section Alpha",
+      replacement: [
+        "### Section Alpha",
+        "",
+        "| Field | Variant One | Variant Two |",
+        "| ----- | ----------- | ----------- |",
+        "| Sync note | None | Needs source token (new-token) |"
+      ].join("\n"),
+      to: from + "Section Alpha".length,
+      type: "replace" as const
+    };
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+
+    showAiEditorPreview(view, result);
+    expect(applyAiEditorResult(view, result, { parseMarkdown })).toBe(true);
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
+
+    const tailPosition = findTextPosition(view, "Tail", "Tail".length);
+    view.dispatch(view.state.tr.insertText(" updated", tailPosition, tailPosition));
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
     await settleMarkdownListener();
   });
 

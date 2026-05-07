@@ -18,9 +18,14 @@ export type AiEditorPreviewRestoreDetail = {
 
 export type AiEditorPreviewLabels = {
   apply: string;
+  chars?: string;
   copied: string;
   copy: string;
+  insertScope?: string;
   reject: string;
+  replaceDocumentScope?: string;
+  replaceRegionScope?: string;
+  replaceSelectionScope?: string;
 };
 
 type AiEditorPreviewMeta =
@@ -247,13 +252,20 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
           }
 
           if (previewState.applied && resultMatchesOriginal(transaction.doc, previewState.applied.result)) {
+            if (!resultStillLooksApplied(transaction.doc, previewState.applied.result)) {
+              return {
+                decorations: buildAiPreviewDecorations(
+                  transaction.doc,
+                  previewState.applied.result,
+                  previewState.applied.labels
+                ),
+                pending: previewState.applied
+              };
+            }
+
             return {
-              decorations: buildAiPreviewDecorations(
-                transaction.doc,
-                previewState.applied.result,
-                previewState.applied.labels
-              ),
-              pending: previewState.applied
+              ...previewState,
+              decorations: previewState.decorations.map(transaction.mapping, transaction.doc)
             };
           }
 
@@ -291,7 +303,7 @@ function buildAiPreviewDecorations(
   const appendPosition = findPreviewAppendPosition(doc, result, from, to);
 
   const decorations = [
-    Decoration.widget(appendPosition, () => createPreviewWidget(result, labels), {
+    Decoration.widget(appendPosition, () => createPreviewWidget(result, labels, { docSize, from, to }), {
       key: `markra-ai-preview-insert-${from}-${to}-${previewKeySegment(result.replacement)}`,
       stopEvent: (event) => event.target instanceof Node && isPreviewWidgetEventTarget(event.target),
       side: -1
@@ -321,34 +333,72 @@ function previewKeySegment(text: string) {
 
 const defaultLabels: AiEditorPreviewLabels = {
   apply: "Apply",
+  chars: "chars",
   copied: "Copied",
   copy: "Copy",
-  reject: "Reject"
+  insertScope: "Insert",
+  reject: "Reject",
+  replaceDocumentScope: "Replace entire document",
+  replaceRegionScope: "Replace region",
+  replaceSelectionScope: "Replace selection"
 };
 
-function createPreviewWidget(result: AiTextDiffResult, labels: AiEditorPreviewLabels) {
+type PreviewScopeContext = {
+  docSize: number;
+  from: number;
+  to: number;
+};
+
+function createPreviewWidget(result: AiTextDiffResult, labels: AiEditorPreviewLabels, scopeContext: PreviewScopeContext) {
   const preview = document.createElement("span");
   preview.className = shouldTreatReplacementAsBlockMarkdown(result.replacement)
     ? "markra-ai-preview-widget markra-ai-preview-widget-block"
     : "markra-ai-preview-widget";
   preview.contentEditable = "false";
 
+  const scope = document.createElement("span");
+  scope.className = "markra-ai-preview-scope";
+  scope.textContent = formatPreviewScope(result, labels, scopeContext);
+
   const inserted = document.createElement("span");
   inserted.className = "markra-ai-preview-insert";
   inserted.textContent = result.replacement;
 
-  const actions = document.createElement("span");
-  actions.className = "markra-ai-preview-actions markra-ai-preview-actions-quiet";
-  actions.contentEditable = "false";
-  actions.append(
+  const toolbar = document.createElement("span");
+  toolbar.className = "markra-ai-preview-actions markra-ai-preview-actions-quiet";
+  toolbar.contentEditable = "false";
+  toolbar.append(
+    scope,
     createActionButton("copy", labels.copy, result, labels.copied),
     createActionButton("reject", labels.reject, result),
     createActionButton("apply", labels.apply, result)
   );
 
-  preview.append(inserted, actions);
+  preview.append(inserted, toolbar);
 
   return preview;
+}
+
+function formatPreviewScope(
+  result: AiTextDiffResult,
+  labels: AiEditorPreviewLabels,
+  { docSize, from, to }: PreviewScopeContext
+) {
+  const charLabel = labels.chars ?? defaultLabels.chars ?? "chars";
+  const affectedLength = result.type === "insert" ? result.replacement.length : result.original.length;
+  const affectedText = `${affectedLength} ${charLabel}`;
+
+  if (result.type === "insert") {
+    return `${labels.insertScope ?? defaultLabels.insertScope ?? "Insert"} | ${affectedText} | pos ${from}`;
+  }
+  if (from === 0 && to >= docSize) {
+    return `${labels.replaceDocumentScope ?? defaultLabels.replaceDocumentScope ?? "Replace entire document"} | ${affectedText}`;
+  }
+  if (from < to) {
+    return `${labels.replaceSelectionScope ?? defaultLabels.replaceSelectionScope ?? "Replace selection"} | ${affectedText} | ${from}-${to}`;
+  }
+
+  return `${labels.replaceRegionScope ?? defaultLabels.replaceRegionScope ?? "Replace region"} | ${affectedText}`;
 }
 
 function createActionButton(
@@ -612,6 +662,55 @@ function resultMatchesReplacement(doc: ProseNode, result: AiTextDiffResult) {
 
   const replacementEnd = Math.min(docSize, from + result.replacement.length);
   return doc.textBetween(from, replacementEnd, "\n") === result.replacement;
+}
+
+function resultStillLooksApplied(doc: ProseNode, result: AiTextDiffResult) {
+  if (resultMatchesReplacement(doc, result)) return true;
+  if (!shouldTreatReplacementAsBlockMarkdown(result.replacement)) return false;
+
+  const docSize = doc.content.size;
+  const from = clampNumber(result.from, 0, docSize);
+  if (from === null) return false;
+
+  const needles = blockMarkdownReplacementNeedles(result);
+  if (!needles.length) return false;
+
+  const nearbyEnd = Math.min(docSize, from + Math.max(result.replacement.length * 2, result.original.length + 240));
+  const nearbyText = normalizePreviewComparableText(doc.textBetween(from, nearbyEnd, "\n"));
+
+  return needles.every((needle) => nearbyText.includes(needle));
+}
+
+function blockMarkdownReplacementNeedles(result: AiTextDiffResult) {
+  const normalizedOriginal = normalizePreviewComparableText(result.original);
+
+  return result.replacement
+    .split("\n")
+    .map(markdownLineToComparableText)
+    .filter((line) => line.length > 0 && line !== normalizedOriginal)
+    .slice(0, 3);
+}
+
+function markdownLineToComparableText(line: string) {
+  const trimmed = line.trim();
+  if (!trimmed) return "";
+  if (/^\|?\s*:?-{3,}:?(\s*\|\s*:?-{3,}:?)*\s*\|?$/u.test(trimmed)) return "";
+
+  return normalizePreviewComparableText(
+    trimmed
+      .replace(/^#{1,6}\s+/u, "")
+      .replace(/^\|/u, "")
+      .replace(/\|$/u, "")
+      .replace(/\|/gu, " ")
+  );
+}
+
+function normalizePreviewComparableText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[`"'“”‘’#*()[\]{}:,.!?|<>~_-]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
 }
 
 function findInlineAppendPosition(doc: ProseNode, from: number, to: number) {

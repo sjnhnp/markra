@@ -190,13 +190,61 @@ describe("useAiAgentSession", () => {
     });
   });
 
+  it("passes editor table anchors to the document agent runtime", async () => {
+    const tableAnchors = [
+      {
+        description: "Markdown table Section Alpha table: Field / Variant One / Variant Two",
+        from: 42,
+        id: "table:0",
+        kind: "table" as const,
+        text: "| Field | Variant One | Variant Two |\n| ----- | ----------- | ----------- |",
+        title: "Section Alpha table",
+        to: 91
+      }
+    ];
+    mockedRunDocumentAiAgent.mockResolvedValue({
+      content: "Done",
+      finishReason: "stop"
+    });
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/example.md",
+        getDocumentContent: () => "# Section Alpha",
+        getTableAnchors: () => tableAnchors,
+        model: "gpt-5.5",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        settingsLoading: false,
+        translate: (key) => key,
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("Update the synthetic table");
+    });
+
+    expect(mockedRunDocumentAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      tableAnchors
+    }));
+  });
+
   it("does not turn a prepared editor preview into an empty-response error", async () => {
     const onAiResult = vi.fn();
     mockedRunDocumentAiAgent.mockImplementation(async ({ onPreviewResult }) => {
       onPreviewResult?.({
         from: 0,
         original: "",
-        replacement: "# Alibaba ESA vs Cloudflare",
+        replacement: "# Synthetic comparison title",
         to: 0,
         type: "insert"
       });
@@ -209,7 +257,7 @@ describe("useAiAgentSession", () => {
 
     const { result } = renderHook(() =>
       useAiAgentSession({
-        documentPath: "/vault/cf.md",
+        documentPath: "/vault/example.md",
         getDocumentContent: () => "",
         model: "gpt-5.5",
         onAiResult,
@@ -240,7 +288,7 @@ describe("useAiAgentSession", () => {
     expect(onAiResult).toHaveBeenCalledWith({
       from: 0,
       original: "",
-      replacement: "# Alibaba ESA vs Cloudflare",
+      replacement: "# Synthetic comparison title",
       to: 0,
       type: "insert"
     });
@@ -250,6 +298,74 @@ describe("useAiAgentSession", () => {
       text: "The editor change is ready."
     });
     expect(result.current.messages.at(-1)?.isError).not.toBe(true);
+  });
+
+  it("carries prepared editor preview details into the next agent turn history", async () => {
+    const preview = {
+      from: 10,
+      original: "old-token",
+      replacement: "new-token",
+      to: 19,
+      type: "replace" as const
+    };
+    mockedRunDocumentAiAgent
+      .mockImplementationOnce(async ({ onPreviewResult }) => {
+        onPreviewResult?.(preview);
+
+        return {
+          content: "",
+          finishReason: "stop",
+          preparedPreview: true
+        };
+      })
+      .mockResolvedValueOnce({
+        content: "Follow-up synthetic answer",
+        finishReason: "stop"
+      });
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/example.md",
+        getDocumentContent: () => "# Section Alpha",
+        model: "gpt-5.5",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        settingsLoading: false,
+        translate: (key) =>
+          ({
+            "app.aiAgentPreviewReady": "The editor change is ready."
+          })[key] ?? key,
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("Prepare synthetic edit");
+    });
+
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toBe("The editor change is ready."));
+
+    await act(async () => {
+      await result.current.submit("Follow-up synthetic request");
+    });
+
+    expect(mockedRunDocumentAiAgent).toHaveBeenCalledTimes(2);
+    expect(mockedRunDocumentAiAgent.mock.calls[1]?.[0].history).toEqual([
+      { role: "user", text: "Prepare synthetic edit" },
+      {
+        preview,
+        role: "assistant",
+        text: "The editor change is ready."
+      }
+    ]);
   });
 
   it("passes the workspace file reader to the document agent runtime", async () => {

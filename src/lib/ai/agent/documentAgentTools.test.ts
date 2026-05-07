@@ -201,6 +201,78 @@ describe("documentAgentTools", () => {
     }));
   });
 
+  it("locates a Markdown table instead of the owning heading for table edits", async () => {
+    const documentContent = [
+      "### Section Alpha",
+      "",
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (old-token) |",
+      "",
+      "### Section Beta",
+      "",
+      "Body"
+    ].join("\n");
+    const firstHeading = "### Section Alpha";
+    const secondHeading = "### Section Beta";
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      headingAnchors: [
+        { from: documentContent.indexOf(firstHeading), level: 3, title: "Section Alpha", to: documentContent.indexOf(firstHeading) + firstHeading.length },
+        { from: documentContent.indexOf(secondHeading), level: 3, title: "Section Beta", to: documentContent.indexOf(secondHeading) + secondHeading.length }
+      ],
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "locate_markdown_region");
+
+    const result = await tool?.execute("tool_locate_markdown_region", {
+      goal: "replace only the table under Section Alpha and change old-token to new-token",
+      operation: "replace"
+    });
+
+    expect(result?.details).toEqual(expect.objectContaining({
+      anchorId: "table:0"
+    }));
+    expect(result?.content[0]?.text).toContain("table:0");
+  });
+
+  it("uses enum schemas for bounded tool arguments", () => {
+    const tools = createDocumentAgentTools({
+      documentContent: "# Title",
+      documentEndPosition: 7,
+      documentPath: "/vault/README.md",
+      selection: null,
+      workspaceFiles: []
+    });
+    const insertMarkdown = tools.find((item) => item.name === "insert_markdown");
+    const locateMarkdownRegion = tools.find((item) => item.name === "locate_markdown_region");
+
+    expect(insertMarkdown?.parameters).toEqual(expect.objectContaining({
+      properties: expect.objectContaining({
+        placement: expect.objectContaining({
+          anyOf: expect.arrayContaining([
+            expect.objectContaining({ const: "after_anchor" }),
+            expect.objectContaining({ const: "before_anchor" }),
+            expect.objectContaining({ const: "cursor" })
+          ])
+        })
+      })
+    }));
+    expect(locateMarkdownRegion?.parameters).toEqual(expect.objectContaining({
+      properties: expect.objectContaining({
+        operation: expect.objectContaining({
+          anyOf: expect.arrayContaining([
+            expect.objectContaining({ const: "delete" }),
+            expect.objectContaining({ const: "insert" }),
+            expect.objectContaining({ const: "replace" })
+          ])
+        })
+      })
+    }));
+  });
+
   it("locates the most appropriate section by heading title", async () => {
     const tool = createDocumentAgentTools({
       documentContent: "# Intro\n\n## 10. Current\n\nBody\n\n## 11. Follow-ups\n\nMore body",
@@ -324,6 +396,267 @@ describe("documentAgentTools", () => {
       to: 21,
       type: "replace"
     });
+  });
+
+  it("prepares a replacement preview for a resolved Markdown table anchor", async () => {
+    const onPreviewResult = vi.fn();
+    const table = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (old-token) |"
+    ].join("\n");
+    const replacement = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (new-token) |"
+    ].join("\n");
+    const documentContent = ["### Section Alpha", "", table, "", "### Section Beta"].join("\n");
+    const tableStart = documentContent.indexOf(table);
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      headingAnchors: [
+        { from: 0, level: 3, title: "Section Alpha", to: "### Section Alpha".length },
+        { from: documentContent.indexOf("### Section Beta"), level: 3, title: "Section Beta", to: documentContent.length }
+      ],
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_region");
+
+    await tool?.execute("tool_replace_region", {
+      anchorId: "table:0",
+      replacement
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: tableStart,
+      original: table,
+      replacement,
+      to: tableStart + table.length,
+      type: "replace"
+    });
+  });
+
+  it("prepares a table replacement preview with the dedicated table tool", async () => {
+    const onPreviewResult = vi.fn();
+    const table = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (old-token) |"
+    ].join("\n");
+    const replacement = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (new-token) |"
+    ].join("\n");
+    const documentContent = ["### Section Alpha", "", table, "", "### Section Beta"].join("\n");
+    const tableStart = documentContent.indexOf(table);
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      headingAnchors: [
+        { from: 0, level: 3, title: "Section Alpha", to: "### Section Alpha".length },
+        { from: documentContent.indexOf("### Section Beta"), level: 3, title: "Section Beta", to: documentContent.length }
+      ],
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_table");
+
+    expect(tool).toBeDefined();
+    const result = await tool?.execute("tool_replace_table", {
+      anchorId: "table:0",
+      replacement
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: tableStart,
+      original: table,
+      replacement,
+      to: tableStart + table.length,
+      type: "replace"
+    });
+    expect(result?.content[0]?.text).toContain("Prepared a table replacement preview");
+  });
+
+  it("prepares a table replacement preview when the document has no headings", async () => {
+    const onPreviewResult = vi.fn();
+    const table = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (old-token) |"
+    ].join("\n");
+    const replacement = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (new-token) |"
+    ].join("\n");
+    const tool = createDocumentAgentTools({
+      documentContent: table,
+      documentEndPosition: table.length,
+      documentPath: "/vault/example.md",
+      headingAnchors: [],
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_table");
+
+    await tool?.execute("tool_replace_table", {
+      anchorId: "table:0",
+      replacement
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 0,
+      original: table,
+      replacement,
+      to: table.length,
+      type: "replace"
+    });
+  });
+
+  it("uses provided editor table anchor positions for table replacement previews", async () => {
+    const onPreviewResult = vi.fn();
+    const table = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (old-token) |"
+    ].join("\n");
+    const replacement = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (new-token) |"
+    ].join("\n");
+    const documentContent = ["### Section Alpha", "", table, "", "Tail"].join("\n");
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: 200,
+      documentPath: "/vault/example.md",
+      headingAnchors: [],
+      onPreviewResult,
+      selection: null,
+      tableAnchors: [
+        {
+          description: "Markdown table Section Alpha table: Field / Variant One / Variant Two",
+          from: 42,
+          id: "table:0",
+          kind: "table",
+          text: table,
+          title: "Section Alpha table",
+          to: 91
+        }
+      ],
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_table");
+
+    await tool?.execute("tool_replace_table", {
+      anchorId: "table:0",
+      replacement
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 42,
+      original: table,
+      replacement,
+      to: 91,
+      type: "replace"
+    });
+  });
+
+  it("rejects Markdown table replacements through replace_region unless the target is a complete table anchor", async () => {
+    const onPreviewResult = vi.fn();
+    const tableReplacement = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (new-token) |"
+    ].join("\n");
+    const documentContent = ["### Section Alpha", "", "Synthetic paragraph"].join("\n");
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      headingAnchors: [
+        { from: 0, level: 3, title: "Section Alpha", to: "### Section Alpha".length }
+      ],
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_region");
+
+    await expect(tool?.execute("tool_replace_region", {
+      anchorId: "heading:0",
+      replacement: tableReplacement
+    })).rejects.toThrow(
+      "Cannot replace this region with a Markdown table because the target is not a complete table anchor. Use replace_table with a table anchor."
+    );
+    expect(onPreviewResult).not.toHaveBeenCalled();
+  });
+
+  it("rejects fenced Markdown table replacements through replace_region unless the target is a complete table anchor", async () => {
+    const onPreviewResult = vi.fn();
+    const tableReplacement = [
+      "```markdown",
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (new-token) |",
+      "```"
+    ].join("\n");
+    const documentContent = ["### Section Alpha", "", "Synthetic paragraph"].join("\n");
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      headingAnchors: [
+        { from: 0, level: 3, title: "Section Alpha", to: "### Section Alpha".length }
+      ],
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_region");
+
+    await expect(tool?.execute("tool_replace_region", {
+      anchorId: "heading:0",
+      replacement: tableReplacement
+    })).rejects.toThrow(
+      "Cannot replace this region with a Markdown table because the target is not a complete table anchor. Use replace_table with a table anchor."
+    );
+    expect(onPreviewResult).not.toHaveBeenCalled();
+  });
+
+  it("rejects block markdown replacements for inline selections", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (old-token) |"
+    ].join("\n");
+    const selectedText = "old-token";
+    const selectedFrom = documentContent.indexOf(selectedText);
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: {
+        from: selectedFrom,
+        source: "selection",
+        text: selectedText,
+        to: selectedFrom + selectedText.length
+      },
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_region");
+
+    await expect(tool?.execute("tool_replace_region", {
+      replacement: [
+        "| Field | Variant One | Variant Two |",
+        "| ----- | ----------- | ----------- |",
+        "| Sync note | None | Needs source token |"
+      ].join("\n")
+    })).rejects.toThrow("Cannot replace an inline selection with block-level Markdown");
+    expect(onPreviewResult).not.toHaveBeenCalled();
   });
 
   it("prepares a section deletion preview for a full section anchor", async () => {

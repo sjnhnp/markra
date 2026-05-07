@@ -10,12 +10,13 @@ import {
 } from "../lib/ai/agent/agentProcessTrace";
 import {
   createDefaultAiAgentSessionState,
+  type AiAgentSessionPreview,
   type AiAgentSessionMessage,
   type StoredAiAgentSessionState
 } from "../lib/ai/agent/agentSessionState";
 import type { AgentWorkspaceFile } from "../lib/ai/agent/agentTools";
 import { getProviderCapabilities } from "../lib/ai/agent/providerCapabilities";
-import type { AiDiffResult, AiHeadingAnchor, AiSelectionContext } from "../lib/ai/agent/inlineAi";
+import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import type { AiProviderConfig } from "../lib/ai/providers/aiProviders";
 import type { I18nKey } from "../lib/i18n";
 import {
@@ -33,6 +34,7 @@ type AiAgentSessionContext = {
   getDocumentEndPosition?: () => number;
   getHeadingAnchors?: () => AiHeadingAnchor[];
   getSelection?: () => AiSelectionContext | null;
+  getTableAnchors?: () => AiDocumentAnchor[];
   model: string | null;
   onAiResult?: (result: AiDiffResult) => unknown;
   onSessionRestore?: (session: Pick<StoredAiAgentSessionState, "panelOpen" | "panelWidth">) => unknown;
@@ -298,6 +300,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     const history: DocumentAiHistoryMessage[] = messages
       .filter((item) => !item.isError)
       .map((item) => ({
+        preview: item.preview,
         role: item.role,
         text: item.text
       }));
@@ -327,7 +330,14 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         onPreviewResult: (result) => {
           if (requestIdRef.current !== requestId) return;
 
-          preparedEditorPreview = true;
+          const preview = sessionPreviewFromAiResult(result);
+          if (preview) {
+            preparedEditorPreview = true;
+            updateAssistantMessage((currentMessage) => ({
+              ...currentMessage,
+              preview
+            }));
+          }
           ctx.onAiResult?.(result);
         },
         onEvent: (event) => {
@@ -360,6 +370,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         readWorkspaceFile: ctx.readWorkspaceFile,
         headingAnchors: ctx.getHeadingAnchors?.() ?? [],
         selection: ctx.getSelection?.() ?? null,
+        tableAnchors: ctx.getTableAnchors?.(),
         thinkingEnabled,
         webSearchEnabled,
         workspaceFiles: ctx.workspaceFiles ?? []
@@ -421,5 +432,17 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     thinkingEnabled,
     titleVersion,
     webSearchEnabled
+  };
+}
+
+function sessionPreviewFromAiResult(result: AiDiffResult): AiAgentSessionPreview | undefined {
+  if (result.type === "error") return undefined;
+
+  return {
+    from: result.from,
+    original: result.original,
+    replacement: result.replacement,
+    to: result.to,
+    type: result.type
   };
 }
