@@ -40,6 +40,8 @@ type UseMarkdownDocumentOptions = {
   getCurrentMarkdown: (fallbackContent: string) => string;
   onTreeRootFromFolderPath: (path: string, name: string) => unknown;
   onTreeRootFromFilePath: (path: string) => unknown;
+  preferencesReady?: boolean;
+  restoreWorkspaceOnStartup?: boolean;
 };
 
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
@@ -49,7 +51,9 @@ function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState
 export function useMarkdownDocument({
   getCurrentMarkdown,
   onTreeRootFromFolderPath,
-  onTreeRootFromFilePath
+  onTreeRootFromFilePath,
+  preferencesReady = true,
+  restoreWorkspaceOnStartup = true
 }: UseMarkdownDocumentOptions) {
   const [document, setDocument] = useState<DocumentState>(() => createInitialDocumentState());
   const documentRef = useRef(document);
@@ -189,33 +193,36 @@ export function useMarkdownDocument({
 
   useEffect(() => {
     if (isBlankEditorWindow() || initialMarkdownFilePath()) return;
+    if (!preferencesReady) return;
 
     let active = true;
 
     (async () => {
       let restoredWorkspace = false;
 
-      try {
-        const workspace = await getStoredWorkspaceState();
+      if (restoreWorkspaceOnStartup) {
+        try {
+          const workspace = await getStoredWorkspaceState();
 
-        if (workspace.folderPath && workspace.fileTreeOpen) {
-          onTreeRootFromFolderPath(workspace.folderPath, workspace.folderName ?? workspace.folderPath);
-          restoredWorkspace = true;
-        }
-
-        if (workspace.filePath) {
-          try {
-            const file = await readNativeMarkdownFile(workspace.filePath);
-            if (!active) return;
-
-            applyNativeMarkdownFile(file, !restoredWorkspace);
+          if (workspace.folderPath && workspace.fileTreeOpen) {
+            onTreeRootFromFolderPath(workspace.folderPath, workspace.folderName ?? workspace.folderPath);
             restoredWorkspace = true;
-          } catch {
-            // A deleted or moved file should not block the normal launch fallback.
           }
+
+          if (workspace.filePath) {
+            try {
+              const file = await readNativeMarkdownFile(workspace.filePath);
+              if (!active) return;
+
+              applyNativeMarkdownFile(file, !restoredWorkspace);
+              restoredWorkspace = true;
+            } catch {
+              // A deleted or moved file should not block the normal launch fallback.
+            }
+          }
+        } catch {
+          // Store issues should not prevent Markra from opening a usable document.
         }
-      } catch {
-        // Store issues should not prevent Markra from opening a usable document.
       }
 
       if (!active || restoredWorkspace) return;
@@ -237,7 +244,7 @@ export function useMarkdownDocument({
     return () => {
       active = false;
     };
-  }, [applyNativeMarkdownFile, onTreeRootFromFolderPath]);
+  }, [applyNativeMarkdownFile, onTreeRootFromFolderPath, preferencesReady, restoreWorkspaceOnStartup]);
 
   useEffect(() => {
     if (!document.path) return;

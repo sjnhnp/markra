@@ -1,7 +1,5 @@
 import {
   Bot,
-  FileText,
-  Keyboard,
   Palette,
   PenLine,
   SlidersHorizontal,
@@ -39,16 +37,6 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: PenLine,
     id: "editor",
     labelKey: "settings.categories.editor"
-  },
-  {
-    icon: FileText,
-    id: "markdown",
-    labelKey: "settings.categories.markdown"
-  },
-  {
-    icon: Keyboard,
-    id: "shortcuts",
-    labelKey: "settings.categories.shortcuts"
   }
 ];
 

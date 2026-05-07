@@ -73,7 +73,9 @@ export default function App() {
   const markdownDocument = useMarkdownDocument({
     getCurrentMarkdown: editor.getCurrentMarkdown,
     onTreeRootFromFolderPath: openFolderPath,
-    onTreeRootFromFilePath: setRootFromMarkdownFilePath
+    onTreeRootFromFilePath: setRootFromMarkdownFilePath,
+    preferencesReady: !editorPreferences.loading,
+    restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup
   });
   const {
     document,
@@ -340,14 +342,22 @@ export default function App() {
             <div className="editor-content-slot relative h-full min-h-0 overflow-hidden">
               <MarkdownPaper
                 autoFocus={shouldFocusEditorOnReady(document.content)}
+                bodyFontSize={editorPreferences.preferences.bodyFontSize}
+                contentWidth={editorPreferences.preferences.contentWidth}
                 initialContent={document.content}
                 language={appLanguage.language}
+                lineHeight={editorPreferences.preferences.lineHeight}
                 onEditorReady={editor.handleEditorReady}
                 onMarkdownChange={handleMarkdownChange}
                 onTextSelectionChange={handleTextSelectionChange}
                 revision={document.revision}
               />
-              <QuietStatus dirty={document.dirty} language={appLanguage.language} wordCount={wordCount} />
+              <QuietStatus
+                dirty={document.dirty}
+                language={appLanguage.language}
+                showWordCount={editorPreferences.preferences.showWordCount}
+                wordCount={wordCount}
+              />
             </div>
             <div className="ai-agent-panel-slot relative z-20 min-h-0 overflow-hidden">
               <AiAgentPanel

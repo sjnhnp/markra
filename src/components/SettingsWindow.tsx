@@ -3,9 +3,7 @@ import { AiProviderSettingsPanel } from "./AiProviderSettingsPanel";
 import {
   AppearanceSettings,
   EditorSettings,
-  GeneralSettings,
-  MarkdownSettings,
-  ShortcutsSettings
+  GeneralSettings
 } from "./SettingsSections";
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
 import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
@@ -49,11 +47,13 @@ export function SettingsWindow() {
         <SettingsContent activeCategory={activeCategory} translate={translate}>
           {activeCategory === "general" ? (
             <GeneralSettings
+              preferences={editorPreferences}
               language={appLanguage.language}
               translate={translate}
               welcomeReset={welcomeReset}
               onResetWelcomeDocument={handleResetWelcomeDocument}
               onSelectLanguage={appLanguage.selectLanguage}
+              onUpdatePreferences={handleUpdateEditorPreferences}
             />
           ) : null}
           {activeCategory === "ai" ? (
@@ -84,8 +84,6 @@ export function SettingsWindow() {
               onUpdatePreferences={handleUpdateEditorPreferences}
             />
           ) : null}
-          {activeCategory === "markdown" ? <MarkdownSettings translate={translate} /> : null}
-          {activeCategory === "shortcuts" ? <ShortcutsSettings translate={translate} /> : null}
         </SettingsContent>
       </div>
     </main>

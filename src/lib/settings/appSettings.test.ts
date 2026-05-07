@@ -112,16 +112,55 @@ describe("app settings", () => {
     store.get.mockResolvedValue(undefined);
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
-      autoOpenAiOnSelection: true
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      contentWidth: "default",
+      lineHeight: 1.65,
+      restoreWorkspaceOnStartup: true,
+      showWordCount: true
     });
 
     expect(store.get).toHaveBeenCalledWith("editorPreferences");
   });
 
-  it("persists editor preferences", async () => {
-    await saveStoredEditorPreferences({ autoOpenAiOnSelection: false });
+  it("normalizes partial editor preferences from older settings files", async () => {
+    store.get.mockResolvedValue({
+      autoOpenAiOnSelection: false,
+      bodyFontSize: 99,
+      contentWidth: "page",
+      lineHeight: 2,
+      restoreWorkspaceOnStartup: false,
+      showWordCount: false
+    });
 
-    expect(store.set).toHaveBeenCalledWith("editorPreferences", { autoOpenAiOnSelection: false });
+    await expect(getStoredEditorPreferences()).resolves.toEqual({
+      autoOpenAiOnSelection: false,
+      bodyFontSize: 16,
+      contentWidth: "default",
+      lineHeight: 1.65,
+      restoreWorkspaceOnStartup: false,
+      showWordCount: false
+    });
+  });
+
+  it("persists editor preferences", async () => {
+    await saveStoredEditorPreferences({
+      autoOpenAiOnSelection: false,
+      bodyFontSize: 18,
+      contentWidth: "wide",
+      lineHeight: 1.8,
+      restoreWorkspaceOnStartup: false,
+      showWordCount: false
+    });
+
+    expect(store.set).toHaveBeenCalledWith("editorPreferences", {
+      autoOpenAiOnSelection: false,
+      bodyFontSize: 18,
+      contentWidth: "wide",
+      lineHeight: 1.8,
+      restoreWorkspaceOnStartup: false,
+      showWordCount: false
+    });
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 

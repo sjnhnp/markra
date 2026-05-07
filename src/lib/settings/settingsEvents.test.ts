@@ -84,16 +84,25 @@ describe("settings events", () => {
     const cleanup = await listenAppEditorPreferencesChanged(onPreferencesChanged);
     const listener = mockedListen.mock.calls[0]?.[1];
 
-    await notifyAppEditorPreferencesChanged({ autoOpenAiOnSelection: false });
-    listener?.({ payload: { preferences: { autoOpenAiOnSelection: false } } } as Parameters<NonNullable<typeof listener>>[0]);
+    const preferences = {
+      autoOpenAiOnSelection: false,
+      bodyFontSize: 18,
+      contentWidth: "wide" as const,
+      lineHeight: 1.8,
+      restoreWorkspaceOnStartup: false,
+      showWordCount: false
+    };
+
+    await notifyAppEditorPreferencesChanged(preferences);
+    listener?.({ payload: { preferences } } as Parameters<NonNullable<typeof listener>>[0]);
     listener?.({ payload: { preferences: { autoOpenAiOnSelection: "nope" } } } as Parameters<NonNullable<typeof listener>>[0]);
     cleanup();
 
     expect(mockedListen).toHaveBeenCalledWith("markra://editor-preferences-changed", expect.any(Function));
     expect(mockedEmit).toHaveBeenCalledWith("markra://editor-preferences-changed", {
-      preferences: { autoOpenAiOnSelection: false }
+      preferences
     });
-    expect(onPreferencesChanged).toHaveBeenCalledWith({ autoOpenAiOnSelection: false });
+    expect(onPreferencesChanged).toHaveBeenCalledWith(preferences);
     expect(onPreferencesChanged).toHaveBeenCalledTimes(1);
     expect(unlisten).toHaveBeenCalledTimes(1);
   });

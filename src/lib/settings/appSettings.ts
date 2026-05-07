@@ -13,8 +13,14 @@ const workspaceKey = "workspace";
 
 export type AppTheme = "light" | "dark" | "system";
 export type ResolvedAppTheme = "light" | "dark";
+export type EditorContentWidth = "narrow" | "default" | "wide";
 export type EditorPreferences = {
   autoOpenAiOnSelection: boolean;
+  bodyFontSize: number;
+  contentWidth: EditorContentWidth;
+  lineHeight: number;
+  restoreWorkspaceOnStartup: boolean;
+  showWordCount: boolean;
 };
 export type StoredWorkspaceState = {
   filePath: string | null;
@@ -25,8 +31,17 @@ export type StoredWorkspaceState = {
 export type { AppLanguage };
 
 export const defaultEditorPreferences: EditorPreferences = {
-  autoOpenAiOnSelection: true
+  autoOpenAiOnSelection: true,
+  bodyFontSize: 16,
+  contentWidth: "default",
+  lineHeight: 1.65,
+  restoreWorkspaceOnStartup: true,
+  showWordCount: true
 };
+
+const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
+const editorContentWidthOptions: EditorContentWidth[] = ["narrow", "default", "wide"];
+const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
 
 export const defaultWorkspaceState: StoredWorkspaceState = {
   filePath: null,
@@ -145,11 +160,28 @@ export type {
 export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   if (typeof value !== "object" || value === null) return defaultEditorPreferences;
 
+  const preferences = value as Partial<EditorPreferences>;
+
   return {
     autoOpenAiOnSelection:
-      typeof (value as Partial<EditorPreferences>).autoOpenAiOnSelection === "boolean"
-        ? Boolean((value as Partial<EditorPreferences>).autoOpenAiOnSelection)
-        : defaultEditorPreferences.autoOpenAiOnSelection
+      typeof preferences.autoOpenAiOnSelection === "boolean"
+        ? preferences.autoOpenAiOnSelection
+        : defaultEditorPreferences.autoOpenAiOnSelection,
+    bodyFontSize: editorBodyFontSizeOptions.includes(preferences.bodyFontSize as typeof editorBodyFontSizeOptions[number])
+      ? Number(preferences.bodyFontSize)
+      : defaultEditorPreferences.bodyFontSize,
+    contentWidth: editorContentWidthOptions.includes(preferences.contentWidth as EditorContentWidth)
+      ? (preferences.contentWidth as EditorContentWidth)
+      : defaultEditorPreferences.contentWidth,
+    lineHeight: editorLineHeightOptions.includes(preferences.lineHeight as typeof editorLineHeightOptions[number])
+      ? Number(preferences.lineHeight)
+      : defaultEditorPreferences.lineHeight,
+    restoreWorkspaceOnStartup:
+      typeof preferences.restoreWorkspaceOnStartup === "boolean"
+        ? preferences.restoreWorkspaceOnStartup
+        : defaultEditorPreferences.restoreWorkspaceOnStartup,
+    showWordCount:
+      typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount
   };
 }
 

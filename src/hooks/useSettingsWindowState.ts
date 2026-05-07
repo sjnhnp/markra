@@ -5,6 +5,7 @@ import { t, type I18nKey } from "../lib/i18n";
 import {
   getStoredAiSettings,
   getStoredEditorPreferences,
+  defaultEditorPreferences,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
@@ -17,7 +18,7 @@ import { notifyAppAiSettingsChanged, notifyAppEditorPreferencesChanged } from ".
 import { useAppLanguage } from "./useAppLanguage";
 import { useAppTheme } from "./useAppTheme";
 
-export type SettingsCategory = "general" | "ai" | "appearance" | "editor" | "markdown" | "shortcuts";
+export type SettingsCategory = "general" | "ai" | "appearance" | "editor";
 
 export function useSettingsWindowState() {
   const appTheme = useAppTheme();
@@ -25,7 +26,7 @@ export function useSettingsWindowState() {
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("general");
   const [aiSettings, setAiSettings] = useState<AiProviderSettings>(() => createDefaultAiSettings());
   const [aiSettingsSaved, setAiSettingsSaved] = useState(false);
-  const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>({ autoOpenAiOnSelection: true });
+  const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
   const [selectedAiProviderId, setSelectedAiProviderId] = useState<string | undefined>(
     () => createDefaultAiSettings().defaultProviderId
   );

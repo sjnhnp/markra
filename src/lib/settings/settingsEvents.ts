@@ -79,7 +79,11 @@ export async function listenAppEditorPreferencesChanged(
 
   return listen<EditorPreferencesChangedPayload>(editorPreferencesChangedEvent, (event) => {
     const preferences = normalizeEditorPreferences(event.payload.preferences);
-    if (preferences.autoOpenAiOnSelection === event.payload.preferences.autoOpenAiOnSelection) {
+    if (
+      typeof event.payload.preferences === "object" &&
+      event.payload.preferences !== null &&
+      preferences.autoOpenAiOnSelection === event.payload.preferences.autoOpenAiOnSelection
+    ) {
       onPreferencesChanged(preferences);
     }
   });

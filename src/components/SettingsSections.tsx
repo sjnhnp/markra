@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   Languages,
   Monitor,
   Moon,
@@ -7,7 +8,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { Children, type ReactNode } from "react";
-import type { EditorPreferences, AppTheme } from "../lib/settings/appSettings";
+import type { AppTheme, EditorContentWidth, EditorPreferences } from "../lib/settings/appSettings";
 import { supportedLanguages, type AppLanguage, type I18nKey } from "../lib/i18n";
 
 type Translate = (key: I18nKey) => string;
@@ -37,6 +38,10 @@ const themeOptions: Array<{
     value: "dark"
   }
 ];
+
+const bodyFontSizeOptions = [14, 15, 16, 17, 18, 20];
+const contentWidthOptions: EditorContentWidth[] = ["narrow", "default", "wide"];
+const lineHeightOptions = [1.5, 1.65, 1.8];
 
 function SettingsSection({ children, label }: { children: ReactNode; label: string }) {
   const sectionId = `settings-section-${label.replace(/\s+/g, "-")}`;
@@ -79,14 +84,6 @@ function SettingsRow({
   );
 }
 
-function SettingValue({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex min-h-7 items-center rounded-md px-2.5 text-[12px] leading-5 font-[560] text-(--text-secondary)">
-      {children}
-    </span>
-  );
-}
-
 function SettingsSwitch({
   checked,
   label,
@@ -110,6 +107,40 @@ function SettingsSwitch({
         aria-checked={checked}
       />
     </button>
+  );
+}
+
+function SettingsSelect({
+  label,
+  onChange,
+  options,
+  value
+}: {
+  label: string;
+  onChange: (value: string) => unknown;
+  options: Array<{ label: string; value: string }>;
+  value: string;
+}) {
+  return (
+    <div className="relative inline-flex items-center">
+      <select
+        className="h-8 min-w-36 appearance-none rounded-md border border-(--border-default) bg-(--bg-primary) py-0 pr-8 pl-3 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden="true"
+        className="pointer-events-none absolute right-2.5 text-(--text-secondary)"
+        size={13}
+      />
+    </div>
   );
 }
 
@@ -203,12 +234,16 @@ export function GeneralSettings({
   language,
   onResetWelcomeDocument,
   onSelectLanguage,
+  onUpdatePreferences,
+  preferences,
   translate,
   welcomeReset
 }: {
   language: AppLanguage;
   onResetWelcomeDocument: () => unknown;
   onSelectLanguage: (language: AppLanguage) => unknown;
+  onUpdatePreferences: (preferences: EditorPreferences) => unknown;
+  preferences: EditorPreferences;
   translate: Translate;
   welcomeReset: boolean;
 }) {
@@ -230,6 +265,22 @@ export function GeneralSettings({
 
       <SettingsSection label={translate("settings.sections.startup")}>
         <SettingsRow
+          title={translate("settings.startup.restoreWorkspace")}
+          description={translate("settings.startup.restoreWorkspaceDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.restoreWorkspaceOnStartup}
+              label={translate("settings.startup.restoreWorkspace")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  restoreWorkspaceOnStartup: !preferences.restoreWorkspaceOnStartup
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.welcome.title")}
           description={translate("settings.welcome.description")}
           action={
@@ -246,23 +297,6 @@ export function GeneralSettings({
           {translate("settings.welcome.status")}
         </p>
       ) : null}
-
-      <SettingsSection label={translate("settings.sections.window")}>
-        <SettingsRow
-          title={translate("settings.openMode.title")}
-          description={translate("settings.openMode.description")}
-          action={<SettingValue>{translate("settings.values.native")}</SettingValue>}
-        />
-      </SettingsSection>
-
-      <SettingsSection label={translate("settings.sections.updates")}>
-        <SettingsRow title={translate("settings.updates.currentVersion")} action={<SettingValue>v0.0.1</SettingValue>} />
-        <SettingsRow
-          title={translate("settings.updates.check")}
-          description={translate("settings.updates.description")}
-          action={<SettingValue>{translate("settings.values.notConfigured")}</SettingValue>}
-        />
-      </SettingsSection>
     </>
   );
 }
@@ -299,7 +333,81 @@ export function EditorSettings({
   translate: Translate;
 }) {
   return (
-    <SettingsSection label={translate("settings.sections.editing")}>
+    <>
+      <SettingsSection label={translate("settings.sections.editing")}>
+        <SettingsRow
+          title={translate("settings.editor.bodyFontSize")}
+          description={translate("settings.editor.bodyFontSizeDescription")}
+          action={
+            <SettingsSelect
+              label={translate("settings.editor.bodyFontSize")}
+              value={String(preferences.bodyFontSize)}
+              options={bodyFontSizeOptions.map((size) => ({ label: `${size}px`, value: String(size) }))}
+              onChange={(value) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  bodyFontSize: Number(value)
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.lineHeight")}
+          description={translate("settings.editor.lineHeightDescription")}
+          action={
+            <SettingsSelect
+              label={translate("settings.editor.lineHeight")}
+              value={String(preferences.lineHeight)}
+              options={lineHeightOptions.map((height) => ({ label: String(height), value: String(height) }))}
+              onChange={(value) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  lineHeight: Number(value)
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.contentWidth")}
+          description={translate("settings.editor.contentWidthDescription")}
+          action={
+            <SettingsSelect
+              label={translate("settings.editor.contentWidth")}
+              value={preferences.contentWidth}
+              options={contentWidthOptions.map((width) => ({
+                label: translate(`settings.editor.contentWidth.${width}` as I18nKey),
+                value: width
+              }))}
+              onChange={(value) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  contentWidth: value as EditorContentWidth
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.showWordCount")}
+          description={translate("settings.editor.showWordCountDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.showWordCount}
+              label={translate("settings.editor.showWordCount")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  showWordCount: !preferences.showWordCount
+                })
+              }
+            />
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection label={translate("settings.sections.aiAssistance")}>
       <SettingsRow
         title={translate("settings.editor.autoOpenAiOnSelection")}
         description={translate("settings.editor.autoOpenAiOnSelectionDescription")}
@@ -316,45 +424,7 @@ export function EditorSettings({
           />
         }
       />
-      <SettingsRow
-        title={translate("settings.editor.bodyFontSize")}
-        description={translate("settings.editor.bodyFontSizeDescription")}
-        action={<SettingValue>16px</SettingValue>}
-      />
-      <SettingsRow
-        title={translate("settings.editor.singleDocument")}
-        description={translate("settings.editor.singleDocumentDescription")}
-        action={<SettingValue>{translate("settings.values.enabled")}</SettingValue>}
-      />
-    </SettingsSection>
-  );
-}
-
-export function MarkdownSettings({ translate }: { translate: Translate }) {
-  return (
-    <SettingsSection label={translate("settings.sections.syntax")}>
-      <SettingsRow
-        title={translate("settings.markdown.liveRendering")}
-        description={translate("settings.markdown.liveRenderingDescription")}
-        action={<SettingValue>{translate("settings.values.enabled")}</SettingValue>}
-      />
-      <SettingsRow
-        title={translate("settings.markdown.tables")}
-        description={translate("settings.markdown.tablesDescription")}
-        action={<SettingValue>{translate("settings.values.enabled")}</SettingValue>}
-      />
-    </SettingsSection>
-  );
-}
-
-export function ShortcutsSettings({ translate }: { translate: Translate }) {
-  return (
-    <SettingsSection label={translate("settings.sections.systemShortcuts")}>
-      <SettingsRow
-        title={translate("settings.shortcuts.nativeMenu")}
-        description={translate("settings.shortcuts.nativeMenuDescription")}
-        action={<SettingValue>{translate("settings.values.enabled")}</SettingValue>}
-      />
-    </SettingsSection>
+      </SettingsSection>
+    </>
   );
 }

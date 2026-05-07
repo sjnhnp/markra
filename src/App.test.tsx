@@ -65,7 +65,14 @@ vi.mock("./lib/tauri/menu", () => ({
 
 vi.mock("./lib/settings/appSettings", () => ({
   consumeWelcomeDocumentState: vi.fn(),
-  defaultEditorPreferences: { autoOpenAiOnSelection: true },
+  defaultEditorPreferences: {
+    autoOpenAiOnSelection: true,
+    bodyFontSize: 16,
+    contentWidth: "default",
+    lineHeight: 1.65,
+    restoreWorkspaceOnStartup: true,
+    showWordCount: true
+  },
   getStoredAiSettings: vi.fn(),
   getStoredEditorPreferences: vi.fn(),
   getStoredLanguage: vi.fn(),
@@ -234,10 +241,18 @@ describe("Markra workspace", () => {
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenSettingsWindow.mockResolvedValue(undefined);
+    mockedSaveStoredEditorPreferences.mockResolvedValue(undefined);
     mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
-    mockedGetStoredEditorPreferences.mockResolvedValue({ autoOpenAiOnSelection: true });
+    mockedGetStoredEditorPreferences.mockResolvedValue({
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      contentWidth: "default",
+      lineHeight: 1.65,
+      restoreWorkspaceOnStartup: true,
+      showWordCount: true
+    });
     mockedGetStoredAiSettings.mockResolvedValue({
       defaultModelId: "gpt-5.5",
       defaultProviderId: "openai",
@@ -481,7 +496,9 @@ describe("Markra workspace", () => {
     render(<App />);
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true")
+    );
     expect(screen.getByText("vault")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
@@ -602,7 +619,7 @@ describe("Markra workspace", () => {
     expect(settingsGroups[0]).not.toHaveClass("divide-y");
     expect(settingsGroups.at(-1)).toHaveClass("divide-y");
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
-    expect(categoryButtons).toHaveLength(6);
+    expect(categoryButtons).toHaveLength(4);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
     expect(categoryButtons[1]).not.toHaveAttribute("aria-current");
     const languageSelect = container.querySelector("select");
@@ -774,8 +791,7 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(container.querySelector(".settings-sidebar nav button")).toHaveAttribute("aria-current", "page"));
     expect(container.querySelector('[role="group"]')).not.toBeInTheDocument();
 
-    const resetButton = container.querySelector(".settings-row button");
-    fireEvent.click(resetButton!);
+    fireEvent.click(screen.getByRole("button", { name: "Show welcome next launch" }));
 
     await waitFor(() => expect(mockedResetWelcomeDocumentState).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("status")).toBeInTheDocument();

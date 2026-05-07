@@ -4,7 +4,14 @@ import { listenAppEditorPreferencesChanged } from "../lib/settings/settingsEvent
 import { useEditorPreferences } from "./useEditorPreferences";
 
 vi.mock("../lib/settings/appSettings", () => ({
-  defaultEditorPreferences: { autoOpenAiOnSelection: true },
+  defaultEditorPreferences: {
+    autoOpenAiOnSelection: true,
+    bodyFontSize: 16,
+    contentWidth: "default",
+    lineHeight: 1.65,
+    restoreWorkspaceOnStartup: true,
+    showWordCount: true
+  },
   getStoredEditorPreferences: vi.fn()
 }));
 
@@ -24,7 +31,14 @@ describe("useEditorPreferences", () => {
 
   it("loads editor preferences and reacts to cross-window preference changes", async () => {
     let onPreferencesChanged: Parameters<typeof listenAppEditorPreferencesChanged>[0] | null = null;
-    mockedGetStoredEditorPreferences.mockResolvedValue({ autoOpenAiOnSelection: true });
+    mockedGetStoredEditorPreferences.mockResolvedValue({
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      contentWidth: "default",
+      lineHeight: 1.65,
+      restoreWorkspaceOnStartup: true,
+      showWordCount: true
+    });
     mockedListenAppEditorPreferencesChanged.mockImplementation(async (listener) => {
       onPreferencesChanged = listener;
       return () => {};
@@ -37,9 +51,18 @@ describe("useEditorPreferences", () => {
     expect(result.current.preferences.autoOpenAiOnSelection).toBe(true);
 
     act(() => {
-      onPreferencesChanged?.({ autoOpenAiOnSelection: false });
+      onPreferencesChanged?.({
+        autoOpenAiOnSelection: false,
+        bodyFontSize: 18,
+        contentWidth: "wide",
+        lineHeight: 1.8,
+        restoreWorkspaceOnStartup: false,
+        showWordCount: false
+      });
     });
 
     expect(result.current.preferences.autoOpenAiOnSelection).toBe(false);
+    expect(result.current.preferences.bodyFontSize).toBe(18);
+    expect(result.current.preferences.contentWidth).toBe("wide");
   });
 });
