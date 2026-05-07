@@ -161,6 +161,7 @@ const messages: LocaleMessages = {
   "app.aiProviderUnsupported": "선택한 AI 제공자는 채팅 완성을 지원하지 않습니다.",
   "app.aiRequestFailed": "AI 요청에 실패했습니다.",
   "app.aiEmptyResponse": "AI가 사용할 수 있는 텍스트를 반환하지 않았습니다.",
+  "app.aiAgentPreviewReady": "편집 변경 사항이 준비되었습니다. 에디터에서 확인하세요.",
   "settings.sections.startup": "시작",
   "settings.sections.theme": "테마",
   "settings.sections.editing": "편집",

@@ -87,6 +87,7 @@ export function AiAgentPanel({
 }: AiAgentPanelProps) {
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
+  const transcriptShouldFollowRef = useRef(true);
   const { handleCompositionEnd, handleCompositionStart, isComposingEnter } = useImeInputGuard();
   const label = (key: I18nKey) => t(language, key);
   const resolvedMinWidth = Math.max(240, minWidth);
@@ -140,6 +141,7 @@ export function AiAgentPanel({
 
     const transcript = transcriptScrollRef.current;
     if (!transcript) return;
+    if (!transcriptShouldFollowRef.current) return;
 
     transcript.scrollTop = transcript.scrollHeight;
   }, [messages, open, status]);
@@ -237,6 +239,14 @@ export function AiAgentPanel({
     onSubmit?.(suggestion);
   };
 
+  const handleTranscriptScroll = () => {
+    const transcript = transcriptScrollRef.current;
+    if (!transcript) return;
+
+    transcriptShouldFollowRef.current =
+      transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 48;
+  };
+
   return (
     <aside
       className={`ai-agent-panel relative z-20 flex h-full min-h-0 w-full flex-col border-l border-(--border-default) bg-(--bg-secondary) text-(--text-primary) transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
@@ -313,6 +323,7 @@ export function AiAgentPanel({
           ref={transcriptScrollRef}
           role="log"
           aria-label={label("app.aiAgent")}
+          onScroll={handleTranscriptScroll}
         >
           {messages.length === 0 ? (
             <div className="grid gap-3">
@@ -359,14 +370,20 @@ export function AiAgentPanel({
                 const assistantBubbleClassName = message.isError
                   ? "rounded-lg border border-[color:color-mix(in_oklab,var(--danger)_28%,var(--border-default))] bg-[color:color-mix(in_oklab,var(--danger)_8%,var(--bg-primary))] px-3 py-2 text-[13px] leading-5 font-[540] text-(--text-primary)"
                   : "rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-2 text-[13px] leading-5 font-[540] text-(--text-primary)";
+                const hasVisibleActivities = message.activities?.some(
+                  (activity) => activity.kind === "assistant_message" || activity.kind === "tool_call"
+                ) ?? false;
+                const hasRunningActivity = message.activities?.some((activity) => activity.status === "running") ?? false;
+                const showFallbackThinking =
+                  !message.text && !message.thinking && !message.isError && hasRunningActivity && !hasVisibleActivities;
 
                 return (
                   <li className="mr-auto max-w-[86%]" key={message.id}>
                     <div className="grid gap-2">
                       {message.activities?.length ? <AiAgentProcessList activities={message.activities} translate={label} /> : null}
-                      {message.text || message.thinking || message.isError || !message.activities?.length ? (
+                      {message.text || message.thinking || message.isError || showFallbackThinking || !message.activities?.length ? (
                         <div className={assistantBubbleClassName}>
-                          {message.thinking && !message.text ? (
+                          {(message.thinking || showFallbackThinking) && !message.text ? (
                             <p className="m-0 text-[12px] leading-5 text-(--text-secondary)">{label("app.aiAgentThinking")}</p>
                           ) : null}
                           <AiMarkdownMessage content={message.text} />
@@ -381,7 +398,11 @@ export function AiAgentPanel({
         </div>
 
         <form className="shrink-0 border-t border-(--border-default) p-3" onSubmit={handleSubmit}>
-          <div className="relative rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 pt-3 pb-2 transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-(--accent) focus-within:shadow-(--ai-command-shadow)">
+          <div
+            className={`ai-agent-composer relative overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 pt-3 pb-2 transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-(--accent) focus-within:shadow-(--ai-command-shadow) ${
+              submitting ? "ai-agent-composer-running" : ""
+            }`}
+          >
             <label className="sr-only" htmlFor="markra-ai-agent-input">
               {label("app.aiAgentMessage")}
             </label>

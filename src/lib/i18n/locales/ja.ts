@@ -166,6 +166,7 @@ const messages: LocaleMessages = {
   "app.aiProviderUnsupported": "選択した AI プロバイダーはチャット補完に対応していません。",
   "app.aiRequestFailed": "AI リクエストに失敗しました。",
   "app.aiEmptyResponse": "AI は使用できるテキストを返しませんでした。",
+  "app.aiAgentPreviewReady": "編集内容を準備しました。エディターで確認してください。",
   "settings.language.description": "アプリの言語を選択します。Markdown ファイルの内容は変更されません。",
   "settings.welcome.description": "初回起動時のサンプル内容をもう一度表示します。",
   "settings.welcome.buttonLabel": "次回起動時にウェルカムドキュメントを表示",

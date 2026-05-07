@@ -210,6 +210,7 @@ const messages: BaseLocaleMessages = {
   "app.aiProviderUnsupported": "The selected AI provider does not support chat completions.",
   "app.aiRequestFailed": "AI request failed.",
   "app.aiEmptyResponse": "AI returned no usable text.",
+  "app.aiAgentPreviewReady": "The editor change is ready. Confirm it in the editor.",
   "menu.file": "File",
   "menu.edit": "Edit",
   "menu.format": "Format",

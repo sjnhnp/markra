@@ -38,6 +38,7 @@ export type RunDocumentAiAgentInput = {
 export type RunDocumentAiAgentResult = {
   content: string;
   finishReason?: string;
+  preparedPreview?: boolean;
 };
 
 export async function runDocumentAiAgent({
@@ -179,6 +180,7 @@ async function runDocumentToolCallingAgent({
   webSearchEnabled = false,
   workspaceFiles = []
 }: RunDocumentAiAgentInput): Promise<RunDocumentAiAgentResult> {
+  let preparedPreview = false;
   const agent = new Agent({
     initialState: {
       model: createPiAgentModel(provider, model),
@@ -188,7 +190,10 @@ async function runDocumentToolCallingAgent({
         documentEndPosition,
         documentPath,
         headingAnchors,
-        onPreviewResult,
+        onPreviewResult: (result) => {
+          preparedPreview = true;
+          onPreviewResult?.(result);
+        },
         readWorkspaceFile,
         selection,
         workspaceFiles
@@ -198,13 +203,17 @@ async function runDocumentToolCallingAgent({
   });
   let finalContent = "";
   let finishReason: string | undefined;
+  let latestAssistantText = "";
 
   agent.subscribe((event) => {
     onEvent?.(event);
 
     if (event.type === "message_update" && event.message.role === "assistant") {
       const nextText = assistantTextFromAgentMessage(event.message.content);
-      if (nextText) onTextDelta?.(nextText);
+      if (nextText) {
+        latestAssistantText = nextText;
+        onTextDelta?.(nextText);
+      }
 
       const nextThinking = assistantThinkingFromAgentMessage(event.message.content);
       if (nextThinking) onThinkingDelta?.(nextThinking);
@@ -213,14 +222,16 @@ async function runDocumentToolCallingAgent({
     if (event.type !== "message_end" || event.message.role !== "assistant") return;
 
     finalContent = assistantTextFromAgentMessage(event.message.content);
+    if (finalContent.trim()) latestAssistantText = finalContent;
     finishReason = event.message.stopReason;
   });
 
   await agent.prompt(buildDocumentToolCallingPrompt({ prompt, selection, history, webSearchEnabled }));
 
   return {
-    content: finalContent.trim(),
-    finishReason
+    content: preparedPreview ? "" : (finalContent || latestAssistantText).trim(),
+    finishReason,
+    preparedPreview
   };
 }
 

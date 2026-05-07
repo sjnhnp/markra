@@ -190,6 +190,68 @@ describe("useAiAgentSession", () => {
     });
   });
 
+  it("does not turn a prepared editor preview into an empty-response error", async () => {
+    const onAiResult = vi.fn();
+    mockedRunDocumentAiAgent.mockImplementation(async ({ onPreviewResult }) => {
+      onPreviewResult?.({
+        from: 0,
+        original: "",
+        replacement: "# Alibaba ESA vs Cloudflare",
+        to: 0,
+        type: "insert"
+      });
+
+      return {
+        content: "",
+        finishReason: "stop"
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/cf.md",
+        getDocumentContent: () => "",
+        model: "gpt-5.5",
+        onAiResult,
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        settingsLoading: false,
+        translate: (key) =>
+          ({
+            "app.aiAgentPreviewReady": "The editor change is ready.",
+            "app.aiEmptyResponse": "AI returned no usable text."
+          })[key] ?? key,
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("Write a comparison");
+    });
+
+    expect(onAiResult).toHaveBeenCalledWith({
+      from: 0,
+      original: "",
+      replacement: "# Alibaba ESA vs Cloudflare",
+      to: 0,
+      type: "insert"
+    });
+    expect(result.current.status).toBe("idle");
+    expect(result.current.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      text: "The editor change is ready."
+    });
+    expect(result.current.messages.at(-1)?.isError).not.toBe(true);
+  });
+
   it("passes the workspace file reader to the document agent runtime", async () => {
     const readWorkspaceFile = vi.fn(async () => "# Nearby");
     mockedRunDocumentAiAgent.mockResolvedValue({

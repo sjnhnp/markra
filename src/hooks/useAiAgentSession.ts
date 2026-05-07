@@ -304,6 +304,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     assistantMessageIdRef.current = assistantMessageId;
     setDraft("");
     setStatus("thinking");
+    let preparedEditorPreview = false;
     setMessages((currentMessages) => [
       ...currentMessages,
       { id: userMessageId, role: "user", text: prompt },
@@ -324,6 +325,9 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         history,
         model: ctx.model,
         onPreviewResult: (result) => {
+          if (requestIdRef.current !== requestId) return;
+
+          preparedEditorPreview = true;
           ctx.onAiResult?.(result);
         },
         onEvent: (event) => {
@@ -364,6 +368,16 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
       if (requestIdRef.current !== requestId) return;
 
       if (!response.content.trim()) {
+        if (preparedEditorPreview || response.preparedPreview) {
+          updateAssistantMessage((currentMessage) => ({
+            ...currentMessage,
+            activities: finalizeAgentProcesses(currentMessage.activities ?? [], message, true),
+            text: message("app.aiAgentPreviewReady")
+          }));
+          setStatus("idle");
+          return;
+        }
+
         updateAssistantMessage((currentMessage) => ({
           ...currentMessage,
           activities: failAgentProcesses(currentMessage.activities ?? []),

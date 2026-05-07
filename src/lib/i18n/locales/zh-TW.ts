@@ -166,6 +166,7 @@ const messages: LocaleMessages = {
   "app.aiProviderUnsupported": "目前 AI 服務商不支援聊天補全。",
   "app.aiRequestFailed": "AI 請求失敗。",
   "app.aiEmptyResponse": "AI 沒有返回可用文字。",
+  "app.aiAgentPreviewReady": "修改已準備好，請在編輯器裡確認。",
   "settings.language.description": "選擇應用程式介面語言，Markdown 檔案內容不會被修改。",
   "settings.welcome.description": "重新顯示首次開啟時的範例內容。",
   "settings.welcome.buttonLabel": "下次啟動時顯示歡迎文件",

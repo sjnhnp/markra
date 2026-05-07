@@ -44,9 +44,22 @@ import { clampNumber } from "./lib/utils";
 const aiAgentPanelDefaultWidth = 384;
 const aiAgentPanelMinWidth = 320;
 const aiAgentPanelMaxWidth = 760;
+const aiResultSignatureSeparator = "\u001f";
 
 function isSettingsWindowRoute() {
   return new URLSearchParams(window.location.search).has("settings");
+}
+
+function aiResultSignature(result: AiDiffResult) {
+  if (result.type === "error") return `error${aiResultSignatureSeparator}${result.message}`;
+
+  return [
+    result.type,
+    result.from,
+    result.to,
+    result.original,
+    result.replacement
+  ].join(aiResultSignatureSeparator);
 }
 
 export default function App() {
@@ -65,6 +78,7 @@ export default function App() {
   const [aiResult, setAiResult] = useState<AiDiffResult | null>(null);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
   const aiResultRef = useRef<AiDiffResult | null>(null);
+  const appliedAiResultSignaturesRef = useRef(new Set<string>());
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const editor = useEditorController();
@@ -147,6 +161,7 @@ export default function App() {
   const handleAiResult = useCallback(
     (result: AiDiffResult) => {
       editor.clearAiSelection();
+      appliedAiResultSignaturesRef.current.clear();
       updateAiResult(result);
       editor.previewAiResult(result, {
         apply: translate("app.aiApply"),
@@ -302,10 +317,19 @@ export default function App() {
       type: result.type
     });
 
+    const signature = aiResultSignature(result);
+    if (appliedAiResultSignaturesRef.current.has(signature)) {
+      console.debug("[markra-ai-preview] apply ignored: duplicate result", {
+        type: result.type
+      });
+      return;
+    }
+
     const applied = editor.applyAiResult(result);
     console.debug("[markra-ai-preview] app apply result", { applied });
 
     if (applied) {
+      appliedAiResultSignaturesRef.current.add(signature);
       editor.clearAiSelection();
       updateAiResult(null);
       handleAiCommandClose();
@@ -423,6 +447,7 @@ export default function App() {
       const result = (event as CustomEvent<Partial<AiEditorPreviewRestoreDetail>>).detail?.result;
       if (!result || (result.type !== "insert" && result.type !== "replace")) return;
 
+      appliedAiResultSignaturesRef.current.delete(aiResultSignature(result));
       updateAiResult(result);
       restoreAiCommand({ reopen: false });
     };

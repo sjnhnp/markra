@@ -700,7 +700,7 @@ function previewPreparedResult(result: AiDiffResult, message: string) {
       }
     ],
     details: result,
-    terminate: false
+    terminate: true
   };
 }
 

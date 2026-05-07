@@ -339,6 +339,52 @@ describe("AiAgentPanel", () => {
     await waitFor(() => expect(transcript.scrollTop).toBe(640));
   });
 
+  it("does not force the transcript to the bottom after the user scrolls up during streaming", async () => {
+    const initialMessage = {
+      id: 1,
+      role: "assistant" as const,
+      text: "First chunk"
+    };
+    const { rerender } = render(
+      <AiAgentPanel
+        language="en"
+        messages={[initialMessage]}
+        open
+        status="streaming"
+        onClose={() => {}}
+      />
+    );
+    const transcript = screen.getByRole("log", { name: "AI Agent" });
+
+    Object.defineProperty(transcript, "clientHeight", {
+      configurable: true,
+      value: 240
+    });
+    Object.defineProperty(transcript, "scrollHeight", {
+      configurable: true,
+      value: 960
+    });
+    transcript.scrollTop = 120;
+    fireEvent.scroll(transcript);
+
+    rerender(
+      <AiAgentPanel
+        language="en"
+        messages={[
+          {
+            ...initialMessage,
+            text: "First chunk plus a streamed update"
+          }
+        ]}
+        open
+        status="streaming"
+        onClose={() => {}}
+      />
+    );
+
+    await waitFor(() => expect(transcript.scrollTop).toBe(120));
+  });
+
   it("keeps the composer text aligned without a leading icon column", () => {
     const { container } = render(
       <AiAgentPanel
@@ -357,6 +403,37 @@ describe("AiAgentPanel", () => {
     expect(input).not.toHaveClass("pr-10");
     expect(sendButton).not.toHaveClass("absolute");
     expect(container.querySelector("form .lucide-sparkles")).not.toBeInTheDocument();
+  });
+
+  it("shows an animated composer border only while the agent is running", () => {
+    const { container, rerender } = render(
+      <AiAgentPanel
+        language="en"
+        modelName="GPT-5.5"
+        open
+        providerName="OpenAI"
+        status="idle"
+        onClose={() => {}}
+      />
+    );
+
+    const composer = container.querySelector(".ai-agent-composer");
+
+    expect(composer).toBeInTheDocument();
+    expect(composer).not.toHaveClass("ai-agent-composer-running");
+
+    rerender(
+      <AiAgentPanel
+        language="en"
+        modelName="GPT-5.5"
+        open
+        providerName="OpenAI"
+        status="streaming"
+        onClose={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".ai-agent-composer")).toHaveClass("ai-agent-composer-running");
   });
 
   it("lets the right-side agent panel be resized from its left edge", () => {
@@ -565,6 +642,35 @@ describe("AiAgentPanel", () => {
 
     expect(screen.getByText("get_document")).toBeInTheDocument();
     expect(screen.getByText("42 chars")).toBeInTheDocument();
+  });
+
+  it("shows a thinking bubble while the hidden AI call is still running", () => {
+    render(
+      <AiAgentPanel
+        language="en"
+        messages={[
+          {
+            activities: [
+              {
+                id: "call:1",
+                kind: "ai_call",
+                label: "AI call 1",
+                status: "running",
+                turn: 1
+              }
+            ],
+            id: 1,
+            role: "assistant",
+            text: ""
+          }
+        ]}
+        open
+        status="thinking"
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
   it("collapses completed process flow and allows expanding it later", () => {

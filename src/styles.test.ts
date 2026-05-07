@@ -36,4 +36,12 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".ai-command-inline-loading-text");
     expect(styles).toContain(".ai-command-inline-loading-text::after");
   });
+
+  it("draws the running AI agent composer border with a pseudo element", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain(".ai-agent-composer-running::before");
+    expect(styles).toContain("animation: markra-ai-agent-border-run");
+    expect(styles).toContain("mask-composite: exclude");
+  });
 });

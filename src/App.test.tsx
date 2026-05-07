@@ -548,6 +548,41 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(screen.getByText("Improved text")).toBeInTheDocument());
   });
 
+  it("ignores repeated apply events for the same AI insert preview", async () => {
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      filePath: mockNativePath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "Original text",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    render(<App />);
+
+    await screen.findByText("Original text");
+
+    const eventDetail = {
+      action: "apply",
+      result: {
+        from: 9,
+        original: "",
+        replacement: " improved",
+        to: 9,
+        type: "insert"
+      }
+    } as const;
+
+    window.dispatchEvent(new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
+    window.dispatchEvent(new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
+
+    await waitFor(() => expect(screen.getByText("Original improved text")).toBeInTheDocument());
+    expect(screen.queryByText("Original improved improved text")).not.toBeInTheDocument();
+  });
+
   it("restores the last opened markdown file on app launch", async () => {
     mockedGetStoredWorkspaceState.mockResolvedValue({
       filePath: mockNativePath,

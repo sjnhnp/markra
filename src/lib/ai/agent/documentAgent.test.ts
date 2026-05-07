@@ -16,7 +16,7 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
 }
 
 describe("document AI agent", () => {
-  it("executes a replace-selection tool call and returns the follow-up assistant reply", async () => {
+  it("executes a replace-selection tool call and stops for editor confirmation", async () => {
     const onPreviewResult = vi.fn();
     const complete = vi
       .fn()
@@ -70,10 +70,11 @@ describe("document AI agent", () => {
       type: "replace"
     });
     expect(result).toEqual({
-      content: "I prepared a polished replacement for the current selection.",
-      finishReason: "stop"
+      content: "",
+      finishReason: "toolUse",
+      preparedPreview: true
     });
-    expect(complete).toHaveBeenCalledTimes(2);
+    expect(complete).toHaveBeenCalledTimes(1);
   });
 
   it("lets the agent choose where to insert markdown around the current context", async () => {
@@ -131,7 +132,100 @@ describe("document AI agent", () => {
     });
   });
 
-  it("executes a delete-selection tool call and returns the follow-up assistant reply", async () => {
+  it("stops after preparing an editor write preview", async () => {
+    const onPreviewResult = vi.fn();
+    const complete = vi
+      .fn()
+      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
+        options?.onToolCallDelta?.({
+          id: "call_insert_markdown",
+          index: 0,
+          nameDelta: "insert_markdown"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            anchorId: "document-end",
+            content: "# Alibaba ESA vs Cloudflare",
+            placement: "before_anchor"
+          }),
+          index: 0
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async () => ({
+        content: "This follow-up should not be requested.",
+        finishReason: "stop"
+      }));
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "",
+      documentPath: "/vault/cf.md",
+      model: "gpt-5.5",
+      onPreviewResult,
+      prompt: "Write a comparison",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 0,
+      original: "",
+      replacement: "# Alibaba ESA vs Cloudflare",
+      to: 0,
+      type: "insert"
+    });
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      content: "",
+      finishReason: "toolUse",
+      preparedPreview: true
+    });
+  });
+
+  it("uses the last assistant narration when the final agent message has no text", async () => {
+    const complete = vi
+      .fn()
+      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
+        options?.onDelta?.("I inspected the document and found it is empty.");
+        options?.onToolCallDelta?.({
+          id: "call_get_document",
+          index: 0,
+          nameDelta: "get_document"
+        });
+
+        return {
+          content: "I inspected the document and found it is empty.",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async () => ({
+        content: "",
+        finishReason: "stop"
+      }));
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "",
+      documentPath: "/vault/cf.md",
+      model: "gpt-5.5",
+      prompt: "What is in this document?",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "I inspected the document and found it is empty.",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
+  it("executes a delete-selection tool call and stops for editor confirmation", async () => {
     const onPreviewResult = vi.fn();
     const complete = vi
       .fn()
@@ -177,9 +271,11 @@ describe("document AI agent", () => {
       type: "replace"
     });
     expect(result).toEqual({
-      content: "I prepared a deletion preview for the selected title.",
-      finishReason: "stop"
+      content: "",
+      finishReason: "toolUse",
+      preparedPreview: true
     });
+    expect(complete).toHaveBeenCalledTimes(1);
   });
 
   it("uses a section-level delete tool when the user asks to remove a whole section", async () => {
@@ -240,8 +336,10 @@ describe("document AI agent", () => {
       type: "replace"
     }));
     expect(result).toEqual({
-      content: "I prepared a deletion preview for the whole section.",
-      finishReason: "stop"
+      content: "",
+      finishReason: "toolUse",
+      preparedPreview: true
     });
+    expect(complete).toHaveBeenCalledTimes(1);
   });
 });

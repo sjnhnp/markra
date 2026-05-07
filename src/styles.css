@@ -89,6 +89,24 @@
   }
 }
 
+@property --markra-ai-agent-border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes markra-ai-agent-border-run {
+  to {
+    --markra-ai-agent-border-angle: 360deg;
+  }
+}
+
+@keyframes markra-ai-preview-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @layer base {
   :root {
     --bg-primary: #ffffff;
@@ -422,12 +440,21 @@
     @apply text-(--accent) hover:bg-(--accent-soft) hover:text-(--accent-hover) focus-visible:bg-(--accent-soft) focus-visible:text-(--accent-hover);
   }
 
+  .markdown-paper .markra-ai-preview-applying {
+    @apply cursor-default bg-(--accent-soft) text-(--accent);
+  }
+
   .markdown-paper .markra-ai-preview-copied {
     @apply bg-emerald-500/12 text-emerald-600 hover:bg-emerald-500/16 hover:text-emerald-700 focus-visible:bg-emerald-500/16 focus-visible:text-emerald-700;
   }
 
   .markdown-paper .markra-ai-preview-icon {
     @apply pointer-events-none;
+  }
+
+  .markdown-paper .markra-ai-preview-spinner {
+    transform-origin: center;
+    animation: markra-ai-preview-spin 0.82s linear infinite;
   }
 
   .markdown-paper code {
@@ -529,6 +556,35 @@
     pointer-events: none;
   }
 
+  .ai-agent-composer-running {
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--border-default));
+    box-shadow: var(--ai-command-shadow);
+  }
+
+  .ai-agent-composer-running::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: 1;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(
+      from var(--markra-ai-agent-border-angle),
+      transparent 0deg,
+      transparent 218deg,
+      color-mix(in srgb, var(--accent) 14%, transparent) 256deg,
+      color-mix(in srgb, var(--accent) 92%, var(--bg-primary)) 304deg,
+      color-mix(in srgb, var(--accent) 18%, transparent) 338deg,
+      transparent 360deg
+    );
+    animation: markra-ai-agent-border-run 1.65s linear infinite;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .ai-command-thinking-text {
       animation: none;
@@ -538,6 +594,18 @@
     .ai-command-inline-loading-text::after {
       animation: none;
       opacity: 0;
+    }
+
+    .ai-agent-composer-running {
+      box-shadow: var(--ai-command-shadow);
+    }
+
+    .ai-agent-composer-running::before {
+      animation: none;
+    }
+
+    .markdown-paper .markra-ai-preview-spinner {
+      animation: none;
     }
   }
 }

@@ -366,6 +366,9 @@ function createActionButton(
   button.title = label;
   button.append(createActionIcon(action));
   const triggerAction = () => {
+    if (button.dataset.applying === "true") return;
+    if (action === "apply") markApplyButtonBusy(button);
+
     console.debug("[markra-ai-preview] dispatch action", {
       action,
       from: result.from,
@@ -407,6 +410,14 @@ function createActionButton(
   });
 
   return button;
+}
+
+function markApplyButtonBusy(button: HTMLButtonElement) {
+  button.dataset.applying = "true";
+  button.disabled = true;
+  button.classList.add("markra-ai-preview-applying");
+  button.setAttribute("aria-busy", "true");
+  button.replaceChildren(createLoadingIcon());
 }
 
 function showCopySuccessFeedback(button: HTMLButtonElement, copiedLabel: string, scheduleRestore: () => unknown) {
@@ -454,6 +465,29 @@ function createActionIcon(action: AiEditorPreviewAction) {
     path.setAttribute("d", pathData);
     icon.append(path);
   });
+
+  return icon;
+}
+
+function createLoadingIcon() {
+  const svgNamespace = "http://www.w3.org/2000/svg";
+  const icon = document.createElementNS(svgNamespace, "svg");
+  const circle = document.createElementNS(svgNamespace, "circle");
+  icon.classList.add("markra-ai-preview-icon", "markra-ai-preview-spinner");
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("fill", "none");
+  icon.setAttribute("height", "15");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("width", "15");
+  circle.setAttribute("cx", "12");
+  circle.setAttribute("cy", "12");
+  circle.setAttribute("r", "8");
+  circle.setAttribute("stroke", "currentColor");
+  circle.setAttribute("stroke-linecap", "round");
+  circle.setAttribute("stroke-width", "2.4");
+  circle.setAttribute("stroke-dasharray", "32");
+  circle.setAttribute("stroke-dashoffset", "12");
+  icon.append(circle);
 
   return icon;
 }

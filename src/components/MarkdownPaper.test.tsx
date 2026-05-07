@@ -712,6 +712,38 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("marks the AI preview apply action busy and prevents repeated dispatches", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+    const onPreviewAction = vi.fn();
+
+    window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    showAiEditorPreview(view, result);
+
+    const applyButton = container.querySelector<HTMLButtonElement>(".ProseMirror .markra-ai-preview-apply");
+    expect(applyButton).toBeInTheDocument();
+
+    applyButton?.click();
+    applyButton?.click();
+
+    expect(onPreviewAction).toHaveBeenCalledTimes(1);
+    expect(applyButton).toBeDisabled();
+    expect(applyButton).toHaveAttribute("aria-busy", "true");
+    expect(applyButton).toHaveClass("markra-ai-preview-applying");
+    expect(applyButton?.querySelector(".markra-ai-preview-spinner")).toBeInTheDocument();
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
   it("can reject an AI comparison and undo it back to pending again", async () => {
     const { container, view } = await renderEditor("Original text");
     const from = findTextPosition(view, "Original");

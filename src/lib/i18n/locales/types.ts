@@ -221,6 +221,7 @@ export type I18nKey =
   | "app.aiProviderUnsupported"
   | "app.aiRequestFailed"
   | "app.aiEmptyResponse"
+  | "app.aiAgentPreviewReady"
   | "menu.file"
   | "menu.edit"
   | "menu.format"

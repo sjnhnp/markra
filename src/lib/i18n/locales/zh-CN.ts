@@ -210,6 +210,7 @@ const messages: LocaleMessages = {
   "app.aiProviderUnsupported": "当前 AI 服务商不支持聊天补全。",
   "app.aiRequestFailed": "AI 请求失败。",
   "app.aiEmptyResponse": "AI 没有返回可用文本。",
+  "app.aiAgentPreviewReady": "修改已准备好，请在编辑器里确认。",
   "menu.file": "文件",
   "menu.edit": "编辑",
   "menu.format": "格式",
