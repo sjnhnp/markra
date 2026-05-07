@@ -271,6 +271,41 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
     },
     {
       description:
+        [
+          "Replace the entire current Markdown document with new Markdown.",
+          "Use this when the user asks to rewrite the whole document, compress the document, clean up duplicates, or keep only selected content.",
+          "This replaces everything from the start of the document to the end and still prepares a user-confirmed editor preview."
+        ].join(" "),
+      execute: async (_toolCallId, params) => {
+        const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "replace", {
+          requireEditableContext: false
+        });
+        if ("error" in writeCheck) return writeCheck.error;
+
+        const args = typedReplaceDocumentArgs(params);
+        hasPreparedWrite = true;
+        const result: AiDiffResult = {
+          from: 0,
+          original: context.documentContent,
+          replacement: args.replacement,
+          to: context.documentEndPosition,
+          type: "replace"
+        };
+        context.onPreviewResult?.(result);
+
+        return previewPreparedResult(
+          result,
+          "Prepared a full-document replacement preview."
+        );
+      },
+      label: "Replace document",
+      name: "replace_document",
+      parameters: Type.Object({
+        replacement: Type.String()
+      })
+    },
+    {
+      description:
         "Replace the active selection, current block, or a resolved anchor with new Markdown. Use this when the user asks you to rewrite or fix existing content.",
       execute: async (_toolCallId, params) => {
         const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "replace");
@@ -437,105 +472,22 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
         content: Type.String({ minLength: 1 }),
         placement: Type.Optional(Type.String())
       })
-    },
-    {
-      description:
-        "Replace the active selection or current block with new Markdown. Legacy compatibility tool; prefer replace_region for new agent behavior.",
-      execute: async (_toolCallId, params) => {
-        const args = typedReplaceSelectionArgs(params);
-        const region = resolveWriteRegion(context, undefined, "replace");
-        if ("error" in region) return region.error;
-
-        const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "replace");
-        if ("error" in writeCheck) return writeCheck.error;
-
-        hasPreparedWrite = true;
-        const result: AiDiffResult = {
-          from: region.region.from,
-          original: region.region.original,
-          replacement: args.replacement,
-          to: region.region.to,
-          type: "replace"
-        };
-        context.onPreviewResult?.(result);
-
-        return previewPreparedResult(
-          result,
-          "Prepared a replacement preview for the current selection."
-        );
-      },
-      label: "Replace selection",
-      name: "replace_selection",
-      parameters: Type.Object({
-        replacement: Type.String({ minLength: 1 })
-      })
-    },
-    {
-      description:
-        "Delete the active selection or current block from the editor. Legacy compatibility tool; prefer delete_region for new agent behavior.",
-      execute: async () => {
-        const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "delete");
-        if ("error" in writeCheck) return writeCheck.error;
-
-        const region = resolveWriteRegion(context, undefined, "delete");
-        if ("error" in region) return region.error;
-
-        hasPreparedWrite = true;
-        const result: AiDiffResult = {
-          from: region.region.from,
-          original: region.region.original,
-          replacement: "",
-          to: region.region.to,
-          type: "replace"
-        };
-        context.onPreviewResult?.(result);
-
-        return previewPreparedResult(
-          result,
-          "Prepared a deletion preview for the current selection."
-        );
-      },
-      label: "Delete selection",
-      name: "delete_selection",
-      parameters: Type.Object({})
-    },
-    {
-      description:
-        "Insert new Markdown immediately after the active selection or current block. Legacy compatibility tool; prefer insert_markdown for new agent behavior.",
-      execute: async (_toolCallId, params) => {
-        const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "insert");
-        if ("error" in writeCheck) return writeCheck.error;
-
-        const region = resolveWriteRegion(context, undefined, "insert");
-        if ("error" in region) return region.error;
-
-        const args = typedInsertAfterSelectionArgs(params);
-        hasPreparedWrite = true;
-        const result: AiDiffResult = {
-          from: region.region.to,
-          original: "",
-          replacement: args.content,
-          to: region.region.to,
-          type: "insert"
-        };
-        context.onPreviewResult?.(result);
-
-        return previewPreparedResult(
-          result,
-          "Prepared an insertion preview after the current selection."
-        );
-      },
-      label: "Insert after selection",
-      name: "insert_after_selection",
-      parameters: Type.Object({
-        content: Type.String({ minLength: 1 })
-      })
     }
   ];
 }
 
 function buildDocumentAnchors(context: DocumentAgentToolContext): AiDocumentAnchor[] {
   const anchors: AiDocumentAnchor[] = [];
+
+  anchors.push({
+    description: "Whole current document",
+    from: 0,
+    id: "whole-document",
+    kind: "document",
+    text: context.documentContent,
+    title: context.documentPath ?? "Current document",
+    to: context.documentEndPosition
+  });
 
   if (context.selection?.text.trim()) {
     anchors.push({
@@ -707,7 +659,10 @@ function previewPreparedResult(result: AiDiffResult, message: string) {
 function beginPreparedWrite(
   context: DocumentAgentToolContext,
   hasPreparedWrite: boolean,
-  mode: RegionOperation
+  mode: RegionOperation,
+  options: {
+    requireEditableContext?: boolean;
+  } = {}
 ): { error: AgentToolResult<{ message: string }> } | { ok: true } {
   if (hasPreparedWrite) {
     return {
@@ -717,7 +672,9 @@ function beginPreparedWrite(
     };
   }
 
-  if (mode !== "insert" && !context.selection?.text.trim() && !(context.headingAnchors ?? []).length) {
+  const requireEditableContext = options.requireEditableContext !== false;
+
+  if (requireEditableContext && mode !== "insert" && !context.selection?.text.trim() && !(context.headingAnchors ?? []).length) {
     return {
       error: toolErrorResult(
         `Cannot ${mode} because there is no active selection, current block, or structural anchor available. Inspect the document first and then resolve a region anchor.`
@@ -929,7 +886,7 @@ function typedReadWorkspaceFileArgs(params: unknown) {
   };
 }
 
-function typedReplaceSelectionArgs(params: unknown) {
+function typedReplaceDocumentArgs(params: unknown) {
   return params as { replacement: string };
 }
 
@@ -939,10 +896,6 @@ function typedReplaceRegionArgs(params: unknown) {
 
 function typedDeleteRegionArgs(params: unknown) {
   return params as { anchorId?: string };
-}
-
-function typedInsertAfterSelectionArgs(params: unknown) {
-  return params as { content: string };
 }
 
 function typedLocateMarkdownRegionArgs(params: unknown) {
@@ -1011,6 +964,11 @@ function insertionPositionForSelection(
 }
 
 function insertionPositionForAnchor(anchor: AiDocumentAnchor, placement: DocumentAnchorPlacement) {
+  if (anchor.kind === "document") {
+    if (placement === "before_anchor" || placement === "before_heading" || placement === "before_selection") return anchor.from;
+
+    return anchor.to;
+  }
   if (anchor.kind === "document_end") return anchor.to;
   if (placement === "before_anchor" || placement === "before_heading" || placement === "before_selection") return anchor.from;
   if (placement === "cursor") return anchor.to;
@@ -1020,6 +978,31 @@ function insertionPositionForAnchor(anchor: AiDocumentAnchor, placement: Documen
 
 function scoreAnchor(anchor: AiDocumentAnchor, normalizedGoal: string, operation: RegionOperation) {
   let score = 0;
+
+  if (anchor.kind === "document") {
+    if (
+      operation !== "insert" &&
+      containsAny(normalizedGoal, [
+        "all content",
+        "clean up",
+        "compress",
+        "entire document",
+        "full document",
+        "keep only",
+        "only keep",
+        "rewrite document",
+        "whole document",
+        "全文",
+        "只保留",
+        "整个文档",
+        "整篇",
+        "清理",
+        "压缩"
+      ])
+    ) {
+      score += 18;
+    }
+  }
 
   if (anchor.kind === "current_block") {
     if (containsAny(normalizedGoal, ["current", "current block", "current section", "here", "selected", "this block", "this section", "这里", "当前", "此处", "本段", "选中"])) score += 10;
@@ -1043,6 +1026,9 @@ function scoreAnchor(anchor: AiDocumentAnchor, normalizedGoal: string, operation
 }
 
 function anchorReason(anchor: AiDocumentAnchor, normalizedGoal: string, operation: RegionOperation) {
+  if (anchor.kind === "document" && scoreAnchor(anchor, normalizedGoal, operation) >= 10) {
+    return "The request points to a whole-document edit.";
+  }
   if (anchor.kind === "current_block" && scoreAnchor(anchor, normalizedGoal, operation) >= 10) {
     return "The request points to the current editing context.";
   }
@@ -1098,10 +1084,6 @@ function sliceDocumentText(content: string, from: number, to: number) {
   return content.slice(Math.max(0, from), Math.max(0, to));
 }
 
-function toolErrorResult(message: string) {
-  return {
-    content: [{ text: message, type: "text" as const }],
-    details: { message },
-    terminate: false
-  } satisfies AgentToolResult<{ message: string }>;
+function toolErrorResult(message: string): never {
+  throw new Error(message);
 }

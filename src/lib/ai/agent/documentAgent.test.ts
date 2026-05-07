@@ -16,15 +16,15 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
 }
 
 describe("document AI agent", () => {
-  it("executes a replace-selection tool call and stops for editor confirmation", async () => {
+  it("executes a replace-region tool call and stops for editor confirmation", async () => {
     const onPreviewResult = vi.fn();
     const complete = vi
       .fn()
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onToolCallDelta?.({
-          id: "call_replace_selection",
+          id: "call_replace_region",
           index: 0,
-          nameDelta: "replace_selection"
+          nameDelta: "replace_region"
         });
         options?.onToolCallDelta?.({
           argumentsDelta: "{\"replacement\":\"Polished draft\"}",
@@ -225,15 +225,15 @@ describe("document AI agent", () => {
     });
   });
 
-  it("executes a delete-selection tool call and stops for editor confirmation", async () => {
+  it("executes a delete-region tool call and stops for editor confirmation", async () => {
     const onPreviewResult = vi.fn();
     const complete = vi
       .fn()
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onToolCallDelta?.({
-          id: "call_delete_selection",
+          id: "call_delete_region",
           index: 0,
-          nameDelta: "delete_selection"
+          nameDelta: "delete_region"
         });
 
         return {
@@ -268,6 +268,61 @@ describe("document AI agent", () => {
       original: "# Draft",
       replacement: "",
       to: 7,
+      type: "replace"
+    });
+    expect(result).toEqual({
+      content: "",
+      finishReason: "toolUse",
+      preparedPreview: true
+    });
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it("executes a full-document replacement tool call and stops for editor confirmation", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = "# Old title\n\nOld comparison";
+    const complete = vi
+      .fn()
+      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
+        options?.onToolCallDelta?.({
+          id: "call_replace_document",
+          index: 0,
+          nameDelta: "replace_document"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            replacement: "# ESA cross-border origin problem\n\nFocused comparison."
+          }),
+          index: 0
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async () => ({
+        content: "This follow-up should not be requested.",
+        finishReason: "stop"
+      }));
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/cf.md",
+      model: "gpt-5.5",
+      onPreviewResult,
+      prompt: "Only keep the ESA cross-border origin problem and a comparison",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 0,
+      original: documentContent,
+      replacement: "# ESA cross-border origin problem\n\nFocused comparison.",
+      to: documentContent.length,
       type: "replace"
     });
     expect(result).toEqual({

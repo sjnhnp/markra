@@ -70,4 +70,34 @@ describe("agentProcessTrace", () => {
       detail: expect.stringContaining("Exact heading match")
     }));
   });
+
+  it("marks failed tool executions as errors with the tool message", () => {
+    const initialProcesses = createInitialAgentProcesses(translate);
+    const nextProcesses = applyAgentEventToProcesses(
+      initialProcesses,
+      {
+        isError: true,
+        result: {
+          content: [
+            {
+              text: 'Cannot insert because the anchor "heading:99" was not found.',
+              type: "text"
+            }
+          ],
+          details: {}
+        },
+        toolCallId: "call_insert_markdown",
+        toolName: "insert_markdown",
+        type: "tool_execution_end"
+      } as AgentEvent,
+      translate
+    );
+
+    expect(nextProcesses).toContainEqual(expect.objectContaining({
+      detail: expect.stringContaining('Cannot insert because the anchor "heading:99"'),
+      id: "tool:call_insert_markdown",
+      label: "app.aiAgentProcessInsertMarkdown",
+      status: "error"
+    }));
+  });
 });

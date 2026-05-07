@@ -183,6 +183,7 @@ export type I18nKey =
   | "app.aiAgentProcessReadSelection"
   | "app.aiAgentProcessListWorkspaceFiles"
   | "app.aiAgentProcessReadWorkspaceFile"
+  | "app.aiAgentProcessReplaceDocument"
   | "app.aiAgentProcessReplaceRegion"
   | "app.aiAgentProcessReplaceSection"
   | "app.aiAgentProcessReplaceSelection"

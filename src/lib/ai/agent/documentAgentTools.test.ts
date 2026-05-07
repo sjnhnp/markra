@@ -46,15 +46,12 @@ describe("documentAgentTools", () => {
     };
     const tool = createDocumentAgentTools(context).find((item) => item.name === "read_workspace_file");
 
-    const result = await tool?.execute("tool_read_workspace_file", {
+    await expect(tool?.execute("tool_read_workspace_file", {
       path: "/vault/../private.md"
-    });
-
+    })).rejects.toThrow(
+      "Cannot read that file because it is not in the current Markdown workspace."
+    );
     expect(readWorkspaceFile).not.toHaveBeenCalled();
-    expect(result?.details).toEqual({
-      message:
-        "Cannot read that file because it is not in the current Markdown workspace. Call list_workspace_files first and pass an exact relativePath or path."
-    });
   });
 
   it("returns the current heading outline with editor anchors", async () => {
@@ -109,9 +106,9 @@ describe("documentAgentTools", () => {
         to: 7
       },
       workspaceFiles: []
-    }).find((item) => item.name === "delete_selection");
+    }).find((item) => item.name === "delete_region");
 
-    const result = await tool?.execute("tool_delete_selection", {});
+    const result = await tool?.execute("tool_delete_region", {});
 
     expect(onPreviewResult).toHaveBeenCalledWith({
       from: 0,
@@ -121,6 +118,31 @@ describe("documentAgentTools", () => {
       type: "replace"
     });
     expect(result?.content[0]?.text).toContain("Prepared a deletion preview");
+  });
+
+  it("prepares a full-document replacement preview", async () => {
+    const onPreviewResult = vi.fn();
+    const tool = createDocumentAgentTools({
+      documentContent: "# Title\n\nOld body",
+      documentEndPosition: 17,
+      documentPath: "/vault/README.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_document");
+
+    const result = await tool?.execute("tool_replace_document", {
+      replacement: "# Focused note\n\nOnly the important part."
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 0,
+      original: "# Title\n\nOld body",
+      replacement: "# Focused note\n\nOnly the important part.",
+      to: 17,
+      type: "replace"
+    });
+    expect(result?.content[0]?.text).toContain("Prepared a full-document replacement preview");
   });
 
   it("returns available anchors for the current editing context", async () => {
@@ -145,6 +167,7 @@ describe("documentAgentTools", () => {
     const result = await tool?.execute("tool_get_available_anchors", {});
 
     expect(result?.content[0]?.text).toContain("current-context");
+    expect(result?.content[0]?.text).toContain("whole-document");
     expect(result?.content[0]?.text).toContain("heading:1");
     expect(result?.content[0]?.text).toContain("document-end");
   });
@@ -208,14 +231,11 @@ describe("documentAgentTools", () => {
       documentPath: null,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "delete_selection");
+    }).find((item) => item.name === "delete_region");
 
-    const result = await tool?.execute("tool_delete_selection", {});
-
-    expect(result?.details).toEqual({
-      message:
-        "Cannot delete because there is no active selection, current block, or structural anchor available. Inspect the document first and then resolve a region anchor."
-    });
+    await expect(tool?.execute("tool_delete_region", {})).rejects.toThrow(
+      "Cannot delete because there is no active selection, current block, or structural anchor available."
+    );
   });
 
   it("prepares an insertion preview after a resolved heading anchor", async () => {
@@ -271,15 +291,13 @@ describe("documentAgentTools", () => {
       workspaceFiles: []
     }).find((item) => item.name === "insert_markdown");
 
-    const result = await tool?.execute("tool_insert_markdown", {
-      anchorId: "heading:99",
-      content: "\n\nExtra section",
-      placement: "after_anchor"
-    });
-
-    expect(result?.details).toEqual({
-      message: 'Cannot insert because the anchor "heading:99" was not found.'
-    });
+    await expect(
+      tool?.execute("tool_insert_markdown", {
+        anchorId: "heading:99",
+        content: "\n\nExtra section",
+        placement: "after_anchor"
+      })
+    ).rejects.toThrow('Cannot insert because the anchor "heading:99" was not found.');
   });
 
   it("replaces a resolved region anchor", async () => {
@@ -340,5 +358,24 @@ describe("documentAgentTools", () => {
       to: 61,
       type: "replace"
     }));
+  });
+
+  it("does not expose legacy selection-only write tools", () => {
+    const toolNames = createDocumentAgentTools({
+      documentContent: "# Title",
+      documentEndPosition: 7,
+      documentPath: "/vault/README.md",
+      selection: {
+        from: 0,
+        source: "selection",
+        text: "# Title",
+        to: 7
+      },
+      workspaceFiles: []
+    }).map((tool) => tool.name);
+
+    expect(toolNames).not.toContain("replace_selection");
+    expect(toolNames).not.toContain("delete_selection");
+    expect(toolNames).not.toContain("insert_after_selection");
   });
 });

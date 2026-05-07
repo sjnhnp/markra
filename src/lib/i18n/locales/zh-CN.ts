@@ -172,6 +172,7 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessReadSelection": "读取当前选区",
   "app.aiAgentProcessListWorkspaceFiles": "检查工作区文件",
   "app.aiAgentProcessReadWorkspaceFile": "读取工作区文件",
+  "app.aiAgentProcessReplaceDocument": "准备替换整篇文档",
   "app.aiAgentProcessReplaceRegion": "准备替换目标区域",
   "app.aiAgentProcessReplaceSection": "准备替换整个小节",
   "app.aiAgentProcessReplaceSelection": "准备替换当前选区",

@@ -197,6 +197,7 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessReadSelection": "Aktuelle Auswahl lesen",
   "app.aiAgentProcessListWorkspaceFiles": "Arbeitsbereichsdateien prüfen",
   "app.aiAgentProcessReadWorkspaceFile": "Arbeitsbereichsdatei lesen",
+  "app.aiAgentProcessReplaceDocument": "Dokumentersetzung vorbereiten",
   "app.aiAgentProcessReplaceRegion": "Bereichsersetzung vorbereiten",
   "app.aiAgentProcessReplaceSection": "Abschnittsersetzung vorbereiten",
   "app.aiAgentProcessReplaceSelection": "Auswahlersetzung vorbereiten",

@@ -195,7 +195,7 @@ function formatToolArgs(args: unknown) {
 }
 
 function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end" }>) {
-  if (event.isError) return undefined;
+  if (event.isError) return formatToolErrorResult(event.result);
   if (event.toolName === "list_workspace_files" && typeof event.result?.details?.count === "number") {
     return `${event.result.details.count} files`;
   }
@@ -228,6 +228,9 @@ function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end
   if (event.toolName === "replace_region" && typeof event.result?.details?.original === "string") {
     return `${event.result.details.original.length} chars`;
   }
+  if (event.toolName === "replace_document" && typeof event.result?.details?.original === "string") {
+    return `${event.result.details.original.length} chars`;
+  }
   if (event.toolName === "replace_section" && typeof event.result?.details?.original === "string") {
     return `${event.result.details.original.length} chars`;
   }
@@ -242,6 +245,22 @@ function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end
   }
 
   return undefined;
+}
+
+function formatToolErrorResult(result: unknown) {
+  if (!result || typeof result !== "object") return undefined;
+
+  const content = (result as { content?: unknown }).content;
+  if (!Array.isArray(content)) return undefined;
+
+  const firstTextPart = content.find((part) => {
+    return typeof part === "object" && part !== null && "type" in part && "text" in part && part.type === "text";
+  });
+  if (!firstTextPart || typeof firstTextPart !== "object" || !("text" in firstTextPart)) return undefined;
+
+  const text = String(firstTextPart.text).trim();
+
+  return text ? summarizeValue(text) : undefined;
 }
 
 function assistantTextFromMessageContent(content: unknown) {
@@ -267,6 +286,7 @@ function toolLabelForName(toolName: string, translate: Translate) {
   if (toolName === "get_selection") return translate("app.aiAgentProcessReadSelection");
   if (toolName === "list_workspace_files") return translate("app.aiAgentProcessListWorkspaceFiles");
   if (toolName === "read_workspace_file") return translate("app.aiAgentProcessReadWorkspaceFile");
+  if (toolName === "replace_document") return translate("app.aiAgentProcessReplaceDocument");
   if (toolName === "replace_region") return translate("app.aiAgentProcessReplaceRegion");
   if (toolName === "replace_section") return translate("app.aiAgentProcessReplaceSection");
   if (toolName === "replace_selection") return translate("app.aiAgentProcessReplaceSelection");
