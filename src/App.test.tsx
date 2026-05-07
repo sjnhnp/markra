@@ -515,6 +515,7 @@ describe("Markra workspace", () => {
 
   it("applies an AI preview action event back into the editor document", async () => {
     mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
       filePath: mockNativePath,
       fileTreeOpen: false,
       folderName: null,
@@ -550,6 +551,7 @@ describe("Markra workspace", () => {
 
   it("ignores repeated apply events for the same AI insert preview", async () => {
     mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
       filePath: mockNativePath,
       fileTreeOpen: false,
       folderName: null,
@@ -585,6 +587,7 @@ describe("Markra workspace", () => {
 
   it("restores the last opened markdown file on app launch", async () => {
     mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
       filePath: mockNativePath,
       fileTreeOpen: false,
       folderName: null,
@@ -607,6 +610,7 @@ describe("Markra workspace", () => {
 
   it("restores the last opened markdown folder on app launch", async () => {
     mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
       filePath: null,
       fileTreeOpen: true,
       folderName: "vault",
