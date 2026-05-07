@@ -5,6 +5,7 @@ import {
   installNativeEditorContextMenu,
   installNativeApplicationMenu,
   listenNativeApplicationMenuCommands,
+  showNativeMarkdownFileTreeContextMenu,
   type NativeMenuHandlers
 } from "./menu";
 
@@ -130,5 +131,62 @@ describe("native menu", () => {
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
 
     expect(popup).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows native markdown file tree actions for a file target", async () => {
+    const createFile = vi.fn();
+    const createFolder = vi.fn();
+    const renameFile = vi.fn();
+    const deleteFile = vi.fn();
+    const file = {
+      name: "README.md",
+      path: "/vault/README.md",
+      relativePath: "README.md"
+    };
+
+    await showNativeMarkdownFileTreeContextMenu({
+      createFile,
+      createFolder,
+      deleteFile,
+      renameFile
+    }, "en", file);
+
+    const items = mockedMenuNew.mock.calls[0]?.[0].items ?? [];
+    const newFile = items.find((item) => "id" in item && item.id === "markra:file-tree:new");
+    const newFolder = items.find((item) => "id" in item && item.id === "markra:file-tree:new-folder");
+    const rename = items.find((item) => "id" in item && item.id === "markra:file-tree:rename");
+    const deleteItem = items.find((item) => "id" in item && item.id === "markra:file-tree:delete");
+
+    expect(newFile).toMatchObject({ text: "New file" });
+    expect(newFolder).toMatchObject({ text: "New Folder" });
+    expect(rename).toMatchObject({ text: "Rename file" });
+    expect(deleteItem).toMatchObject({ text: "Delete file" });
+
+    if ("action" in newFile!) newFile.action?.();
+    if ("action" in newFolder!) newFolder.action?.();
+    if ("action" in rename!) rename.action?.();
+    if ("action" in deleteItem!) deleteItem.action?.();
+
+    expect(createFile).toHaveBeenCalledTimes(1);
+    expect(createFolder).toHaveBeenCalledTimes(1);
+    expect(renameFile).toHaveBeenCalledWith(file);
+    expect(deleteFile).toHaveBeenCalledWith(file);
+    expect(popup).toHaveBeenCalledTimes(1);
+  });
+
+  it("only shows create actions for the markdown file tree root target", async () => {
+    await showNativeMarkdownFileTreeContextMenu({
+      createFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFile: vi.fn(),
+      renameFile: vi.fn()
+    }, "en");
+
+    const items = mockedMenuNew.mock.calls[0]?.[0].items ?? [];
+
+    expect(items).toEqual([
+      expect.objectContaining({ id: "markra:file-tree:new", text: "New file" }),
+      expect.objectContaining({ id: "markra:file-tree:new-folder", text: "New Folder" })
+    ]);
   });
 });

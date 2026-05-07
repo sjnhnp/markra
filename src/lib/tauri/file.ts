@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { fileNameFromPath, firstMarkdownPath } from "../utils";
 
 type MarkdownFileResponse = {
@@ -10,6 +10,7 @@ type MarkdownFileResponse = {
 };
 
 type MarkdownFolderFileResponse = {
+  kind?: "file" | "folder";
   path: string;
   relativePath: string;
 };
@@ -31,6 +32,7 @@ export type NativeMarkdownFile = {
 };
 
 export type NativeMarkdownFolderFile = {
+  kind?: "folder";
   path: string;
   name: string;
   relativePath: string;
@@ -78,6 +80,10 @@ const markdownFilters = [
   }
 ];
 
+function isMarkdownTreeFilePath(path: string) {
+  return /\.(md|markdown)$/i.test(path);
+}
+
 export async function readNativeMarkdownFile(path: string): Promise<NativeMarkdownFile> {
   const file = await invoke<MarkdownFileResponse>("read_markdown_file", {
     path
@@ -95,11 +101,75 @@ export async function listNativeMarkdownFilesForPath(path: string): Promise<Nati
     path
   });
 
-  return files.map((file) => ({
+  return files.map(markdownFolderFileFromResponse);
+}
+
+function markdownFolderFileFromResponse(file: MarkdownFolderFileResponse): NativeMarkdownFolderFile {
+  const mappedFile: NativeMarkdownFolderFile = {
     path: file.path,
     name: fileNameFromPath(file.path),
     relativePath: file.relativePath
-  }));
+  };
+
+  if (file.kind === "folder" || (!file.kind && !isMarkdownTreeFilePath(file.relativePath))) {
+    mappedFile.kind = "folder";
+  }
+
+  return mappedFile;
+}
+
+export async function createNativeMarkdownTreeFile(rootPath: string, fileName: string): Promise<NativeMarkdownFolderFile> {
+  const file = await invoke<MarkdownFolderFileResponse>("create_markdown_tree_file", {
+    fileName,
+    rootPath
+  });
+
+  return markdownFolderFileFromResponse(file);
+}
+
+export async function createNativeMarkdownTreeFolder(
+  rootPath: string,
+  folderName: string
+): Promise<NativeMarkdownFolderFile> {
+  const folder = await invoke<MarkdownFolderFileResponse>("create_markdown_tree_folder", {
+    folderName,
+    rootPath
+  });
+
+  return markdownFolderFileFromResponse(folder);
+}
+
+export async function renameNativeMarkdownTreeFile(
+  rootPath: string,
+  path: string,
+  fileName: string
+): Promise<NativeMarkdownFolderFile> {
+  const file = await invoke<MarkdownFolderFileResponse>("rename_markdown_tree_file", {
+    fileName,
+    path,
+    rootPath
+  });
+
+  return markdownFolderFileFromResponse(file);
+}
+
+export async function deleteNativeMarkdownTreeFile(rootPath: string, path: string) {
+  await invoke("delete_markdown_tree_file", {
+    path,
+    rootPath
+  });
+}
+
+export async function confirmNativeMarkdownFileDelete(
+  fileName: string,
+  labels: { cancelLabel: string; message: string; okLabel: string }
+) {
+  return confirm(labels.message, {
+    cancelLabel: labels.cancelLabel,
+    kind: "warning",
+    okLabel: labels.okLabel,
+    title: fileName
+  });
 }
 
 export async function openNativeMarkdownFileInNewWindow(path: string) {

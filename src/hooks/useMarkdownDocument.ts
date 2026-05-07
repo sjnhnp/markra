@@ -163,6 +163,40 @@ export function useMarkdownDocument({
     [loadNativeMarkdownPath]
   );
 
+  const replaceOpenDocumentFile = useCallback((previousPath: string, file: NativeMarkdownFolderFile) => {
+    if (documentRef.current.path !== previousPath) return false;
+
+    setDocument((current) => {
+      if (current.path !== previousPath) return current;
+
+      return {
+        ...current,
+        name: file.name,
+        path: file.path
+      };
+    });
+    persistWorkspaceState({ filePath: file.path });
+    return true;
+  }, []);
+
+  const detachDeletedDocumentFile = useCallback((path: string) => {
+    if (documentRef.current.path !== path) return false;
+
+    setDocument((current) => {
+      if (current.path !== path) return current;
+
+      return {
+        ...current,
+        dirty: true,
+        name: "Untitled.md",
+        path: null,
+        revision: current.revision + 1
+      };
+    });
+    persistWorkspaceState({ filePath: null });
+    return true;
+  }, []);
+
   const saveCurrentDocument = useCallback(
     async (saveAs = false) => {
       const current = documentRef.current;
@@ -345,6 +379,7 @@ export function useMarkdownDocument({
 
   return {
     createWorkspaceSession,
+    detachDeletedDocumentFile,
     document,
     handleDroppedMarkdownPath,
     handleMarkdownChange,
@@ -352,6 +387,7 @@ export function useMarkdownDocument({
     openMarkdownFile,
     openTreeMarkdownFile,
     outlineItems,
+    replaceOpenDocumentFile,
     saveCurrentDocument,
     selectWorkspaceSession,
     workspaceSessionId,

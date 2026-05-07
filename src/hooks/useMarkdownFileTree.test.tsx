@@ -1,11 +1,22 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { listNativeMarkdownFilesForPath, openNativeMarkdownFolder } from "../lib/tauri/file";
+import {
+  createNativeMarkdownTreeFile,
+  createNativeMarkdownTreeFolder,
+  deleteNativeMarkdownTreeFile,
+  listNativeMarkdownFilesForPath,
+  openNativeMarkdownFolder,
+  renameNativeMarkdownTreeFile
+} from "../lib/tauri/file";
 import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/appSettings";
 import { useMarkdownFileTree } from "./useMarkdownFileTree";
 
 vi.mock("../lib/tauri/file", () => ({
+  createNativeMarkdownTreeFile: vi.fn(),
+  createNativeMarkdownTreeFolder: vi.fn(),
+  deleteNativeMarkdownTreeFile: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn(),
-  openNativeMarkdownFolder: vi.fn()
+  openNativeMarkdownFolder: vi.fn(),
+  renameNativeMarkdownTreeFile: vi.fn()
 }));
 
 vi.mock("../lib/settings/appSettings", () => ({
@@ -13,8 +24,12 @@ vi.mock("../lib/settings/appSettings", () => ({
   saveStoredWorkspaceState: vi.fn()
 }));
 
+const mockedCreateNativeMarkdownTreeFile = vi.mocked(createNativeMarkdownTreeFile);
+const mockedCreateNativeMarkdownTreeFolder = vi.mocked(createNativeMarkdownTreeFolder);
+const mockedDeleteNativeMarkdownTreeFile = vi.mocked(deleteNativeMarkdownTreeFile);
 const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
+const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
 const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
 const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 
@@ -31,6 +46,24 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
       <button type="button" onClick={() => tree.toggle(currentPath)}>
         Toggle
       </button>
+      <button type="button" onClick={() => tree.createFile("Daily note")}>
+        Create
+      </button>
+      <button type="button" onClick={() => tree.createFolder("Research")}>
+        Create folder
+      </button>
+      <button
+        type="button"
+        onClick={() => tree.renameFile({ name: "readme.md", path: "/vault/readme.md", relativePath: "readme.md" }, "renamed.md")}
+      >
+        Rename
+      </button>
+      <button
+        type="button"
+        onClick={() => tree.deleteFile({ name: "renamed.md", path: "/vault/renamed.md", relativePath: "renamed.md" })}
+      >
+        Delete
+      </button>
       <ol>
         {tree.files.map((file) => (
           <li key={file.path}>{file.relativePath}</li>
@@ -42,11 +75,32 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
 
 describe("useMarkdownFileTree", () => {
   beforeEach(() => {
+    mockedCreateNativeMarkdownTreeFile.mockReset();
+    mockedCreateNativeMarkdownTreeFolder.mockReset();
+    mockedDeleteNativeMarkdownTreeFile.mockReset();
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
+    mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedCreateAiAgentSessionId.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
     mockedCreateAiAgentSessionId.mockReturnValue("session-folder");
+    mockedCreateNativeMarkdownTreeFile.mockResolvedValue({
+      name: "Daily note.md",
+      path: "/vault/Daily note.md",
+      relativePath: "Daily note.md"
+    });
+    mockedCreateNativeMarkdownTreeFolder.mockResolvedValue({
+      kind: "folder",
+      name: "Research",
+      path: "/vault/Research",
+      relativePath: "Research"
+    });
+    mockedDeleteNativeMarkdownTreeFile.mockResolvedValue(undefined);
+    mockedRenameNativeMarkdownTreeFile.mockResolvedValue({
+      name: "renamed.md",
+      path: "/vault/renamed.md",
+      relativePath: "renamed.md"
+    });
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
   });
 
@@ -88,5 +142,38 @@ describe("useMarkdownFileTree", () => {
     expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
     expect(screen.getByTestId("open-state")).toHaveTextContent("open");
     expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({ fileTreeOpen: true });
+  });
+
+  it("creates folders, creates files, renames files, and deletes files through native markdown tree operations", async () => {
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedListNativeMarkdownFilesForPath
+      .mockResolvedValueOnce([{ path: "/vault/readme.md", name: "readme.md", relativePath: "readme.md" }])
+      .mockResolvedValue([
+        { path: "/vault/renamed.md", name: "renamed.md", relativePath: "renamed.md" },
+        { path: "/vault/Daily note.md", name: "Daily note.md", relativePath: "Daily note.md" }
+      ]);
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    await screen.findByText("readme.md");
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(mockedCreateNativeMarkdownTreeFile).toHaveBeenCalledWith("/vault", "Daily note"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Create folder" }));
+    await waitFor(() => expect(mockedCreateNativeMarkdownTreeFolder).toHaveBeenCalledWith("/vault", "Research"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    await waitFor(() =>
+      expect(mockedRenameNativeMarkdownTreeFile).toHaveBeenCalledWith("/vault", "/vault/readme.md", "renamed.md")
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mockedDeleteNativeMarkdownTreeFile).toHaveBeenCalledWith("/vault", "/vault/renamed.md"));
   });
 });

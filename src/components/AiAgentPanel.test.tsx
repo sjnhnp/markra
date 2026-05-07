@@ -1,8 +1,20 @@
 import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AiAgentPanel } from "./AiAgentPanel";
+import { confirmNativeAiAgentSessionDelete } from "../lib/tauri/dialog";
+
+vi.mock("../lib/tauri/dialog", () => ({
+  confirmNativeAiAgentSessionDelete: vi.fn()
+}));
+
+const mockedConfirmNativeAiAgentSessionDelete = vi.mocked(confirmNativeAiAgentSessionDelete);
 
 describe("AiAgentPanel", () => {
+  beforeEach(() => {
+    mockedConfirmNativeAiAgentSessionDelete.mockReset();
+    mockedConfirmNativeAiAgentSessionDelete.mockResolvedValue(true);
+  });
+
   it("renders a focused right-side agent workspace", () => {
     const close = vi.fn();
     const { container } = render(
@@ -30,7 +42,7 @@ describe("AiAgentPanel", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
-  it("shows workspace sessions in the header menu and lets us switch or create one", () => {
+  it("shows workspace sessions in the header menu and lets us switch or create one", async () => {
     const selectSession = vi.fn();
     const createSession = vi.fn();
     const renameSession = vi.fn();
@@ -94,17 +106,13 @@ describe("AiAgentPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete session New session" }));
-    const deleteDialog = screen.getByRole("dialog", { name: "Delete this session?" });
-    expect(deleteDialog).toBeInTheDocument();
-    expect(deleteDialog.closest('[role="menu"]')).toBeNull();
-    expect(deleteSession).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel delete New session" }));
     expect(screen.queryByRole("dialog", { name: "Delete this session?" })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Delete session New session" }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm delete New session" }));
-    expect(deleteSession).toHaveBeenCalledWith("session-b");
+    expect(mockedConfirmNativeAiAgentSessionDelete).toHaveBeenCalledWith("New session", {
+      cancelLabel: "Cancel delete",
+      message: "Delete this session?",
+      okLabel: "Confirm delete"
+    });
+    await waitFor(() => expect(deleteSession).toHaveBeenCalledWith("session-b"));
   });
 
   it("filters and archives workspace sessions from the header menu", () => {
@@ -175,6 +183,39 @@ describe("AiAgentPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Restore session Archived note" }));
     expect(archiveSession).toHaveBeenCalledWith("session-c", false);
+  });
+
+  it("keeps a session when native delete confirmation is cancelled", async () => {
+    const deleteSession = vi.fn();
+    mockedConfirmNativeAiAgentSessionDelete.mockResolvedValue(false);
+
+    render(
+      <AiAgentPanel
+        activeSessionId="session-a"
+        language="en"
+        open
+        sessions={[
+          {
+            archivedAt: null,
+            createdAt: 1,
+            id: "session-a",
+            messageCount: 1,
+            title: "Keep this",
+            titleSource: "manual",
+            updatedAt: 10,
+            workspaceKey: "/vault"
+          }
+        ]}
+        onClose={() => {}}
+        onDeleteSession={deleteSession}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete session Keep this" }));
+
+    await waitFor(() => expect(mockedConfirmNativeAiAgentSessionDelete).toHaveBeenCalledTimes(1));
+    expect(deleteSession).not.toHaveBeenCalled();
   });
 
   it("keeps typed messages in the agent transcript", () => {

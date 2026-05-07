@@ -8,8 +8,16 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { t, type AppLanguage, type I18nKey } from "../i18n";
+import type { NativeMarkdownFolderFile } from "./file";
 
 export type NativeMenuHandlers = Partial<Record<NativeMenuCommand, () => unknown | Promise<unknown>>>;
+
+export type NativeMarkdownFileTreeContextMenuHandlers = {
+  createFile?: () => unknown | Promise<unknown>;
+  createFolder?: () => unknown | Promise<unknown>;
+  deleteFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
+  renameFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
+};
 
 export type NativeMenuCommand =
   | "openDocument"
@@ -276,4 +284,38 @@ export async function installNativeEditorContextMenu(
   } catch {
     return () => {};
   }
+}
+
+export function createNativeMarkdownFileTreeContextMenuItems(
+  handlers: NativeMarkdownFileTreeContextMenuHandlers,
+  language: AppLanguage = "en",
+  file?: NativeMarkdownFolderFile
+) {
+  const label = (key: I18nKey) => menuLabel(language, key);
+  const items: Array<MenuItemOptions | PredefinedMenuItemOptions> = [
+    customItem("markra:file-tree:new", label("app.newMarkdownFile"), undefined, handlers.createFile),
+    customItem("markra:file-tree:new-folder", label("app.newMarkdownFolder"), undefined, handlers.createFolder)
+  ];
+
+  if (!file) return items;
+
+  items.push(
+    separator(),
+    customItem("markra:file-tree:rename", label("app.renameMarkdownFile"), undefined, () => handlers.renameFile?.(file)),
+    customItem("markra:file-tree:delete", label("app.deleteMarkdownFile"), undefined, () => handlers.deleteFile?.(file))
+  );
+
+  return items;
+}
+
+export async function showNativeMarkdownFileTreeContextMenu(
+  handlers: NativeMarkdownFileTreeContextMenuHandlers,
+  language: AppLanguage = "en",
+  file?: NativeMarkdownFolderFile
+) {
+  const menu = await Menu.new({
+    items: createNativeMarkdownFileTreeContextMenuItems(handlers, language, file)
+  });
+
+  await menu.popup();
 }

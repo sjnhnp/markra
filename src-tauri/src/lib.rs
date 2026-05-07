@@ -8,8 +8,9 @@ mod windows;
 
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
 use markdown_files::{
+    create_markdown_tree_file, create_markdown_tree_folder, delete_markdown_tree_file,
     list_markdown_files_for_path, open_markdown_file_in_new_window, open_markdown_path,
-    read_markdown_file, write_markdown_file,
+    read_markdown_file, rename_markdown_tree_file, write_markdown_file,
 };
 use menu::{
     create_application_menu, is_frontend_menu_command, is_native_new_window_command,
@@ -65,6 +66,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_markdown_files_for_path,
+            create_markdown_tree_file,
+            create_markdown_tree_folder,
+            rename_markdown_tree_file,
+            delete_markdown_tree_file,
             open_markdown_file_in_new_window,
             open_markdown_path,
             read_markdown_file,

@@ -1,5 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MarkdownFileTreeDrawer } from "./MarkdownFileTreeDrawer";
+import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri/menu";
+
+vi.mock("../lib/tauri/menu", () => ({
+  showNativeMarkdownFileTreeContextMenu: vi.fn()
+}));
+
+const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
 
 const markdownFiles = [
   { name: "Untitled.md", path: "/vault/Untitled.md", relativePath: "Untitled.md" },
@@ -8,6 +15,11 @@ const markdownFiles = [
 ];
 
 describe("MarkdownFileTreeDrawer", () => {
+  beforeEach(() => {
+    mockedShowNativeMarkdownFileTreeContextMenu.mockReset();
+    mockedShowNativeMarkdownFileTreeContextMenu.mockResolvedValue(undefined);
+  });
+
   it("keeps settings fixed in the lower-left", () => {
     const onOpenSettings = vi.fn();
     const { container } = render(
@@ -87,6 +99,129 @@ describe("MarkdownFileTreeDrawer", () => {
     fireEvent.click(screen.getByRole("button", { name: "deploy/deploy.md" }));
 
     expect(openFile).toHaveBeenCalledWith(markdownFiles[2]);
+  });
+
+  it("supports creating and renaming markdown files from the file tree", () => {
+    const createFile = vi.fn();
+    const createFolder = vi.fn();
+    const renameFile = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onCreateFile={createFile}
+        onCreateFolder={createFolder}
+        onOpenFile={() => {}}
+        onRenameFile={renameFile}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "New file" }));
+    const newFileInput = screen.getByRole("textbox", { name: "New file name" });
+    fireEvent.change(newFileInput, { target: { value: "Daily note" } });
+    fireEvent.keyDown(newFileInput, { key: "Enter" });
+
+    expect(createFile).toHaveBeenCalledWith("Daily note");
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    act(() => {
+      contextHandlers?.renameFile?.(markdownFiles[0]);
+    });
+
+    const renameInput = screen.getByRole("textbox", { name: "Rename file" });
+    fireEvent.change(renameInput, { target: { value: "Renamed.md" } });
+    fireEvent.keyDown(renameInput, { key: "Enter" });
+
+    expect(renameFile).toHaveBeenCalledWith(markdownFiles[0], "Renamed.md");
+  });
+
+  it("opens the blank file tree area context menu and creates folders", () => {
+    const createFolder = vi.fn();
+
+    const { container } = render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onCreateFolder={createFolder}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(container.querySelector(".file-tree-scroll") as HTMLElement);
+
+    expect(mockedShowNativeMarkdownFileTreeContextMenu).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createFile: expect.any(Function),
+        createFolder: expect.any(Function)
+      }),
+      "en",
+      undefined
+    );
+
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    act(() => {
+      contextHandlers?.createFolder?.();
+    });
+
+    const newFolderInput = screen.getByRole("textbox", { name: "New folder name" });
+    fireEvent.change(newFolderInput, { target: { value: "Research" } });
+    fireEvent.keyDown(newFolderInput, { key: "Enter" });
+
+    expect(createFolder).toHaveBeenCalledWith("Research");
+  });
+
+  it("opens native context menus for root and markdown files", () => {
+    const deleteFile = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onDeleteFile={deleteFile}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByText("Obsidian Vault"));
+    expect(mockedShowNativeMarkdownFileTreeContextMenu).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createFile: expect.any(Function),
+        createFolder: expect.any(Function)
+      }),
+      "en",
+      undefined
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
+    expect(mockedShowNativeMarkdownFileTreeContextMenu).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        createFile: expect.any(Function),
+        createFolder: expect.any(Function),
+        deleteFile: expect.any(Function),
+        renameFile: expect.any(Function)
+      }),
+      "en",
+      markdownFiles[0]
+    );
+
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+    contextHandlers?.deleteFile?.(markdownFiles[0]);
+
+    expect(deleteFile).toHaveBeenCalledWith(markdownFiles[0]);
   });
 
   it("keeps child branches visually connected when a folder is expanded", () => {

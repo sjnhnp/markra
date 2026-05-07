@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import * as Popover from "@radix-ui/react-popover";
 import { Archive, ArchiveRestore, Check, History, MessageSquarePlus, PencilLine, Search, Trash2 } from "lucide-react";
 import type { AppLanguage, I18nKey } from "../lib/i18n";
 import type { StoredAiAgentSessionSummary } from "../lib/settings/appSettings";
 import { t } from "../lib/i18n";
+import { confirmNativeAiAgentSessionDelete } from "../lib/tauri/dialog";
 
 const menuExitDurationMs = 140;
 
@@ -34,7 +34,6 @@ export function AiAgentSessionMenu({
   const [menuVisible, setMenuVisible] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
-  const [confirmingDeleteSessionId, setConfirmingDeleteSessionId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const label = (key: I18nKey) => t(language, key);
@@ -75,7 +74,6 @@ export function AiAgentSessionMenu({
     if (!menuVisible) return;
     setEditingSessionId(null);
     setEditingTitle("");
-    setConfirmingDeleteSessionId(null);
 
     closeTimerRef.current = window.setTimeout(() => {
       setMenuVisible(false);
@@ -115,12 +113,27 @@ export function AiAgentSessionMenu({
     if (normalizedTitle) onRenameSession?.(sessionId, normalizedTitle);
     setEditingSessionId(null);
     setEditingTitle("");
-    setConfirmingDeleteSessionId(null);
   };
 
   const cancelRename = () => {
     setEditingSessionId(null);
     setEditingTitle("");
+  };
+
+  const requestDeleteSession = async (sessionId: string, sessionTitle: string) => {
+    setEditingSessionId(null);
+    setEditingTitle("");
+    setOpen(false);
+
+    const confirmed = await confirmNativeAiAgentSessionDelete(sessionTitle, {
+      cancelLabel: label("app.aiAgentCancelDeleteSession"),
+      message: label("app.aiAgentConfirmDeleteSession"),
+      okLabel: label("app.aiAgentConfirmDeleteSessionAction")
+    });
+
+    if (!confirmed) return;
+
+    await onDeleteSession?.(sessionId);
   };
 
   return (
@@ -139,7 +152,7 @@ export function AiAgentSessionMenu({
       </button>
       {menuVisible ? (
         <div
-          className={`absolute top-[calc(100%+8px)] right-0 z-40 w-72 overflow-hidden rounded-xl border border-(--border-default) bg-(--bg-primary) shadow-[var(--ai-command-popover-shadow)] transition-[opacity,transform] duration-140 ease-out motion-reduce:transition-none ${
+          className={`absolute top-[calc(100%+8px)] right-0 z-40 w-72 overflow-hidden rounded-xl border border-(--border-default) bg-(--bg-primary) shadow-(--ai-command-popover-shadow) transition-[opacity,transform] duration-140 ease-out motion-reduce:transition-none ${
             open ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"
           }`}
           role="menu"
@@ -147,7 +160,7 @@ export function AiAgentSessionMenu({
         >
           <div className="border-b border-(--border-default) p-1.5">
             <button
-              className="inline-flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg border border-(--border-default) bg-(--bg-secondary) px-3 text-left text-[12px] leading-5 font-[600] text-(--text-primary) transition-[background-color,border-color,color] duration-150 ease-out hover:border-(--border-strong) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:border-(--accent) focus-visible:outline-none"
+              className="inline-flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg border border-(--border-default) bg-(--bg-secondary) px-3 text-left text-[12px] leading-5 font-semibold text-(--text-primary) transition-[background-color,border-color,color] duration-150 ease-out hover:border-(--border-strong) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:border-(--accent) focus-visible:outline-none"
               type="button"
               role="menuitem"
               onClick={() => {
@@ -197,7 +210,6 @@ export function AiAgentSessionMenu({
                   const active = session.id === activeSessionId;
                   const sessionTitle = session.title ?? label("app.aiAgentSessionUntitled");
                   const editing = editingSessionId === session.id;
-                  const confirmingDelete = confirmingDeleteSessionId === session.id;
                   const archived = session.archivedAt !== null;
 
                   return (
@@ -269,7 +281,6 @@ export function AiAgentSessionMenu({
                                 event.stopPropagation();
                                 setEditingSessionId(session.id);
                                 setEditingTitle(sessionTitle);
-                                setConfirmingDeleteSessionId(null);
                               }}
                             >
                               <PencilLine aria-hidden="true" size={12} />
@@ -281,74 +292,21 @@ export function AiAgentSessionMenu({
                               onClick={(event) => {
                                 event.stopPropagation();
                                 onArchiveSession?.(session.id, !archived);
-                                setConfirmingDeleteSessionId(null);
                               }}
                             >
                               {archived ? <ArchiveRestore aria-hidden="true" size={12} /> : <Archive aria-hidden="true" size={12} />}
                             </button>
-                            <Popover.Root
-                              open={confirmingDelete}
-                              onOpenChange={(nextOpen) => {
-                                setConfirmingDeleteSessionId(nextOpen ? session.id : null);
+                            <button
+                              aria-label={`${label("app.aiAgentDeleteSession")} ${sessionTitle}`}
+                              className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-active) hover:text-(--text-heading) focus-visible:bg-(--bg-active) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                requestDeleteSession(session.id, sessionTitle).catch(() => {});
                               }}
                             >
-                              <Popover.Trigger asChild>
-                                <button
-                                  aria-label={`${label("app.aiAgentDeleteSession")} ${sessionTitle}`}
-                                  className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-active) hover:text-(--text-heading) focus-visible:bg-(--bg-active) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setEditingSessionId(null);
-                                  }}
-                                >
-                                  <Trash2 aria-hidden="true" size={12} />
-                                </button>
-                              </Popover.Trigger>
-                              <Popover.Portal>
-                                <Popover.Content
-                                  align="end"
-                                  aria-label={label("app.aiAgentConfirmDeleteSession")}
-                                  className="z-70 grid w-56 origin-[var(--radix-popover-content-transform-origin)] gap-2 rounded-xl border border-(--border-default) bg-(--bg-primary) px-3 py-2.5 shadow-[var(--ai-command-popover-shadow)] data-[state=open]:animate-[markra-ai-float-in_140ms_ease-out_both] data-[state=closed]:animate-[markra-ai-float-out_120ms_ease-in_both] motion-reduce:animate-none"
-                                  collisionPadding={12}
-                                  role="dialog"
-                                  side="left"
-                                  sideOffset={8}
-                                  onOpenAutoFocus={(event) => event.preventDefault()}
-                                  onPointerDown={(event) => event.stopPropagation()}
-                                  onClick={(event) => event.stopPropagation()}
-                                >
-                                  <p className="m-0 text-[12px] leading-5 font-[620] text-(--text-primary)">
-                                    {label("app.aiAgentConfirmDeleteSession")}
-                                  </p>
-                                  <div className="flex items-center justify-end gap-1.5">
-                                    <button
-                                      className="inline-flex h-7 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent px-2.5 text-[12px] leading-5 font-[620] text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                                      type="button"
-                                      aria-label={`${label("app.aiAgentCancelDeleteSession")} ${sessionTitle}`}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        setConfirmingDeleteSessionId(null);
-                                      }}
-                                    >
-                                      {label("app.aiAgentCancelDeleteSession")}
-                                    </button>
-                                    <button
-                                      className="inline-flex h-7 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent px-2.5 text-[12px] leading-5 font-[680] text-(--danger) transition-[background-color,color] duration-150 ease-out hover:bg-[color:color-mix(in_oklab,var(--danger)_10%,var(--bg-primary))] focus-visible:bg-[color:color-mix(in_oklab,var(--danger)_10%,var(--bg-primary))] focus-visible:outline-none"
-                                      type="button"
-                                      aria-label={`${label("app.aiAgentConfirmDeleteSessionAction")} ${sessionTitle}`}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        onDeleteSession?.(session.id);
-                                        setConfirmingDeleteSessionId(null);
-                                      }}
-                                    >
-                                      {label("app.aiAgentConfirmDeleteSessionAction")}
-                                    </button>
-                                  </div>
-                                </Popover.Content>
-                              </Popover.Portal>
-                            </Popover.Root>
+                              <Trash2 aria-hidden="true" size={12} />
+                            </button>
                           </div>
                         </>
                       )}

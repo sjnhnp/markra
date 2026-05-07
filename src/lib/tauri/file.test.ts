@@ -1,8 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import {
+  confirmNativeMarkdownFileDelete,
+  createNativeMarkdownTreeFile,
+  createNativeMarkdownTreeFolder,
+  deleteNativeMarkdownTreeFile,
   installNativeMarkdownFileDrop,
   listNativeMarkdownFilesForPath,
   openNativeMarkdownFolder,
@@ -10,6 +14,7 @@ import {
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
   readNativeMarkdownFile,
+  renameNativeMarkdownTreeFile,
   saveNativeMarkdownFile,
   watchNativeMarkdownFile
 } from "./file";
@@ -27,6 +32,7 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
+  confirm: vi.fn(),
   open: vi.fn(),
   save: vi.fn()
 }));
@@ -34,6 +40,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 const mockedInvoke = vi.mocked(invoke);
 const mockedListen = vi.mocked(listen);
 const mockedGetCurrentWindow = vi.mocked(getCurrentWindow);
+const mockedConfirm = vi.mocked(confirm);
 const mockedOpen = vi.mocked(open);
 const mockedSave = vi.mocked(save);
 
@@ -49,6 +56,7 @@ describe("native file access", () => {
     mockedInvoke.mockReset();
     mockedListen.mockReset();
     mockedGetCurrentWindow.mockReset();
+    mockedConfirm.mockReset();
     mockedOpen.mockReset();
     mockedSave.mockReset();
     onDragDropEvent.mockReset();
@@ -165,17 +173,82 @@ describe("native file access", () => {
 
   it("lists markdown files below the current file folder", async () => {
     mockedInvoke.mockResolvedValue([
+      { path: "/mock-files/docs", relativePath: "docs" },
       { path: "/mock-files/readme.md", relativePath: "readme.md" },
       { path: "/mock-files/docs/guide.md", relativePath: "docs/guide.md" }
     ]);
 
     await expect(listNativeMarkdownFilesForPath(mockReadmePath)).resolves.toEqual([
+      { kind: "folder", path: "/mock-files/docs", name: "docs", relativePath: "docs" },
       { path: "/mock-files/readme.md", name: "readme.md", relativePath: "readme.md" },
       { path: "/mock-files/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" }
     ]);
 
     expect(mockedInvoke).toHaveBeenCalledWith("list_markdown_files_for_path", {
       path: mockReadmePath
+    });
+  });
+
+  it("creates folders, creates files, renames files, and deletes files through Tauri commands", async () => {
+    mockedInvoke
+      .mockResolvedValueOnce({ kind: "folder", path: "/mock-files/Research", relativePath: "Research" })
+      .mockResolvedValueOnce({ path: "/mock-files/Daily note.md", relativePath: "Daily note.md" })
+      .mockResolvedValueOnce({ path: "/mock-files/Renamed.md", relativePath: "Renamed.md" })
+      .mockResolvedValueOnce(undefined);
+
+    await expect(createNativeMarkdownTreeFolder(mockFolderPath, "Research")).resolves.toEqual({
+      kind: "folder",
+      name: "Research",
+      path: "/mock-files/Research",
+      relativePath: "Research"
+    });
+    await expect(createNativeMarkdownTreeFile(mockFolderPath, "Daily note")).resolves.toEqual({
+      name: "Daily note.md",
+      path: "/mock-files/Daily note.md",
+      relativePath: "Daily note.md"
+    });
+    await expect(renameNativeMarkdownTreeFile(mockFolderPath, mockReadmePath, "Renamed.md")).resolves.toEqual({
+      name: "Renamed.md",
+      path: "/mock-files/Renamed.md",
+      relativePath: "Renamed.md"
+    });
+    await expect(deleteNativeMarkdownTreeFile(mockFolderPath, "/mock-files/Renamed.md")).resolves.toBeUndefined();
+
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "create_markdown_tree_folder", {
+      folderName: "Research",
+      rootPath: mockFolderPath
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "create_markdown_tree_file", {
+      fileName: "Daily note",
+      rootPath: mockFolderPath
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(3, "rename_markdown_tree_file", {
+      fileName: "Renamed.md",
+      path: mockReadmePath,
+      rootPath: mockFolderPath
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(4, "delete_markdown_tree_file", {
+      path: "/mock-files/Renamed.md",
+      rootPath: mockFolderPath
+    });
+  });
+
+  it("asks for native confirmation before deleting a markdown tree file", async () => {
+    mockedConfirm.mockResolvedValue(true);
+
+    await expect(
+      confirmNativeMarkdownFileDelete("README.md", {
+        cancelLabel: "Cancel",
+        message: "Delete this file?",
+        okLabel: "Confirm"
+      })
+    ).resolves.toBe(true);
+
+    expect(mockedConfirm).toHaveBeenCalledWith("Delete this file?", {
+      cancelLabel: "Cancel",
+      kind: "warning",
+      okLabel: "Confirm",
+      title: "README.md"
     });
   });
 

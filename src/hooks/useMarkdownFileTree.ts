@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/appSettings";
 import {
+  createNativeMarkdownTreeFile,
+  createNativeMarkdownTreeFolder,
+  deleteNativeMarkdownTreeFile,
   listNativeMarkdownFilesForPath,
   openNativeMarkdownFolder,
+  renameNativeMarkdownTreeFile,
   type NativeMarkdownFolderFile
 } from "../lib/tauri/file";
 import { folderNameFromDocumentPath, pathNameFromPath } from "../lib/utils";
@@ -69,6 +73,38 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     openFolderPath(folder.path, folder.name);
   }, [openFolderPath]);
 
+  const createFile = useCallback(async (fileName: string) => {
+    if (!sourcePath) return null;
+
+    const file = await createNativeMarkdownTreeFile(sourcePath, fileName);
+    await refresh(sourcePath);
+    return file;
+  }, [refresh, sourcePath]);
+
+  const createFolder = useCallback(async (folderName: string) => {
+    if (!sourcePath) return null;
+
+    const folder = await createNativeMarkdownTreeFolder(sourcePath, folderName);
+    await refresh(sourcePath);
+    return folder;
+  }, [refresh, sourcePath]);
+
+  const renameFile = useCallback(async (file: NativeMarkdownFolderFile, fileName: string) => {
+    if (!sourcePath) return null;
+
+    const renamedFile = await renameNativeMarkdownTreeFile(sourcePath, file.path, fileName);
+    await refresh(sourcePath);
+    return renamedFile;
+  }, [refresh, sourcePath]);
+
+  const deleteFile = useCallback(async (file: NativeMarkdownFolderFile) => {
+    if (!sourcePath) return false;
+
+    await deleteNativeMarkdownTreeFile(sourcePath, file.path);
+    await refresh(sourcePath);
+    return true;
+  }, [refresh, sourcePath]);
+
   const toggle = useCallback(
     (fallbackPath: string | null = null) => {
       setOpen((currentOpen) => {
@@ -108,6 +144,9 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
   }, [sourcePath]);
 
   return {
+    createFile,
+    createFolder,
+    deleteFile,
     files,
     open,
     openFolderPath,
@@ -115,6 +154,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     setRootFromMarkdownFilePath,
     sourcePath,
     openMarkdownFolder,
+    renameFile,
     toggle,
     workspaceLayoutClassName
   };

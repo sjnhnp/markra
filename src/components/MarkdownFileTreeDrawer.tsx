@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import {
   ChevronDown,
   ChevronRight,
   FileText,
   Folder,
   FolderTree,
+  Plus,
   Search,
   Settings,
   TableOfContents
@@ -12,6 +13,7 @@ import {
 import { t, type AppLanguage } from "../lib/i18n";
 import type { MarkdownOutlineItem } from "../lib/markdown/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/tauri/file";
+import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri/menu";
 
 type MarkdownFileTreeDrawerProps = {
   currentPath: string | null;
@@ -20,8 +22,12 @@ type MarkdownFileTreeDrawerProps = {
   open: boolean;
   outlineItems: MarkdownOutlineItem[];
   rootName: string;
+  onCreateFile?: (fileName: string) => unknown | Promise<unknown>;
+  onCreateFolder?: (folderName: string) => unknown | Promise<unknown>;
+  onDeleteFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onOpenFile: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onOpenSettings?: () => unknown | Promise<unknown>;
+  onRenameFile?: (file: NativeMarkdownFolderFile, fileName: string) => unknown | Promise<unknown>;
   onSelectOutlineItem: (item: MarkdownOutlineItem, index: number) => unknown;
 };
 
@@ -56,6 +62,23 @@ function buildMarkdownFileTree(files: NativeMarkdownFolderFile[]) {
   const rootNodes: TreeNode[] = [];
   const folders = new Map<string, FolderNode>();
 
+  const ensureFolder = (relativePath: string, siblings: TreeNode[], folderName: string) => {
+    let folder = folders.get(relativePath);
+
+    if (!folder) {
+      folder = {
+        type: "folder",
+        name: folderName,
+        relativePath,
+        children: []
+      };
+      folders.set(relativePath, folder);
+      siblings.push(folder);
+    }
+
+    return folder;
+  };
+
   files.forEach((file) => {
     const parts = file.relativePath.split(/[\\/]/).filter(Boolean);
     if (parts.length === 0) return;
@@ -65,22 +88,16 @@ function buildMarkdownFileTree(files: NativeMarkdownFolderFile[]) {
 
     parts.slice(0, -1).forEach((folderName) => {
       const relativePath = parentPath ? `${parentPath}/${folderName}` : folderName;
-      let folder = folders.get(relativePath);
-
-      if (!folder) {
-        folder = {
-          type: "folder",
-          name: folderName,
-          relativePath,
-          children: []
-        };
-        folders.set(relativePath, folder);
-        siblings.push(folder);
-      }
+      const folder = ensureFolder(relativePath, siblings, folderName);
 
       siblings = folder.children;
       parentPath = relativePath;
     });
+
+    if (file.kind === "folder") {
+      ensureFolder(file.relativePath, siblings, parts.at(-1) ?? file.name);
+      return;
+    }
 
     siblings.push({
       type: "file",
@@ -115,14 +132,24 @@ export function MarkdownFileTreeDrawer({
   open,
   outlineItems,
   rootName,
+  onCreateFile,
+  onCreateFolder,
+  onDeleteFile,
   onOpenFile,
   onOpenSettings = () => {},
+  onRenameFile,
   onSelectOutlineItem
 }: MarkdownFileTreeDrawerProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
   const [viewMode, setViewMode] = useState<"files" | "outline">("files");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [creatingFile, setCreatingFile] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFileName, setNewFileName] = useState("");
+  const [newFolderName, setNewFolderName] = useState("");
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [renameFileName, setRenameFileName] = useState("");
   const tree = useMemo(() => filterMarkdownFileTree(buildMarkdownFileTree(files), searchQuery), [files, searchQuery]);
   const showingOutline = viewMode === "outline";
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
@@ -140,6 +167,90 @@ export function MarkdownFileTreeDrawer({
       }
       return next;
     });
+  };
+
+  const startCreatingFile = () => {
+    setCreatingFolder(false);
+    setNewFolderName("");
+    setRenamingPath(null);
+    setRenameFileName("");
+    setCreatingFile(true);
+    setNewFileName("");
+  };
+
+  const startCreatingFolder = () => {
+    setCreatingFile(false);
+    setNewFileName("");
+    setRenamingPath(null);
+    setRenameFileName("");
+    setCreatingFolder(true);
+    setNewFolderName("");
+  };
+
+  const commitCreateFolder = () => {
+    const normalizedName = newFolderName.trim();
+    if (!normalizedName) {
+      setCreatingFolder(false);
+      setNewFolderName("");
+      return;
+    }
+
+    onCreateFolder?.(normalizedName);
+    setCreatingFolder(false);
+    setNewFolderName("");
+  };
+
+  const commitCreateFile = () => {
+    const normalizedName = newFileName.trim();
+    if (!normalizedName) {
+      setCreatingFile(false);
+      setNewFileName("");
+      return;
+    }
+
+    onCreateFile?.(normalizedName);
+    setCreatingFile(false);
+    setNewFileName("");
+  };
+
+  const startRenamingFile = (file: NativeMarkdownFolderFile) => {
+    setCreatingFile(false);
+    setNewFileName("");
+    setCreatingFolder(false);
+    setNewFolderName("");
+    setRenamingPath(file.path);
+    setRenameFileName(file.name);
+  };
+
+  const commitRenameFile = (file: NativeMarkdownFolderFile) => {
+    const normalizedName = renameFileName.trim();
+    if (!normalizedName || normalizedName === file.name) {
+      setRenamingPath(null);
+      setRenameFileName("");
+      return;
+    }
+
+    onRenameFile?.(file, normalizedName);
+    setRenamingPath(null);
+    setRenameFileName("");
+  };
+
+  const openContextMenu = (event: ReactMouseEvent, file?: NativeMarkdownFolderFile) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    showNativeMarkdownFileTreeContextMenu(
+      {
+        createFile: startCreatingFile,
+        createFolder: startCreatingFolder,
+        deleteFile: (targetFile) => {
+          onDeleteFile?.(targetFile);
+        },
+        renameFile: startRenamingFile
+      },
+      language,
+      file
+    ).catch(() => {});
   };
 
   const renderNodes = (nodes: TreeNode[], depth = 0, treeLabel = label("app.markdownFiles")) => (
@@ -164,6 +275,7 @@ export function MarkdownFileTreeDrawer({
                 className={`relative flex h-8 w-full cursor-pointer items-center gap-1 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none ${rowIndentClass} ${rowBranchClass}`}
                 type="button"
                 aria-expanded={expanded}
+                onContextMenu={(event) => openContextMenu(event)}
                 onClick={() => toggleFolder(node.relativePath)}
               >
                 {expanded ? (
@@ -180,22 +292,53 @@ export function MarkdownFileTreeDrawer({
         }
 
         const active = node.file.path === currentPath;
+        const renaming = renamingPath === node.file.path;
 
         return (
           <li key={node.file.path}>
-            <button
-              className={`relative grid h-8 w-full cursor-pointer grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) ${rowIndentClass} ${rowBranchClass}`}
-              type="button"
-              aria-current={active ? "page" : undefined}
-              aria-label={node.relativePath}
-              title={node.file.path}
-              onClick={() => {
-                onOpenFile(node.file);
-              }}
-            >
-              <FileText aria-hidden="true" className="shrink-0" size={15} />
-              <span className="min-w-0 truncate">{node.name}</span>
-            </button>
+            {renaming ? (
+              <div
+                className={`relative grid h-8 w-full grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${rowIndentClass} ${rowBranchClass}`}
+              >
+                <FileText aria-hidden="true" className="shrink-0" size={15} />
+                <input
+                  aria-label={label("app.renameMarkdownFile")}
+                  autoFocus
+                  className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
+                  type="text"
+                  value={renameFileName}
+                  onChange={(event) => setRenameFileName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      commitRenameFile(node.file);
+                      return;
+                    }
+
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      setRenamingPath(null);
+                      setRenameFileName("");
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                className={`relative grid h-8 w-full cursor-pointer grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) ${rowIndentClass} ${rowBranchClass}`}
+                type="button"
+                aria-current={active ? "page" : undefined}
+                aria-label={node.relativePath}
+                title={node.file.path}
+                onContextMenu={(event) => openContextMenu(event, node.file)}
+                onClick={() => {
+                  onOpenFile(node.file);
+                }}
+              >
+                <FileText aria-hidden="true" className="shrink-0" size={15} />
+                <span className="min-w-0 truncate">{node.name}</span>
+              </button>
+            )}
           </li>
         );
       })}
@@ -291,11 +434,81 @@ export function MarkdownFileTreeDrawer({
         ) : (
           <>
             <div className="flex h-9 items-center gap-1 px-4 text-[13px] text-(--text-secondary)">
-              <Folder aria-hidden="true" size={16} />
-              <span className="min-w-0 truncate">{rootName}</span>
+              <div
+                className="flex min-w-0 flex-1 items-center gap-1"
+                onContextMenu={(event) => openContextMenu(event)}
+              >
+                <Folder aria-hidden="true" size={16} />
+                <span className="min-w-0 truncate">{rootName}</span>
+              </div>
+              <button
+                aria-label={label("app.newMarkdownFile")}
+                className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                type="button"
+                onClick={startCreatingFile}
+              >
+                <Plus aria-hidden="true" size={14} />
+              </button>
             </div>
 
-            <div className="file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4">
+            <div
+              className="file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4"
+              onContextMenu={(event) => openContextMenu(event)}
+            >
+              {creatingFile ? (
+                <div className="grid h-8 grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 py-0 pr-2 pl-8 text-[13px] leading-none text-(--text-secondary)">
+                  <FileText aria-hidden="true" className="shrink-0" size={15} />
+                  <input
+                    aria-label={label("app.newMarkdownFileName")}
+                    autoFocus
+                    className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
+                    type="text"
+                    value={newFileName}
+                    placeholder="Untitled.md"
+                    onChange={(event) => setNewFileName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        commitCreateFile();
+                        return;
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setCreatingFile(false);
+                        setNewFileName("");
+                      }
+                    }}
+                  />
+                </div>
+              ) : null}
+              {creatingFolder ? (
+                <div className="grid h-8 grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 py-0 pr-2 pl-8 text-[13px] leading-none text-(--text-secondary)">
+                  <Folder aria-hidden="true" className="shrink-0" size={15} />
+                  <input
+                    aria-label={label("app.newMarkdownFolderName")}
+                    autoFocus
+                    className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
+                    type="text"
+                    value={newFolderName}
+                    placeholder={label("app.newMarkdownFolder")}
+                    onChange={(event) => setNewFolderName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        commitCreateFolder();
+                        return;
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setCreatingFolder(false);
+                        setNewFolderName("");
+                      }
+                    }}
+                  />
+                </div>
+              ) : null}
               {tree.length > 0 ? (
                 renderNodes(tree)
               ) : (

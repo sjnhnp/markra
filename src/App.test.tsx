@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import App from "./App";
 import {
+  confirmNativeMarkdownFileDelete,
+  createNativeMarkdownTreeFile,
+  deleteNativeMarkdownTreeFile,
   openNativeMarkdownFolder,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
@@ -8,6 +11,7 @@ import {
   saveNativeMarkdownFile,
   installNativeMarkdownFileDrop,
   listNativeMarkdownFilesForPath,
+  renameNativeMarkdownTreeFile,
   watchNativeMarkdownFile
 } from "./lib/tauri/file";
 import {
@@ -58,11 +62,15 @@ import {
 } from "./lib/ai/editorPreview";
 
 vi.mock("./lib/tauri/file", () => ({
+  confirmNativeMarkdownFileDelete: vi.fn(),
+  createNativeMarkdownTreeFile: vi.fn(),
+  deleteNativeMarkdownTreeFile: vi.fn(),
   installNativeMarkdownFileDrop: vi.fn(),
   openNativeMarkdownFolder: vi.fn(),
   openNativeMarkdownFileInNewWindow: vi.fn(),
   openNativeMarkdownPath: vi.fn(),
   readNativeMarkdownFile: vi.fn(),
+  renameNativeMarkdownTreeFile: vi.fn(),
   saveNativeMarkdownFile: vi.fn(),
   watchNativeMarkdownFile: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn()
@@ -135,12 +143,16 @@ vi.mock("./lib/tauri/window", () => ({
 }));
 
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
+const mockedConfirmNativeMarkdownFileDelete = vi.mocked(confirmNativeMarkdownFileDelete);
+const mockedCreateNativeMarkdownTreeFile = vi.mocked(createNativeMarkdownTreeFile);
+const mockedDeleteNativeMarkdownTreeFile = vi.mocked(deleteNativeMarkdownTreeFile);
 const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFileInNewWindow);
 const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
 const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
 const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
 const mockedInstallNativeMarkdownFileDrop = vi.mocked(installNativeMarkdownFileDrop);
 const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
+const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
 const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
 const mockedInstallNativeApplicationMenu = vi.mocked(installNativeApplicationMenu);
 const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEditorContextMenu);
@@ -235,11 +247,15 @@ describe("Markra workspace", () => {
     mockedConsumeWelcomeDocumentState.mockReset();
     mockedCreateAiAgentSessionId.mockReset();
     mockedDeleteStoredAiAgentSession.mockReset();
+    mockedConfirmNativeMarkdownFileDelete.mockReset();
+    mockedCreateNativeMarkdownTreeFile.mockReset();
+    mockedDeleteNativeMarkdownTreeFile.mockReset();
     mockedInstallNativeMarkdownFileDrop.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
     mockedOpenNativeMarkdownPath.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
+    mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
@@ -289,6 +305,18 @@ describe("Markra workspace", () => {
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
     mockedCreateAiAgentSessionId.mockReturnValue("session-app");
+    mockedConfirmNativeMarkdownFileDelete.mockResolvedValue(true);
+    mockedCreateNativeMarkdownTreeFile.mockResolvedValue({
+      name: "Daily note.md",
+      path: "/mock-files/vault/Daily note.md",
+      relativePath: "Daily note.md"
+    });
+    mockedDeleteNativeMarkdownTreeFile.mockResolvedValue(undefined);
+    mockedRenameNativeMarkdownTreeFile.mockResolvedValue({
+      name: "Renamed.md",
+      path: "/mock-files/vault/Renamed.md",
+      relativePath: "Renamed.md"
+    });
     mockedGetStoredAiAgentSession.mockResolvedValue({
       draft: "",
       messages: [],

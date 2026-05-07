@@ -38,7 +38,7 @@ import {
   saveStoredAiAgentSessionTitle,
   setStoredAiAgentSessionArchived
 } from "./lib/settings/appSettings";
-import { readNativeMarkdownFile } from "./lib/tauri/file";
+import { confirmNativeMarkdownFileDelete, readNativeMarkdownFile, type NativeMarkdownFolderFile } from "./lib/tauri/file";
 import { clampNumber } from "./lib/utils";
 
 const aiAgentPanelDefaultWidth = 384;
@@ -73,9 +73,13 @@ export default function App() {
   });
   const {
     files: fileTreeFiles,
+    createFile: createMarkdownTreeFile,
+    createFolder: createMarkdownTreeFolder,
+    deleteFile: deleteMarkdownTreeFile,
     open: fileTreeOpen,
     openFolderPath,
     openMarkdownFolder,
+    renameFile: renameMarkdownTreeFile,
     rootNameForDocument,
     setRootFromMarkdownFilePath,
     toggle: toggleFileTree,
@@ -91,6 +95,7 @@ export default function App() {
   });
   const {
     createWorkspaceSession,
+    detachDeletedDocumentFile,
     document,
     handleDroppedMarkdownPath,
     handleMarkdownChange,
@@ -98,6 +103,7 @@ export default function App() {
     openMarkdownFile,
     openTreeMarkdownFile,
     outlineItems,
+    replaceOpenDocumentFile,
     saveCurrentDocument,
     selectWorkspaceSession,
     workspaceSessionId,
@@ -315,6 +321,44 @@ export default function App() {
     if (!result || result.type === "error") return;
     navigator.clipboard?.writeText(result.replacement);
   }, [aiResult]);
+  const handleCreateMarkdownTreeFile = useCallback(async (fileName: string) => {
+    try {
+      const file = await createMarkdownTreeFile(fileName);
+      if (file) await openTreeMarkdownFile(file);
+    } catch {
+      // Native file errors are surfaced by the platform operation when possible.
+    }
+  }, [createMarkdownTreeFile, openTreeMarkdownFile]);
+  const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string) => {
+    try {
+      await createMarkdownTreeFolder(folderName);
+    } catch {
+      // Native folder errors are surfaced by the platform operation when possible.
+    }
+  }, [createMarkdownTreeFolder]);
+  const handleRenameMarkdownTreeFile = useCallback(async (file: NativeMarkdownFolderFile, fileName: string) => {
+    try {
+      const renamedFile = await renameMarkdownTreeFile(file, fileName);
+      if (renamedFile) replaceOpenDocumentFile(file.path, renamedFile);
+    } catch {
+      // Keep the existing tree state if the native rename fails.
+    }
+  }, [renameMarkdownTreeFile, replaceOpenDocumentFile]);
+  const handleDeleteMarkdownTreeFile = useCallback(async (file: NativeMarkdownFolderFile) => {
+    const confirmed = await confirmNativeMarkdownFileDelete(file.name, {
+      cancelLabel: translate("app.cancelDeleteMarkdownFile"),
+      message: translate("app.confirmDeleteMarkdownFile"),
+      okLabel: translate("app.confirmDeleteMarkdownFileAction")
+    });
+    if (!confirmed) return;
+
+    try {
+      const deleted = await deleteMarkdownTreeFile(file);
+      if (deleted) detachDeletedDocumentFile(file.path);
+    } catch {
+      // Leave the file visible when native deletion fails.
+    }
+  }, [deleteMarkdownTreeFile, detachDeletedDocumentFile, translate]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
   const handleAiAgentToggle = useCallback(() => {
     setAiAgentOpen((open) => !open);
@@ -420,8 +464,12 @@ export default function App() {
               open
               outlineItems={outlineItems}
               rootName={fileTreeRootName}
+              onCreateFile={handleCreateMarkdownTreeFile}
+              onCreateFolder={handleCreateMarkdownTreeFolder}
+              onDeleteFile={handleDeleteMarkdownTreeFile}
               onOpenFile={openTreeMarkdownFile}
               onOpenSettings={handleOpenSettings}
+              onRenameFile={handleRenameMarkdownTreeFile}
               onSelectOutlineItem={editor.selectOutlineItem}
             />
           </div>

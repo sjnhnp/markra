@@ -11,7 +11,15 @@ pub(crate) struct MarkdownFile {
 
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) enum MarkdownFolderEntryKind {
+    File,
+    Folder,
+}
+
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct MarkdownFolderFile {
+    pub(crate) kind: MarkdownFolderEntryKind,
     pub(crate) path: String,
     pub(crate) relative_path: String,
 }
@@ -78,6 +86,18 @@ fn markdown_tree_relative_path(root: &Path, path: &Path) -> Result<String, Strin
     Ok(parts.join("/"))
 }
 
+fn markdown_folder_file(
+    root: &Path,
+    path: &Path,
+    kind: MarkdownFolderEntryKind,
+) -> Result<MarkdownFolderFile, String> {
+    Ok(MarkdownFolderFile {
+        kind,
+        path: path_to_string(path),
+        relative_path: markdown_tree_relative_path(root, path)?,
+    })
+}
+
 fn collect_markdown_tree_files(
     root: &Path,
     directory: &Path,
@@ -101,16 +121,22 @@ fn collect_markdown_tree_files(
 
         if file_type.is_dir() {
             if !should_skip_markdown_tree_directory(&path) {
+                files.push(markdown_folder_file(
+                    root,
+                    &path,
+                    MarkdownFolderEntryKind::Folder,
+                )?);
                 collect_markdown_tree_files(root, &path, files)?;
             }
             continue;
         }
 
         if file_type.is_file() && is_markdown_tree_file(&path) {
-            files.push(MarkdownFolderFile {
-                path: path.to_string_lossy().to_string(),
-                relative_path: markdown_tree_relative_path(root, &path)?,
-            });
+            files.push(markdown_folder_file(
+                root,
+                &path,
+                MarkdownFolderEntryKind::File,
+            )?);
         }
     }
 
@@ -125,6 +151,90 @@ fn markdown_tree_root_for_path(path: &Path) -> PathBuf {
     path.parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn normalize_markdown_tree_file_name(file_name: &str) -> Result<String, String> {
+    let trimmed_name = file_name.trim();
+    if trimmed_name.is_empty() {
+        return Err("File name is required".to_string());
+    }
+
+    let candidate = Path::new(trimmed_name);
+    if candidate.components().count() != 1 || trimmed_name.contains('/') || trimmed_name.contains('\\')
+    {
+        return Err("File name cannot include folders".to_string());
+    }
+
+    let Some(stem) = candidate.file_stem().and_then(|stem| stem.to_str()) else {
+        return Err("File name is invalid".to_string());
+    };
+
+    if stem.trim().is_empty() || matches!(trimmed_name, "." | "..") {
+        return Err("File name is invalid".to_string());
+    }
+
+    if candidate.extension().is_none() {
+        return Ok(format!("{trimmed_name}.md"));
+    }
+
+    if !is_markdown_tree_file(candidate) {
+        return Err("File must use .md or .markdown".to_string());
+    }
+
+    Ok(trimmed_name.to_string())
+}
+
+fn normalize_markdown_tree_folder_name(folder_name: &str) -> Result<String, String> {
+    let trimmed_name = folder_name.trim();
+    if trimmed_name.is_empty() {
+        return Err("Folder name is required".to_string());
+    }
+
+    let candidate = Path::new(trimmed_name);
+    if candidate.components().count() != 1
+        || trimmed_name.contains('/')
+        || trimmed_name.contains('\\')
+    {
+        return Err("Folder name cannot include folders".to_string());
+    }
+
+    let Some(name) = candidate.file_name().and_then(|name| name.to_str()) else {
+        return Err("Folder name is invalid".to_string());
+    };
+
+    if name.trim().is_empty() || matches!(trimmed_name, "." | "..") {
+        return Err("Folder name is invalid".to_string());
+    }
+
+    Ok(trimmed_name.to_string())
+}
+
+fn canonical_markdown_tree_root(root_path: &Path) -> Result<PathBuf, String> {
+    markdown_tree_root_for_path(root_path)
+        .canonicalize()
+        .map_err(|error| error.to_string())
+}
+
+fn canonical_markdown_tree_file(root: &Path, path: &Path) -> Result<PathBuf, String> {
+    let canonical_path = path.canonicalize().map_err(|error| error.to_string())?;
+
+    canonical_path
+        .strip_prefix(root)
+        .map_err(|_| "File is outside the current Markdown folder".to_string())?;
+
+    if !canonical_path.is_file() || !is_markdown_tree_file(&canonical_path) {
+        return Err("Path is not a Markdown file".to_string());
+    }
+
+    Ok(canonical_path)
+}
+
+fn ensure_markdown_tree_parent(root: &Path, parent: &Path) -> Result<(), String> {
+    let canonical_parent = parent.canonicalize().map_err(|error| error.to_string())?;
+    canonical_parent
+        .strip_prefix(root)
+        .map_err(|_| "File is outside the current Markdown folder".to_string())?;
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -225,6 +335,97 @@ pub(crate) fn list_markdown_files_for_path(
 }
 
 #[tauri::command]
+pub(crate) fn create_markdown_tree_file(
+    root_path: String,
+    file_name: String,
+) -> Result<MarkdownFolderFile, String> {
+    let root_path = PathBuf::from(root_path);
+    let root = canonical_markdown_tree_root(&root_path)?;
+    let normalized_file_name = normalize_markdown_tree_file_name(&file_name)?;
+    let target_path = root.join(normalized_file_name);
+    let parent = target_path
+        .parent()
+        .ok_or_else(|| "File parent is invalid".to_string())?;
+
+    ensure_markdown_tree_parent(&root, parent)?;
+
+    if target_path.exists() {
+        return Err("File already exists".to_string());
+    }
+
+    fs::write(&target_path, "").map_err(|error| error.to_string())?;
+
+    Ok(MarkdownFolderFile {
+        kind: MarkdownFolderEntryKind::File,
+        path: path_to_string(&target_path),
+        relative_path: markdown_tree_relative_path(&root, &target_path)?,
+    })
+}
+
+#[tauri::command]
+pub(crate) fn create_markdown_tree_folder(
+    root_path: String,
+    folder_name: String,
+) -> Result<MarkdownFolderFile, String> {
+    let root_path = PathBuf::from(root_path);
+    let root = canonical_markdown_tree_root(&root_path)?;
+    let normalized_folder_name = normalize_markdown_tree_folder_name(&folder_name)?;
+    let target_path = root.join(normalized_folder_name);
+    let parent = target_path
+        .parent()
+        .ok_or_else(|| "Folder parent is invalid".to_string())?;
+
+    ensure_markdown_tree_parent(&root, parent)?;
+
+    if target_path.exists() {
+        return Err("Folder already exists".to_string());
+    }
+
+    fs::create_dir(&target_path).map_err(|error| error.to_string())?;
+
+    markdown_folder_file(&root, &target_path, MarkdownFolderEntryKind::Folder)
+}
+
+#[tauri::command]
+pub(crate) fn rename_markdown_tree_file(
+    root_path: String,
+    path: String,
+    file_name: String,
+) -> Result<MarkdownFolderFile, String> {
+    let root_path = PathBuf::from(root_path);
+    let root = canonical_markdown_tree_root(&root_path)?;
+    let source_path = canonical_markdown_tree_file(&root, &PathBuf::from(path))?;
+    let normalized_file_name = normalize_markdown_tree_file_name(&file_name)?;
+    let parent = source_path
+        .parent()
+        .ok_or_else(|| "File parent is invalid".to_string())?;
+    let target_path = parent.join(normalized_file_name);
+
+    ensure_markdown_tree_parent(&root, parent)?;
+
+    if target_path.exists() && target_path != source_path {
+        return Err("File already exists".to_string());
+    }
+
+    fs::rename(&source_path, &target_path).map_err(|error| error.to_string())?;
+
+    Ok(MarkdownFolderFile {
+        kind: MarkdownFolderEntryKind::File,
+        path: path_to_string(&target_path),
+        relative_path: markdown_tree_relative_path(&root, &target_path)?,
+    })
+}
+
+#[tauri::command]
+pub(crate) fn delete_markdown_tree_file(root_path: String, path: String) -> Result<(), String> {
+    let root_path = PathBuf::from(root_path);
+    let root = canonical_markdown_tree_root(&root_path)?;
+    let source_path = canonical_markdown_tree_file(&root, &PathBuf::from(path))?;
+
+    fs::remove_file(source_path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub(crate) fn write_markdown_file(path: String, contents: String) -> Result<(), String> {
     let path_buf = PathBuf::from(path);
     fs::write(path_buf, contents).map_err(|error| error.to_string())
@@ -256,6 +457,7 @@ mod tests {
         let ignored = root.join("node_modules").join("package");
 
         fs::create_dir_all(&docs).expect("docs folder should be created");
+        fs::create_dir_all(root.join("empty")).expect("empty folder should be created");
         fs::create_dir_all(&ignored).expect("ignored folder should be created");
         fs::write(root.join("Untitled.md"), "# Untitled").expect("root markdown should be created");
         fs::write(root.join("AWS.md"), "# AWS").expect("root markdown should be created");
@@ -273,14 +475,27 @@ mod tests {
             files,
             vec![
                 MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::File,
                     path: root.join("AWS.md").to_string_lossy().to_string(),
                     relative_path: "AWS.md".to_string(),
                 },
                 MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::Folder,
+                    path: docs.to_string_lossy().to_string(),
+                    relative_path: "docs".to_string(),
+                },
+                MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::File,
                     path: docs.join("guide.markdown").to_string_lossy().to_string(),
                     relative_path: "docs/guide.markdown".to_string(),
                 },
                 MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::Folder,
+                    path: root.join("empty").to_string_lossy().to_string(),
+                    relative_path: "empty".to_string(),
+                },
+                MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::File,
                     path: root.join("Untitled.md").to_string_lossy().to_string(),
                     relative_path: "Untitled.md".to_string(),
                 },
@@ -312,10 +527,17 @@ mod tests {
             files,
             vec![
                 MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::Folder,
+                    path: docs.to_string_lossy().to_string(),
+                    relative_path: "docs".to_string(),
+                },
+                MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::File,
                     path: docs.join("note.md").to_string_lossy().to_string(),
                     relative_path: "docs/note.md".to_string(),
                 },
                 MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::File,
                     path: root.join("index.md").to_string_lossy().to_string(),
                     relative_path: "index.md".to_string(),
                 },
@@ -354,6 +576,153 @@ mod tests {
             })
         );
         assert!(markdown_open_path_for_path(&unsupported).is_err());
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn creates_renames_and_deletes_markdown_tree_files() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-tree-write-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        let canonical_root = root
+            .canonicalize()
+            .expect("test folder should have a canonical path");
+
+        let created = create_markdown_tree_file(
+            root.to_string_lossy().to_string(),
+            "Daily note".to_string(),
+        )
+        .expect("markdown file should be created");
+
+        assert_eq!(
+            created,
+            MarkdownFolderFile {
+                kind: MarkdownFolderEntryKind::File,
+                path: canonical_root
+                    .join("Daily note.md")
+                    .to_string_lossy()
+                    .to_string(),
+                relative_path: "Daily note.md".to_string(),
+            }
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("Daily note.md")).expect("created file should be readable"),
+            ""
+        );
+
+        let renamed = rename_markdown_tree_file(
+            root.to_string_lossy().to_string(),
+            created.path,
+            "Journal.markdown".to_string(),
+        )
+        .expect("markdown file should be renamed");
+
+        assert_eq!(
+            renamed,
+            MarkdownFolderFile {
+                kind: MarkdownFolderEntryKind::File,
+                path: canonical_root
+                    .join("Journal.markdown")
+                    .to_string_lossy()
+                    .to_string(),
+                relative_path: "Journal.markdown".to_string(),
+            }
+        );
+        assert!(!root.join("Daily note.md").exists());
+
+        delete_markdown_tree_file(root.to_string_lossy().to_string(), renamed.path)
+            .expect("markdown file should be deleted");
+
+        assert!(!root.join("Journal.markdown").exists());
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn rejects_markdown_tree_writes_outside_the_root() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-tree-write-boundary-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let sibling = root.with_file_name(format!(
+            "{}-sibling",
+            root.file_name()
+                .and_then(|name| name.to_str())
+                .expect("root should have a file name")
+        ));
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        fs::create_dir_all(&sibling).expect("sibling folder should be created");
+        let outside = sibling.join("outside.md");
+        fs::write(&outside, "# Outside").expect("outside file should be created");
+
+        assert!(create_markdown_tree_file(
+            root.to_string_lossy().to_string(),
+            "../escape.md".to_string()
+        )
+        .is_err());
+        assert!(rename_markdown_tree_file(
+            root.to_string_lossy().to_string(),
+            outside.to_string_lossy().to_string(),
+            "inside.md".to_string()
+        )
+        .is_err());
+        assert!(delete_markdown_tree_file(
+            root.to_string_lossy().to_string(),
+            outside.to_string_lossy().to_string()
+        )
+        .is_err());
+        assert!(outside.exists());
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+        fs::remove_dir_all(sibling).expect("sibling tree should be removed");
+    }
+
+    #[test]
+    fn creates_markdown_tree_folders_inside_the_root() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-tree-folder-write-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        let canonical_root = root
+            .canonicalize()
+            .expect("test folder should have a canonical path");
+
+        let created = create_markdown_tree_folder(
+            root.to_string_lossy().to_string(),
+            "Research".to_string(),
+        )
+        .expect("markdown folder should be created");
+
+        assert_eq!(
+            created,
+            MarkdownFolderFile {
+                kind: MarkdownFolderEntryKind::Folder,
+                path: canonical_root.join("Research").to_string_lossy().to_string(),
+                relative_path: "Research".to_string(),
+            }
+        );
+        assert!(root.join("Research").is_dir());
+        assert!(create_markdown_tree_folder(
+            root.to_string_lossy().to_string(),
+            "../escape".to_string()
+        )
+        .is_err());
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }
