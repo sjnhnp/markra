@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { initialMarkdown } from "../constants/initialMarkdown";
-import { consumeWelcomeDocumentState, getStoredWorkspaceState, saveStoredWorkspaceState } from "../lib/settings/appSettings";
+import {
+  consumeWelcomeDocumentState,
+  createAiAgentSessionId,
+  getStoredWorkspaceState,
+  saveStoredWorkspaceState
+} from "../lib/settings/appSettings";
 import { getMarkdownOutline, getWordCount } from "../lib/markdown/markdown";
 import {
   openNativeMarkdownFileInNewWindow,
@@ -38,8 +43,9 @@ function isPristineUntitledDocument(document: DocumentState) {
 
 type UseMarkdownDocumentOptions = {
   getCurrentMarkdown: (fallbackContent: string) => string;
-  onTreeRootFromFolderPath: (path: string, name: string) => unknown;
+  onTreeRootFromFolderPath: (path: string, name: string, sessionId?: string | null) => unknown;
   onTreeRootFromFilePath: (path: string) => unknown;
+  onWorkspaceSessionChange?: (sessionId: string) => unknown;
   preferencesReady?: boolean;
   restoreWorkspaceOnStartup?: boolean;
 };
@@ -52,17 +58,45 @@ export function useMarkdownDocument({
   getCurrentMarkdown,
   onTreeRootFromFolderPath,
   onTreeRootFromFilePath,
+  onWorkspaceSessionChange,
   preferencesReady = true,
   restoreWorkspaceOnStartup = true
 }: UseMarkdownDocumentOptions) {
   const [document, setDocument] = useState<DocumentState>(() => createInitialDocumentState());
+  const [workspaceSessionId, setWorkspaceSessionId] = useState<string | null>(null);
   const documentRef = useRef(document);
+  const workspaceSessionIdRef = useRef<string | null>(null);
   const outlineItems = useMemo(() => getMarkdownOutline(document.content), [document.content]);
   const wordCount = useMemo(() => getWordCount(document.content), [document.content]);
 
   useEffect(() => {
     documentRef.current = document;
   }, [document]);
+
+  useEffect(() => {
+    workspaceSessionIdRef.current = workspaceSessionId;
+  }, [workspaceSessionId]);
+
+  const assignWorkspaceSessionId = useCallback((sessionId: string) => {
+    workspaceSessionIdRef.current = sessionId;
+    setWorkspaceSessionId(sessionId);
+    onWorkspaceSessionChange?.(sessionId);
+    return sessionId;
+  }, [onWorkspaceSessionChange]);
+
+  const resolveWorkspaceSessionId = useCallback((preferredSessionId?: string | null) => {
+    return assignWorkspaceSessionId(preferredSessionId?.trim() ? preferredSessionId : createAiAgentSessionId());
+  }, [assignWorkspaceSessionId]);
+
+  const selectWorkspaceSession = useCallback((sessionId: string) => {
+    const nextSessionId = assignWorkspaceSessionId(sessionId);
+    persistWorkspaceState({ aiAgentSessionId: nextSessionId });
+    return nextSessionId;
+  }, [assignWorkspaceSessionId]);
+
+  const createWorkspaceSession = useCallback(() => {
+    return selectWorkspaceSession(createAiAgentSessionId());
+  }, [selectWorkspaceSession]);
 
   const currentMarkdown = useCallback(() => {
     const current = documentRef.current;
@@ -74,7 +108,11 @@ export function useMarkdownDocument({
   }, []);
 
   const applyNativeMarkdownFile = useCallback(
-    (file: NativeMarkdownFile, updateTreeRoot = true) => {
+    (file: NativeMarkdownFile, updateTreeRoot = true, preferredSessionId?: string | null) => {
+      const sessionId = updateTreeRoot
+        ? resolveWorkspaceSessionId(preferredSessionId)
+        : resolveWorkspaceSessionId(preferredSessionId ?? workspaceSessionIdRef.current);
+
       setDocument((current) => ({
         path: file.path,
         name: file.name,
@@ -85,17 +123,18 @@ export function useMarkdownDocument({
 
       if (updateTreeRoot) onTreeRootFromFilePath(file.path);
       persistWorkspaceState({
+        aiAgentSessionId: sessionId,
         filePath: file.path,
         ...(updateTreeRoot ? { folderName: null, folderPath: null } : {})
       });
     },
-    [onTreeRootFromFilePath]
+    [onTreeRootFromFilePath, resolveWorkspaceSessionId]
   );
 
   const loadNativeMarkdownPath = useCallback(
-    async (path: string, updateTreeRoot = true) => {
+    async (path: string, updateTreeRoot = true, preferredSessionId?: string | null) => {
       const file = await readNativeMarkdownFile(path);
-      applyNativeMarkdownFile(file, updateTreeRoot);
+      applyNativeMarkdownFile(file, updateTreeRoot, preferredSessionId);
     },
     [applyNativeMarkdownFile]
   );
@@ -105,12 +144,13 @@ export function useMarkdownDocument({
     if (!target) return;
 
     if (target.kind === "folder") {
-      onTreeRootFromFolderPath(target.folder.path, target.folder.name);
+      const sessionId = resolveWorkspaceSessionId();
+      onTreeRootFromFolderPath(target.folder.path, target.folder.name, sessionId);
       return;
     }
 
     applyNativeMarkdownFile(target.file);
-  }, [applyNativeMarkdownFile, onTreeRootFromFolderPath]);
+  }, [applyNativeMarkdownFile, onTreeRootFromFolderPath, resolveWorkspaceSessionId]);
 
   const openTreeMarkdownFile = useCallback(
     async (file: NativeMarkdownFolderFile) => {
@@ -203,9 +243,12 @@ export function useMarkdownDocument({
       if (restoreWorkspaceOnStartup) {
         try {
           const workspace = await getStoredWorkspaceState();
+          const sessionId = workspace.aiAgentSessionId ?? createAiAgentSessionId();
+
+          assignWorkspaceSessionId(sessionId);
 
           if (workspace.folderPath && workspace.fileTreeOpen) {
-            onTreeRootFromFolderPath(workspace.folderPath, workspace.folderName ?? workspace.folderPath);
+            onTreeRootFromFolderPath(workspace.folderPath, workspace.folderName ?? workspace.folderPath, sessionId);
             restoredWorkspace = true;
           }
 
@@ -214,11 +257,15 @@ export function useMarkdownDocument({
               const file = await readNativeMarkdownFile(workspace.filePath);
               if (!active) return;
 
-              applyNativeMarkdownFile(file, !restoredWorkspace);
+              applyNativeMarkdownFile(file, !restoredWorkspace, sessionId);
               restoredWorkspace = true;
             } catch {
               // A deleted or moved file should not block the normal launch fallback.
             }
+          }
+
+          if (workspace.aiAgentSessionId !== sessionId) {
+            persistWorkspaceState({ aiAgentSessionId: sessionId });
           }
         } catch {
           // Store issues should not prevent Markra from opening a usable document.
@@ -226,6 +273,9 @@ export function useMarkdownDocument({
       }
 
       if (!active || restoredWorkspace) return;
+
+      const sessionId = resolveWorkspaceSessionId();
+      persistWorkspaceState({ aiAgentSessionId: sessionId });
 
       const shouldShowWelcomeDocument = await consumeWelcomeDocumentState();
       if (!active || !shouldShowWelcomeDocument) return;
@@ -244,7 +294,14 @@ export function useMarkdownDocument({
     return () => {
       active = false;
     };
-  }, [applyNativeMarkdownFile, onTreeRootFromFolderPath, preferencesReady, restoreWorkspaceOnStartup]);
+  }, [
+    applyNativeMarkdownFile,
+    assignWorkspaceSessionId,
+    onTreeRootFromFolderPath,
+    preferencesReady,
+    resolveWorkspaceSessionId,
+    restoreWorkspaceOnStartup
+  ]);
 
   useEffect(() => {
     if (!document.path) return;
@@ -287,6 +344,7 @@ export function useMarkdownDocument({
   }, [document.path]);
 
   return {
+    createWorkspaceSession,
     document,
     handleDroppedMarkdownPath,
     handleMarkdownChange,
@@ -295,6 +353,8 @@ export function useMarkdownDocument({
     openTreeMarkdownFile,
     outlineItems,
     saveCurrentDocument,
+    selectWorkspaceSession,
+    workspaceSessionId,
     wordCount
   };
 }

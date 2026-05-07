@@ -20,6 +20,7 @@ describe("AiAgentPanel", () => {
     expect(screen.getByText("OpenAI · GPT-5.5")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Agent message" })).toHaveAttribute("placeholder", "Ask the agent...");
     expect(screen.getByRole("button", { name: "Close AI Agent" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sessions" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close AI Agent" })).toHaveClass("z-30");
     expect(container.querySelector(".ai-agent-panel")).toHaveClass("border-l");
     expect(container.querySelector(".ai-agent-panel")).toHaveClass("z-20");
@@ -27,6 +28,56 @@ describe("AiAgentPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close AI Agent" }));
 
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows workspace sessions in the header menu and lets us switch or create one", () => {
+    const selectSession = vi.fn();
+    const createSession = vi.fn();
+
+    render(
+      <AiAgentPanel
+        activeSessionId="session-b"
+        language="en"
+        open
+        sessions={[
+          {
+            createdAt: 1,
+            id: "session-a",
+            messageCount: 3,
+            title: "Summarize API changes",
+            titleSource: "ai",
+            updatedAt: 10,
+            workspaceKey: "/vault"
+          },
+          {
+            createdAt: 2,
+            id: "session-b",
+            messageCount: 1,
+            title: null,
+            titleSource: null,
+            updatedAt: 20,
+            workspaceKey: "/vault"
+          }
+        ]}
+        onClose={() => {}}
+        onCreateSession={createSession}
+        onSelectSession={selectSession}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
+
+    expect(screen.getByRole("menu", { name: "Sessions" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "New session" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: /Summarize API changes/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: /New session/i })).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /Summarize API changes/i }));
+    expect(selectSession).toHaveBeenCalledWith("session-a");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New session" }));
+    expect(createSession).toHaveBeenCalledTimes(1);
   });
 
   it("keeps typed messages in the agent transcript", () => {

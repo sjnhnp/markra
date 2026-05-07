@@ -10,6 +10,7 @@ import { SettingsWindow } from "./components/SettingsWindow";
 import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useAiCommandUi } from "./hooks/useAiCommandUi";
+import { useAiAgentSessionList } from "./hooks/useAiAgentSessionList";
 import { useAiAgentSession } from "./hooks/useAiAgentSession";
 import { useAiSettings } from "./hooks/useAiSettings";
 import { useEditorPreferences } from "./hooks/useEditorPreferences";
@@ -31,7 +32,9 @@ import {
   type AiEditorPreviewActionDetail,
   type AiEditorPreviewRestoreDetail
 } from "./lib/ai/editorPreview";
+import { initializeStoredAiAgentSession } from "./lib/settings/appSettings";
 import { readNativeMarkdownFile } from "./lib/tauri/file";
+import { clampNumber } from "./lib/utils";
 
 const aiAgentPanelDefaultWidth = 384;
 const aiAgentPanelMinWidth = 320;
@@ -50,6 +53,7 @@ export default function App() {
   const appLanguage = useAppLanguage();
   const aiSettings = useAiSettings();
   const editorPreferences = useEditorPreferences();
+  const [aiAgentSessionId, setAiAgentSessionId] = useState<string | null>(null);
   const [aiAgentOpen, setAiAgentOpen] = useState(false);
   const [aiAgentPanelWidth, setAiAgentPanelWidth] = useState(aiAgentPanelDefaultWidth);
   const [aiAgentPanelResizing, setAiAgentPanelResizing] = useState(false);
@@ -59,7 +63,9 @@ export default function App() {
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const editor = useEditorController();
-  const fileTree = useMarkdownFileTree();
+  const fileTree = useMarkdownFileTree({
+    onWorkspaceSessionChange: setAiAgentSessionId
+  });
   const {
     files: fileTreeFiles,
     open: fileTreeOpen,
@@ -74,10 +80,12 @@ export default function App() {
     getCurrentMarkdown: editor.getCurrentMarkdown,
     onTreeRootFromFolderPath: openFolderPath,
     onTreeRootFromFilePath: setRootFromMarkdownFilePath,
+    onWorkspaceSessionChange: setAiAgentSessionId,
     preferencesReady: !editorPreferences.loading,
     restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup
   });
   const {
+    createWorkspaceSession,
     document,
     handleDroppedMarkdownPath,
     handleMarkdownChange,
@@ -86,8 +94,12 @@ export default function App() {
     openTreeMarkdownFile,
     outlineItems,
     saveCurrentDocument,
+    selectWorkspaceSession,
+    workspaceSessionId,
     wordCount
   } = markdownDocument;
+  const workspaceKey = fileTree.sourcePath ?? document.path ?? null;
+  const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
   const getAiDocumentContent = useCallback(() => editor.getCurrentMarkdown(document.content), [document.content, editor]);
   const readAiWorkspaceFile = useCallback(async (path: string) => {
     const file = await readNativeMarkdownFile(path);
@@ -134,6 +146,10 @@ export default function App() {
     },
     [editor, translate, updateAiResult]
   );
+  const handleAiAgentSessionRestore = useCallback((session: { panelOpen: boolean; panelWidth: number | null }) => {
+    setAiAgentOpen(session.panelOpen);
+    setAiAgentPanelWidth(clampNumber(session.panelWidth, aiAgentPanelMinWidth, aiAgentPanelMaxWidth) ?? aiAgentPanelDefaultWidth);
+  }, []);
   const aiCommand = useAiCommandUi({
     documentPath: document.path,
     getDocumentContent: getAiDocumentContent,
@@ -155,17 +171,42 @@ export default function App() {
     getSelection: getActiveAiSelection,
     model: aiSettings.agentModelId,
     onAiResult: handleAiResult,
+    onSessionRestore: handleAiAgentSessionRestore,
+    panelOpen: aiAgentOpen,
+    panelWidth: aiAgentPanelWidth,
     provider: aiSettings.agentProvider,
     readWorkspaceFile: readAiWorkspaceFile,
+    sessionId: activeAiAgentSessionId,
     settingsLoading: aiSettings.loading,
     translate,
+    workspaceKey,
     workspaceFiles: fileTreeFiles
   });
+  const aiAgentSessionRefreshKey = [
+    activeAiAgentSessionId ?? "none",
+    workspaceKey ?? "none",
+    aiAgent.messages.length,
+    aiAgent.draft.trim().slice(0, 24),
+    aiAgent.titleVersion
+  ].join(":");
+  const aiAgentSessions = useAiAgentSessionList(workspaceKey, aiAgentSessionRefreshKey);
   const restoreAiCommand = aiCommand.restoreAiCommand;
   const handleAiCommandClose = useCallback(() => {
     aiCommand.closeAiCommand();
     editor.clearAiSelection();
   }, [aiCommand, editor]);
+  const handleCreateAiAgentSession = useCallback(() => {
+    const sessionId = createWorkspaceSession();
+
+    setAiAgentOpen(true);
+    initializeStoredAiAgentSession(sessionId, workspaceKey).then(() => {
+      aiAgentSessions.refresh().catch(() => {});
+    }).catch(() => {});
+  }, [aiAgentSessions, createWorkspaceSession, workspaceKey]);
+  const handleSelectAiAgentSession = useCallback((sessionId: string) => {
+    selectWorkspaceSession(sessionId);
+    setAiAgentOpen(true);
+  }, [selectWorkspaceSession]);
   const handleTextSelectionChange = useCallback((selection: AiSelectionContext | null) => {
     updateActiveAiSelection(selection);
 
@@ -361,6 +402,7 @@ export default function App() {
             </div>
             <div className="ai-agent-panel-slot relative z-20 min-h-0 overflow-hidden">
               <AiAgentPanel
+                activeSessionId={activeAiAgentSessionId}
                 availableModels={aiSettings.availableTextModels}
                 draft={aiAgent.draft}
                 language={appLanguage.language}
@@ -368,6 +410,7 @@ export default function App() {
                 modelName={aiAgentModelName}
                 open={aiAgentOpen}
                 providerName={aiAgentProviderName}
+                sessions={aiAgentSessions.sessions}
                 selectedModelId={aiSettings.agentModelId}
                 selectedProviderId={aiSettings.agentProviderId}
                 status={aiAgent.status}
@@ -377,11 +420,13 @@ export default function App() {
                 minWidth={aiAgentPanelMinWidth}
                 width={aiAgentPanelWidth}
                 onClose={() => setAiAgentOpen(false)}
+                onCreateSession={handleCreateAiAgentSession}
                 onDraftChange={aiAgent.setDraft}
                 onInterrupt={aiAgent.interrupt}
                 onResize={setAiAgentPanelWidth}
                 onResizeEnd={() => setAiAgentPanelResizing(false)}
                 onResizeStart={() => setAiAgentPanelResizing(true)}
+                onSelectSession={handleSelectAiAgentSession}
                 onSelectModel={aiSettings.selectAgentModel}
                 onSubmit={aiAgent.submit}
                 onToggleThinking={() => aiAgent.setThinkingEnabled((enabled) => !enabled)}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { saveStoredWorkspaceState } from "../lib/settings/appSettings";
+import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/appSettings";
 import {
   listNativeMarkdownFilesForPath,
   openNativeMarkdownFolder,
@@ -11,7 +11,11 @@ function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState
   saveStoredWorkspaceState(patch).catch(() => {});
 }
 
-export function useMarkdownFileTree() {
+type UseMarkdownFileTreeOptions = {
+  onWorkspaceSessionChange?: (sessionId: string) => unknown;
+};
+
+export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFileTreeOptions = {}) {
   const [files, setFiles] = useState<NativeMarkdownFolderFile[]>([]);
   const [rootName, setRootName] = useState("No folder");
   const [sourcePath, setSourcePath] = useState<string | null>(null);
@@ -42,18 +46,21 @@ export function useMarkdownFileTree() {
     setRootName(folderNameFromDocumentPath(path));
   }, []);
 
-  const openFolderPath = useCallback((path: string, name = pathNameFromPath(path)) => {
+  const openFolderPath = useCallback((path: string, name = pathNameFromPath(path), preferredSessionId?: string | null) => {
     const folderName = name || pathNameFromPath(path);
+    const sessionId = preferredSessionId?.trim() ? preferredSessionId : createAiAgentSessionId();
     setSourcePath(path);
     setRootName(folderName);
     setOpen(true);
+    onWorkspaceSessionChange?.(sessionId);
     // Folder navigation is restored independently from the last active document.
     persistWorkspaceState({
+      aiAgentSessionId: sessionId,
       fileTreeOpen: true,
       folderName,
       folderPath: path
     });
-  }, []);
+  }, [onWorkspaceSessionChange]);
 
   const openMarkdownFolder = useCallback(async () => {
     const folder = await openNativeMarkdownFolder();
@@ -106,6 +113,7 @@ export function useMarkdownFileTree() {
     openFolderPath,
     rootNameForDocument,
     setRootFromMarkdownFilePath,
+    sourcePath,
     openMarkdownFolder,
     toggle,
     workspaceLayoutClassName

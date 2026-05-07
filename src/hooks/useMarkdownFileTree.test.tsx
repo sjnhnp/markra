@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { listNativeMarkdownFilesForPath, openNativeMarkdownFolder } from "../lib/tauri/file";
-import { saveStoredWorkspaceState } from "../lib/settings/appSettings";
+import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/appSettings";
 import { useMarkdownFileTree } from "./useMarkdownFileTree";
 
 vi.mock("../lib/tauri/file", () => ({
@@ -9,11 +9,13 @@ vi.mock("../lib/tauri/file", () => ({
 }));
 
 vi.mock("../lib/settings/appSettings", () => ({
+  createAiAgentSessionId: vi.fn(),
   saveStoredWorkspaceState: vi.fn()
 }));
 
 const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
+const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
 const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 
 function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) {
@@ -42,7 +44,9 @@ describe("useMarkdownFileTree", () => {
   beforeEach(() => {
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
+    mockedCreateAiAgentSessionId.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
+    mockedCreateAiAgentSessionId.mockReturnValue("session-folder");
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
   });
 
@@ -64,6 +68,7 @@ describe("useMarkdownFileTree", () => {
     expect(screen.getByTestId("open-state")).toHaveTextContent("open");
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault");
     expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+      aiAgentSessionId: "session-folder",
       fileTreeOpen: true,
       folderName: "vault",
       folderPath: "/vault"

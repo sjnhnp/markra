@@ -1,17 +1,19 @@
 import { useEffect, useRef, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { ArrowUp, Bot, BrainCircuit, FileText, Globe2, PencilLine, Sparkles, X } from "lucide-react";
 import { AiModelPicker, getAiModelOptionValue, type AiModelPickerOption } from "./AiModelPicker";
+import { AiAgentSessionMenu } from "./AiAgentSessionMenu";
 import { AiMarkdownMessage } from "./AiMarkdownMessage";
 import { AiAgentProcessList } from "./AiAgentProcessList";
 import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import { t, type AppLanguage, type I18nKey } from "../lib/i18n";
-import type { AiModelCapability, AiProviderApiStyle } from "../lib/settings/appSettings";
+import type { AiModelCapability, AiProviderApiStyle, StoredAiAgentSessionSummary } from "../lib/settings/appSettings";
 import type { AiAgentPanelMessage } from "../hooks/useAiAgentSession";
 import { clampNumber } from "../lib/utils";
 
 type AiAgentModelOption = AiModelPickerOption & { capabilities: AiModelCapability[] };
 
 type AiAgentPanelProps = {
+  activeSessionId?: string | null;
   availableModels?: AiAgentModelOption[];
   draft?: string;
   language?: AppLanguage;
@@ -27,12 +29,15 @@ type AiAgentPanelProps = {
   maxWidth?: number;
   minWidth?: number;
   width?: number;
+  sessions?: StoredAiAgentSessionSummary[];
   onClose: () => unknown;
+  onCreateSession?: () => unknown;
   onDraftChange?: (value: string) => unknown;
   onInterrupt?: () => unknown;
   onResize?: (width: number) => unknown;
   onResizeEnd?: () => unknown;
   onResizeStart?: () => unknown;
+  onSelectSession?: (sessionId: string) => unknown;
   onSelectModel?: (providerId: string, modelId: string) => unknown;
   onSubmit?: (promptOverride?: string) => unknown;
   onToggleThinking?: () => unknown;
@@ -44,6 +49,7 @@ const defaultMinWidth = 320;
 const defaultMaxWidth = 760;
 
 export function AiAgentPanel({
+  activeSessionId = null,
   availableModels = [],
   draft = "",
   language = "en",
@@ -58,13 +64,16 @@ export function AiAgentPanel({
   webSearchEnabled = false,
   maxWidth = defaultMaxWidth,
   minWidth = defaultMinWidth,
+  sessions = [],
   width,
   onClose,
+  onCreateSession,
   onDraftChange,
   onInterrupt,
   onResize,
   onResizeEnd,
   onResizeStart,
+  onSelectSession,
   onSelectModel,
   onSubmit,
   onToggleThinking,
@@ -250,6 +259,15 @@ export function AiAgentPanel({
         <span className="absolute top-1.5 left-2 inline-flex size-8 items-center justify-center text-(--text-secondary)">
           <Bot aria-hidden="true" size={15} />
         </span>
+        <div className="absolute top-1.5 right-10 z-30">
+          <AiAgentSessionMenu
+            activeSessionId={activeSessionId}
+            language={language}
+            sessions={sessions}
+            onCreateSession={onCreateSession}
+            onSelectSession={onSelectSession}
+          />
+        </div>
         <div className="flex min-h-9 min-w-0 flex-col items-center justify-center px-10 text-center">
           <h2 className="m-0 truncate text-[14px] leading-5 font-[560] tracking-normal text-(--text-heading)">
             {label("app.aiAgent")}

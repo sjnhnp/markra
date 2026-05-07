@@ -17,13 +17,20 @@ import {
 } from "./lib/tauri/menu";
 import { openSettingsWindow } from "./lib/tauri/window";
 import {
+  createAiAgentSessionId,
   consumeWelcomeDocumentState,
+  getStoredAiAgentSession,
+  getStoredAiAgentSessionSummary,
   getStoredAiSettings,
   getStoredEditorPreferences,
   getStoredLanguage,
   getStoredTheme,
   getStoredWorkspaceState,
+  initializeStoredAiAgentSession,
+  listStoredAiAgentSessions,
   resetWelcomeDocumentState,
+  saveStoredAiAgentSession,
+  saveStoredAiAgentSessionTitle,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
   saveStoredLanguage,
@@ -42,6 +49,7 @@ import {
 } from "./lib/settings/settingsEvents";
 import { fetchAiProviderModels, testAiProviderConnection } from "./lib/ai/providers/aiProviderRequests";
 import { chatCompletion } from "./lib/ai/agent/chatCompletion";
+import { generateAiAgentSessionTitle } from "./lib/ai/agent/sessionTitle";
 import {
   AI_EDITOR_PREVIEW_ACTION_EVENT,
   AI_EDITOR_PREVIEW_RESTORE_EVENT
@@ -64,6 +72,7 @@ vi.mock("./lib/tauri/menu", () => ({
 }));
 
 vi.mock("./lib/settings/appSettings", () => ({
+  createAiAgentSessionId: vi.fn(),
   consumeWelcomeDocumentState: vi.fn(),
   defaultEditorPreferences: {
     autoOpenAiOnSelection: true,
@@ -73,12 +82,18 @@ vi.mock("./lib/settings/appSettings", () => ({
     restoreWorkspaceOnStartup: true,
     showWordCount: true
   },
+  getStoredAiAgentSession: vi.fn(),
+  getStoredAiAgentSessionSummary: vi.fn(),
   getStoredAiSettings: vi.fn(),
   getStoredEditorPreferences: vi.fn(),
   getStoredLanguage: vi.fn(),
   getStoredTheme: vi.fn(),
   getStoredWorkspaceState: vi.fn(),
+  initializeStoredAiAgentSession: vi.fn(),
+  listStoredAiAgentSessions: vi.fn(),
   resetWelcomeDocumentState: vi.fn(),
+  saveStoredAiAgentSession: vi.fn(),
+  saveStoredAiAgentSessionTitle: vi.fn(),
   saveStoredAiSettings: vi.fn(),
   saveStoredEditorPreferences: vi.fn(),
   saveStoredLanguage: vi.fn(),
@@ -106,6 +121,10 @@ vi.mock("./lib/ai/agent/chatCompletion", () => ({
   chatCompletion: vi.fn()
 }));
 
+vi.mock("./lib/ai/agent/sessionTitle", () => ({
+  generateAiAgentSessionTitle: vi.fn()
+}));
+
 vi.mock("./lib/tauri/window", () => ({
   openSettingsWindow: vi.fn(),
   setNativeWindowTitle: vi.fn()
@@ -123,12 +142,19 @@ const mockedInstallNativeApplicationMenu = vi.mocked(installNativeApplicationMen
 const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEditorContextMenu);
 const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
+const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
+const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
+const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
 const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
 const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPreferences);
 const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
 const mockedGetStoredTheme = vi.mocked(getStoredTheme);
 const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
+const mockedInitializeStoredAiAgentSession = vi.mocked(initializeStoredAiAgentSession);
+const mockedListStoredAiAgentSessions = vi.mocked(listStoredAiAgentSessions);
 const mockedResetWelcomeDocumentState = vi.mocked(resetWelcomeDocumentState);
+const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession);
+const mockedSaveStoredAiAgentSessionTitle = vi.mocked(saveStoredAiAgentSessionTitle);
 const mockedSaveStoredAiSettings = vi.mocked(saveStoredAiSettings);
 const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences);
 const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
@@ -145,6 +171,7 @@ const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
 const mockedFetchAiProviderModels = vi.mocked(fetchAiProviderModels);
 const mockedTestAiProviderConnection = vi.mocked(testAiProviderConnection);
 const mockedChatCompletion = vi.mocked(chatCompletion);
+const mockedGenerateAiAgentSessionTitle = vi.mocked(generateAiAgentSessionTitle);
 
 const mockNativePath = "/mock-files/native.md";
 const mockDroppedPath = "/mock-files/dropped.md";
@@ -200,6 +227,7 @@ describe("Markra workspace", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/");
     mockedConsumeWelcomeDocumentState.mockReset();
+    mockedCreateAiAgentSessionId.mockReset();
     mockedInstallNativeMarkdownFileDrop.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
@@ -213,10 +241,16 @@ describe("Markra workspace", () => {
     mockedOpenSettingsWindow.mockReset();
     mockedGetStoredLanguage.mockReset();
     mockedGetStoredAiSettings.mockReset();
+    mockedGetStoredAiAgentSession.mockReset();
+    mockedGetStoredAiAgentSessionSummary.mockReset();
     mockedGetStoredEditorPreferences.mockReset();
     mockedGetStoredTheme.mockReset();
     mockedGetStoredWorkspaceState.mockReset();
+    mockedInitializeStoredAiAgentSession.mockReset();
+    mockedListStoredAiAgentSessions.mockReset();
     mockedResetWelcomeDocumentState.mockReset();
+    mockedSaveStoredAiAgentSession.mockReset();
+    mockedSaveStoredAiAgentSessionTitle.mockReset();
     mockedSaveStoredAiSettings.mockReset();
     mockedSaveStoredEditorPreferences.mockReset();
     mockedSaveStoredLanguage.mockReset();
@@ -233,6 +267,7 @@ describe("Markra workspace", () => {
     mockedFetchAiProviderModels.mockReset();
     mockedTestAiProviderConnection.mockReset();
     mockedChatCompletion.mockReset();
+    mockedGenerateAiAgentSessionTitle.mockReset();
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("data-window");
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
@@ -245,6 +280,16 @@ describe("Markra workspace", () => {
     mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
+    mockedCreateAiAgentSessionId.mockReturnValue("session-app");
+    mockedGetStoredAiAgentSession.mockResolvedValue({
+      draft: "",
+      messages: [],
+      panelOpen: false,
+      panelWidth: null,
+      thinkingEnabled: false,
+      webSearchEnabled: false
+    });
+    mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredEditorPreferences.mockResolvedValue({
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
@@ -296,12 +341,17 @@ describe("Markra workspace", () => {
     mockedGetStoredLanguage.mockResolvedValue("en");
     mockedGetStoredTheme.mockResolvedValue("light");
     mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
       filePath: null,
       fileTreeOpen: false,
       folderName: null,
       folderPath: null
     });
     mockedResetWelcomeDocumentState.mockResolvedValue(undefined);
+    mockedInitializeStoredAiAgentSession.mockResolvedValue(undefined);
+    mockedListStoredAiAgentSessions.mockResolvedValue([]);
+    mockedSaveStoredAiAgentSession.mockResolvedValue(undefined);
+    mockedSaveStoredAiAgentSessionTitle.mockResolvedValue(undefined);
     mockedSaveStoredAiSettings.mockResolvedValue(undefined);
     mockedSaveStoredLanguage.mockResolvedValue(undefined);
     mockedSaveStoredTheme.mockResolvedValue(undefined);
@@ -316,6 +366,7 @@ describe("Markra workspace", () => {
     ]);
     mockedTestAiProviderConnection.mockResolvedValue({ message: "Connected", ok: true });
     mockedChatCompletion.mockResolvedValue({ content: "Improved AI draft", finishReason: "stop" });
+    mockedGenerateAiAgentSessionTitle.mockResolvedValue(null);
     mockSystemColorScheme(false);
   });
 

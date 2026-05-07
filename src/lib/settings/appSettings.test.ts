@@ -1,12 +1,18 @@
 import { load } from "@tauri-apps/plugin-store";
 import {
+  createAiAgentSessionId,
   consumeWelcomeDocumentState,
+  getStoredAiAgentSession,
+  initializeStoredAiAgentSession,
   getStoredAiSettings,
+  listStoredAiAgentSessions,
   getStoredEditorPreferences,
   getStoredLanguage,
   getStoredTheme,
   getStoredWorkspaceState,
   resetWelcomeDocumentState,
+  saveStoredAiAgentSession,
+  saveStoredAiAgentSessionTitle,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
   saveStoredLanguage,
@@ -21,6 +27,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 const mockedLoad = vi.mocked(load);
 
 describe("app settings", () => {
+  const originalRandomUuid = globalThis.crypto.randomUUID;
   const store = {
     delete: vi.fn(),
     get: vi.fn(),
@@ -29,6 +36,7 @@ describe("app settings", () => {
   };
 
   beforeEach(() => {
+    globalThis.crypto.randomUUID = originalRandomUuid;
     mockedLoad.mockReset();
     store.delete.mockReset();
     store.get.mockReset();
@@ -173,6 +181,7 @@ describe("app settings", () => {
 
   it("loads the last workspace state from settings", async () => {
     store.get.mockResolvedValue({
+      aiAgentSessionId: "session-a",
       filePath: "/mock-files/vault/README.md",
       fileTreeOpen: true,
       folderName: "vault",
@@ -180,6 +189,7 @@ describe("app settings", () => {
     });
 
     await expect(getStoredWorkspaceState()).resolves.toEqual({
+      aiAgentSessionId: "session-a",
       filePath: "/mock-files/vault/README.md",
       fileTreeOpen: true,
       folderName: "vault",
@@ -191,6 +201,7 @@ describe("app settings", () => {
 
   it("merges and persists partial workspace state updates", async () => {
     store.get.mockResolvedValue({
+      aiAgentSessionId: "session-a",
       filePath: null,
       fileTreeOpen: true,
       folderName: "vault",
@@ -202,6 +213,7 @@ describe("app settings", () => {
     });
 
     expect(store.set).toHaveBeenCalledWith("workspace", {
+      aiAgentSessionId: "session-a",
       filePath: "/mock-files/vault/README.md",
       fileTreeOpen: true,
       folderName: "vault",
@@ -493,5 +505,335 @@ describe("app settings", () => {
 
     expect(store.set).toHaveBeenCalledWith("aiProviders", settings);
     expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads a stored AI agent session for the current document", async () => {
+    const sessionStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockResolvedValue(sessionStore as unknown as Awaited<ReturnType<typeof load>>);
+    sessionStore.get.mockResolvedValue({
+      draft: "follow up",
+      messages: [{ id: 1, role: "user", text: "hello" }],
+      panelOpen: true,
+      panelWidth: 420,
+      thinkingEnabled: true,
+      webSearchEnabled: false
+    });
+
+    await expect(getStoredAiAgentSession("session-a")).resolves.toMatchObject({
+      draft: "follow up",
+      messages: [{ id: 1, role: "user", text: "hello" }],
+      panelOpen: true,
+      panelWidth: 420,
+      thinkingEnabled: true,
+      webSearchEnabled: false
+    });
+
+    expect(mockedLoad).toHaveBeenCalledWith("ai-agent-sessions/session-a.json", {
+      autoSave: false,
+      defaults: {}
+    });
+    expect(sessionStore.get).toHaveBeenCalledWith("session");
+  });
+
+  it("persists AI agent session state and updates the session index", async () => {
+    const sessionStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/session-a.json") return sessionStore as unknown as Awaited<ReturnType<typeof load>>;
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    sessionStore.get.mockResolvedValue(undefined);
+    indexStore.get.mockResolvedValue([]);
+
+    await saveStoredAiAgentSession("session-a", {
+      draft: "follow up",
+      messages: [{ id: 1, role: "assistant", text: "hi", thinking: "..." }],
+      panelOpen: true,
+      panelWidth: 480,
+      thinkingEnabled: true,
+      webSearchEnabled: true
+    }, {
+      workspaceKey: "/mock-files/vault"
+    });
+
+    expect(mockedLoad).toHaveBeenCalledWith("ai-agent-sessions/session-a.json", {
+      autoSave: false,
+      defaults: {}
+    });
+    expect(mockedLoad).toHaveBeenCalledWith("ai-agent-sessions/index.json", {
+      autoSave: false,
+      defaults: {}
+    });
+    expect(sessionStore.set).toHaveBeenCalledWith("session", {
+      draft: "follow up",
+      messages: [{ id: 1, role: "assistant", text: "hi", thinking: "...", isError: false }],
+      panelOpen: true,
+      panelWidth: 480,
+      thinkingEnabled: true,
+      webSearchEnabled: true
+    });
+    expect(sessionStore.set).toHaveBeenCalledWith("meta", expect.objectContaining({
+      id: "session-a",
+      messageCount: 1,
+      title: "hi",
+      titleSource: "fallback",
+      workspaceKey: "/mock-files/vault"
+    }));
+    expect(indexStore.set).toHaveBeenCalledWith("entries", [
+      expect.objectContaining({
+        id: "session-a",
+        messageCount: 1,
+        title: "hi",
+        titleSource: "fallback",
+        workspaceKey: "/mock-files/vault"
+      })
+    ]);
+    expect(sessionStore.save).toHaveBeenCalledTimes(1);
+    expect(indexStore.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("lists stored AI agent sessions for the active workspace", async () => {
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    indexStore.get.mockResolvedValue([
+      {
+        createdAt: 1,
+        id: "session-a",
+        messageCount: 3,
+        title: "First session",
+        titleSource: "ai",
+        updatedAt: 30,
+        workspaceKey: "/mock-files/vault"
+      },
+      {
+        createdAt: 2,
+        id: "session-b",
+        messageCount: 1,
+        title: "Second session",
+        titleSource: "fallback",
+        updatedAt: 40,
+        workspaceKey: "/mock-files/other"
+      },
+      {
+        createdAt: 3,
+        id: "session-c",
+        messageCount: 2,
+        title: null,
+        titleSource: null,
+        updatedAt: 50,
+        workspaceKey: "/mock-files/vault"
+      }
+    ]);
+
+    await expect(listStoredAiAgentSessions("/mock-files/vault")).resolves.toEqual([
+      {
+        createdAt: 3,
+        id: "session-c",
+        messageCount: 2,
+        title: null,
+        titleSource: null,
+        updatedAt: 50,
+        workspaceKey: "/mock-files/vault"
+      },
+      {
+        createdAt: 1,
+        id: "session-a",
+        messageCount: 3,
+        title: "First session",
+        titleSource: "ai",
+        updatedAt: 30,
+        workspaceKey: "/mock-files/vault"
+      }
+    ]);
+  });
+
+  it("initializes a blank AI agent session file for a new workspace chat", async () => {
+    const sessionStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/session-new.json") return sessionStore as unknown as Awaited<ReturnType<typeof load>>;
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    sessionStore.get.mockResolvedValue(undefined);
+    indexStore.get.mockResolvedValue([]);
+
+    await initializeStoredAiAgentSession("session-new", "/mock-files/vault");
+
+    expect(sessionStore.set).toHaveBeenCalledWith("session", {
+      draft: "",
+      messages: [],
+      panelOpen: false,
+      panelWidth: null,
+      thinkingEnabled: false,
+      webSearchEnabled: false
+    });
+    expect(indexStore.set).toHaveBeenCalledWith("entries", [
+      expect.objectContaining({
+        id: "session-new",
+        messageCount: 0,
+        title: null,
+        titleSource: null,
+        workspaceKey: "/mock-files/vault"
+      })
+    ]);
+  });
+
+  it("persists an AI-generated session title without losing workspace metadata", async () => {
+    const sessionStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/session-a.json") return sessionStore as unknown as Awaited<ReturnType<typeof load>>;
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    sessionStore.get.mockImplementation(async (key) => {
+      if (key === "meta") {
+        return {
+          createdAt: 10,
+          id: "session-a",
+          messageCount: 2,
+          title: "look into gold pricing issue",
+          titleSource: "fallback",
+          updatedAt: 11,
+          workspaceKey: "/mock-files/vault"
+        };
+      }
+
+      return {
+        draft: "",
+        messages: [
+          { id: 1, role: "user", text: "看看这组数据" },
+          { id: 2, role: "assistant", text: "黄金价格有问题" }
+        ],
+        panelOpen: true,
+        panelWidth: 420,
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      };
+    });
+    indexStore.get.mockResolvedValue([
+      {
+        createdAt: 10,
+        id: "session-a",
+        messageCount: 2,
+        title: "look into gold pricing issue",
+        titleSource: "fallback",
+        updatedAt: 11,
+        workspaceKey: "/mock-files/vault"
+      }
+    ]);
+
+    await saveStoredAiAgentSessionTitle("session-a", "Gold and XAU pricing audit", {
+      workspaceKey: "/mock-files/vault"
+    });
+
+    expect(sessionStore.set).toHaveBeenCalledWith("meta", expect.objectContaining({
+      id: "session-a",
+      title: "Gold and XAU pricing audit",
+      titleSource: "ai",
+      workspaceKey: "/mock-files/vault"
+    }));
+    expect(indexStore.set).toHaveBeenCalledWith("entries", [
+      expect.objectContaining({
+        id: "session-a",
+        title: "Gold and XAU pricing audit",
+        titleSource: "ai"
+      })
+    ]);
+  });
+
+  it("keeps an existing AI-generated session title on later session saves", async () => {
+    const sessionStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/session-a.json") return sessionStore as unknown as Awaited<ReturnType<typeof load>>;
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    sessionStore.get.mockResolvedValue({
+      createdAt: 10,
+      id: "session-a",
+      messageCount: 2,
+      title: "Gold and XAU pricing audit",
+      titleSource: "ai",
+      updatedAt: 11,
+      workspaceKey: "/mock-files/vault"
+    });
+    indexStore.get.mockResolvedValue([]);
+
+    await saveStoredAiAgentSession("session-a", {
+      draft: "",
+      messages: [
+        { id: 1, role: "user", text: "hello" },
+        { id: 2, role: "assistant", text: "hi" }
+      ],
+      panelOpen: true,
+      panelWidth: 420,
+      thinkingEnabled: false,
+      webSearchEnabled: false
+    }, {
+      workspaceKey: "/mock-files/vault"
+    });
+
+    expect(sessionStore.set).toHaveBeenCalledWith("meta", expect.objectContaining({
+      title: "Gold and XAU pricing audit",
+      titleSource: "ai"
+    }));
+  });
+
+  it("generates a random AI agent session id from crypto when available", () => {
+    globalThis.crypto.randomUUID = vi.fn(() => "session-random");
+
+    expect(createAiAgentSessionId()).toBe("session-random");
   });
 });

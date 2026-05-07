@@ -1,9 +1,24 @@
 import { load } from "@tauri-apps/plugin-store";
+import {
+  createAiAgentSessionTitle,
+  createDefaultAiAgentSessionState,
+  normalizeAiAgentSessionTitle,
+  normalizeAiAgentWorkspaceKey,
+  normalizeStoredAiAgentSessionState,
+  normalizeStoredAiAgentSessionSummaries,
+  normalizeStoredAiAgentSessionSummary,
+  type StoredAiAgentSessionSummary,
+  type StoredAiAgentSessionState
+} from "../ai/agent/agentSessionState";
 import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "../ai/providers/aiProviders";
 import { isAppLanguage, type AppLanguage } from "../i18n";
 import { normalizeNullableString } from "../utils";
 
 const settingsStorePath = "settings.json";
+const aiAgentSessionIndexStorePath = "ai-agent-sessions/index.json";
+const aiAgentSessionStateKey = "session";
+const aiAgentSessionMetaKey = "meta";
+const aiAgentSessionIndexKey = "entries";
 const welcomeDocumentSeenKey = "welcomeDocumentSeen";
 const themeKey = "theme";
 const languageKey = "language";
@@ -23,6 +38,7 @@ export type EditorPreferences = {
   showWordCount: boolean;
 };
 export type StoredWorkspaceState = {
+  aiAgentSessionId: string | null;
   filePath: string | null;
   fileTreeOpen: boolean;
   folderName: string | null;
@@ -44,6 +60,7 @@ const editorContentWidthOptions: EditorContentWidth[] = ["narrow", "default", "w
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
 
 export const defaultWorkspaceState: StoredWorkspaceState = {
+  aiAgentSessionId: null,
   filePath: null,
   fileTreeOpen: false,
   folderName: null,
@@ -52,6 +69,20 @@ export const defaultWorkspaceState: StoredWorkspaceState = {
 
 function loadSettingsStore() {
   return load(settingsStorePath, { autoSave: false, defaults: {} });
+}
+
+function loadAiAgentSessionStore(sessionId: string | null) {
+  return load(aiAgentSessionStorePath(sessionId), { autoSave: false, defaults: {} });
+}
+
+function loadAiAgentSessionIndexStore() {
+  return load(aiAgentSessionIndexStorePath, { autoSave: false, defaults: {} });
+}
+
+export function createAiAgentSessionId() {
+  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
+
+  return `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function isAppTheme(value: unknown): value is AppTheme {
@@ -105,6 +136,110 @@ export async function getStoredAiSettings(): Promise<AiProviderSettings> {
   return settings ? normalizeAiSettings(settings) : createDefaultAiSettings();
 }
 
+export async function getStoredAiAgentSession(sessionId: string | null): Promise<StoredAiAgentSessionState> {
+  if (!sessionId?.trim()) return normalizeStoredAiAgentSessionState(undefined);
+
+  const sessionStore = await loadAiAgentSessionStore(sessionId);
+  const session = await sessionStore.get<StoredAiAgentSessionState>(aiAgentSessionStateKey);
+
+  return normalizeStoredAiAgentSessionState(session);
+}
+
+export async function getStoredAiAgentSessionSummary(sessionId: string | null) {
+  if (!sessionId?.trim()) return null;
+
+  const sessionStore = await loadAiAgentSessionStore(sessionId);
+  const summary = await sessionStore.get<StoredAiAgentSessionSummary>(aiAgentSessionMetaKey);
+
+  return normalizeStoredAiAgentSessionSummary(summary);
+}
+
+export async function listStoredAiAgentSessions(workspaceKey: string | null): Promise<StoredAiAgentSessionSummary[]> {
+  const store = await loadAiAgentSessionIndexStore();
+  const entries = await store.get<StoredAiAgentSessionSummary[]>(aiAgentSessionIndexKey);
+  const normalizedWorkspaceKey = normalizeAiAgentWorkspaceKey(workspaceKey);
+
+  return normalizeStoredAiAgentSessionSummaries(entries).filter((entry) => entry.workspaceKey === normalizedWorkspaceKey);
+}
+
+export async function initializeStoredAiAgentSession(sessionId: string, workspaceKey: string | null) {
+  await saveStoredAiAgentSession(sessionId, createDefaultAiAgentSessionState(), { workspaceKey });
+}
+
+export async function saveStoredAiAgentSession(
+  sessionId: string | null,
+  session: StoredAiAgentSessionState,
+  options: {
+    workspaceKey?: string | null;
+  } = {}
+) {
+  if (!sessionId?.trim()) return;
+
+  const normalizedSession = normalizeStoredAiAgentSessionState(session);
+  const store = await loadAiAgentSessionStore(sessionId);
+  const existingSummary = normalizeStoredAiAgentSessionSummary(await store.get(aiAgentSessionMetaKey));
+  const now = Date.now();
+  const fallbackTitle = createAiAgentSessionTitle(normalizedSession);
+  const preserveAiTitle = existingSummary?.titleSource === "ai" && existingSummary.title;
+  const summary: StoredAiAgentSessionSummary = {
+    createdAt: existingSummary?.createdAt ?? now,
+    id: sessionId,
+    messageCount: normalizedSession.messages.length,
+    title: preserveAiTitle ? existingSummary.title : fallbackTitle,
+    titleSource: preserveAiTitle ? "ai" : fallbackTitle ? "fallback" : null,
+    updatedAt: now,
+    workspaceKey: normalizeAiAgentWorkspaceKey(options.workspaceKey ?? existingSummary?.workspaceKey)
+  };
+
+  await store.set(aiAgentSessionStateKey, normalizedSession);
+  await store.set(aiAgentSessionMetaKey, summary);
+  await store.save();
+
+  const indexStore = await loadAiAgentSessionIndexStore();
+  const currentEntries = normalizeStoredAiAgentSessionSummaries(await indexStore.get(aiAgentSessionIndexKey));
+  const nextEntries = [summary, ...currentEntries.filter((entry) => entry.id !== sessionId)];
+
+  await indexStore.set(aiAgentSessionIndexKey, nextEntries);
+  await indexStore.save();
+}
+
+export async function saveStoredAiAgentSessionTitle(
+  sessionId: string | null,
+  title: string | null,
+  options: {
+    workspaceKey?: string | null;
+  } = {}
+) {
+  if (!sessionId?.trim()) return;
+
+  const normalizedTitle = normalizeAiAgentSessionTitle(title);
+  if (!normalizedTitle) return;
+
+  const store = await loadAiAgentSessionStore(sessionId);
+  const existingSummary = normalizeStoredAiAgentSessionSummary(await store.get(aiAgentSessionMetaKey));
+  const session = normalizeStoredAiAgentSessionState(await store.get<StoredAiAgentSessionState>(aiAgentSessionStateKey));
+  const now = Date.now();
+  const summary: StoredAiAgentSessionSummary = {
+    createdAt: existingSummary?.createdAt ?? now,
+    id: sessionId,
+    messageCount: session.messages.length,
+    title: normalizedTitle,
+    titleSource: "ai",
+    updatedAt: now,
+    workspaceKey: normalizeAiAgentWorkspaceKey(options.workspaceKey ?? existingSummary?.workspaceKey)
+  };
+
+  await store.set(aiAgentSessionMetaKey, summary);
+  await store.save();
+
+  const indexStore = await loadAiAgentSessionIndexStore();
+  const currentEntries = normalizeStoredAiAgentSessionSummaries(await indexStore.get(aiAgentSessionIndexKey));
+  const nextEntries = [summary, ...currentEntries.filter((entry) => entry.id !== sessionId)];
+
+  await indexStore.set(aiAgentSessionIndexKey, nextEntries);
+  await indexStore.save();
+}
+
 export async function saveStoredAiSettings(settings: AiProviderSettings) {
   const store = await loadSettingsStore();
 
@@ -156,6 +291,7 @@ export type {
   AiProviderModel,
   AiProviderSettings
 } from "../ai/providers/aiProviders";
+export type { StoredAiAgentSessionSummary };
 
 export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   if (typeof value !== "object" || value === null) return defaultEditorPreferences;
@@ -191,9 +327,14 @@ export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
   const workspace = value as Partial<StoredWorkspaceState>;
 
   return {
+    aiAgentSessionId: normalizeNullableString(workspace.aiAgentSessionId),
     filePath: normalizeNullableString(workspace.filePath),
     fileTreeOpen: typeof workspace.fileTreeOpen === "boolean" ? workspace.fileTreeOpen : false,
     folderName: normalizeNullableString(workspace.folderName),
     folderPath: normalizeNullableString(workspace.folderPath)
   };
+}
+
+function aiAgentSessionStorePath(sessionId: string | null) {
+  return `ai-agent-sessions/${sessionId ?? "default"}.json`;
 }

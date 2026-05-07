@@ -7,7 +7,8 @@ import {
   isRecord,
   joinApiUrl,
   normalizeNullableString,
-  pathNameFromPath
+  pathNameFromPath,
+  stableTextKey
 } from "./utils";
 
 describe("utilities", () => {
@@ -45,6 +46,11 @@ describe("utilities", () => {
     expect(pathNameFromPath(null)).toBe("No folder");
     expect(folderNameFromDocumentPath("/vault/docs/readme.md")).toBe("docs");
     expect(folderNameFromDocumentPath(null)).toBe("No folder");
+  });
+
+  it("builds stable short text keys", () => {
+    expect(stableTextKey("/vault/readme.md")).toBe(stableTextKey("/vault/readme.md"));
+    expect(stableTextKey("/vault/readme.md")).not.toBe(stableTextKey("/vault/notes.md"));
   });
 
   it("detects supported markdown file paths", () => {

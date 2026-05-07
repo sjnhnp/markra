@@ -1,16 +1,56 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { runDocumentAiAgent } from "../lib/ai/agent/documentAgent";
+import { generateAiAgentSessionTitle } from "../lib/ai/agent/sessionTitle";
+import {
+  getStoredAiAgentSession,
+  getStoredAiAgentSessionSummary,
+  saveStoredAiAgentSession,
+  saveStoredAiAgentSessionTitle
+} from "../lib/settings/appSettings";
 import { useAiAgentSession } from "./useAiAgentSession";
 
 vi.mock("../lib/ai/agent/documentAgent", () => ({
   runDocumentAiAgent: vi.fn()
 }));
 
+vi.mock("../lib/ai/agent/sessionTitle", () => ({
+  generateAiAgentSessionTitle: vi.fn()
+}));
+
+vi.mock("../lib/settings/appSettings", () => ({
+  getStoredAiAgentSession: vi.fn(),
+  getStoredAiAgentSessionSummary: vi.fn(),
+  saveStoredAiAgentSession: vi.fn(),
+  saveStoredAiAgentSessionTitle: vi.fn()
+}));
+
 const mockedRunDocumentAiAgent = vi.mocked(runDocumentAiAgent);
+const mockedGenerateAiAgentSessionTitle = vi.mocked(generateAiAgentSessionTitle);
+const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
+const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
+const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession);
+const mockedSaveStoredAiAgentSessionTitle = vi.mocked(saveStoredAiAgentSessionTitle);
 
 describe("useAiAgentSession", () => {
   beforeEach(() => {
     mockedRunDocumentAiAgent.mockReset();
+    mockedGenerateAiAgentSessionTitle.mockReset();
+    mockedGetStoredAiAgentSession.mockReset();
+    mockedGetStoredAiAgentSessionSummary.mockReset();
+    mockedSaveStoredAiAgentSession.mockReset();
+    mockedSaveStoredAiAgentSessionTitle.mockReset();
+    mockedGetStoredAiAgentSession.mockResolvedValue({
+      draft: "",
+      messages: [],
+      panelOpen: false,
+      panelWidth: null,
+      thinkingEnabled: false,
+      webSearchEnabled: false
+    });
+    mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
+    mockedGenerateAiAgentSessionTitle.mockResolvedValue("Polish GOLD and XAU price notes");
+    mockedSaveStoredAiAgentSession.mockResolvedValue(undefined);
+    mockedSaveStoredAiAgentSessionTitle.mockResolvedValue(undefined);
   });
 
   it("streams an assistant reply into the transcript", async () => {
@@ -35,6 +75,7 @@ describe("useAiAgentSession", () => {
           name: "OpenAI",
           type: "openai"
         },
+        sessionId: "session-a",
         settingsLoading: false,
         translate: (key) => key,
         workspaceFiles: []
@@ -172,6 +213,7 @@ describe("useAiAgentSession", () => {
           type: "openai"
         },
         readWorkspaceFile,
+        sessionId: "session-a",
         settingsLoading: false,
         translate: (key) => key,
         workspaceFiles: [
@@ -262,6 +304,7 @@ describe("useAiAgentSession", () => {
           name: "OpenAI",
           type: "openai"
         },
+        sessionId: "session-a",
         settingsLoading: false,
         translate: (key) =>
           ({
@@ -310,5 +353,191 @@ describe("useAiAgentSession", () => {
       role: "assistant",
       text: "Done"
     });
+  });
+
+  it("restores and persists a stored session for the active document", async () => {
+    mockedGetStoredAiAgentSession.mockResolvedValue({
+      draft: "Continue this",
+      messages: [{ id: 1, role: "user", text: "Earlier question" }],
+      panelOpen: true,
+      panelWidth: 456,
+      thinkingEnabled: true,
+      webSearchEnabled: true
+    });
+    const onSessionRestore = vi.fn();
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/README.md",
+        getDocumentContent: () => "# Draft",
+        model: "gpt-5.5",
+        onSessionRestore,
+        panelOpen: true,
+        panelWidth: 456,
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        settingsLoading: false,
+        sessionId: "session-a",
+        translate: (key) => key,
+        workspaceKey: "/vault",
+        workspaceFiles: []
+      })
+    );
+
+    await waitFor(() => expect(result.current.draft).toBe("Continue this"));
+    expect(result.current.messages).toEqual([{ id: 1, role: "user", text: "Earlier question" }]);
+    expect(result.current.thinkingEnabled).toBe(true);
+    expect(result.current.webSearchEnabled).toBe(true);
+    expect(onSessionRestore).toHaveBeenCalledWith({
+      panelOpen: true,
+      panelWidth: 456
+    });
+
+    await act(async () => {
+      result.current.setDraft("Next prompt");
+    });
+
+    await waitFor(() =>
+      expect(mockedSaveStoredAiAgentSession).toHaveBeenCalledWith("session-a", {
+        draft: "Next prompt",
+        messages: [{ id: 1, role: "user", text: "Earlier question" }],
+        panelOpen: true,
+        panelWidth: 456,
+        thinkingEnabled: true,
+        webSearchEnabled: true
+      }, {
+        workspaceKey: "/vault"
+      })
+    );
+  });
+
+  it("keeps the panel open while switching to another stored session", async () => {
+    mockedGetStoredAiAgentSession
+      .mockResolvedValueOnce({
+        draft: "Session A",
+        messages: [{ id: 1, role: "user", text: "First" }],
+        panelOpen: true,
+        panelWidth: 456,
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      })
+      .mockResolvedValueOnce({
+        draft: "Session B",
+        messages: [{ id: 2, role: "user", text: "Second" }],
+        panelOpen: false,
+        panelWidth: null,
+        thinkingEnabled: true,
+        webSearchEnabled: true
+      });
+    const onSessionRestore = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ sessionId }) =>
+        useAiAgentSession({
+          getDocumentContent: () => "# Draft",
+          model: "gpt-5.5",
+          onSessionRestore,
+          panelOpen: true,
+          panelWidth: 456,
+          provider: {
+            apiKey: "secret",
+            baseUrl: "https://api.openai.com/v1",
+            defaultModelId: "gpt-5.5",
+            enabled: true,
+            id: "openai",
+            models: [],
+            name: "OpenAI",
+            type: "openai"
+          },
+          sessionId,
+          settingsLoading: false,
+          translate: (key) => key,
+          workspaceKey: "/vault",
+          workspaceFiles: []
+        }),
+      {
+        initialProps: {
+          sessionId: "session-a"
+        }
+      }
+    );
+
+    await waitFor(() => expect(result.current.draft).toBe("Session A"));
+
+    rerender({
+      sessionId: "session-b"
+    });
+
+    await waitFor(() => expect(result.current.draft).toBe("Session B"));
+    expect(onSessionRestore).toHaveBeenCalledTimes(1);
+    expect(onSessionRestore).toHaveBeenCalledWith({
+      panelOpen: true,
+      panelWidth: 456
+    });
+  });
+
+  it("generates and persists an AI session title after the first completed exchange", async () => {
+    mockedRunDocumentAiAgent.mockResolvedValue({
+      content: "Gold pricing looks incorrect while XAU is missing in the dataset.",
+      finishReason: "stop"
+    });
+
+    const provider = {
+      apiKey: "secret",
+      baseUrl: "https://api.openai.com/v1",
+      defaultModelId: "gpt-5.5",
+      enabled: true,
+      id: "openai",
+      models: [],
+      name: "OpenAI",
+      type: "openai" as const
+    };
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/README.md",
+        getDocumentContent: () => "# Draft",
+        model: "gpt-5.5",
+        provider,
+        sessionId: "session-a",
+        settingsLoading: false,
+        translate: (key) => key,
+        workspaceKey: "/vault",
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("看看这组数据，黄金和白银价格是不是获取的有问题");
+    });
+
+    await waitFor(() =>
+      expect(mockedGenerateAiAgentSessionTitle).toHaveBeenCalledWith({
+        messages: [
+          {
+            role: "user",
+            text: "看看这组数据，黄金和白银价格是不是获取的有问题"
+          },
+          {
+            role: "assistant",
+            text: "Gold pricing looks incorrect while XAU is missing in the dataset."
+          }
+        ],
+        model: "gpt-5.5",
+        provider
+      })
+    );
+    await waitFor(() =>
+      expect(mockedSaveStoredAiAgentSessionTitle).toHaveBeenCalledWith("session-a", "Polish GOLD and XAU price notes", {
+        workspaceKey: "/vault"
+      })
+    );
   });
 });
