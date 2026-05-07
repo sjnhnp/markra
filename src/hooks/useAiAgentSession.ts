@@ -60,7 +60,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const didRestorePanelStateRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
   const skipNextPersistRef = useRef(false);
-  const sessionTitleSourceRef = useRef<"ai" | "fallback" | null>(null);
+  const sessionTitleSourceRef = useRef<"ai" | "fallback" | "manual" | null>(null);
   const titleGenerationSignatureRef = useRef<string | null>(null);
   const sessionKey = ctx.sessionId?.trim() ? ctx.sessionId : null;
 
@@ -199,7 +199,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     if (ctx.settingsLoading) return;
     if (!ctx.provider || !ctx.model) return;
     if (status !== "idle") return;
-    if (sessionTitleSourceRef.current === "ai") return;
+    if (sessionTitleSourceRef.current === "ai" || sessionTitleSourceRef.current === "manual") return;
 
     const transcriptMessages = messages
       .filter((message) => !message.isError && message.text.trim().length > 0)

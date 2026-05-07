@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, History, MessageSquarePlus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import * as Popover from "@radix-ui/react-popover";
+import { Archive, ArchiveRestore, Check, History, MessageSquarePlus, PencilLine, Search, Trash2 } from "lucide-react";
 import type { AppLanguage, I18nKey } from "../lib/i18n";
 import type { StoredAiAgentSessionSummary } from "../lib/settings/appSettings";
 import { t } from "../lib/i18n";
@@ -10,7 +11,10 @@ type AiAgentSessionMenuProps = {
   activeSessionId?: string | null;
   language?: AppLanguage;
   sessions?: StoredAiAgentSessionSummary[];
+  onArchiveSession?: (sessionId: string, archived: boolean) => unknown;
   onCreateSession?: () => unknown;
+  onDeleteSession?: (sessionId: string) => unknown;
+  onRenameSession?: (sessionId: string, title: string) => unknown;
   onSelectSession?: (sessionId: string) => unknown;
 };
 
@@ -18,14 +22,34 @@ export function AiAgentSessionMenu({
   activeSessionId = null,
   language = "en",
   sessions = [],
+  onArchiveSession,
   onCreateSession,
+  onDeleteSession,
+  onRenameSession,
   onSelectSession
 }: AiAgentSessionMenuProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [confirmingDeleteSessionId, setConfirmingDeleteSessionId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const label = (key: I18nKey) => t(language, key);
+  const filteredSessions = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+
+    return sessions.filter((session) => {
+      if (!showArchived && session.archivedAt !== null) return false;
+      if (!normalizedQuery) return true;
+
+      const sessionTitle = (session.title ?? label("app.aiAgentSessionUntitled")).toLocaleLowerCase();
+
+      return sessionTitle.includes(normalizedQuery);
+    });
+  }, [label, query, sessions, showArchived]);
   const formatter = useMemo(
     () =>
       new Intl.DateTimeFormat(language, {
@@ -49,6 +73,9 @@ export function AiAgentSessionMenu({
     }
 
     if (!menuVisible) return;
+    setEditingSessionId(null);
+    setEditingTitle("");
+    setConfirmingDeleteSessionId(null);
 
     closeTimerRef.current = window.setTimeout(() => {
       setMenuVisible(false);
@@ -82,6 +109,19 @@ export function AiAgentSessionMenu({
       window.clearTimeout(closeTimerRef.current);
     };
   }, []);
+
+  const commitRename = (sessionId: string) => {
+    const normalizedTitle = editingTitle.trim();
+    if (normalizedTitle) onRenameSession?.(sessionId, normalizedTitle);
+    setEditingSessionId(null);
+    setEditingTitle("");
+    setConfirmingDeleteSessionId(null);
+  };
+
+  const cancelRename = () => {
+    setEditingSessionId(null);
+    setEditingTitle("");
+  };
 
   return (
     <div className="relative" ref={rootRef}>
@@ -118,44 +158,208 @@ export function AiAgentSessionMenu({
               <MessageSquarePlus aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
               <span className="truncate">{label("app.aiAgentNewSession")}</span>
             </button>
+            <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+              <label className="relative min-w-0">
+                <span className="sr-only">{label("app.aiAgentSearchSessions")}</span>
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-(--text-secondary)"
+                  size={13}
+                />
+                <input
+                  aria-label={label("app.aiAgentSearchSessions")}
+                  className="h-8 w-full rounded-lg border border-(--border-default) bg-(--bg-primary) pr-2 pl-7 text-[12px] leading-5 font-[520] text-(--text-primary) outline-none transition-[border-color,background-color] duration-150 ease-out placeholder:text-(--text-secondary) focus:border-(--accent)"
+                  type="search"
+                  value={query}
+                  placeholder={label("app.aiAgentSearchSessions")}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+              <button
+                className={`inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border p-0 transition-[background-color,border-color,color] duration-150 ease-out focus-visible:outline-none ${
+                  showArchived
+                    ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
+                    : "border-(--border-default) bg-(--bg-primary) text-(--text-secondary) hover:border-(--border-strong) hover:text-(--text-heading)"
+                }`}
+                type="button"
+                aria-label={showArchived ? label("app.aiAgentHideArchivedSessions") : label("app.aiAgentShowArchivedSessions")}
+                aria-pressed={showArchived}
+                onClick={() => setShowArchived((current) => !current)}
+              >
+                <Archive aria-hidden="true" size={13} />
+              </button>
+            </div>
           </div>
           <div className="max-h-80 overflow-auto p-1.5">
-            {sessions.length > 0 ? (
+            {filteredSessions.length > 0 ? (
               <div className="grid gap-1">
-                {sessions.map((session) => {
+                {filteredSessions.map((session) => {
                   const active = session.id === activeSessionId;
+                  const sessionTitle = session.title ?? label("app.aiAgentSessionUntitled");
+                  const editing = editingSessionId === session.id;
+                  const confirmingDelete = confirmingDeleteSessionId === session.id;
+                  const archived = session.archivedAt !== null;
 
                   return (
-                    <button
-                      className={`grid w-full cursor-pointer gap-0.5 rounded-lg border px-3 py-2 text-left transition-[background-color,border-color,color] duration-150 ease-out ${
+                    <div
+                      className={`relative rounded-lg border transition-[background-color,border-color,color] duration-150 ease-out ${
                         active
                           ? "border-(--accent) bg-(--accent-soft) text-(--text-heading)"
-                          : "border-transparent bg-transparent text-(--text-primary) hover:border-(--border-default) hover:bg-(--bg-hover) hover:text-(--text-heading)"
+                          : archived
+                            ? "border-transparent bg-transparent text-(--text-secondary) opacity-75 hover:border-(--border-default) hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100"
+                            : "border-transparent bg-transparent text-(--text-primary) hover:border-(--border-default) hover:bg-(--bg-hover) hover:text-(--text-heading)"
                       }`}
                       key={session.id}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={active}
-                      onClick={() => {
-                        setOpen(false);
-                        onSelectSession?.(session.id);
-                      }}
                     >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate text-[12px] leading-5 font-[620]">
-                          {session.title ?? label("app.aiAgentSessionUntitled")}
-                        </span>
-                        {active ? <Check aria-hidden="true" className="shrink-0 text-(--accent)" size={14} /> : null}
-                      </span>
-                      <span className="truncate text-[11px] leading-4 text-(--text-secondary)">
-                        {formatter.format(session.updatedAt)}
-                      </span>
-                    </button>
+                      {editing ? (
+                        <div className="grid gap-1 px-3 py-2">
+                          <input
+                            aria-label={label("app.aiAgentRenameSessionInput")}
+                            autoFocus
+                            className="h-8 rounded-md border border-(--accent) bg-(--bg-primary) px-2 text-[12px] leading-5 font-[620] text-(--text-primary) outline-none"
+                            type="text"
+                            value={editingTitle}
+                            onBlur={() => commitRename(session.id)}
+                            onChange={(event) => setEditingTitle(event.target.value)}
+                            onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                commitRename(session.id);
+                                return;
+                              }
+
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                cancelRename();
+                              }
+                            }}
+                          />
+                          <span className="truncate text-[11px] leading-4 text-(--text-secondary)">
+                            {formatter.format(session.updatedAt)}
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            className="grid w-full cursor-pointer gap-0.5 rounded-lg px-3 py-2 pr-24 text-left"
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={active}
+                            onClick={() => {
+                              setOpen(false);
+                              onSelectSession?.(session.id);
+                            }}
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="min-w-0 flex-1 truncate text-[12px] leading-5 font-[620]">
+                                {sessionTitle}
+                              </span>
+                              {active ? <Check aria-hidden="true" className="shrink-0 text-(--accent)" size={14} /> : null}
+                            </span>
+                            <span className="truncate text-[11px] leading-4 text-(--text-secondary)">
+                              {formatter.format(session.updatedAt)}
+                            </span>
+                          </button>
+                          <div className="absolute top-2 right-2 flex items-center gap-1">
+                            <button
+                              aria-label={`${label("app.aiAgentRenameSession")} ${sessionTitle}`}
+                              className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-active) hover:text-(--text-heading) focus-visible:bg-(--bg-active) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setEditingSessionId(session.id);
+                                setEditingTitle(sessionTitle);
+                                setConfirmingDeleteSessionId(null);
+                              }}
+                            >
+                              <PencilLine aria-hidden="true" size={12} />
+                            </button>
+                            <button
+                              aria-label={`${archived ? label("app.aiAgentRestoreSession") : label("app.aiAgentArchiveSession")} ${sessionTitle}`}
+                              className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-active) hover:text-(--text-heading) focus-visible:bg-(--bg-active) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onArchiveSession?.(session.id, !archived);
+                                setConfirmingDeleteSessionId(null);
+                              }}
+                            >
+                              {archived ? <ArchiveRestore aria-hidden="true" size={12} /> : <Archive aria-hidden="true" size={12} />}
+                            </button>
+                            <Popover.Root
+                              open={confirmingDelete}
+                              onOpenChange={(nextOpen) => {
+                                setConfirmingDeleteSessionId(nextOpen ? session.id : null);
+                              }}
+                            >
+                              <Popover.Trigger asChild>
+                                <button
+                                  aria-label={`${label("app.aiAgentDeleteSession")} ${sessionTitle}`}
+                                  className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-active) hover:text-(--text-heading) focus-visible:bg-(--bg-active) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setEditingSessionId(null);
+                                  }}
+                                >
+                                  <Trash2 aria-hidden="true" size={12} />
+                                </button>
+                              </Popover.Trigger>
+                              <Popover.Portal>
+                                <Popover.Content
+                                  align="end"
+                                  aria-label={label("app.aiAgentConfirmDeleteSession")}
+                                  className="z-70 grid w-56 origin-[var(--radix-popover-content-transform-origin)] gap-2 rounded-xl border border-(--border-default) bg-(--bg-primary) px-3 py-2.5 shadow-[var(--ai-command-popover-shadow)] data-[state=open]:animate-[markra-ai-float-in_140ms_ease-out_both] data-[state=closed]:animate-[markra-ai-float-out_120ms_ease-in_both] motion-reduce:animate-none"
+                                  collisionPadding={12}
+                                  role="dialog"
+                                  side="left"
+                                  sideOffset={8}
+                                  onOpenAutoFocus={(event) => event.preventDefault()}
+                                  onPointerDown={(event) => event.stopPropagation()}
+                                  onClick={(event) => event.stopPropagation()}
+                                >
+                                  <p className="m-0 text-[12px] leading-5 font-[620] text-(--text-primary)">
+                                    {label("app.aiAgentConfirmDeleteSession")}
+                                  </p>
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      className="inline-flex h-7 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent px-2.5 text-[12px] leading-5 font-[620] text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                                      type="button"
+                                      aria-label={`${label("app.aiAgentCancelDeleteSession")} ${sessionTitle}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setConfirmingDeleteSessionId(null);
+                                      }}
+                                    >
+                                      {label("app.aiAgentCancelDeleteSession")}
+                                    </button>
+                                    <button
+                                      className="inline-flex h-7 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent px-2.5 text-[12px] leading-5 font-[680] text-(--danger) transition-[background-color,color] duration-150 ease-out hover:bg-[color:color-mix(in_oklab,var(--danger)_10%,var(--bg-primary))] focus-visible:bg-[color:color-mix(in_oklab,var(--danger)_10%,var(--bg-primary))] focus-visible:outline-none"
+                                      type="button"
+                                      aria-label={`${label("app.aiAgentConfirmDeleteSessionAction")} ${sessionTitle}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onDeleteSession?.(session.id);
+                                        setConfirmingDeleteSessionId(null);
+                                      }}
+                                    >
+                                      {label("app.aiAgentConfirmDeleteSessionAction")}
+                                    </button>
+                                  </div>
+                                </Popover.Content>
+                              </Popover.Portal>
+                            </Popover.Root>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="m-0 px-2 py-3 text-[12px] leading-5 text-(--text-secondary)">{label("app.aiAgentNoSessions")}</p>
+              <p className="m-0 px-2 py-3 text-[12px] leading-5 text-(--text-secondary)">
+                {sessions.length > 0 ? label("app.aiAgentNoMatchingSessions") : label("app.aiAgentNoSessions")}
+              </p>
             )}
           </div>
         </div>

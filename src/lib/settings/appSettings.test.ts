@@ -2,6 +2,7 @@ import { load } from "@tauri-apps/plugin-store";
 import {
   createAiAgentSessionId,
   consumeWelcomeDocumentState,
+  deleteStoredAiAgentSession,
   getStoredAiAgentSession,
   initializeStoredAiAgentSession,
   getStoredAiSettings,
@@ -17,7 +18,8 @@ import {
   saveStoredEditorPreferences,
   saveStoredLanguage,
   saveStoredTheme,
-  saveStoredWorkspaceState
+  saveStoredWorkspaceState,
+  setStoredAiAgentSessionArchived
 } from "./appSettings";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
@@ -619,6 +621,7 @@ describe("app settings", () => {
     });
     indexStore.get.mockResolvedValue([
       {
+        archivedAt: null,
         createdAt: 1,
         id: "session-a",
         messageCount: 3,
@@ -628,6 +631,7 @@ describe("app settings", () => {
         workspaceKey: "/mock-files/vault"
       },
       {
+        archivedAt: null,
         createdAt: 2,
         id: "session-b",
         messageCount: 1,
@@ -637,6 +641,7 @@ describe("app settings", () => {
         workspaceKey: "/mock-files/other"
       },
       {
+        archivedAt: 60,
         createdAt: 3,
         id: "session-c",
         messageCount: 2,
@@ -649,15 +654,7 @@ describe("app settings", () => {
 
     await expect(listStoredAiAgentSessions("/mock-files/vault")).resolves.toEqual([
       {
-        createdAt: 3,
-        id: "session-c",
-        messageCount: 2,
-        title: null,
-        titleSource: null,
-        updatedAt: 50,
-        workspaceKey: "/mock-files/vault"
-      },
-      {
+        archivedAt: null,
         createdAt: 1,
         id: "session-a",
         messageCount: 3,
@@ -667,6 +664,106 @@ describe("app settings", () => {
         workspaceKey: "/mock-files/vault"
       }
     ]);
+    await expect(listStoredAiAgentSessions("/mock-files/vault", { includeArchived: true })).resolves.toEqual([
+      {
+        archivedAt: 60,
+        createdAt: 3,
+        id: "session-c",
+        messageCount: 2,
+        title: null,
+        titleSource: null,
+        updatedAt: 50,
+        workspaceKey: "/mock-files/vault"
+      },
+      {
+        archivedAt: null,
+        createdAt: 1,
+        id: "session-a",
+        messageCount: 3,
+        title: "First session",
+        titleSource: "ai",
+        updatedAt: 30,
+        workspaceKey: "/mock-files/vault"
+      }
+    ]);
+  });
+
+  it("archives and restores an AI agent session without deleting its file", async () => {
+    const sessionStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/session-a.json") return sessionStore as unknown as Awaited<ReturnType<typeof load>>;
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    sessionStore.get.mockImplementation(async (key) => {
+      if (key === "meta") {
+        return {
+          archivedAt: null,
+          createdAt: 10,
+          id: "session-a",
+          messageCount: 2,
+          title: "Gold audit session",
+          titleSource: "manual",
+          updatedAt: 12,
+          workspaceKey: "/mock-files/vault"
+        };
+      }
+
+      return {
+        draft: "",
+        messages: [
+          { id: 1, role: "user", text: "hello" },
+          { id: 2, role: "assistant", text: "hi" }
+        ],
+        panelOpen: true,
+        panelWidth: 420,
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      };
+    });
+    indexStore.get.mockResolvedValue([
+      {
+        archivedAt: null,
+        createdAt: 10,
+        id: "session-a",
+        messageCount: 2,
+        title: "Gold audit session",
+        titleSource: "manual",
+        updatedAt: 12,
+        workspaceKey: "/mock-files/vault"
+      }
+    ]);
+
+    await setStoredAiAgentSessionArchived("session-a", true);
+
+    expect(sessionStore.set).toHaveBeenCalledWith("meta", expect.objectContaining({
+      archivedAt: expect.any(Number),
+      id: "session-a",
+      title: "Gold audit session"
+    }));
+    expect(indexStore.set).toHaveBeenCalledWith("entries", [
+      expect.objectContaining({
+        archivedAt: expect.any(Number),
+        id: "session-a"
+      })
+    ]);
+
+    await setStoredAiAgentSessionArchived("session-a", false);
+
+    expect(sessionStore.set).toHaveBeenLastCalledWith("meta", expect.objectContaining({
+      archivedAt: null,
+      id: "session-a"
+    }));
   });
 
   it("initializes a blank AI agent session file for a new workspace chat", async () => {
@@ -829,6 +926,137 @@ describe("app settings", () => {
       title: "Gold and XAU pricing audit",
       titleSource: "ai"
     }));
+  });
+
+  it("persists a manually renamed session title and keeps it on later session saves", async () => {
+    const sessionStore = {
+      delete: vi.fn(),
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/session-a.json") return sessionStore as unknown as Awaited<ReturnType<typeof load>>;
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    sessionStore.get.mockImplementation(async (key) => {
+      if (key === "meta") {
+        return {
+          createdAt: 10,
+          id: "session-a",
+          messageCount: 2,
+          title: "fallback title",
+          titleSource: "fallback",
+          updatedAt: 11,
+          workspaceKey: "/mock-files/vault"
+        };
+      }
+
+      return {
+        draft: "",
+        messages: [
+          { id: 1, role: "user", text: "hello" },
+          { id: 2, role: "assistant", text: "hi" }
+        ],
+        panelOpen: true,
+        panelWidth: 420,
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      };
+    });
+    indexStore.get.mockResolvedValue([]);
+
+    await saveStoredAiAgentSessionTitle("session-a", "Gold audit session", {
+      source: "manual",
+      workspaceKey: "/mock-files/vault"
+    });
+
+    sessionStore.get.mockResolvedValue({
+      createdAt: 10,
+      id: "session-a",
+      messageCount: 2,
+      title: "Gold audit session",
+      titleSource: "manual",
+      updatedAt: 12,
+      workspaceKey: "/mock-files/vault"
+    });
+
+    await saveStoredAiAgentSession("session-a", {
+      draft: "",
+      messages: [
+        { id: 1, role: "user", text: "hello" },
+        { id: 2, role: "assistant", text: "hi again" }
+      ],
+      panelOpen: true,
+      panelWidth: 420,
+      thinkingEnabled: false,
+      webSearchEnabled: false
+    }, {
+      workspaceKey: "/mock-files/vault"
+    });
+
+    expect(sessionStore.set).toHaveBeenCalledWith("meta", expect.objectContaining({
+      title: "Gold audit session",
+      titleSource: "manual"
+    }));
+  });
+
+  it("deletes a stored AI agent session and removes it from the session index", async () => {
+    const sessionStore = {
+      delete: vi.fn(),
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/session-a.json") return sessionStore as unknown as Awaited<ReturnType<typeof load>>;
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    indexStore.get.mockResolvedValue([
+      {
+        createdAt: 10,
+        id: "session-a",
+        messageCount: 2,
+        title: "Gold audit session",
+        titleSource: "manual",
+        updatedAt: 12,
+        workspaceKey: "/mock-files/vault"
+      },
+      {
+        createdAt: 11,
+        id: "session-b",
+        messageCount: 1,
+        title: "Another session",
+        titleSource: "fallback",
+        updatedAt: 13,
+        workspaceKey: "/mock-files/vault"
+      }
+    ]);
+
+    await deleteStoredAiAgentSession("session-a");
+
+    expect(sessionStore.delete).toHaveBeenCalledWith("session");
+    expect(sessionStore.delete).toHaveBeenCalledWith("meta");
+    expect(indexStore.set).toHaveBeenCalledWith("entries", [
+      expect.objectContaining({
+        id: "session-b",
+        title: "Another session"
+      })
+    ]);
   });
 
   it("generates a random AI agent session id from crypto when available", () => {

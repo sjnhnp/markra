@@ -6,7 +6,7 @@ export function useAiAgentSessionList(workspaceKey: string | null, refreshKey: s
 
   const refresh = useCallback(async () => {
     try {
-      setSessions(await listStoredAiAgentSessions(workspaceKey));
+      setSessions(await listStoredAiAgentSessions(workspaceKey, { includeArchived: true }));
     } catch {
       setSessions([]);
     }

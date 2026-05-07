@@ -32,7 +32,12 @@ import {
   type AiEditorPreviewActionDetail,
   type AiEditorPreviewRestoreDetail
 } from "./lib/ai/editorPreview";
-import { initializeStoredAiAgentSession } from "./lib/settings/appSettings";
+import {
+  deleteStoredAiAgentSession,
+  initializeStoredAiAgentSession,
+  saveStoredAiAgentSessionTitle,
+  setStoredAiAgentSessionArchived
+} from "./lib/settings/appSettings";
 import { readNativeMarkdownFile } from "./lib/tauri/file";
 import { clampNumber } from "./lib/utils";
 
@@ -207,6 +212,51 @@ export default function App() {
     selectWorkspaceSession(sessionId);
     setAiAgentOpen(true);
   }, [selectWorkspaceSession]);
+  const handleRenameAiAgentSession = useCallback(async (sessionId: string, title: string) => {
+    await saveStoredAiAgentSessionTitle(sessionId, title, {
+      source: "manual",
+      workspaceKey
+    });
+    await aiAgentSessions.refresh();
+  }, [aiAgentSessions, workspaceKey]);
+  const handleDeleteAiAgentSession = useCallback(async (sessionId: string) => {
+    const remainingSessions = aiAgentSessions.sessions.filter(
+      (session) => session.id !== sessionId && session.archivedAt === null
+    );
+
+    await deleteStoredAiAgentSession(sessionId);
+
+    if (sessionId === activeAiAgentSessionId) {
+      if (remainingSessions[0]) {
+        selectWorkspaceSession(remainingSessions[0].id);
+      } else {
+        const nextSessionId = createWorkspaceSession();
+        await initializeStoredAiAgentSession(nextSessionId, workspaceKey);
+      }
+    }
+
+    await aiAgentSessions.refresh();
+    setAiAgentOpen(true);
+  }, [activeAiAgentSessionId, aiAgentSessions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
+  const handleArchiveAiAgentSession = useCallback(async (sessionId: string, archived: boolean) => {
+    const remainingSessions = aiAgentSessions.sessions.filter(
+      (session) => session.id !== sessionId && session.archivedAt === null
+    );
+
+    await setStoredAiAgentSessionArchived(sessionId, archived);
+
+    if (archived && sessionId === activeAiAgentSessionId) {
+      if (remainingSessions[0]) {
+        selectWorkspaceSession(remainingSessions[0].id);
+      } else {
+        const nextSessionId = createWorkspaceSession();
+        await initializeStoredAiAgentSession(nextSessionId, workspaceKey);
+      }
+    }
+
+    await aiAgentSessions.refresh();
+    setAiAgentOpen(true);
+  }, [activeAiAgentSessionId, aiAgentSessions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
   const handleTextSelectionChange = useCallback((selection: AiSelectionContext | null) => {
     updateActiveAiSelection(selection);
 
@@ -419,10 +469,19 @@ export default function App() {
                 maxWidth={aiAgentPanelMaxWidth}
                 minWidth={aiAgentPanelMinWidth}
                 width={aiAgentPanelWidth}
+                onArchiveSession={(sessionId, archived) => {
+                  handleArchiveAiAgentSession(sessionId, archived).catch(() => {});
+                }}
                 onClose={() => setAiAgentOpen(false)}
                 onCreateSession={handleCreateAiAgentSession}
+                onDeleteSession={(sessionId) => {
+                  handleDeleteAiAgentSession(sessionId).catch(() => {});
+                }}
                 onDraftChange={aiAgent.setDraft}
                 onInterrupt={aiAgent.interrupt}
+                onRenameSession={(sessionId, title) => {
+                  handleRenameAiAgentSession(sessionId, title).catch(() => {});
+                }}
                 onResize={setAiAgentPanelWidth}
                 onResizeEnd={() => setAiAgentPanelResizing(false)}
                 onResizeStart={() => setAiAgentPanelResizing(true)}

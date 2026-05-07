@@ -30,10 +30,13 @@ type AiAgentPanelProps = {
   minWidth?: number;
   width?: number;
   sessions?: StoredAiAgentSessionSummary[];
+  onArchiveSession?: (sessionId: string, archived: boolean) => unknown;
   onClose: () => unknown;
   onCreateSession?: () => unknown;
+  onDeleteSession?: (sessionId: string) => unknown;
   onDraftChange?: (value: string) => unknown;
   onInterrupt?: () => unknown;
+  onRenameSession?: (sessionId: string, title: string) => unknown;
   onResize?: (width: number) => unknown;
   onResizeEnd?: () => unknown;
   onResizeStart?: () => unknown;
@@ -66,10 +69,13 @@ export function AiAgentPanel({
   minWidth = defaultMinWidth,
   sessions = [],
   width,
+  onArchiveSession,
   onClose,
   onCreateSession,
+  onDeleteSession,
   onDraftChange,
   onInterrupt,
+  onRenameSession,
   onResize,
   onResizeEnd,
   onResizeStart,
@@ -264,7 +270,10 @@ export function AiAgentPanel({
             activeSessionId={activeSessionId}
             language={language}
             sessions={sessions}
+            onArchiveSession={onArchiveSession}
             onCreateSession={onCreateSession}
+            onDeleteSession={onDeleteSession}
+            onRenameSession={onRenameSession}
             onSelectSession={onSelectSession}
           />
         </div>

@@ -19,6 +19,7 @@ import { openSettingsWindow } from "./lib/tauri/window";
 import {
   createAiAgentSessionId,
   consumeWelcomeDocumentState,
+  deleteStoredAiAgentSession,
   getStoredAiAgentSession,
   getStoredAiAgentSessionSummary,
   getStoredAiSettings,
@@ -35,7 +36,8 @@ import {
   saveStoredEditorPreferences,
   saveStoredLanguage,
   saveStoredTheme,
-  saveStoredWorkspaceState
+  saveStoredWorkspaceState,
+  setStoredAiAgentSessionArchived
 } from "./lib/settings/appSettings";
 import {
   listenAppAiSettingsChanged,
@@ -74,6 +76,7 @@ vi.mock("./lib/tauri/menu", () => ({
 vi.mock("./lib/settings/appSettings", () => ({
   createAiAgentSessionId: vi.fn(),
   consumeWelcomeDocumentState: vi.fn(),
+  deleteStoredAiAgentSession: vi.fn(),
   defaultEditorPreferences: {
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
@@ -98,7 +101,8 @@ vi.mock("./lib/settings/appSettings", () => ({
   saveStoredEditorPreferences: vi.fn(),
   saveStoredLanguage: vi.fn(),
   saveStoredTheme: vi.fn(),
-  saveStoredWorkspaceState: vi.fn()
+  saveStoredWorkspaceState: vi.fn(),
+  setStoredAiAgentSessionArchived: vi.fn()
 }));
 
 vi.mock("./lib/settings/settingsEvents", () => ({
@@ -143,6 +147,7 @@ const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEditorContex
 const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
+const mockedDeleteStoredAiAgentSession = vi.mocked(deleteStoredAiAgentSession);
 const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
 const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
 const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
@@ -160,6 +165,7 @@ const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences)
 const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
 const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
 const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
+const mockedSetStoredAiAgentSessionArchived = vi.mocked(setStoredAiAgentSessionArchived);
 const mockedListenAppAiSettingsChanged = vi.mocked(listenAppAiSettingsChanged);
 const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
 const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
@@ -228,6 +234,7 @@ describe("Markra workspace", () => {
     window.history.pushState({}, "", "/");
     mockedConsumeWelcomeDocumentState.mockReset();
     mockedCreateAiAgentSessionId.mockReset();
+    mockedDeleteStoredAiAgentSession.mockReset();
     mockedInstallNativeMarkdownFileDrop.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
@@ -256,6 +263,7 @@ describe("Markra workspace", () => {
     mockedSaveStoredLanguage.mockReset();
     mockedSaveStoredTheme.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
+    mockedSetStoredAiAgentSessionArchived.mockReset();
     mockedListenAppAiSettingsChanged.mockReset();
     mockedListenAppEditorPreferencesChanged.mockReset();
     mockedListenAppLanguageChanged.mockReset();
@@ -350,12 +358,14 @@ describe("Markra workspace", () => {
     mockedResetWelcomeDocumentState.mockResolvedValue(undefined);
     mockedInitializeStoredAiAgentSession.mockResolvedValue(undefined);
     mockedListStoredAiAgentSessions.mockResolvedValue([]);
+    mockedDeleteStoredAiAgentSession.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentSession.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentSessionTitle.mockResolvedValue(undefined);
     mockedSaveStoredAiSettings.mockResolvedValue(undefined);
     mockedSaveStoredLanguage.mockResolvedValue(undefined);
     mockedSaveStoredTheme.mockResolvedValue(undefined);
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
+    mockedSetStoredAiAgentSessionArchived.mockResolvedValue(undefined);
     mockedListenAppLanguageChanged.mockResolvedValue(() => {});
     mockedListenAppThemeChanged.mockResolvedValue(() => {});
     mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);

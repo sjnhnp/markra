@@ -33,6 +33,8 @@ describe("AiAgentPanel", () => {
   it("shows workspace sessions in the header menu and lets us switch or create one", () => {
     const selectSession = vi.fn();
     const createSession = vi.fn();
+    const renameSession = vi.fn();
+    const deleteSession = vi.fn();
 
     render(
       <AiAgentPanel
@@ -41,6 +43,7 @@ describe("AiAgentPanel", () => {
         open
         sessions={[
           {
+            archivedAt: null,
             createdAt: 1,
             id: "session-a",
             messageCount: 3,
@@ -50,6 +53,7 @@ describe("AiAgentPanel", () => {
             workspaceKey: "/vault"
           },
           {
+            archivedAt: null,
             createdAt: 2,
             id: "session-b",
             messageCount: 1,
@@ -61,6 +65,8 @@ describe("AiAgentPanel", () => {
         ]}
         onClose={() => {}}
         onCreateSession={createSession}
+        onDeleteSession={deleteSession}
+        onRenameSession={renameSession}
         onSelectSession={selectSession}
       />
     );
@@ -78,6 +84,97 @@ describe("AiAgentPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "New session" }));
     expect(createSession).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rename session Summarize API changes" }));
+    const renameInput = screen.getByRole("textbox", { name: "Rename session input" });
+    fireEvent.change(renameInput, { target: { value: "Investigate gold price mismatch" } });
+    fireEvent.keyDown(renameInput, { key: "Enter" });
+    expect(renameSession).toHaveBeenCalledWith("session-a", "Investigate gold price mismatch");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete session New session" }));
+    const deleteDialog = screen.getByRole("dialog", { name: "Delete this session?" });
+    expect(deleteDialog).toBeInTheDocument();
+    expect(deleteDialog.closest('[role="menu"]')).toBeNull();
+    expect(deleteSession).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel delete New session" }));
+    expect(screen.queryByRole("dialog", { name: "Delete this session?" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete session New session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm delete New session" }));
+    expect(deleteSession).toHaveBeenCalledWith("session-b");
+  });
+
+  it("filters and archives workspace sessions from the header menu", () => {
+    const archiveSession = vi.fn();
+
+    render(
+      <AiAgentPanel
+        activeSessionId="session-a"
+        language="en"
+        open
+        sessions={[
+          {
+            archivedAt: null,
+            createdAt: 1,
+            id: "session-a",
+            messageCount: 3,
+            title: "Gold audit",
+            titleSource: "ai",
+            updatedAt: 30,
+            workspaceKey: "/vault"
+          },
+          {
+            archivedAt: null,
+            createdAt: 2,
+            id: "session-b",
+            messageCount: 1,
+            title: "API review",
+            titleSource: "fallback",
+            updatedAt: 20,
+            workspaceKey: "/vault"
+          },
+          {
+            archivedAt: 40,
+            createdAt: 3,
+            id: "session-c",
+            messageCount: 1,
+            title: "Archived note",
+            titleSource: "manual",
+            updatedAt: 10,
+            workspaceKey: "/vault"
+          }
+        ]}
+        onArchiveSession={archiveSession}
+        onClose={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
+    expect(screen.getByRole("menuitemradio", { name: /Gold audit/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: /API review/i })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemradio", { name: /Archived note/i })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search sessions" }), {
+      target: { value: "api" }
+    });
+
+    expect(screen.queryByRole("menuitemradio", { name: /Gold audit/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: /API review/i })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search sessions" }), {
+      target: { value: "" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Show archived sessions" }));
+    expect(screen.getByRole("menuitemradio", { name: /Archived note/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive session API review" }));
+    expect(archiveSession).toHaveBeenCalledWith("session-b", true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore session Archived note" }));
+    expect(archiveSession).toHaveBeenCalledWith("session-c", false);
   });
 
   it("keeps typed messages in the agent transcript", () => {

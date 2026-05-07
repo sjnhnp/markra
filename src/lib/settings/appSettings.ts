@@ -154,12 +154,19 @@ export async function getStoredAiAgentSessionSummary(sessionId: string | null) {
   return normalizeStoredAiAgentSessionSummary(summary);
 }
 
-export async function listStoredAiAgentSessions(workspaceKey: string | null): Promise<StoredAiAgentSessionSummary[]> {
+export async function listStoredAiAgentSessions(
+  workspaceKey: string | null,
+  options: {
+    includeArchived?: boolean;
+  } = {}
+): Promise<StoredAiAgentSessionSummary[]> {
   const store = await loadAiAgentSessionIndexStore();
   const entries = await store.get<StoredAiAgentSessionSummary[]>(aiAgentSessionIndexKey);
   const normalizedWorkspaceKey = normalizeAiAgentWorkspaceKey(workspaceKey);
 
-  return normalizeStoredAiAgentSessionSummaries(entries).filter((entry) => entry.workspaceKey === normalizedWorkspaceKey);
+  return normalizeStoredAiAgentSessionSummaries(entries)
+    .filter((entry) => entry.workspaceKey === normalizedWorkspaceKey)
+    .filter((entry) => options.includeArchived || entry.archivedAt === null);
 }
 
 export async function initializeStoredAiAgentSession(sessionId: string, workspaceKey: string | null) {
@@ -180,13 +187,15 @@ export async function saveStoredAiAgentSession(
   const existingSummary = normalizeStoredAiAgentSessionSummary(await store.get(aiAgentSessionMetaKey));
   const now = Date.now();
   const fallbackTitle = createAiAgentSessionTitle(normalizedSession);
-  const preserveAiTitle = existingSummary?.titleSource === "ai" && existingSummary.title;
+  const preserveManagedTitle =
+    (existingSummary?.titleSource === "ai" || existingSummary?.titleSource === "manual") && existingSummary.title;
   const summary: StoredAiAgentSessionSummary = {
+    archivedAt: existingSummary?.archivedAt ?? null,
     createdAt: existingSummary?.createdAt ?? now,
     id: sessionId,
     messageCount: normalizedSession.messages.length,
-    title: preserveAiTitle ? existingSummary.title : fallbackTitle,
-    titleSource: preserveAiTitle ? "ai" : fallbackTitle ? "fallback" : null,
+    title: preserveManagedTitle ? existingSummary.title : fallbackTitle,
+    titleSource: preserveManagedTitle ? existingSummary?.titleSource ?? null : fallbackTitle ? "fallback" : null,
     updatedAt: now,
     workspaceKey: normalizeAiAgentWorkspaceKey(options.workspaceKey ?? existingSummary?.workspaceKey)
   };
@@ -207,6 +216,7 @@ export async function saveStoredAiAgentSessionTitle(
   sessionId: string | null,
   title: string | null,
   options: {
+    source?: "ai" | "manual";
     workspaceKey?: string | null;
   } = {}
 ) {
@@ -220,11 +230,12 @@ export async function saveStoredAiAgentSessionTitle(
   const session = normalizeStoredAiAgentSessionState(await store.get<StoredAiAgentSessionState>(aiAgentSessionStateKey));
   const now = Date.now();
   const summary: StoredAiAgentSessionSummary = {
+    archivedAt: existingSummary?.archivedAt ?? null,
     createdAt: existingSummary?.createdAt ?? now,
     id: sessionId,
     messageCount: session.messages.length,
     title: normalizedTitle,
-    titleSource: "ai",
+    titleSource: options.source ?? "ai",
     updatedAt: now,
     workspaceKey: normalizeAiAgentWorkspaceKey(options.workspaceKey ?? existingSummary?.workspaceKey)
   };
@@ -235,6 +246,51 @@ export async function saveStoredAiAgentSessionTitle(
   const indexStore = await loadAiAgentSessionIndexStore();
   const currentEntries = normalizeStoredAiAgentSessionSummaries(await indexStore.get(aiAgentSessionIndexKey));
   const nextEntries = [summary, ...currentEntries.filter((entry) => entry.id !== sessionId)];
+
+  await indexStore.set(aiAgentSessionIndexKey, nextEntries);
+  await indexStore.save();
+}
+
+export async function setStoredAiAgentSessionArchived(sessionId: string | null, archived: boolean) {
+  if (!sessionId?.trim()) return;
+
+  const store = await loadAiAgentSessionStore(sessionId);
+  const existingSummary = normalizeStoredAiAgentSessionSummary(await store.get(aiAgentSessionMetaKey));
+  const session = normalizeStoredAiAgentSessionState(await store.get<StoredAiAgentSessionState>(aiAgentSessionStateKey));
+  const now = Date.now();
+  const summary: StoredAiAgentSessionSummary = {
+    archivedAt: archived ? now : null,
+    createdAt: existingSummary?.createdAt ?? now,
+    id: sessionId,
+    messageCount: session.messages.length,
+    title: existingSummary?.title ?? createAiAgentSessionTitle(session),
+    titleSource: existingSummary?.titleSource ?? (createAiAgentSessionTitle(session) ? "fallback" : null),
+    updatedAt: now,
+    workspaceKey: normalizeAiAgentWorkspaceKey(existingSummary?.workspaceKey)
+  };
+
+  await store.set(aiAgentSessionMetaKey, summary);
+  await store.save();
+
+  const indexStore = await loadAiAgentSessionIndexStore();
+  const currentEntries = normalizeStoredAiAgentSessionSummaries(await indexStore.get(aiAgentSessionIndexKey));
+  const nextEntries = [summary, ...currentEntries.filter((entry) => entry.id !== sessionId)];
+
+  await indexStore.set(aiAgentSessionIndexKey, nextEntries);
+  await indexStore.save();
+}
+
+export async function deleteStoredAiAgentSession(sessionId: string | null) {
+  if (!sessionId?.trim()) return;
+
+  const store = await loadAiAgentSessionStore(sessionId);
+  await store.delete(aiAgentSessionStateKey);
+  await store.delete(aiAgentSessionMetaKey);
+  await store.save();
+
+  const indexStore = await loadAiAgentSessionIndexStore();
+  const currentEntries = normalizeStoredAiAgentSessionSummaries(await indexStore.get(aiAgentSessionIndexKey));
+  const nextEntries = currentEntries.filter((entry) => entry.id !== sessionId);
 
   await indexStore.set(aiAgentSessionIndexKey, nextEntries);
   await indexStore.save();

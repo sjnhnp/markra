@@ -20,11 +20,12 @@ export type StoredAiAgentSessionState = {
 };
 
 export type StoredAiAgentSessionSummary = {
+  archivedAt: number | null;
   createdAt: number;
   id: string;
   messageCount: number;
   title: string | null;
-  titleSource: "ai" | "fallback" | null;
+  titleSource: "ai" | "fallback" | "manual" | null;
   updatedAt: number;
   workspaceKey: string;
 };
@@ -97,12 +98,13 @@ export function normalizeStoredAiAgentSessionSummary(value: unknown): StoredAiAg
   if (typeof value.updatedAt !== "number" || Number.isNaN(value.updatedAt)) return null;
 
   return {
+    archivedAt: typeof value.archivedAt === "number" && !Number.isNaN(value.archivedAt) ? value.archivedAt : null,
     createdAt: value.createdAt,
     id: value.id,
     messageCount: typeof value.messageCount === "number" && value.messageCount >= 0 ? Math.floor(value.messageCount) : 0,
     title: normalizeAiAgentSessionTitle(value.title),
     titleSource:
-      value.titleSource === "ai" || value.titleSource === "fallback"
+      value.titleSource === "ai" || value.titleSource === "fallback" || value.titleSource === "manual"
         ? value.titleSource
         : normalizeAiAgentSessionTitle(value.title)
           ? "fallback"
