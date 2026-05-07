@@ -9,9 +9,12 @@ type DocumentAgentToolContext = {
   documentPath: string | null;
   headingAnchors?: AiHeadingAnchor[];
   onPreviewResult?: (result: AiDiffResult) => unknown;
+  readWorkspaceFile?: (path: string) => Promise<string>;
   selection: AiSelectionContext | null;
   workspaceFiles: AgentWorkspaceFile[];
 };
+
+const workspaceFileReadMaxChars = 24_000;
 
 type DocumentAnchorPlacement =
   | "after_anchor"
@@ -86,6 +89,57 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
       name: "list_workspace_files",
       parameters: Type.Object({
         limit: Type.Optional(Type.Number({ maximum: 200, minimum: 1 }))
+      })
+    },
+    {
+      description:
+        [
+          "Read a Markdown file from the current workspace.",
+          "Call list_workspace_files first, then pass an exact relativePath or exact path from that list.",
+          "This tool cannot read arbitrary paths outside the current Markdown workspace."
+        ].join(" "),
+      execute: async (_toolCallId, params) => {
+        const file = resolveWorkspaceFile(context.workspaceFiles, typedReadWorkspaceFileArgs(params));
+        if (!file) {
+          return toolErrorResult(
+            "Cannot read that file because it is not in the current Markdown workspace. Call list_workspace_files first and pass an exact relativePath or path."
+          );
+        }
+
+        if (!context.readWorkspaceFile) {
+          return toolErrorResult("Workspace file reading is unavailable in this session.");
+        }
+
+        try {
+          const content = await context.readWorkspaceFile(file.path);
+          const readableContent = truncateWorkspaceFileContent(content);
+
+          return {
+            content: [
+              {
+                text: formatWorkspaceFileContentText(file, readableContent.text),
+                type: "text" as const
+              }
+            ],
+            details: {
+              length: content.length,
+              path: file.path,
+              relativePath: file.relativePath,
+              truncated: readableContent.truncated
+            },
+            terminate: false
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown file read error.";
+
+          return toolErrorResult(`Failed to read workspace file "${file.relativePath}": ${message}`);
+        }
+      },
+      label: "Read workspace file",
+      name: "read_workspace_file",
+      parameters: Type.Object({
+        path: Type.Optional(Type.String({ minLength: 1 })),
+        relativePath: Type.Optional(Type.String({ minLength: 1 }))
       })
     },
     {
@@ -595,6 +649,48 @@ function formatWorkspaceFilesText(workspaceFiles: AgentWorkspaceFile[], limit: n
     .join("\n");
 }
 
+function formatWorkspaceFileContentText(file: AgentWorkspaceFile, content: string) {
+  return [
+    `Workspace file: ${file.relativePath}`,
+    "",
+    content.trim().length > 0 ? content : "(empty file)"
+  ].join("\n");
+}
+
+function truncateWorkspaceFileContent(content: string) {
+  if (content.length <= workspaceFileReadMaxChars) {
+    return {
+      text: content,
+      truncated: false
+    };
+  }
+
+  return {
+    text: [
+      content.slice(0, workspaceFileReadMaxChars),
+      "",
+      `[Truncated after ${workspaceFileReadMaxChars} characters.]`
+    ].join("\n"),
+    truncated: true
+  };
+}
+
+function resolveWorkspaceFile(
+  workspaceFiles: AgentWorkspaceFile[],
+  args: ReturnType<typeof typedReadWorkspaceFileArgs>
+) {
+  const requestedRelativePath = args.relativePath?.trim();
+  const requestedPath = args.path?.trim();
+
+  if (!requestedRelativePath && !requestedPath) return null;
+
+  return workspaceFiles.find((file) => {
+    if (requestedRelativePath) return file.relativePath === requestedRelativePath;
+
+    return file.path === requestedPath || file.relativePath === requestedPath;
+  }) ?? null;
+}
+
 function previewPreparedResult(result: AiDiffResult, message: string) {
   return {
     content: [
@@ -822,6 +918,15 @@ function formatLocatedRegionText(located: ReturnType<typeof locateMarkdownRegion
 
 function typedListWorkspaceFilesArgs(params: unknown) {
   return params as { limit?: number };
+}
+
+function typedReadWorkspaceFileArgs(params: unknown) {
+  const args = params as { path?: string; relativePath?: string };
+
+  return {
+    path: args.path?.trim() || undefined,
+    relativePath: args.relativePath?.trim() || undefined
+  };
 }
 
 function typedReplaceSelectionArgs(params: unknown) {

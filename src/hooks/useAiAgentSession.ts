@@ -32,6 +32,7 @@ type AiAgentSessionContext = {
   model: string | null;
   onAiResult?: (result: AiDiffResult) => unknown;
   provider: AiProviderConfig | null;
+  readWorkspaceFile?: (path: string) => Promise<string>;
   settingsLoading: boolean;
   translate?: (key: I18nKey) => string;
   workspaceFiles?: AgentWorkspaceFile[];
@@ -176,6 +177,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         },
         prompt,
         provider: ctx.provider,
+        readWorkspaceFile: ctx.readWorkspaceFile,
         headingAnchors: ctx.getHeadingAnchors?.() ?? [],
         selection: ctx.getSelection?.() ?? null,
         thinkingEnabled,

@@ -156,6 +156,7 @@ const messages: BaseLocaleMessages = {
   "app.aiAgentProcessLocateSection": "Locate section",
   "app.aiAgentProcessReadSelection": "Read current selection",
   "app.aiAgentProcessListWorkspaceFiles": "Inspect workspace files",
+  "app.aiAgentProcessReadWorkspaceFile": "Read workspace file",
   "app.aiAgentProcessReplaceRegion": "Prepare region replacement",
   "app.aiAgentProcessReplaceSection": "Prepare section replacement",
   "app.aiAgentProcessReplaceSelection": "Prepare selection replacement",

@@ -1,6 +1,62 @@
 import { createDocumentAgentTools } from "./documentAgentTools";
 
 describe("documentAgentTools", () => {
+  it("reads a workspace Markdown file by exact relative path", async () => {
+    const readWorkspaceFile = vi.fn(async () => "# Nearby note\n\nUseful context.");
+    const context = {
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      readWorkspaceFile,
+      selection: null,
+      workspaceFiles: [
+        {
+          name: "compare.md",
+          path: "/vault/notes/compare.md",
+          relativePath: "notes/compare.md"
+        }
+      ]
+    };
+    const tool = createDocumentAgentTools(context).find((item) => item.name === "read_workspace_file");
+
+    const result = await tool?.execute("tool_read_workspace_file", {
+      relativePath: "notes/compare.md"
+    });
+
+    expect(readWorkspaceFile).toHaveBeenCalledWith("/vault/notes/compare.md");
+    expect(result?.content[0]?.text).toContain("Workspace file: notes/compare.md");
+    expect(result?.content[0]?.text).toContain("Useful context.");
+  });
+
+  it("rejects workspace file reads outside the known Markdown tree", async () => {
+    const readWorkspaceFile = vi.fn(async () => "secret");
+    const context = {
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      readWorkspaceFile,
+      selection: null,
+      workspaceFiles: [
+        {
+          name: "compare.md",
+          path: "/vault/notes/compare.md",
+          relativePath: "notes/compare.md"
+        }
+      ]
+    };
+    const tool = createDocumentAgentTools(context).find((item) => item.name === "read_workspace_file");
+
+    const result = await tool?.execute("tool_read_workspace_file", {
+      path: "/vault/../private.md"
+    });
+
+    expect(readWorkspaceFile).not.toHaveBeenCalled();
+    expect(result?.details).toEqual({
+      message:
+        "Cannot read that file because it is not in the current Markdown workspace. Call list_workspace_files first and pass an exact relativePath or path."
+    });
+  });
+
   it("returns the current heading outline with editor anchors", async () => {
     const tool = createDocumentAgentTools({
       documentContent: "# Title\n\n## Section\n\nBody",

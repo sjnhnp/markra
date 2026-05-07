@@ -180,6 +180,7 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessLocateSection": "セクションを特定",
   "app.aiAgentProcessReadSelection": "現在の選択範囲を読む",
   "app.aiAgentProcessListWorkspaceFiles": "ワークスペースファイルを確認",
+  "app.aiAgentProcessReadWorkspaceFile": "ワークスペースファイルを読む",
   "app.aiAgentProcessReplaceRegion": "領域の置換を準備",
   "app.aiAgentProcessReplaceSection": "セクションの置換を準備",
   "app.aiAgentProcessReplaceSelection": "選択範囲の置換を準備",

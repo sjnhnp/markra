@@ -149,6 +149,57 @@ describe("useAiAgentSession", () => {
     });
   });
 
+  it("passes the workspace file reader to the document agent runtime", async () => {
+    const readWorkspaceFile = vi.fn(async () => "# Nearby");
+    mockedRunDocumentAiAgent.mockResolvedValue({
+      content: "Done",
+      finishReason: "stop"
+    });
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/README.md",
+        getDocumentContent: () => "# Draft",
+        model: "gpt-5.5",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        readWorkspaceFile,
+        settingsLoading: false,
+        translate: (key) => key,
+        workspaceFiles: [
+          {
+            name: "nearby.md",
+            path: "/vault/nearby.md",
+            relativePath: "nearby.md"
+          }
+        ]
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("Compare nearby notes");
+    });
+
+    expect(mockedRunDocumentAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      readWorkspaceFile,
+      workspaceFiles: [
+        {
+          name: "nearby.md",
+          path: "/vault/nearby.md",
+          relativePath: "nearby.md"
+        }
+      ]
+    }));
+  });
+
   it("records visible agent process steps from runtime events", async () => {
     mockedRunDocumentAiAgent.mockImplementation(async ({ onEvent, onTextDelta }) => {
       onEvent?.({ type: "agent_start" });

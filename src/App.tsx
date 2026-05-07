@@ -31,6 +31,7 @@ import {
   type AiEditorPreviewActionDetail,
   type AiEditorPreviewRestoreDetail
 } from "./lib/ai/editorPreview";
+import { readNativeMarkdownFile } from "./lib/tauri/file";
 
 const aiAgentPanelDefaultWidth = 384;
 const aiAgentPanelMinWidth = 320;
@@ -86,6 +87,11 @@ export default function App() {
     wordCount
   } = markdownDocument;
   const getAiDocumentContent = useCallback(() => editor.getCurrentMarkdown(document.content), [document.content, editor]);
+  const readAiWorkspaceFile = useCallback(async (path: string) => {
+    const file = await readNativeMarkdownFile(path);
+
+    return file.content;
+  }, []);
   const getActiveAiSelection = useCallback(() => activeAiSelectionRef.current, []);
   const updateActiveAiSelection = useCallback((selection: AiSelectionContext | null) => {
     activeAiSelectionRef.current = selection;
@@ -148,6 +154,7 @@ export default function App() {
     model: aiSettings.agentModelId,
     onAiResult: handleAiResult,
     provider: aiSettings.agentProvider,
+    readWorkspaceFile: readAiWorkspaceFile,
     settingsLoading: aiSettings.loading,
     translate,
     workspaceFiles: fileTreeFiles

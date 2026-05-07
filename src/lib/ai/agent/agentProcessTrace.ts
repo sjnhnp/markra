@@ -199,6 +199,11 @@ function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end
   if (event.toolName === "list_workspace_files" && typeof event.result?.details?.count === "number") {
     return `${event.result.details.count} files`;
   }
+  if (event.toolName === "read_workspace_file" && typeof event.result?.details?.relativePath === "string") {
+    const length = typeof event.result.details.length === "number" ? ` · ${event.result.details.length} chars` : "";
+
+    return `${event.result.details.relativePath}${length}`;
+  }
   if (event.toolName === "get_document" && typeof event.result?.details?.length === "number") {
     return `${event.result.details.length} chars`;
   }
@@ -261,6 +266,7 @@ function toolLabelForName(toolName: string, translate: Translate) {
   if (toolName === "locate_section") return translate("app.aiAgentProcessLocateSection");
   if (toolName === "get_selection") return translate("app.aiAgentProcessReadSelection");
   if (toolName === "list_workspace_files") return translate("app.aiAgentProcessListWorkspaceFiles");
+  if (toolName === "read_workspace_file") return translate("app.aiAgentProcessReadWorkspaceFile");
   if (toolName === "replace_region") return translate("app.aiAgentProcessReplaceRegion");
   if (toolName === "replace_section") return translate("app.aiAgentProcessReplaceSection");
   if (toolName === "replace_selection") return translate("app.aiAgentProcessReplaceSelection");

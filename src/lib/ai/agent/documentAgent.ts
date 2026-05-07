@@ -28,6 +28,7 @@ export type RunDocumentAiAgentInput = {
   onThinkingDelta?: (thinking: string) => unknown;
   prompt: string;
   provider: AiProviderConfig;
+  readWorkspaceFile?: (path: string) => Promise<string>;
   selection?: AiSelectionContext | null;
   thinkingEnabled?: boolean;
   webSearchEnabled?: boolean;
@@ -53,6 +54,7 @@ export async function runDocumentAiAgent({
   onThinkingDelta,
   prompt,
   provider,
+  readWorkspaceFile,
   selection = null,
   thinkingEnabled,
   webSearchEnabled = false,
@@ -74,6 +76,7 @@ export async function runDocumentAiAgent({
       onThinkingDelta,
       prompt,
       provider,
+      readWorkspaceFile,
       selection,
       thinkingEnabled,
       webSearchEnabled,
@@ -170,6 +173,7 @@ async function runDocumentToolCallingAgent({
   onThinkingDelta,
   prompt,
   provider,
+  readWorkspaceFile,
   selection = null,
   thinkingEnabled,
   webSearchEnabled = false,
@@ -185,6 +189,7 @@ async function runDocumentToolCallingAgent({
         documentPath,
         headingAnchors,
         onPreviewResult,
+        readWorkspaceFile,
         selection,
         workspaceFiles
       })
@@ -234,6 +239,7 @@ function buildDocumentToolCallingSystemPrompt() {
     "You are Markra AI Agent, a local-first Markdown assistant.",
     "Use the available tools in three stages: inspect, locate, then execute.",
     "Inspect the document and current context first, especially when the user asks you to insert or restructure content.",
+    "When the user asks about nearby notes, call list_workspace_files first, then read_workspace_file for the exact Markdown files you need.",
     "Use locate_markdown_region or get_available_anchors before writing whenever the edit position is not trivially obvious.",
     "Use get_document_sections and locate_section when the user asks to rewrite, delete, move, or regenerate an entire section.",
     "When the request targets a whole section, prefer replace_section or delete_section instead of block-level tools.",
