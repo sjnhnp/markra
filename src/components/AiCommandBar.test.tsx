@@ -136,6 +136,31 @@ describe("AiCommandBar", () => {
     expect(onPromptChange).not.toHaveBeenCalled();
   });
 
+  it("does not submit when Enter confirms an IME composition", () => {
+    const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="zh-CN"
+        open
+        prompt="都有什么ai"
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    const input = screen.getByRole("textbox", { name: "AI 命令" });
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: "Enter", nativeEvent: { isComposing: true, keyCode: 229 } });
+    fireEvent.compositionEnd(input);
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onPromptChange).not.toHaveBeenCalled();
+  });
+
   it("inserts a newline with Ctrl+Enter", () => {
     const onPromptChange = vi.fn();
     const onSubmit = vi.fn();

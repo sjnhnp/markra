@@ -74,6 +74,41 @@ describe("AiAgentPanel", () => {
     expect(input).toHaveValue("");
   });
 
+  it("does not send when Enter confirms an IME composition", () => {
+    function Harness() {
+      const [draft, setDraft] = useState("都有什么ai");
+      const [messages, setMessages] = useState<{ id: number; role: "assistant" | "user"; text: string }[]>([]);
+
+      return (
+        <AiAgentPanel
+          draft={draft}
+          language="zh-CN"
+          messages={messages}
+          open
+          onClose={() => {}}
+          onDraftChange={setDraft}
+          onSubmit={(promptOverride) => {
+            const text = (promptOverride ?? draft).trim();
+            if (!text) return;
+
+            setMessages((currentMessages) => [...currentMessages, { id: currentMessages.length + 1, role: "user", text }]);
+            setDraft("");
+          }}
+        />
+      );
+    }
+
+    render(<Harness />);
+
+    const input = screen.getByRole("textbox", { name: "Agent 消息" });
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: "Enter", nativeEvent: { isComposing: true, keyCode: 229 } });
+    fireEvent.compositionEnd(input);
+
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(input).toHaveValue("都有什么ai");
+  });
+
   it("keeps the transcript scrolled to the newest streamed message", async () => {
     const initialMessage = {
       id: 1,

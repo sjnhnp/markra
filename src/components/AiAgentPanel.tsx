@@ -3,6 +3,7 @@ import { ArrowUp, Bot, BrainCircuit, FileText, Globe2, PencilLine, Sparkles, X }
 import { AiModelPicker, getAiModelOptionValue, type AiModelPickerOption } from "./AiModelPicker";
 import { AiMarkdownMessage } from "./AiMarkdownMessage";
 import { AiAgentProcessList } from "./AiAgentProcessList";
+import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import { t, type AppLanguage, type I18nKey } from "../lib/i18n";
 import type { AiModelCapability, AiProviderApiStyle } from "../lib/settings/appSettings";
 import type { AiAgentPanelMessage } from "../hooks/useAiAgentSession";
@@ -71,6 +72,7 @@ export function AiAgentPanel({
 }: AiAgentPanelProps) {
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
+  const { handleCompositionEnd, handleCompositionStart, isComposingEnter } = useImeInputGuard();
   const label = (key: I18nKey) => t(language, key);
   const resolvedMinWidth = Math.max(240, minWidth);
   const resolvedMaxWidth = Math.max(resolvedMinWidth, maxWidth);
@@ -207,7 +209,7 @@ export function AiAgentPanel({
   };
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    if (event.key !== "Enter" || isComposingEnter(event)) return;
     if (event.ctrlKey) return;
 
     event.preventDefault();
@@ -365,6 +367,8 @@ export function AiAgentPanel({
               aria-label={label("app.aiAgentMessage")}
               readOnly={submitting}
               onChange={(event) => onDraftChange?.(event.target.value)}
+              onCompositionEnd={handleCompositionEnd}
+              onCompositionStart={handleCompositionStart}
               onKeyDown={handleKeyDown}
             />
             <div className="mt-2 flex items-center justify-between gap-3 border-t border-(--border-default) pt-2">

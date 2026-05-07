@@ -20,6 +20,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { AiModelPicker, type AiModelPickerOption } from "./AiModelPicker";
+import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import type { AiDiffResult, AiEditIntent } from "../lib/ai/agent/inlineAi";
 import type { AiProviderApiStyle } from "../lib/settings/appSettings";
 import { t, type AppLanguage, type I18nKey } from "../lib/i18n";
@@ -131,6 +132,7 @@ export function AiCommandBar({
   const [rendered, setRendered] = useState(open);
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const previousSubmittingRef = useRef(submitting);
+  const { handleCompositionEnd, handleCompositionStart, isComposingEnter } = useImeInputGuard();
   const label = (key: I18nKey) => t(language, key);
   const canSubmit = prompt.trim().length > 0 && !submitting;
   const closing = commandState === "closing";
@@ -345,7 +347,7 @@ export function AiCommandBar({
   };
 
   const handlePromptKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    if (event.key !== "Enter" || isComposingEnter(event)) return;
 
     event.preventDefault();
     if (event.ctrlKey) {
@@ -460,6 +462,8 @@ export function AiCommandBar({
             rows={showExpandedInput ? 2 : 1}
             onClick={expandCommand}
             onChange={(event) => handlePromptChange(event.target.value)}
+            onCompositionEnd={handleCompositionEnd}
+            onCompositionStart={handleCompositionStart}
             onFocus={expandCommand}
             onKeyDown={handlePromptKeyDown}
             aria-label={label("app.aiCommandInput")}
