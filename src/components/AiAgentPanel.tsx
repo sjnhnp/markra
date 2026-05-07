@@ -272,9 +272,14 @@ export function AiAgentPanel({
         <span className="pointer-events-none absolute top-2 bottom-2 left-0 w-px rounded-full bg-transparent transition-colors duration-150 ease-out" />
       </div>
       <header className="relative z-20 min-h-12 shrink-0 border-b border-(--border-default) px-2 py-1.5">
-        <span className="absolute top-1.5 left-2 inline-flex size-8 items-center justify-center text-(--text-secondary)">
+        <button
+          className="absolute top-1.5 left-2 inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+          type="button"
+          aria-label={label("app.collapseAiAgent")}
+          onClick={onClose}
+        >
           <Bot aria-hidden="true" size={15} />
-        </span>
+        </button>
         <div className="absolute top-1.5 right-10 z-30">
           <AiAgentSessionMenu
             activeSessionId={activeSessionId}

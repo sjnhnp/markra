@@ -1,4 +1,4 @@
-import { Bot, FileText, FolderOpen, Moon, PanelLeft, Save, Sun } from "lucide-react";
+import { Bot, FileText, FolderOpen, Moon, PanelLeft, Save, SquarePen, Sun } from "lucide-react";
 import type { ResolvedAppTheme } from "../lib/settings/appSettings";
 import { t, type AppLanguage } from "../lib/i18n";
 
@@ -10,7 +10,11 @@ type NativeTitleBarProps = {
   documentName: string;
   language?: AppLanguage;
   markdownFilesOpen: boolean;
+  markdownFilesResizing?: boolean;
+  markdownFilesWidth?: number;
+  quickCreateMarkdownFileVisible?: boolean;
   theme: ResolvedAppTheme;
+  onCreateMarkdownFile?: () => unknown;
   onOpenMarkdown: () => unknown;
   onSaveMarkdown: () => unknown;
   onToggleAiAgent: () => unknown;
@@ -26,7 +30,11 @@ export function NativeTitleBar({
   documentName,
   language = "en",
   markdownFilesOpen,
+  markdownFilesResizing = false,
+  markdownFilesWidth = 288,
+  quickCreateMarkdownFileVisible = false,
   theme,
+  onCreateMarkdownFile,
   onOpenMarkdown,
   onSaveMarkdown,
   onToggleAiAgent,
@@ -35,14 +43,20 @@ export function NativeTitleBar({
 }: NativeTitleBarProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
+  const editorLeftInset = markdownFilesOpen ? markdownFilesWidth : 0;
+  const editorRightInset = aiAgentOpen ? aiAgentWidth : 0;
+  const titleOffset = (editorLeftInset - editorRightInset) / 2;
+  const titleTransform = titleOffset === 0 ? undefined : `translateX(${titleOffset}px)`;
+  const titleResizing = aiAgentResizing || markdownFilesResizing;
+  const showQuickCreateMarkdownFile = quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
 
   return (
     <header
-      className="native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[132px_minmax(0,1fr)_164px] select-none items-center [-webkit-user-select:none]"
+      className="native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[164px_minmax(0,1fr)_164px] select-none items-center [-webkit-user-select:none]"
       aria-label={label("app.windowDragRegion")}
       data-tauri-drag-region
     >
-      <div className="titlebar-spacer flex h-10 items-center pl-22" data-tauri-drag-region>
+      <div className="titlebar-spacer relative z-20 flex h-10 items-center gap-1 pl-22" data-tauri-drag-region>
         <button
           className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) opacity-55 transition-[background-color,color,opacity] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100 focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:opacity-100 focus-visible:outline-none"
           type="button"
@@ -52,10 +66,23 @@ export function NativeTitleBar({
         >
           <PanelLeft aria-hidden="true" size={15} />
         </button>
+        {showQuickCreateMarkdownFile ? (
+          <button
+            className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) opacity-55 transition-[background-color,color,opacity] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100 focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:opacity-100 focus-visible:outline-none"
+            type="button"
+            aria-label={label("app.newMarkdownFile")}
+            onClick={onCreateMarkdownFile}
+          >
+            <SquarePen aria-hidden="true" size={15} />
+          </button>
+        ) : null}
       </div>
       <h1
-        className="native-title m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary)"
+        className={`native-title pointer-events-none m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary) motion-reduce:transition-none ${
+          titleResizing ? "transition-none" : "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        }`}
         data-tauri-drag-region
+        style={{ transform: titleTransform }}
       >
         <FileText aria-hidden="true" size={15} />
         <span className="min-w-0 truncate" data-tauri-drag-region>
@@ -66,7 +93,7 @@ export function NativeTitleBar({
         ) : null}
       </h1>
       <div
-        className={`document-actions flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
+        className={`document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
           aiAgentResizing
             ? "transition-none"
             : "transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"

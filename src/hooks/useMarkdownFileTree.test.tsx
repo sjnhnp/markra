@@ -40,11 +40,27 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
     <section>
       <p data-testid="root-name">{tree.rootNameForDocument(currentPath)}</p>
       <p data-testid="open-state">{tree.open ? "open" : "closed"}</p>
+      <p data-testid="tree-width">{tree.width}</p>
+      <p data-testid="tree-resizing">{tree.resizing ? "resizing" : "idle"}</p>
+      <p data-testid="layout-class">{tree.workspaceLayoutClassName}</p>
+      <p data-testid="layout-columns">{tree.workspaceLayoutStyle.gridTemplateColumns}</p>
       <button type="button" onClick={tree.openMarkdownFolder}>
         Open folder
       </button>
       <button type="button" onClick={() => tree.toggle(currentPath)}>
         Toggle
+      </button>
+      <button type="button" onClick={() => tree.resize(512)}>
+        Resize wide
+      </button>
+      <button type="button" onClick={() => tree.resize(120)}>
+        Resize narrow
+      </button>
+      <button type="button" onClick={tree.startResize}>
+        Start resize
+      </button>
+      <button type="button" onClick={tree.endResize}>
+        End resize
       </button>
       <button type="button" onClick={() => tree.createFile("Daily note")}>
         Create
@@ -142,6 +158,44 @@ describe("useMarkdownFileTree", () => {
     expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
     expect(screen.getByTestId("open-state")).toHaveTextContent("open");
     expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({ fileTreeOpen: true });
+  });
+
+  it("tracks a resizable markdown tree width for the workspace layout", async () => {
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
+
+    render(<FileTreeProbe currentPath="/vault/readme.md" />);
+
+    expect(screen.getByTestId("tree-width")).toHaveTextContent("288");
+    expect(screen.getByTestId("layout-columns")).toHaveTextContent("0px minmax(0,1fr)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault/readme.md"));
+    expect(screen.getByTestId("layout-columns")).toHaveTextContent("288px minmax(0,1fr)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Resize wide" }));
+
+    expect(screen.getByTestId("tree-width")).toHaveTextContent("440");
+    expect(screen.getByTestId("layout-columns")).toHaveTextContent("440px minmax(0,1fr)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Resize narrow" }));
+
+    expect(screen.getByTestId("tree-width")).toHaveTextContent("220");
+    expect(screen.getByTestId("layout-columns")).toHaveTextContent("220px minmax(0,1fr)");
+  });
+
+  it("disables layout transitions while the markdown tree is being resized", () => {
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start resize" }));
+
+    expect(screen.getByTestId("tree-resizing")).toHaveTextContent("resizing");
+    expect(screen.getByTestId("layout-class")).toHaveTextContent("transition-none");
+
+    fireEvent.click(screen.getByRole("button", { name: "End resize" }));
+
+    expect(screen.getByTestId("tree-resizing")).toHaveTextContent("idle");
+    expect(screen.getByTestId("layout-class")).toHaveTextContent("transition-[grid-template-columns]");
   });
 
   it("creates folders, creates files, renames files, and deletes files through native markdown tree operations", async () => {

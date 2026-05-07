@@ -107,6 +107,17 @@ export function useMarkdownDocument({
     setDocument((current) => (current.content === content ? current : { ...current, content, dirty: true }));
   }, []);
 
+  const createBlankDocument = useCallback(() => {
+    setDocument((current) => ({
+      path: null,
+      name: "Untitled.md",
+      content: "",
+      dirty: true,
+      revision: current.revision + 1
+    }));
+    persistWorkspaceState({ filePath: null });
+  }, []);
+
   const applyNativeMarkdownFile = useCallback(
     (file: NativeMarkdownFile, updateTreeRoot = true, preferredSessionId?: string | null) => {
       const sessionId = updateTreeRoot
@@ -378,6 +389,7 @@ export function useMarkdownDocument({
   }, [document.path]);
 
   return {
+    createBlankDocument,
     createWorkspaceSession,
     detachDeletedDocumentFile,
     document,

@@ -433,7 +433,7 @@ describe("Markra workspace", () => {
   });
 
   it("opens settings from the lower-left settings launcher", async () => {
-    render(<App />);
+    const { container } = render(<App />);
 
     await screen.findByText("Welcome to Markra");
 
@@ -490,7 +490,7 @@ describe("Markra workspace", () => {
   });
 
   it("restores the pending AI suggestion without reopening the command input when an applied suggestion is undone", async () => {
-    render(<App />);
+    const { container } = render(<App />);
 
     await screen.findByText("Welcome to Markra");
 
@@ -943,7 +943,9 @@ describe("Markra workspace", () => {
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("complementary", { name: "Markdown file tree" })).not.toHaveClass("fixed");
-    expect(container.querySelector(".workspace-layout")).toHaveClass("grid-cols-[18rem_minmax(0,1fr)]");
+    expect(container.querySelector(".workspace-layout")).toHaveStyle({
+      gridTemplateColumns: "288px minmax(0,1fr)"
+    });
     expect(container.querySelector(".workspace-layout")).toHaveClass("transition-[grid-template-columns]");
     expect(container.querySelector(".file-tree-scroll")).toHaveClass("overscroll-none");
     expect(screen.getByText("Files")).toBeInTheDocument();
@@ -952,6 +954,65 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "docs" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByRole("button", { name: "native.md" })).toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("button", { name: "docs/guide.md" })).not.toBeInTheDocument();
+  });
+
+  it("resizes the left markdown file tree from its right edge", async () => {
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "native.md", path: mockNativePath, relativePath: "native.md" }
+    ]);
+
+    const { container } = render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+
+    const resizeHandle = await screen.findByRole("separator", { name: "Resize Markdown files" });
+
+    fireEvent.pointerDown(resizeHandle, { clientX: 288, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 360 });
+    fireEvent.pointerMove(window, { clientX: 680 });
+    fireEvent.pointerMove(window, { clientX: 100 });
+    fireEvent.pointerUp(window);
+
+    expect(container.querySelector(".workspace-layout")).toHaveStyle({
+      gridTemplateColumns: "220px minmax(0,1fr)"
+    });
+    expect(container.querySelector(".native-title")).toHaveStyle({ transform: "translateX(110px)" });
+    expect(resizeHandle).toHaveAttribute("aria-valuemin", "220");
+    expect(resizeHandle).toHaveAttribute("aria-valuemax", "440");
+    expect(resizeHandle).toHaveAttribute("aria-valuenow", "220");
+  });
+
+  it("removes the markdown file tree hit area when the sidebar is collapsed", async () => {
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "native.md", path: mockNativePath, relativePath: "native.md" }
+    ]);
+
+    const { container } = render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+    fireEvent.click(toggle);
+    expect(screen.getByRole("complementary", { name: "Markdown file tree" })).toHaveAttribute("aria-hidden", "false");
+
+    fireEvent.click(toggle);
+
+    expect(container.querySelector(".markdown-file-tree")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("separator", { name: "Resize Markdown files" })).not.toBeInTheDocument();
+    expect(container.querySelector('[role="separator"][aria-label="Resize Markdown files"]')).not.toBeInTheDocument();
   });
 
   it("opens a markdown folder from the shared Cmd+O open picker", async () => {
@@ -1037,6 +1098,43 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "native.md" })).toBeInTheDocument();
     expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalledWith(guidePath);
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
+  });
+
+  it("quick opens an unsaved blank markdown document from the titlebar while the file tree is collapsed", async () => {
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "Untitled.md",
+      path: mockUntitledPath
+    });
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "New file" }));
+
+    expect(mockedCreateNativeMarkdownTreeFile).not.toHaveBeenCalled();
+    expect(mockedSaveNativeMarkdownFile).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: /Untitled\.md/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.queryByText("Native file")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Markdown" }));
+
+    await waitFor(() =>
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: null,
+          suggestedName: "Untitled.md"
+        })
+      )
+    );
   });
 
   it("switches the sidebar top-left action to a document outline view", async () => {

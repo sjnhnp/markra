@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/appSettings";
 import {
   createNativeMarkdownTreeFile,
@@ -9,7 +9,11 @@ import {
   renameNativeMarkdownTreeFile,
   type NativeMarkdownFolderFile
 } from "../lib/tauri/file";
-import { folderNameFromDocumentPath, pathNameFromPath } from "../lib/utils";
+import { clampNumber, folderNameFromDocumentPath, pathNameFromPath } from "../lib/utils";
+
+export const markdownFileTreeDefaultWidth = 288;
+export const markdownFileTreeMinWidth = 220;
+export const markdownFileTreeMaxWidth = 440;
 
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
   saveStoredWorkspaceState(patch).catch(() => {});
@@ -24,9 +28,31 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
   const [rootName, setRootName] = useState("No folder");
   const [sourcePath, setSourcePath] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const workspaceLayoutClassName = open
-    ? "workspace-layout grid h-full min-h-0 grid-cols-[18rem_minmax(0,1fr)] overflow-hidden transition-[grid-template-columns] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
-    : "workspace-layout grid h-full min-h-0 grid-cols-[0rem_minmax(0,1fr)] overflow-hidden transition-[grid-template-columns] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]";
+  const [width, setWidth] = useState(markdownFileTreeDefaultWidth);
+  const [resizing, setResizing] = useState(false);
+  const workspaceLayoutClassName = `workspace-layout grid h-full min-h-0 overflow-hidden ${
+    resizing
+      ? "transition-none"
+      : "transition-[grid-template-columns] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+  }`;
+  const workspaceLayoutStyle = {
+    gridTemplateColumns: open ? `${width}px minmax(0,1fr)` : "0px minmax(0,1fr)"
+  } satisfies CSSProperties;
+
+  const resize = useCallback((nextWidth: number) => {
+    const clampedWidth = clampNumber(nextWidth, markdownFileTreeMinWidth, markdownFileTreeMaxWidth);
+    if (clampedWidth === null) return;
+
+    setWidth(clampedWidth);
+  }, []);
+
+  const startResize = useCallback(() => {
+    setResizing(true);
+  }, []);
+
+  const endResize = useCallback(() => {
+    setResizing(false);
+  }, []);
 
   const refresh = useCallback(
     async (fallbackPath: string | null = null) => {
@@ -148,6 +174,10 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     createFolder,
     deleteFile,
     files,
+    resizing,
+    width,
+    maxWidth: markdownFileTreeMaxWidth,
+    minWidth: markdownFileTreeMinWidth,
     open,
     openFolderPath,
     rootNameForDocument,
@@ -155,7 +185,11 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     sourcePath,
     openMarkdownFolder,
     renameFile,
+    resize,
+    endResize,
+    startResize,
     toggle,
-    workspaceLayoutClassName
+    workspaceLayoutClassName,
+    workspaceLayoutStyle
   };
 }

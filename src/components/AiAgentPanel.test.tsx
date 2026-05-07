@@ -42,6 +42,27 @@ describe("AiAgentPanel", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("collapses the agent panel from the leading bot button", () => {
+    const close = vi.fn();
+    const { container } = render(
+      <AiAgentPanel
+        language="en"
+        modelName="GPT-5.5"
+        open
+        providerName="OpenAI"
+        onClose={close}
+      />
+    );
+
+    const collapseButton = screen.getByRole("button", { name: "Collapse AI Agent" });
+
+    expect(collapseButton).toContainElement(container.querySelector(".lucide-bot"));
+
+    fireEvent.click(collapseButton);
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("shows workspace sessions in the header menu and lets us switch or create one", async () => {
     const selectSession = vi.fn();
     const createSession = vi.fn();

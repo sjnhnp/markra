@@ -94,10 +94,18 @@ export default function App() {
     openFolderPath,
     openMarkdownFolder,
     renameFile: renameMarkdownTreeFile,
+    resizing: fileTreeResizing,
+    resize: resizeFileTree,
+    endResize: endFileTreeResize,
     rootNameForDocument,
     setRootFromMarkdownFilePath,
+    startResize: startFileTreeResize,
     toggle: toggleFileTree,
-    workspaceLayoutClassName
+    width: fileTreeWidth,
+    maxWidth: fileTreeMaxWidth,
+    minWidth: fileTreeMinWidth,
+    workspaceLayoutClassName,
+    workspaceLayoutStyle
   } = fileTree;
   const markdownDocument = useMarkdownDocument({
     getCurrentMarkdown: editor.getCurrentMarkdown,
@@ -108,6 +116,7 @@ export default function App() {
     restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup
   });
   const {
+    createBlankDocument,
     createWorkspaceSession,
     detachDeletedDocumentFile,
     document,
@@ -360,6 +369,9 @@ export default function App() {
       // Native file errors are surfaced by the platform operation when possible.
     }
   }, [createMarkdownTreeFile, openTreeMarkdownFile]);
+  const handleQuickCreateMarkdownTreeFile = useCallback(() => {
+    createBlankDocument();
+  }, [createBlankDocument]);
   const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string) => {
     try {
       await createMarkdownTreeFolder(folderName);
@@ -477,7 +489,11 @@ export default function App() {
           documentName={document.name}
           language={appLanguage.language}
           markdownFilesOpen={fileTreeOpen}
+          markdownFilesResizing={fileTreeResizing}
+          markdownFilesWidth={fileTreeWidth}
+          quickCreateMarkdownFileVisible={!fileTreeOpen}
           theme={appTheme.resolvedTheme}
+          onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
           onOpenMarkdown={openMarkdownFile}
           onSaveMarkdown={handleSaveClick}
           onToggleAiAgent={handleAiAgentToggle}
@@ -487,21 +503,27 @@ export default function App() {
 
         <span className="screen-reader-title sr-only">{document.name}</span>
 
-        <div className={workspaceLayoutClassName}>
+        <div className={workspaceLayoutClassName} style={workspaceLayoutStyle}>
           <div className="markdown-file-tree-slot min-h-0 overflow-hidden">
             <MarkdownFileTreeDrawer
               currentPath={document.path}
               files={fileTreeFiles}
               language={appLanguage.language}
-              open
+              maxWidth={fileTreeMaxWidth}
+              minWidth={fileTreeMinWidth}
+              open={fileTreeOpen}
               outlineItems={outlineItems}
               rootName={fileTreeRootName}
+              width={fileTreeWidth}
               onCreateFile={handleCreateMarkdownTreeFile}
               onCreateFolder={handleCreateMarkdownTreeFolder}
               onDeleteFile={handleDeleteMarkdownTreeFile}
               onOpenFile={openTreeMarkdownFile}
               onOpenSettings={handleOpenSettings}
               onRenameFile={handleRenameMarkdownTreeFile}
+              onResize={resizeFileTree}
+              onResizeEnd={endFileTreeResize}
+              onResizeStart={startFileTreeResize}
               onSelectOutlineItem={editor.selectOutlineItem}
             />
           </div>
@@ -578,7 +600,7 @@ export default function App() {
         <AiCommandBar
           aiResult={aiResult}
           availableModels={aiSettings.availableTextModels}
-          editorLeftInset={fileTreeOpen ? "18rem" : "0px"}
+          editorLeftInset={fileTreeOpen ? `${fileTreeWidth}px` : "0px"}
           editorRightInset={aiAgentInset}
           language={appLanguage.language}
           open={aiCommand.open && (hasActiveAiSelection || Boolean(aiResult))}

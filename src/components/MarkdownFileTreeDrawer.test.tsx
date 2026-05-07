@@ -88,10 +88,12 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(sidebar).toBeInTheDocument();
     expect(sidebar).not.toHaveClass("fixed");
     expect(sidebar).toHaveClass("transition-[transform,opacity]", "translate-x-0", "opacity-100");
+    expect(sidebar).toHaveClass("bg-(--bg-secondary)");
     expect(screen.getByText("Files")).toBeInTheDocument();
     expect(screen.getByText("Obsidian Vault")).toBeInTheDocument();
     expect(folder).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: "deploy/deploy.md" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Untitled.md" })).toHaveClass("aria-[current=page]:border-l-[3px]");
     expect(screen.getByRole("button", { name: "Untitled.md" })).toHaveAttribute("aria-current", "page");
     expect(container.querySelector('[role="tree"]')).toBeInTheDocument();
 

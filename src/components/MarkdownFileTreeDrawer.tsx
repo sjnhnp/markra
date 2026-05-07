@@ -1,4 +1,12 @@
-import { useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent
+} from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -14,20 +22,27 @@ import { t, type AppLanguage } from "../lib/i18n";
 import type { MarkdownOutlineItem } from "../lib/markdown/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/tauri/file";
 import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri/menu";
+import { clampNumber } from "../lib/utils";
 
 type MarkdownFileTreeDrawerProps = {
   currentPath: string | null;
   files: NativeMarkdownFolderFile[];
   language?: AppLanguage;
+  maxWidth?: number;
+  minWidth?: number;
   open: boolean;
   outlineItems: MarkdownOutlineItem[];
   rootName: string;
+  width?: number;
   onCreateFile?: (fileName: string) => unknown | Promise<unknown>;
   onCreateFolder?: (folderName: string) => unknown | Promise<unknown>;
   onDeleteFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onOpenFile: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onOpenSettings?: () => unknown | Promise<unknown>;
   onRenameFile?: (file: NativeMarkdownFolderFile, fileName: string) => unknown | Promise<unknown>;
+  onResize?: (width: number) => unknown;
+  onResizeEnd?: () => unknown;
+  onResizeStart?: () => unknown;
   onSelectOutlineItem: (item: MarkdownOutlineItem, index: number) => unknown;
 };
 
@@ -129,17 +144,24 @@ export function MarkdownFileTreeDrawer({
   currentPath,
   files,
   language = "en",
+  maxWidth = 440,
+  minWidth = 220,
   open,
   outlineItems,
   rootName,
+  width = 288,
   onCreateFile,
   onCreateFolder,
   onDeleteFile,
   onOpenFile,
   onOpenSettings = () => {},
   onRenameFile,
+  onResize,
+  onResizeEnd,
+  onResizeStart,
   onSelectOutlineItem
 }: MarkdownFileTreeDrawerProps) {
+  const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
   const [viewMode, setViewMode] = useState<"files" | "outline">("files");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -156,6 +178,16 @@ export function MarkdownFileTreeDrawer({
   const drawerStateClass = open
     ? "translate-x-0 opacity-100"
     : "pointer-events-none -translate-x-4 opacity-0";
+  const resolvedMinWidth = Math.max(160, minWidth);
+  const resolvedMaxWidth = Math.max(resolvedMinWidth, maxWidth);
+  const resolvedWidth = clampNumber(width, resolvedMinWidth, resolvedMaxWidth);
+
+  useEffect(() => {
+    return () => {
+      resizeCleanupRef.current?.();
+      resizeCleanupRef.current = null;
+    };
+  }, []);
 
   const toggleFolder = (relativePath: string) => {
     setExpandedFolders((current) => {
@@ -251,6 +283,79 @@ export function MarkdownFileTreeDrawer({
       language,
       file
     ).catch(() => {});
+  };
+
+  const resizeDrawer = (nextWidth: number | null) => {
+    if (nextWidth === null) return;
+    onResize?.(nextWidth);
+  };
+
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!onResize || resolvedWidth === null) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const startX = event.clientX;
+    const startWidth = resolvedWidth;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    onResizeStart?.();
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      resizeDrawer(clampNumber(startWidth + moveEvent.clientX - startX, resolvedMinWidth, resolvedMaxWidth));
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      resizeCleanupRef.current = null;
+      onResizeEnd?.();
+    };
+
+    const handlePointerUp = () => {
+      cleanup();
+    };
+
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = cleanup;
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+  };
+
+  const handleResizeKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!onResize || resolvedWidth === null) return;
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      resizeDrawer(clampNumber(resolvedWidth - 24, resolvedMinWidth, resolvedMaxWidth));
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      resizeDrawer(clampNumber(resolvedWidth + 24, resolvedMinWidth, resolvedMaxWidth));
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      resizeDrawer(resolvedMinWidth);
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      resizeDrawer(resolvedMaxWidth);
+    }
   };
 
   const renderNodes = (nodes: TreeNode[], depth = 0, treeLabel = label("app.markdownFiles")) => (
@@ -357,11 +462,28 @@ export function MarkdownFileTreeDrawer({
       </button>
 
       <aside
-        className={`markdown-file-tree flex h-full min-h-0 w-72 flex-col border-r border-(--border-default) bg-(--bg-secondary) pt-10 will-change-transform transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}
+        className={`markdown-file-tree relative flex h-full min-h-0 w-full flex-col border-r border-(--border-default) bg-(--bg-secondary) pt-10 will-change-transform transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}
         aria-label={label("app.markdownFileTree")}
         aria-hidden={!open}
         inert={!open}
+        style={resolvedWidth === null ? undefined : { maxWidth: resolvedWidth, minWidth: resolvedWidth, width: resolvedWidth }}
       >
+        {open && onResize && resolvedWidth !== null ? (
+          <div
+            className="absolute inset-y-0 right-0 z-30 w-2 cursor-col-resize touch-none outline-none hover:[&>span]:bg-(--accent) focus-visible:[&>span]:bg-(--accent)"
+            role="separator"
+            tabIndex={0}
+            aria-label={label("app.resizeMarkdownFiles")}
+            aria-orientation="vertical"
+            aria-valuemin={resolvedMinWidth}
+            aria-valuemax={resolvedMaxWidth}
+            aria-valuenow={resolvedWidth}
+            onKeyDown={handleResizeKeyDown}
+            onPointerDown={handleResizePointerDown}
+          >
+            <span className="pointer-events-none absolute top-2 right-0 bottom-2 w-px rounded-full bg-transparent transition-colors duration-150 ease-out" />
+          </div>
+        ) : null}
         <div className="grid h-10 grid-cols-[40px_minmax(0,1fr)_40px] items-center border-b border-(--border-default)">
           <button
             className="inline-flex size-10 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
