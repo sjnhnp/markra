@@ -74,6 +74,47 @@ describe("AiAgentPanel", () => {
     expect(input).toHaveValue("");
   });
 
+  it("keeps the transcript scrolled to the newest streamed message", async () => {
+    const initialMessage = {
+      id: 1,
+      role: "assistant" as const,
+      text: "First chunk"
+    };
+    const { rerender } = render(
+      <AiAgentPanel
+        language="en"
+        messages={[initialMessage]}
+        open
+        status="streaming"
+        onClose={() => {}}
+      />
+    );
+    const transcript = screen.getByRole("log", { name: "AI Agent" });
+
+    Object.defineProperty(transcript, "scrollHeight", {
+      configurable: true,
+      value: 640
+    });
+    transcript.scrollTop = 12;
+
+    rerender(
+      <AiAgentPanel
+        language="en"
+        messages={[
+          {
+            ...initialMessage,
+            text: "First chunk plus the streamed ending"
+          }
+        ]}
+        open
+        status="streaming"
+        onClose={() => {}}
+      />
+    );
+
+    await waitFor(() => expect(transcript.scrollTop).toBe(640));
+  });
+
   it("keeps the composer text aligned without a leading icon column", () => {
     const { container } = render(
       <AiAgentPanel

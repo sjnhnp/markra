@@ -70,6 +70,7 @@ export function AiAgentPanel({
   onToggleWebSearch
 }: AiAgentPanelProps) {
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
+  const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
   const label = (key: I18nKey) => t(language, key);
   const resolvedMinWidth = Math.max(240, minWidth);
   const resolvedMaxWidth = Math.max(resolvedMinWidth, maxWidth);
@@ -116,6 +117,15 @@ export function AiAgentPanel({
       resizeCleanupRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const transcript = transcriptScrollRef.current;
+    if (!transcript) return;
+
+    transcript.scrollTop = transcript.scrollHeight;
+  }, [messages, open, status]);
 
   const resizePanel = (nextWidth: number | null) => {
     if (nextWidth === null) return;
@@ -269,7 +279,12 @@ export function AiAgentPanel({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="min-h-0 flex-1 overflow-auto overscroll-none px-3 py-3">
+        <div
+          className="min-h-0 flex-1 overflow-auto overscroll-none px-3 py-3"
+          ref={transcriptScrollRef}
+          role="log"
+          aria-label={label("app.aiAgent")}
+        >
           {messages.length === 0 ? (
             <div className="grid gap-3">
               <div className="px-1 py-2">
