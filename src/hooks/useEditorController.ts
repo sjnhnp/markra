@@ -112,6 +112,45 @@ export function readAiTableAnchorsFromView(view: EditorView): AiDocumentAnchor[]
   return anchors;
 }
 
+export function readAiSectionAnchorsFromView(view: EditorView): AiDocumentAnchor[] {
+  const headings: Array<{ from: number; level: number; title: string; to: number }> = [];
+
+  view.state.doc.descendants((node, position) => {
+    if (node.type.name !== "heading") return true;
+
+    headings.push({
+      from: position,
+      level: Number(node.attrs.level ?? 1),
+      title: node.textContent.trim(),
+      to: position + node.nodeSize
+    });
+
+    return true;
+  });
+
+  return headings.map((heading, index) => {
+    let sectionEnd = view.state.doc.content.size;
+
+    for (let nextIndex = index + 1; nextIndex < headings.length; nextIndex += 1) {
+      const nextHeading = headings[nextIndex]!;
+      if (nextHeading.level <= heading.level) {
+        sectionEnd = nextHeading.from;
+        break;
+      }
+    }
+
+    return {
+      description: `Section ${heading.title}`,
+      from: heading.from,
+      id: `section:${index}`,
+      kind: "section" as const,
+      text: view.state.doc.textBetween(heading.from, sectionEnd, "\n"),
+      title: heading.title,
+      to: sectionEnd
+    };
+  });
+}
+
 function tableNodeToMarkdown(tableNode: ProseNode) {
   const rows: string[][] = [];
 
@@ -223,6 +262,17 @@ export function useEditorController() {
     }
   }, []);
 
+  const getSectionAnchors = useCallback((): AiDocumentAnchor[] => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return [];
+
+      return readAiSectionAnchorsFromView(view);
+    } catch {
+      return [];
+    }
+  }, []);
+
   const getDocumentEndPosition = useCallback(() => {
     try {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
@@ -314,10 +364,12 @@ export function useEditorController() {
 
   const previewAiResult = useCallback((result: AiDiffResult, labels?: AiEditorPreviewLabels) => {
     try {
-      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
-      if (!view) return;
+      const editor = editorRef.current;
+      if (!editor) return;
 
-      showAiEditorPreview(view, result, labels);
+      const view = editor.action((ctx) => ctx.get(editorViewCtx));
+      const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+      showAiEditorPreview(view, result, labels, { parseMarkdown });
     } catch {
       // AI preview is a visual affordance. Failing to draw it should not block the command flow.
     }
@@ -417,6 +469,7 @@ export function useEditorController() {
     getHeadingAnchors,
     getCurrentMarkdown,
     getSelection,
+    getSectionAnchors,
     getTableAnchors,
     handleEditorReady,
     holdAiSelection,

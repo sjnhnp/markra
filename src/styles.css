@@ -387,6 +387,8 @@
     text-decoration: inherit;
     text-transform: inherit;
     white-space: normal;
+    isolation: isolate;
+    z-index: 30;
   }
 
   .markdown-paper .markra-ai-preview-widget-block {
@@ -424,11 +426,23 @@
     white-space: pre-wrap;
   }
 
+  .markdown-paper .markra-ai-preview-insert-rendered {
+    @apply block min-w-0 overflow-x-auto;
+    font-weight: initial;
+    text-decoration: none;
+    white-space: normal;
+  }
+
+  .markdown-paper .markra-ai-preview-insert-rendered table {
+    @apply my-0;
+  }
+
   .markdown-paper .markra-ai-preview-actions {
-    @apply absolute right-0 bottom-[calc(100%+6px)] z-20 inline-flex items-center gap-0.5 rounded-md border border-(--border-default) bg-(--bg-primary) p-0.5 shadow-[var(--ai-preview-action-shadow)];
+    @apply absolute right-0 bottom-[calc(100%+6px)] inline-flex items-center gap-0.5 rounded-md border border-(--border-default) bg-(--bg-primary) p-0.5 shadow-[var(--ai-preview-action-shadow)];
     font-size: 12px;
     line-height: 1;
     white-space: nowrap;
+    z-index: 60;
   }
 
   .markdown-paper .markra-ai-preview-actions-quiet {

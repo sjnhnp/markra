@@ -10,6 +10,7 @@ type DocumentAgentToolContext = {
   headingAnchors?: AiHeadingAnchor[];
   onPreviewResult?: (result: AiDiffResult) => unknown;
   readWorkspaceFile?: (path: string) => Promise<string>;
+  sectionAnchors?: AiDocumentAnchor[];
   selection: AiSelectionContext | null;
   tableAnchors?: AiDocumentAnchor[];
   workspaceFiles: AgentWorkspaceFile[];
@@ -634,6 +635,8 @@ function documentTableAnchors(context: DocumentAgentToolContext): AiDocumentAnch
 }
 
 function buildSectionAnchors(context: DocumentAgentToolContext): AiDocumentAnchor[] {
+  if (context.sectionAnchors) return context.sectionAnchors;
+
   const headings = [...(context.headingAnchors ?? [])].sort((left, right) => left.from - right.from);
   const anchors: AiDocumentAnchor[] = [];
 
@@ -829,7 +832,10 @@ function beginPreparedWrite(
   }
 
   const requireEditableContext = options.requireEditableContext !== false;
-  const hasStructuralAnchor = (context.headingAnchors ?? []).length > 0 || documentTableAnchors(context).length > 0;
+  const hasStructuralAnchor =
+    (context.headingAnchors ?? []).length > 0 ||
+    buildSectionAnchors(context).length > 0 ||
+    documentTableAnchors(context).length > 0;
 
   if (requireEditableContext && mode !== "insert" && !context.selection?.text.trim() && !hasStructuralAnchor) {
     return {

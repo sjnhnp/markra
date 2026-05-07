@@ -238,6 +238,54 @@ describe("useAiAgentSession", () => {
     }));
   });
 
+  it("passes editor section anchors to the document agent runtime", async () => {
+    const sectionAnchors = [
+      {
+        description: "Section Section Alpha",
+        from: 42,
+        id: "section:0",
+        kind: "section" as const,
+        text: "Section Alpha\n\nSynthetic body",
+        title: "Section Alpha",
+        to: 91
+      }
+    ];
+    mockedRunDocumentAiAgent.mockResolvedValue({
+      content: "Done",
+      finishReason: "stop"
+    });
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/example.md",
+        getDocumentContent: () => "# Section Alpha\n\nSynthetic body",
+        getSectionAnchors: () => sectionAnchors,
+        model: "gpt-5.5",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        settingsLoading: false,
+        translate: (key) => key,
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("Rewrite the synthetic section");
+    });
+
+    expect(mockedRunDocumentAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      sectionAnchors
+    }));
+  });
+
   it("does not turn a prepared editor preview into an empty-response error", async () => {
     const onAiResult = vi.fn();
     mockedRunDocumentAiAgent.mockImplementation(async ({ onPreviewResult }) => {

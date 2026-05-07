@@ -38,6 +38,7 @@ export type RunDocumentAiAgentInput = {
   prompt: string;
   provider: AiProviderConfig;
   readWorkspaceFile?: (path: string) => Promise<string>;
+  sectionAnchors?: AiDocumentAnchor[];
   selection?: AiSelectionContext | null;
   tableAnchors?: AiDocumentAnchor[];
   thinkingEnabled?: boolean;
@@ -66,6 +67,7 @@ export async function runDocumentAiAgent({
   prompt,
   provider,
   readWorkspaceFile,
+  sectionAnchors,
   selection = null,
   tableAnchors,
   thinkingEnabled,
@@ -89,6 +91,7 @@ export async function runDocumentAiAgent({
       prompt,
       provider,
       readWorkspaceFile,
+      sectionAnchors,
       selection,
       tableAnchors,
       thinkingEnabled,
@@ -187,6 +190,7 @@ async function runDocumentToolCallingAgent({
   prompt,
   provider,
   readWorkspaceFile,
+  sectionAnchors,
   selection = null,
   tableAnchors,
   thinkingEnabled,
@@ -223,6 +227,7 @@ async function runDocumentToolCallingAgent({
           onPreviewResult?.(result);
         },
         readWorkspaceFile,
+        sectionAnchors,
         selection,
         tableAnchors,
         workspaceFiles

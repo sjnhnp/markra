@@ -1,4 +1,4 @@
-import { Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
+import { DOMSerializer, Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, TextSelection, type Transaction } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
@@ -43,12 +43,17 @@ type AiEditorPreviewMeta =
   | {
       kind: "show";
       labels?: AiEditorPreviewLabels;
+      renderedReplacementHtml?: string;
       result: AiDiffResult;
     };
 
 type AiTextDiffResult = Extract<AiDiffResult, { type: "insert" | "replace" }>;
 
 type ApplyAiEditorResultOptions = {
+  parseMarkdown?: (markdown: string) => ProseNode;
+};
+
+type ShowAiEditorPreviewOptions = {
   parseMarkdown?: (markdown: string) => ProseNode;
 };
 
@@ -59,6 +64,7 @@ type AppliedTransactionResult = {
 
 type AiEditorPreviewSnapshot = {
   labels?: AiEditorPreviewLabels;
+  renderedReplacementHtml?: string;
   result: AiTextDiffResult;
 };
 
@@ -74,10 +80,18 @@ const emptyPreviewState: AiEditorPreviewState = {
   decorations: DecorationSet.empty
 };
 
-export function showAiEditorPreview(view: EditorView, result: AiDiffResult, labels?: AiEditorPreviewLabels) {
+export function showAiEditorPreview(
+  view: EditorView,
+  result: AiDiffResult,
+  labels?: AiEditorPreviewLabels,
+  options: ShowAiEditorPreviewOptions = {}
+) {
   const docSize = view.state.doc.content.size;
   const from = result.type === "error" ? null : clampNumber(result.from, 0, docSize);
   const to = result.type === "error" ? null : clampNumber(result.to, 0, docSize);
+  const renderedReplacementHtml = isTextDiffResult(result)
+    ? renderMarkdownPreviewHtml(result.replacement, options.parseMarkdown)
+    : undefined;
   const appendPosition =
     result.type === "error" || from === null || to === null
       ? null
@@ -85,6 +99,7 @@ export function showAiEditorPreview(view: EditorView, result: AiDiffResult, labe
   const transaction = view.state.tr.setMeta(aiEditorPreviewKey, {
     kind: "show",
     labels,
+    renderedReplacementHtml,
     result
   } satisfies AiEditorPreviewMeta);
 
@@ -215,7 +230,8 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
                 decorations: buildAiPreviewDecorations(
                   transaction.doc,
                   previewState.dismissed.result,
-                  previewState.dismissed.labels
+                  previewState.dismissed.labels,
+                  previewState.dismissed.renderedReplacementHtml
                 ),
                 pending: previewState.dismissed
               }
@@ -224,9 +240,15 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
         if (meta?.result.type === "error") return emptyPreviewState;
         if (meta?.kind === "show" && isTextDiffResult(meta.result)) {
           return {
-            decorations: buildAiPreviewDecorations(transaction.doc, meta.result, meta.labels),
+            decorations: buildAiPreviewDecorations(
+              transaction.doc,
+              meta.result,
+              meta.labels,
+              meta.renderedReplacementHtml
+            ),
             pending: {
               labels: meta.labels,
+              renderedReplacementHtml: meta.renderedReplacementHtml,
               result: meta.result
             }
           };
@@ -235,6 +257,7 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
           return {
             applied: {
               labels: meta.labels ?? previewState.pending?.labels,
+              renderedReplacementHtml: previewState.pending?.renderedReplacementHtml,
               result: meta.result
             },
             decorations: DecorationSet.empty
@@ -257,7 +280,8 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
                 decorations: buildAiPreviewDecorations(
                   transaction.doc,
                   previewState.applied.result,
-                  previewState.applied.labels
+                  previewState.applied.labels,
+                  previewState.applied.renderedReplacementHtml
                 ),
                 pending: previewState.applied
               };
@@ -294,7 +318,8 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
 function buildAiPreviewDecorations(
   doc: ProseNode,
   result: AiTextDiffResult,
-  labels: AiEditorPreviewLabels = defaultLabels
+  labels: AiEditorPreviewLabels = defaultLabels,
+  renderedReplacementHtml?: string
 ) {
   const docSize = doc.content.size;
   const from = clampNumber(result.from, 0, docSize);
@@ -303,7 +328,7 @@ function buildAiPreviewDecorations(
   const appendPosition = findPreviewAppendPosition(doc, result, from, to);
 
   const decorations = [
-    Decoration.widget(appendPosition, () => createPreviewWidget(result, labels, { docSize, from, to }), {
+    Decoration.widget(appendPosition, () => createPreviewWidget(result, labels, { docSize, from, to }, renderedReplacementHtml), {
       key: `markra-ai-preview-insert-${from}-${to}-${previewKeySegment(result.replacement)}`,
       stopEvent: (event) => event.target instanceof Node && isPreviewWidgetEventTarget(event.target),
       side: -1
@@ -349,7 +374,12 @@ type PreviewScopeContext = {
   to: number;
 };
 
-function createPreviewWidget(result: AiTextDiffResult, labels: AiEditorPreviewLabels, scopeContext: PreviewScopeContext) {
+function createPreviewWidget(
+  result: AiTextDiffResult,
+  labels: AiEditorPreviewLabels,
+  scopeContext: PreviewScopeContext,
+  renderedReplacementHtml?: string
+) {
   const preview = document.createElement("span");
   preview.className = shouldTreatReplacementAsBlockMarkdown(result.replacement)
     ? "markra-ai-preview-widget markra-ai-preview-widget-block"
@@ -361,8 +391,14 @@ function createPreviewWidget(result: AiTextDiffResult, labels: AiEditorPreviewLa
   scope.textContent = formatPreviewScope(result, labels, scopeContext);
 
   const inserted = document.createElement("span");
-  inserted.className = "markra-ai-preview-insert";
-  inserted.textContent = result.replacement;
+  inserted.className = renderedReplacementHtml
+    ? "markra-ai-preview-insert markra-ai-preview-insert-rendered"
+    : "markra-ai-preview-insert";
+  if (renderedReplacementHtml) {
+    inserted.innerHTML = renderedReplacementHtml;
+  } else {
+    inserted.textContent = result.replacement;
+  }
 
   const toolbar = document.createElement("span");
   toolbar.className = "markra-ai-preview-actions markra-ai-preview-actions-quiet";
@@ -550,6 +586,36 @@ function isPreviewWidgetEventTarget(target: Node) {
 
 function isTextDiffResult(result: AiDiffResult): result is AiTextDiffResult {
   return result.type === "insert" || result.type === "replace";
+}
+
+function renderMarkdownPreviewHtml(
+  markdown: string,
+  parseMarkdown: ((markdown: string) => ProseNode) | undefined
+) {
+  if (!parseMarkdown || typeof document === "undefined") return undefined;
+
+  try {
+    const parsedDocument = parseMarkdown(markdown);
+    const serializer = DOMSerializer.fromSchema(parsedDocument.type.schema);
+    const fragment = shouldTreatReplacementAsBlockMarkdown(markdown)
+      ? parsedDocument.content
+      : inlinePreviewContent(parsedDocument);
+    const container = document.createElement("span");
+    container.append(serializer.serializeFragment(fragment, { document }));
+
+    return container.innerHTML;
+  } catch {
+    return undefined;
+  }
+}
+
+function inlinePreviewContent(parsedDocument: ProseNode) {
+  if (parsedDocument.childCount === 1) {
+    const firstChild = parsedDocument.child(0);
+    if (firstChild.type.name === "paragraph") return firstChild.content;
+  }
+
+  return parsedDocument.content;
 }
 
 function applyParsedMarkdownReplacement(

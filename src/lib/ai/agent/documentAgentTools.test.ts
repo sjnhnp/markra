@@ -693,6 +693,45 @@ describe("documentAgentTools", () => {
     }));
   });
 
+  it("uses provided editor section anchor text and positions for section replacement previews", async () => {
+    const onPreviewResult = vi.fn();
+    const replacement = "## Section Alpha\n\nNew synthetic body";
+    const sectionText = "Section Alpha\n\nOld synthetic body";
+    const tool = createDocumentAgentTools({
+      documentContent: "# Section Alpha\n\nOld synthetic body",
+      documentEndPosition: 120,
+      documentPath: "/vault/example.md",
+      headingAnchors: [],
+      onPreviewResult,
+      sectionAnchors: [
+        {
+          description: "Section Section Alpha",
+          from: 42,
+          id: "section:0",
+          kind: "section",
+          text: sectionText,
+          title: "Section Alpha",
+          to: 91
+        }
+      ],
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_section");
+
+    await tool?.execute("tool_replace_section", {
+      anchorId: "section:0",
+      replacement
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 42,
+      original: sectionText,
+      replacement,
+      to: 91,
+      type: "replace"
+    });
+  });
+
   it("does not expose legacy selection-only write tools", () => {
     const toolNames = createDocumentAgentTools({
       documentContent: "# Title",

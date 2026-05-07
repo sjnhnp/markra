@@ -12,7 +12,11 @@ import {
   clearAiEditorPreview,
   showAiEditorPreview
 } from "../lib/ai/editorPreview";
-import { readAiSelectionContextFromView, readAiTableAnchorsFromView } from "../hooks/useEditorController";
+import {
+  readAiSectionAnchorsFromView,
+  readAiSelectionContextFromView,
+  readAiTableAnchorsFromView
+} from "../hooks/useEditorController";
 import type { AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import { clearAiSelectionHold, showAiSelectionHold } from "../lib/ai/selectionHold";
 
@@ -461,18 +465,61 @@ describe("MarkdownPaper editing", () => {
       to: tableAnchor?.to,
       type: "replace" as const
     };
-    showAiEditorPreview(view, result);
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+    showAiEditorPreview(view, result, undefined, { parseMarkdown });
 
     const insertedPreview = container.querySelector(".ProseMirror .markra-ai-preview-insert");
     expect(insertedPreview).toHaveTextContent("new-token");
+    expect(insertedPreview?.querySelector("table")).toBeInTheDocument();
+    expect(insertedPreview?.textContent).not.toContain("| Field |");
     expect(insertedPreview?.closest("td,th")).toBeNull();
 
-    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
     expect(applyAiEditorResult(view, result, { parseMarkdown })).toBe(true);
     expect(container.querySelector(".ProseMirror table")).toHaveTextContent("new-token");
     expect(container.querySelector(".ProseMirror table")).not.toHaveTextContent("old-token");
 
     await settleMarkdownListener();
+  });
+
+  it("reads section anchors from editor document positions", async () => {
+    const { view } = await renderEditor([
+      "# Section Alpha",
+      "",
+      "Alpha body",
+      "",
+      "## Section Beta",
+      "",
+      "Beta body",
+      "",
+      "# Section Gamma",
+      "",
+      "Gamma body"
+    ].join("\n"));
+
+    const sections = readAiSectionAnchorsFromView(view);
+
+    expect(sections[0]).toEqual(expect.objectContaining({
+      from: 0,
+      id: "section:0",
+      kind: "section",
+      text: expect.stringContaining("Alpha body"),
+      title: "Section Alpha"
+    }));
+    expect(sections[0]?.text).toContain("Section Beta");
+    expect(sections[0]?.text).not.toContain("Section Gamma");
+    expect(sections[1]).toEqual(expect.objectContaining({
+      id: "section:1",
+      kind: "section",
+      text: expect.stringContaining("Beta body"),
+      title: "Section Beta"
+    }));
+    expect(sections[2]).toEqual(expect.objectContaining({
+      id: "section:2",
+      kind: "section",
+      text: expect.stringContaining("Gamma body"),
+      title: "Section Gamma"
+    }));
+    expect(sections[0]?.to).toBe(sections[2]?.from);
   });
 
   it("keeps an applied block markdown preview cleared when the replacement still contains the original heading text", async () => {

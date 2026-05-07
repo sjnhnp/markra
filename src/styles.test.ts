@@ -29,6 +29,14 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .markra-ai-preview-widget:focus-within .markra-ai-preview-actions-quiet");
   });
 
+  it("keeps AI preview action controls above nearby Markdown content", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain("isolation: isolate");
+    expect(styles).toContain("z-index: 30");
+    expect(styles).toContain("z-index: 60");
+  });
+
   it("includes the inline AI loading shimmer used by compact quick actions", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

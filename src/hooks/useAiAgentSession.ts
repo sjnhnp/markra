@@ -33,6 +33,7 @@ type AiAgentSessionContext = {
   getDocumentContent: () => string;
   getDocumentEndPosition?: () => number;
   getHeadingAnchors?: () => AiHeadingAnchor[];
+  getSectionAnchors?: () => AiDocumentAnchor[];
   getSelection?: () => AiSelectionContext | null;
   getTableAnchors?: () => AiDocumentAnchor[];
   model: string | null;
@@ -369,6 +370,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         provider: ctx.provider,
         readWorkspaceFile: ctx.readWorkspaceFile,
         headingAnchors: ctx.getHeadingAnchors?.() ?? [],
+        sectionAnchors: ctx.getSectionAnchors?.(),
         selection: ctx.getSelection?.() ?? null,
         tableAnchors: ctx.getTableAnchors?.(),
         thinkingEnabled,

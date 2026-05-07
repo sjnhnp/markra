@@ -199,6 +199,7 @@ export default function App() {
     getDocumentContent: getAiDocumentContent,
     getDocumentEndPosition: editor.getDocumentEndPosition,
     getHeadingAnchors: editor.getHeadingAnchors,
+    getSectionAnchors: editor.getSectionAnchors,
     getSelection: getActiveAiSelection,
     getTableAnchors: editor.getTableAnchors,
     model: aiSettings.agentModelId,
