@@ -172,6 +172,18 @@ export async function confirmNativeMarkdownFileDelete(
   });
 }
 
+export async function confirmNativeUnsavedMarkdownDocumentDiscard(
+  fileName: string,
+  labels: { cancelLabel: string; message: string; okLabel: string }
+) {
+  return confirm(labels.message, {
+    cancelLabel: labels.cancelLabel,
+    kind: "warning",
+    okLabel: labels.okLabel,
+    title: fileName
+  });
+}
+
 export async function openNativeMarkdownFileInNewWindow(path: string) {
   await invoke("open_markdown_file_in_new_window", { path });
 }

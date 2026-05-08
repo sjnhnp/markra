@@ -180,6 +180,7 @@ describe("document AI agent", () => {
   it("guides the tool-calling agent to use table-specific replacement for table edits", async () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages[0]?.content).toContain("replace_table");
+      expect(messages[0]?.content).toContain("replace_block");
       expect(messages[0]?.content).toContain("table anchor");
 
       return {

@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import {
   confirmNativeMarkdownFileDelete,
+  confirmNativeUnsavedMarkdownDocumentDiscard,
   createNativeMarkdownTreeFile,
   createNativeMarkdownTreeFolder,
   deleteNativeMarkdownTreeFile,
@@ -249,6 +250,25 @@ describe("native file access", () => {
       kind: "warning",
       okLabel: "Confirm",
       title: "README.md"
+    });
+  });
+
+  it("asks for native confirmation before discarding unsaved markdown changes", async () => {
+    mockedConfirm.mockResolvedValue(true);
+
+    await expect(
+      confirmNativeUnsavedMarkdownDocumentDiscard("draft.md", {
+        cancelLabel: "Cancel",
+        message: "Discard unsaved changes?",
+        okLabel: "Discard"
+      })
+    ).resolves.toBe(true);
+
+    expect(mockedConfirm).toHaveBeenCalledWith("Discard unsaved changes?", {
+      cancelLabel: "Cancel",
+      kind: "warning",
+      okLabel: "Discard",
+      title: "draft.md"
     });
   });
 

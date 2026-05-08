@@ -42,6 +42,7 @@ function isPristineUntitledDocument(document: DocumentState) {
 }
 
 type UseMarkdownDocumentOptions = {
+  confirmDiscardUnsavedChanges?: (document: DocumentState) => boolean | Promise<boolean>;
   getCurrentMarkdown: (fallbackContent: string) => string;
   onTreeRootFromFolderPath: (path: string, name: string, sessionId?: string | null) => unknown;
   onTreeRootFromFilePath: (path: string) => unknown;
@@ -55,6 +56,7 @@ function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState
 }
 
 export function useMarkdownDocument({
+  confirmDiscardUnsavedChanges,
   getCurrentMarkdown,
   onTreeRootFromFolderPath,
   onTreeRootFromFilePath,
@@ -103,11 +105,28 @@ export function useMarkdownDocument({
     return getCurrentMarkdown(current.content);
   }, [getCurrentMarkdown]);
 
+  const hasDiscardableUnsavedChanges = useCallback(() => {
+    const current = documentRef.current;
+    const editorMarkdown = currentMarkdown();
+    if (!current.dirty) {
+      return editorMarkdown.trim() !== current.content.trim() && (current.path !== null || editorMarkdown.trim().length > 0);
+    }
+    if (current.path) return true;
+
+    return editorMarkdown.trim().length > 0;
+  }, [currentMarkdown]);
+
+  const confirmCanDiscardCurrentDocument = useCallback(() => {
+    if (!hasDiscardableUnsavedChanges()) return true;
+
+    return confirmDiscardUnsavedChanges?.(documentRef.current) ?? true;
+  }, [confirmDiscardUnsavedChanges, hasDiscardableUnsavedChanges]);
+
   const handleMarkdownChange = useCallback((content: string) => {
     setDocument((current) => (current.content === content ? current : { ...current, content, dirty: true }));
   }, []);
 
-  const createBlankDocument = useCallback(() => {
+  const resetToBlankDocument = useCallback(() => {
     setDocument((current) => ({
       path: null,
       name: "Untitled.md",
@@ -116,7 +135,23 @@ export function useMarkdownDocument({
       revision: current.revision + 1
     }));
     persistWorkspaceState({ filePath: null });
+    return true;
   }, []);
+
+  const createBlankDocument = useCallback(() => {
+    const canDiscard = confirmCanDiscardCurrentDocument();
+    if (typeof canDiscard === "boolean") {
+      if (!canDiscard) return Promise.resolve(false);
+
+      return Promise.resolve(resetToBlankDocument());
+    }
+
+    return canDiscard.then((confirmed) => {
+      if (!confirmed) return false;
+
+      return resetToBlankDocument();
+    });
+  }, [confirmCanDiscardCurrentDocument, resetToBlankDocument]);
 
   const applyNativeMarkdownFile = useCallback(
     (file: NativeMarkdownFile, updateTreeRoot = true, preferredSessionId?: string | null) => {
@@ -155,23 +190,32 @@ export function useMarkdownDocument({
     if (!target) return;
 
     if (target.kind === "folder") {
+      const canDiscard = await confirmCanDiscardCurrentDocument();
+      if (!canDiscard) return;
+
       const sessionId = resolveWorkspaceSessionId();
       onTreeRootFromFolderPath(target.folder.path, target.folder.name, sessionId);
       return;
     }
 
+    const canDiscard = await confirmCanDiscardCurrentDocument();
+    if (!canDiscard) return;
+
     applyNativeMarkdownFile(target.file);
-  }, [applyNativeMarkdownFile, onTreeRootFromFolderPath, resolveWorkspaceSessionId]);
+  }, [applyNativeMarkdownFile, confirmCanDiscardCurrentDocument, onTreeRootFromFolderPath, resolveWorkspaceSessionId]);
 
   const openTreeMarkdownFile = useCallback(
     async (file: NativeMarkdownFolderFile) => {
       try {
+        const canDiscard = await confirmCanDiscardCurrentDocument();
+        if (!canDiscard) return;
+
         await loadNativeMarkdownPath(file.path, false);
       } catch {
         // Missing or moved files should leave the tree available for another choice.
       }
     },
-    [loadNativeMarkdownPath]
+    [confirmCanDiscardCurrentDocument, loadNativeMarkdownPath]
   );
 
   const replaceOpenDocumentFile = useCallback((previousPath: string, file: NativeMarkdownFolderFile) => {
@@ -259,6 +303,20 @@ export function useMarkdownDocument({
     const title = document.dirty ? `${document.name} *` : document.name;
     setNativeWindowTitle(title);
   }, [document.name, document.dirty]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasDiscardableUnsavedChanges()) return;
+
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [hasDiscardableUnsavedChanges]);
 
   useEffect(() => {
     const path = initialMarkdownFilePath();
@@ -391,6 +449,7 @@ export function useMarkdownDocument({
   return {
     createBlankDocument,
     createWorkspaceSession,
+    confirmCanDiscardCurrentDocument,
     detachDeletedDocumentFile,
     document,
     handleDroppedMarkdownPath,

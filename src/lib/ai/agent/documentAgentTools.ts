@@ -313,6 +313,46 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
     {
       description:
         [
+          "Replace one concrete Markdown block with new Markdown.",
+          "Use this for the current paragraph, list item, heading block, or other non-table block when the user targets a single block.",
+          "Do not use this for tables, full sections, or the whole document; use replace_table, replace_section, or replace_document instead."
+        ].join(" "),
+      execute: async (_toolCallId, params) => {
+        const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "replace");
+        if ("error" in writeCheck) return writeCheck.error;
+
+        const args = typedReplaceBlockArgs(params);
+        const block = resolveBlockRegion(context, args.anchorId);
+        if ("error" in block) return block.error;
+        const fitCheck = ensureReplacementFitsRegion(context, block.anchorId, args.replacement, block.region);
+        if ("error" in fitCheck) return fitCheck.error;
+
+        hasPreparedWrite = true;
+        const result: AiDiffResult = {
+          from: block.region.from,
+          original: block.region.original,
+          replacement: args.replacement,
+          target: block.region.target,
+          to: block.region.to,
+          type: "replace"
+        };
+        context.onPreviewResult?.(result);
+
+        return previewPreparedResult(
+          result,
+          "Prepared a block replacement preview for the resolved block."
+        );
+      },
+      label: "Replace block",
+      name: "replace_block",
+      parameters: Type.Object({
+        anchorId: Type.Optional(Type.String()),
+        replacement: Type.String({ minLength: 1 })
+      })
+    },
+    {
+      description:
+        [
           "Replace the active selection, current block, or a resolved anchor with new Markdown.",
           "Use this when the user asks you to rewrite or fix existing content.",
           "Do not use this for complete table replacement; use replace_table with a table anchor instead.",
@@ -896,6 +936,101 @@ function resolveWriteRegion(
   };
 }
 
+function resolveBlockRegion(
+  context: DocumentAgentToolContext,
+  anchorId: string | undefined
+): {
+  anchorId: string;
+  error: AgentToolResult<{ message: string }>;
+} | {
+  anchorId: string;
+  region: { from: number; original: string; target: AiDiffTarget; to: number };
+} {
+  if (!anchorId) {
+    if (!context.selection?.text.trim()) {
+      return {
+        anchorId: "current-context",
+        error: toolErrorResult(
+          "Cannot replace a block because there is no current editor block. Resolve a concrete block or heading anchor first."
+        )
+      };
+    }
+
+    if (context.selection.source !== "block") {
+      return {
+        anchorId: "current-context",
+        error: toolErrorResult(
+          "Cannot replace a block because the current editor context is an inline selection. Use replace_region for inline selection edits."
+        )
+      };
+    }
+
+    const target: AiDiffTarget = {
+      from: context.selection.from,
+      id: "current-context",
+      kind: "current_block",
+      title: summarizeAnchorTitle(context.selection.text),
+      to: context.selection.to
+    };
+
+    return {
+      anchorId: "current-context",
+      region: {
+        from: context.selection.from,
+        original: context.selection.text,
+        target,
+        to: context.selection.to
+      }
+    };
+  }
+
+  const anchor = buildDocumentAnchors(context).find((candidate) => candidate.id === anchorId);
+  if (!anchor) {
+    return {
+      anchorId,
+      error: toolErrorResult(`Cannot replace a block because the anchor "${anchorId}" was not found.`)
+    };
+  }
+
+  if (anchor.kind === "table") {
+    return {
+      anchorId,
+      error: toolErrorResult("Cannot replace a table anchor with replace_block. Use replace_table with a table anchor.")
+    };
+  }
+
+  if (anchor.kind === "section") {
+    return {
+      anchorId,
+      error: toolErrorResult("Cannot replace a section anchor with replace_block. Use replace_section with a section anchor.")
+    };
+  }
+
+  if (anchor.kind === "document") {
+    return {
+      anchorId,
+      error: toolErrorResult("Cannot replace the whole-document anchor with replace_block. Use replace_document instead.")
+    };
+  }
+
+  if (anchor.kind === "document_end") {
+    return {
+      anchorId,
+      error: toolErrorResult("Cannot replace the document-end anchor with replace_block. Resolve a concrete block or heading instead.")
+    };
+  }
+
+  return {
+    anchorId,
+    region: {
+      from: anchor.from,
+      original: anchor.text ?? sliceDocumentText(context.documentContent, anchor.from, anchor.to),
+      target: diffTargetFromAnchor(anchor),
+      to: anchor.to
+    }
+  };
+}
+
 function diffTargetFromAnchor(anchor: AiDocumentAnchor): AiDiffTarget {
   return {
     from: anchor.from,
@@ -1125,6 +1260,15 @@ function typedReplaceDocumentArgs(params: unknown) {
 
 function typedReplaceRegionArgs(params: unknown) {
   return params as { anchorId?: string; replacement: string };
+}
+
+function typedReplaceBlockArgs(params: unknown) {
+  const args = params as { anchorId?: string; replacement: string };
+
+  return {
+    anchorId: args.anchorId?.trim() || undefined,
+    replacement: args.replacement
+  };
 }
 
 function typedReplaceTableArgs(params: unknown) {

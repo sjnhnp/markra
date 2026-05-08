@@ -1,5 +1,12 @@
-import { useEffect, useRef, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { ArrowUp, Bot, BrainCircuit, FileText, Globe2, PencilLine, Sparkles, X } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent
+} from "react";
+import { ArrowUp, Bot, BrainCircuit, ChevronDown, FileText, Globe2, PencilLine, Sparkles, X } from "lucide-react";
 import { AiModelPicker, getAiModelOptionValue, type AiModelPickerOption } from "./AiModelPicker";
 import { AiAgentSessionMenu } from "./AiAgentSessionMenu";
 import { AiMarkdownMessage } from "./AiMarkdownMessage";
@@ -12,9 +19,20 @@ import { clampNumber } from "../lib/utils";
 
 type AiAgentModelOption = AiModelPickerOption & { capabilities: AiModelCapability[] };
 
+export type AiAgentPanelContext = {
+  documentName?: string | null;
+  headingCount?: number;
+  messageCount?: number;
+  sectionCount?: number;
+  selectionChars?: number;
+  sessionId?: string | null;
+  tableCount?: number;
+};
+
 type AiAgentPanelProps = {
   activeSessionId?: string | null;
   availableModels?: AiAgentModelOption[];
+  context?: AiAgentPanelContext | null;
   draft?: string;
   language?: AppLanguage;
   messages?: AiAgentPanelMessage[];
@@ -54,6 +72,7 @@ const defaultMaxWidth = 760;
 export function AiAgentPanel({
   activeSessionId = null,
   availableModels = [],
+  context = null,
   draft = "",
   language = "en",
   messages = [],
@@ -88,6 +107,7 @@ export function AiAgentPanel({
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
   const transcriptShouldFollowRef = useRef(true);
+  const [contextOpen, setContextOpen] = useState(false);
   const { handleCompositionEnd, handleCompositionStart, isComposingEnter } = useImeInputGuard();
   const label = (key: I18nKey) => t(language, key);
   const resolvedMinWidth = Math.max(240, minWidth);
@@ -123,6 +143,17 @@ export function AiAgentPanel({
   ];
   const submitting = status === "thinking" || status === "streaming";
   const canSend = draft.trim().length > 0 && !submitting;
+  const contextDocumentName = context?.documentName?.trim() || "Untitled.md";
+  const contextSelection =
+    (context?.selectionChars ?? 0) > 0
+      ? `${context?.selectionChars ?? 0} ${label("app.aiPreviewChars")}`
+      : label("app.aiAgentContextNone");
+  const contextSession = context?.sessionId?.trim() || label("app.aiAgentContextNone");
+  const contextAnchors = [
+    `${context?.headingCount ?? 0} ${label("app.aiAgentContextHeadings")}`,
+    `${context?.sectionCount ?? 0} ${label("app.aiAgentContextSections")}`,
+    `${context?.tableCount ?? 0} ${label("app.aiAgentContextTables")}`
+  ].join(" · ");
 
   useEffect(() => {
     if (!supportsThinking && thinkingEnabled) onToggleThinking?.();
@@ -323,6 +354,48 @@ export function AiAgentPanel({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {context ? (
+          <section className="shrink-0 border-b border-(--border-default) bg-(--bg-secondary) px-3 py-2">
+            <button
+              className="flex h-7 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border-0 bg-transparent px-1 text-left text-[12px] leading-4 font-[620] text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+              type="button"
+              aria-expanded={contextOpen}
+              aria-label={label("app.aiAgentContext")}
+              onClick={() => setContextOpen((openContext) => !openContext)}
+            >
+              <span>{label("app.aiAgentContext")}</span>
+              <ChevronDown
+                aria-hidden="true"
+                className={`shrink-0 transition-transform duration-150 ease-out ${contextOpen ? "rotate-180" : ""}`}
+                size={14}
+              />
+            </button>
+            {contextOpen ? (
+              <dl className="m-0 mt-1 grid gap-1.5 px-1 pb-1 text-[11px] leading-4">
+                <div className="grid grid-cols-[5.75rem_minmax(0,1fr)] gap-2">
+                  <dt className="truncate text-(--text-secondary)">{label("app.aiAgentContextDocument")}</dt>
+                  <dd className="m-0 min-w-0 truncate text-(--text-primary)">{contextDocumentName}</dd>
+                </div>
+                <div className="grid grid-cols-[5.75rem_minmax(0,1fr)] gap-2">
+                  <dt className="truncate text-(--text-secondary)">{label("app.aiAgentContextSelection")}</dt>
+                  <dd className="m-0 min-w-0 truncate text-(--text-primary)">{contextSelection}</dd>
+                </div>
+                <div className="grid grid-cols-[5.75rem_minmax(0,1fr)] gap-2">
+                  <dt className="truncate text-(--text-secondary)">{label("app.aiAgentContextMessages")}</dt>
+                  <dd className="m-0 min-w-0 truncate text-(--text-primary)">{context?.messageCount ?? 0}</dd>
+                </div>
+                <div className="grid grid-cols-[5.75rem_minmax(0,1fr)] gap-2">
+                  <dt className="truncate text-(--text-secondary)">{label("app.aiAgentContextSession")}</dt>
+                  <dd className="m-0 min-w-0 truncate text-(--text-primary)">{contextSession}</dd>
+                </div>
+                <div className="grid grid-cols-[5.75rem_minmax(0,1fr)] gap-2">
+                  <dt className="truncate text-(--text-secondary)">{label("app.aiAgentContextAnchors")}</dt>
+                  <dd className="m-0 min-w-0 truncate text-(--text-primary)">{contextAnchors}</dd>
+                </div>
+              </dl>
+            ) : null}
+          </section>
+        ) : null}
         <div
           className="min-h-0 flex-1 overflow-auto overscroll-none px-3 py-3"
           ref={transcriptScrollRef}

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import App from "./App";
 import {
   confirmNativeMarkdownFileDelete,
+  confirmNativeUnsavedMarkdownDocumentDiscard,
   createNativeMarkdownTreeFile,
   deleteNativeMarkdownTreeFile,
   openNativeMarkdownFolder,
@@ -63,6 +64,7 @@ import {
 
 vi.mock("./lib/tauri/file", () => ({
   confirmNativeMarkdownFileDelete: vi.fn(),
+  confirmNativeUnsavedMarkdownDocumentDiscard: vi.fn(),
   createNativeMarkdownTreeFile: vi.fn(),
   deleteNativeMarkdownTreeFile: vi.fn(),
   installNativeMarkdownFileDrop: vi.fn(),
@@ -144,6 +146,7 @@ vi.mock("./lib/tauri/window", () => ({
 
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
 const mockedConfirmNativeMarkdownFileDelete = vi.mocked(confirmNativeMarkdownFileDelete);
+const mockedConfirmNativeUnsavedMarkdownDocumentDiscard = vi.mocked(confirmNativeUnsavedMarkdownDocumentDiscard);
 const mockedCreateNativeMarkdownTreeFile = vi.mocked(createNativeMarkdownTreeFile);
 const mockedDeleteNativeMarkdownTreeFile = vi.mocked(deleteNativeMarkdownTreeFile);
 const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFileInNewWindow);
@@ -248,6 +251,7 @@ describe("Markra workspace", () => {
     mockedCreateAiAgentSessionId.mockReset();
     mockedDeleteStoredAiAgentSession.mockReset();
     mockedConfirmNativeMarkdownFileDelete.mockReset();
+    mockedConfirmNativeUnsavedMarkdownDocumentDiscard.mockReset();
     mockedCreateNativeMarkdownTreeFile.mockReset();
     mockedDeleteNativeMarkdownTreeFile.mockReset();
     mockedInstallNativeMarkdownFileDrop.mockReset();
@@ -306,6 +310,7 @@ describe("Markra workspace", () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
     mockedCreateAiAgentSessionId.mockReturnValue("session-app");
     mockedConfirmNativeMarkdownFileDelete.mockResolvedValue(true);
+    mockedConfirmNativeUnsavedMarkdownDocumentDiscard.mockResolvedValue(true);
     mockedCreateNativeMarkdownTreeFile.mockResolvedValue({
       name: "Daily note.md",
       path: "/mock-files/vault/Daily note.md",
@@ -1139,6 +1144,57 @@ describe("Markra workspace", () => {
         })
       )
     );
+  });
+
+  it("keeps dirty editor content when opening another markdown file is cancelled", async () => {
+    mockOpenMarkdownFile({
+      content: "Original synthetic text",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Original synthetic text")).toBeInTheDocument();
+
+    window.dispatchEvent(
+      new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, {
+        detail: {
+          action: "apply",
+          result: {
+            from: 1,
+            original: "Original",
+            replacement: "Edited",
+            to: 9,
+            type: "replace"
+          }
+        }
+      })
+    );
+
+    expect(await screen.findByText("Edited synthetic text")).toBeInTheDocument();
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "file",
+      file: {
+        content: "# Other synthetic file",
+        name: "other.md",
+        path: "/mock-files/other.md"
+      }
+    });
+    mockedConfirmNativeUnsavedMarkdownDocumentDiscard.mockResolvedValue(false);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+
+    await waitFor(() => expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).toHaveBeenCalledTimes(1));
+    expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).toHaveBeenCalledWith("native.md", {
+      cancelLabel: "Cancel",
+      message: "Discard unsaved changes?",
+      okLabel: "Discard"
+    });
+    expect(screen.getByText("Edited synthetic text")).toBeInTheDocument();
+    expect(screen.queryByText("Other synthetic file")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /native\.md/ })).toBeInTheDocument();
   });
 
   it("switches the sidebar top-left action to a document outline view", async () => {

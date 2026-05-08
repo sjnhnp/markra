@@ -42,6 +42,38 @@ describe("AiAgentPanel", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("shows the current turn context in a collapsible panel", () => {
+    render(
+      <AiAgentPanel
+        context={{
+          documentName: "synthetic.md",
+          headingCount: 2,
+          messageCount: 4,
+          sectionCount: 2,
+          selectionChars: 12,
+          sessionId: "session-synthetic",
+          tableCount: 1
+        }}
+        language="en"
+        open
+        onClose={() => {}}
+      />
+    );
+
+    const contextButton = screen.getByRole("button", { name: "Current context" });
+    expect(contextButton).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("synthetic.md")).not.toBeInTheDocument();
+
+    fireEvent.click(contextButton);
+
+    expect(contextButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("synthetic.md")).toBeInTheDocument();
+    expect(screen.getByText("12 chars")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("session-synthetic")).toBeInTheDocument();
+    expect(screen.getByText("2 headings · 2 sections · 1 tables")).toBeInTheDocument();
+  });
+
   it("collapses the agent panel from the leading bot button", () => {
     const close = vi.fn();
     const { container } = render(

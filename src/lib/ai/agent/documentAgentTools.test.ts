@@ -405,6 +405,87 @@ describe("documentAgentTools", () => {
     });
   });
 
+  it("prepares a block replacement preview for the current editor block", async () => {
+    const onPreviewResult = vi.fn();
+    const tool = createDocumentAgentTools({
+      documentContent: "# Title\n\nOld synthetic paragraph",
+      documentEndPosition: 32,
+      documentPath: "/vault/README.md",
+      onPreviewResult,
+      selection: {
+        cursor: 12,
+        from: 9,
+        source: "block",
+        text: "Old synthetic paragraph",
+        to: 32
+      },
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_block");
+
+    expect(tool).toBeDefined();
+    const result = await tool?.execute("tool_replace_block", {
+      replacement: "New synthetic paragraph"
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 9,
+      original: "Old synthetic paragraph",
+      replacement: "New synthetic paragraph",
+      target: {
+        from: 9,
+        id: "current-context",
+        kind: "current_block",
+        title: "Old synthetic paragraph",
+        to: 32
+      },
+      to: 32,
+      type: "replace"
+    });
+    expect(toolText(result)).toContain("Prepared a block replacement preview");
+  });
+
+  it("rejects table anchors through replace_block", async () => {
+    const table = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token |"
+    ].join("\n");
+    const tool = createDocumentAgentTools({
+      documentContent: table,
+      documentEndPosition: table.length,
+      documentPath: "/vault/example.md",
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_block");
+
+    await expect(tool?.execute("tool_replace_block", {
+      anchorId: "table:0",
+      replacement: "Synthetic paragraph"
+    })).rejects.toThrow("Cannot replace a table anchor with replace_block. Use replace_table with a table anchor.");
+  });
+
+  it("rejects inline selections through replace_block", async () => {
+    const onPreviewResult = vi.fn();
+    const tool = createDocumentAgentTools({
+      documentContent: "Alpha beta gamma",
+      documentEndPosition: 16,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: {
+        from: 7,
+        source: "selection",
+        text: "beta",
+        to: 11
+      },
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_block");
+
+    await expect(tool?.execute("tool_replace_block", {
+      replacement: "delta"
+    })).rejects.toThrow("Cannot replace a block because the current editor context is an inline selection.");
+    expect(onPreviewResult).not.toHaveBeenCalled();
+  });
+
   it("prepares a replacement preview for a resolved Markdown table anchor", async () => {
     const onPreviewResult = vi.fn();
     const table = [

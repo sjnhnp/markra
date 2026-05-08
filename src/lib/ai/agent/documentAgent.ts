@@ -293,8 +293,9 @@ function buildDocumentToolCallingSystemPrompt() {
     "Use get_document_sections and locate_section when the user asks to rewrite, delete, move, or regenerate an entire section.",
     "When the request targets a whole section, prefer replace_section or delete_section instead of block-level tools.",
     "When the request targets a Markdown table, locate the table anchor and prefer replace_table instead of replacing a heading, cell, or nearby block.",
+    "When the request targets exactly one paragraph, heading, list item, or non-table block, prefer replace_block instead of guessing a character range with replace_region.",
     "When the user asks for a document edit, prefer the write tools instead of only describing the edit.",
-    "Prefer replace_document for whole-document edits; prefer replace_table for table edits; prefer replace_region, delete_region, and insert_markdown for focused block edits.",
+    "Prefer replace_document for whole-document edits; prefer replace_section for section edits; prefer replace_table for table edits; prefer replace_block for single-block edits; use replace_region only for inline selections or unusual ranges.",
     "Choose the edit location intentionally: insert_markdown can use the current context or a resolved anchor. Do not ask the user to place the cursor unless no viable anchor can be resolved from the document.",
     "When the target location is ambiguous, inspect the document structure, choose the most semantically appropriate anchor or section, and then execute the edit there.",
     "When there is no active selection, do not stop at that limitation. Inspect the document structure and decide an appropriate location yourself.",
@@ -311,6 +312,7 @@ function isDocumentWriteToolName(toolName: string) {
     "delete_section",
     "insert_markdown",
     "replace_document",
+    "replace_block",
     "replace_region",
     "replace_table",
     "replace_section"

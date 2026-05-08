@@ -228,6 +228,7 @@ function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end
   if (
     (
       event.toolName === "replace_region" ||
+      event.toolName === "replace_block" ||
       event.toolName === "replace_table" ||
       event.toolName === "replace_document" ||
       event.toolName === "replace_section" ||
@@ -305,6 +306,7 @@ function toolLabelForName(toolName: string, translate: Translate) {
   if (toolName === "list_workspace_files") return translate("app.aiAgentProcessListWorkspaceFiles");
   if (toolName === "read_workspace_file") return translate("app.aiAgentProcessReadWorkspaceFile");
   if (toolName === "replace_document") return translate("app.aiAgentProcessReplaceDocument");
+  if (toolName === "replace_block") return translate("app.aiAgentProcessReplaceBlock");
   if (toolName === "replace_region") return translate("app.aiAgentProcessReplaceRegion");
   if (toolName === "replace_section") return translate("app.aiAgentProcessReplaceSection");
   if (toolName === "replace_selection") return translate("app.aiAgentProcessReplaceSelection");

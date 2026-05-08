@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { AiAgentPanel } from "./components/AiAgentPanel";
@@ -38,7 +38,12 @@ import {
   saveStoredAiAgentSessionTitle,
   setStoredAiAgentSessionArchived
 } from "./lib/settings/appSettings";
-import { confirmNativeMarkdownFileDelete, readNativeMarkdownFile, type NativeMarkdownFolderFile } from "./lib/tauri/file";
+import {
+  confirmNativeMarkdownFileDelete,
+  confirmNativeUnsavedMarkdownDocumentDiscard,
+  readNativeMarkdownFile,
+  type NativeMarkdownFolderFile
+} from "./lib/tauri/file";
 import { clampNumber } from "./lib/utils";
 
 const aiAgentPanelDefaultWidth = 384;
@@ -107,7 +112,15 @@ export default function App() {
     workspaceLayoutClassName,
     workspaceLayoutStyle
   } = fileTree;
+  const confirmDiscardUnsavedChanges = useCallback((currentDocument: { name: string }) => {
+    return confirmNativeUnsavedMarkdownDocumentDiscard(currentDocument.name, {
+      cancelLabel: translate("app.cancelDiscardUnsavedMarkdownDocument"),
+      message: translate("app.confirmDiscardUnsavedMarkdownDocument"),
+      okLabel: translate("app.confirmDiscardUnsavedMarkdownDocumentAction")
+    });
+  }, [translate]);
   const markdownDocument = useMarkdownDocument({
+    confirmDiscardUnsavedChanges,
     getCurrentMarkdown: editor.getCurrentMarkdown,
     onTreeRootFromFolderPath: openFolderPath,
     onTreeRootFromFilePath: setRootFromMarkdownFilePath,
@@ -118,6 +131,7 @@ export default function App() {
   const {
     createBlankDocument,
     createWorkspaceSession,
+    confirmCanDiscardCurrentDocument,
     detachDeletedDocumentFile,
     document,
     handleDroppedMarkdownPath,
@@ -384,7 +398,7 @@ export default function App() {
     }
   }, [createMarkdownTreeFile, openTreeMarkdownFile]);
   const handleQuickCreateMarkdownTreeFile = useCallback(() => {
-    createBlankDocument();
+    createBlankDocument().catch(() => {});
   }, [createBlankDocument]);
   const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string) => {
     try {
@@ -431,6 +445,29 @@ export default function App() {
         ? translate("app.files")
         : rawFileTreeRootName;
   const supportsAiThinking = selectedInlineAiModel?.capabilities.includes("reasoning") ?? false;
+  const handleOpenMarkdownFolder = useCallback(async () => {
+    const canDiscard = await confirmCanDiscardCurrentDocument();
+    if (!canDiscard) return;
+
+    await openMarkdownFolder();
+  }, [confirmCanDiscardCurrentDocument, openMarkdownFolder]);
+  const aiAgentContext = useMemo(() => ({
+    documentName: document.name,
+    headingCount: editor.getHeadingAnchors().length,
+    messageCount: aiAgent.messages.length,
+    sectionCount: editor.getSectionAnchors().length,
+    selectionChars: activeAiSelection?.text.trim().length ?? 0,
+    sessionId: activeAiAgentSessionId,
+    tableCount: editor.getTableAnchors().length
+  }), [
+    activeAiAgentSessionId,
+    activeAiSelection,
+    aiAgent.messages.length,
+    document.content,
+    document.name,
+    document.revision,
+    editor
+  ]);
   const nativeMenuHandlers = useNativeMenuHandlers({
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
     openDocument: openMarkdownFile,
@@ -443,7 +480,7 @@ export default function App() {
   useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null);
   useApplicationShortcuts({
     openDocument: openMarkdownFile,
-    openFolder: openMarkdownFolder,
+    openFolder: handleOpenMarkdownFolder,
     saveDocument: handleSaveClick,
     saveDocumentAs
   });
@@ -570,6 +607,7 @@ export default function App() {
               <AiAgentPanel
                 activeSessionId={activeAiAgentSessionId}
                 availableModels={aiSettings.availableTextModels}
+                context={aiAgentContext}
                 draft={aiAgent.draft}
                 language={appLanguage.language}
                 messages={aiAgent.messages}
