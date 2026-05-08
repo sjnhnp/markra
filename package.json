@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.30.3",
   "type": "module",
   "scripts": {
+    "release": "node scripts/release/run-release.mjs",
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json && vite build",
     "test": "vitest run",
@@ -37,6 +38,7 @@
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.1",
+    "bumpp": "^11.1.0",
     "jsdom": "29.1.1",
     "tailwindcss": "^4.2.4",
     "typescript": "6.0.3",
