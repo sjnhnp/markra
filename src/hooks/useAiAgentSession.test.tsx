@@ -478,6 +478,57 @@ describe("useAiAgentSession", () => {
     }));
   });
 
+  it("passes the document image reader to the document agent runtime", async () => {
+    const readDocumentImage = vi.fn(async (src: string) => ({
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      path: `/vault/${src}`,
+      src
+    }));
+    mockedRunDocumentAiAgent.mockResolvedValue({
+      content: "Done",
+      finishReason: "stop"
+    });
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/README.md",
+        getDocumentContent: () => "![Architecture](assets/arch.png)",
+        model: "gpt-5.5",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [
+            {
+              capabilities: ["text", "vision"],
+              enabled: true,
+              id: "gpt-5.5",
+              name: "GPT-5.5"
+            }
+          ],
+          name: "OpenAI",
+          type: "openai"
+        },
+        readDocumentImage,
+        sessionId: "session-a",
+        settingsLoading: false,
+        translate: (key) => key,
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("这张截图里有什么？");
+    });
+
+    expect(mockedRunDocumentAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      readDocumentImage
+    }));
+  });
+
   it("records visible agent process steps from runtime events", async () => {
     mockedRunDocumentAiAgent.mockImplementation(async ({ onEvent, onTextDelta }) => {
       onEvent?.({ type: "agent_start" });

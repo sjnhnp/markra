@@ -44,6 +44,70 @@ describe("document AI agent", () => {
     });
   });
 
+  it("attaches referenced document images only when a vision model needs them", async () => {
+    const readDocumentImage = vi.fn(async (src: string) => ({
+      alt: "Architecture screenshot",
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      path: `/vault/${src}`,
+      src
+    }));
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+      const request = messages.at(-1);
+      expect(request?.content).toBe("User request:\n这张截图里有什么？");
+      expect(request?.images).toEqual([
+        {
+          dataUrl: "data:image/png;base64,aGVsbG8=",
+          mimeType: "image/png"
+        }
+      ]);
+
+      return {
+        content: "截图里是一张架构图。",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Note\n\n![Architecture screenshot](assets/arch.png)",
+      documentPath: "/vault/note.md",
+      model: "gpt-5.5",
+      prompt: "这张截图里有什么？",
+      provider: provider({
+        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
+      }),
+      readDocumentImage,
+      workspaceFiles: []
+    });
+
+    expect(readDocumentImage).toHaveBeenCalledWith("assets/arch.png");
+    expect(result.content).toBe("截图里是一张架构图。");
+  });
+
+  it("does not read document images for non-visual turns", async () => {
+    const readDocumentImage = vi.fn();
+    const complete = vi.fn().mockResolvedValue({
+      content: "这篇文档有一个图片引用。",
+      finishReason: "stop"
+    });
+
+    await runDocumentAiAgent({
+      complete,
+      documentContent: "# Note\n\n![Architecture screenshot](assets/arch.png)",
+      documentPath: "/vault/note.md",
+      model: "gpt-5.5",
+      prompt: "总结这篇文档",
+      provider: provider({
+        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
+      }),
+      readDocumentImage,
+      workspaceFiles: []
+    });
+
+    expect(readDocumentImage).not.toHaveBeenCalled();
+  });
+
   it("passes tool-calling history as transcript messages instead of embedding it in the current prompt", async () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages.map((message) => message.role)).toEqual(["system", "user", "assistant", "user", "user"]);

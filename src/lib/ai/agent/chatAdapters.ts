@@ -4,7 +4,13 @@ import { isRecord, joinApiUrl } from "../../utils";
 
 export type ChatMessage = {
   content: string;
+  images?: ChatImageAttachment[];
   role: "assistant" | "system" | "user";
+};
+
+export type ChatImageAttachment = {
+  dataUrl: string;
+  mimeType: string;
 };
 
 export type ChatRequest = {
@@ -69,7 +75,7 @@ const openAiCompatibleAdapter: ChatAdapter = {
 
     return {
       body: {
-        messages,
+        messages: messages.map(openAiCompatibleMessage),
         model,
         ...(options.stream ? { stream: true } : {}),
         ...(options.tools?.length
@@ -137,7 +143,7 @@ const anthropicAdapter: ChatAdapter = {
       body: {
         max_tokens: 4096,
         messages: nonSystemMessages.map((message) => ({
-          content: message.content,
+          content: anthropicMessageContent(message),
           role: message.role
         })),
         model,
@@ -233,7 +239,7 @@ const azureAdapter: ChatAdapter = {
 
     return {
       body: {
-        messages,
+        messages: messages.map(openAiCompatibleMessage),
         ...(options.stream ? { stream: true } : {}),
         ...(options.tools?.length
           ? {
@@ -267,7 +273,7 @@ const googleAdapter: ChatAdapter = {
     const contents = messages
       .filter((message) => message.role !== "system")
       .map((message) => ({
-        parts: [{ text: message.content }],
+        parts: googleMessageParts(message),
         role: message.role === "assistant" ? "model" : "user"
       }));
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle.google!;
@@ -334,6 +340,57 @@ const adapterByApiStyle: Record<AiProviderApiStyle, ChatAdapter> = {
 
 export function getChatAdapter(apiStyle: AiProviderApiStyle): ChatAdapter {
   return adapterByApiStyle[apiStyle] ?? openAiCompatibleAdapter;
+}
+
+function openAiCompatibleMessage(message: ChatMessage) {
+  if (!message.images?.length) return message;
+
+  return {
+    ...message,
+    content: [
+      { text: message.content, type: "text" },
+      ...message.images.map((image) => ({
+        image_url: { url: image.dataUrl },
+        type: "image_url"
+      }))
+    ]
+  };
+}
+
+function anthropicMessageContent(message: ChatMessage) {
+  if (!message.images?.length) return message.content;
+
+  return [
+    { text: message.content, type: "text" },
+    ...message.images.map((image) => ({
+      source: {
+        data: base64DataFromDataUrl(image.dataUrl),
+        media_type: image.mimeType,
+        type: "base64"
+      },
+      type: "image"
+    }))
+  ];
+}
+
+function googleMessageParts(message: ChatMessage) {
+  return [
+    { text: message.content },
+    ...(message.images ?? []).map((image) => ({
+      inlineData: {
+        data: base64DataFromDataUrl(image.dataUrl),
+        mimeType: image.mimeType
+      }
+    }))
+  ];
+}
+
+function base64DataFromDataUrl(dataUrl: string) {
+  const marker = ";base64,";
+  const markerIndex = dataUrl.indexOf(marker);
+  if (markerIndex < 0) return dataUrl;
+
+  return dataUrl.slice(markerIndex + marker.length);
 }
 
 function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult {

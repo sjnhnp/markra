@@ -9,6 +9,7 @@ import {
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
+  readNativeMarkdownImageFile,
   readNativeMarkdownFile,
   saveNativeClipboardImage,
   saveNativeMarkdownFile,
@@ -74,6 +75,7 @@ vi.mock("./lib/tauri/file", () => ({
   openNativeMarkdownFolderInNewWindow: vi.fn(),
   openNativeMarkdownFileInNewWindow: vi.fn(),
   openNativeMarkdownPath: vi.fn(),
+  readNativeMarkdownImageFile: vi.fn(),
   readNativeMarkdownFile: vi.fn(),
   renameNativeMarkdownTreeFile: vi.fn(),
   saveNativeClipboardImage: vi.fn(),
@@ -167,6 +169,7 @@ const mockedCreateNativeMarkdownTreeFile = vi.mocked(createNativeMarkdownTreeFil
 const mockedDeleteNativeMarkdownTreeFile = vi.mocked(deleteNativeMarkdownTreeFile);
 const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFileInNewWindow);
 const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
+const mockedReadNativeMarkdownImageFile = vi.mocked(readNativeMarkdownImageFile);
 const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
 const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
 const mockedInstallNativeMarkdownFileDrop = vi.mocked(installNativeMarkdownFileDrop);
@@ -275,6 +278,7 @@ describe("Markra workspace", () => {
     mockedOpenNativeMarkdownFolderInNewWindow.mockReset();
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
     mockedOpenNativeMarkdownPath.mockReset();
+    mockedReadNativeMarkdownImageFile.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
     mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
@@ -321,6 +325,12 @@ describe("Markra workspace", () => {
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenSettingsWindow.mockResolvedValue(undefined);
+    mockedReadNativeMarkdownImageFile.mockResolvedValue({
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      path: "/mock-files/assets/image.png",
+      src: "assets/image.png"
+    });
     mockedSaveStoredEditorPreferences.mockResolvedValue(undefined);
     mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});

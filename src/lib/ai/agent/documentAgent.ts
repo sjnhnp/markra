@@ -4,7 +4,7 @@ import { createNativeChatStreamFn, createPiAgentModel, type InlineAiAgentComplet
 import { chatCompletionStream } from "./chatCompletion";
 import { runReadOnlyAgentTools, type AgentWorkspaceFile } from "./agentTools";
 import type { AiDiffTarget, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "./inlineAi";
-import type { ChatMessage } from "./chatAdapters";
+import type { ChatImageAttachment, ChatMessage } from "./chatAdapters";
 import type { AiDiffResult } from "./inlineAi";
 import { getProviderCapabilities } from "./providerCapabilities";
 import { createDocumentAgentTools } from "./documentAgentTools";
@@ -38,6 +38,7 @@ export type RunDocumentAiAgentInput = {
   onThinkingDelta?: (thinking: string) => unknown;
   prompt: string;
   provider: AiProviderConfig;
+  readDocumentImage?: (src: string) => Promise<DocumentAiImage | null>;
   readWorkspaceFile?: (path: string) => Promise<string>;
   sectionAnchors?: AiDocumentAnchor[];
   selection?: AiSelectionContext | null;
@@ -45,6 +46,12 @@ export type RunDocumentAiAgentInput = {
   thinkingEnabled?: boolean;
   webSearchEnabled?: boolean;
   workspaceFiles?: AgentWorkspaceFile[];
+};
+
+export type DocumentAiImage = ChatImageAttachment & {
+  alt?: string;
+  path?: string;
+  src: string;
 };
 
 export type RunDocumentAiAgentResult = {
@@ -67,6 +74,7 @@ export async function runDocumentAiAgent({
   onThinkingDelta,
   prompt,
   provider,
+  readDocumentImage,
   readWorkspaceFile,
   sectionAnchors,
   selection = null,
@@ -75,6 +83,13 @@ export async function runDocumentAiAgent({
   webSearchEnabled = false,
   workspaceFiles = []
 }: RunDocumentAiAgentInput): Promise<RunDocumentAiAgentResult> {
+  const documentImages = await readPromptedDocumentImages({
+    documentContent,
+    model,
+    prompt,
+    provider,
+    readDocumentImage
+  });
   const capabilities = getProviderCapabilities(provider.id, provider.type);
   if (capabilities.toolCalling && supportsDocumentToolCalling(provider.type)) {
     return runDocumentToolCallingAgent({
@@ -82,6 +97,7 @@ export async function runDocumentAiAgent({
       documentContent,
       documentEndPosition,
       documentPath,
+      documentImages,
       headingAnchors,
       history,
       model,
@@ -105,6 +121,7 @@ export async function runDocumentAiAgent({
     complete,
     documentContent,
     documentPath,
+    documentImages,
     history,
     model,
     onTextDelta,
@@ -118,10 +135,15 @@ export async function runDocumentAiAgent({
   });
 }
 
+type RunDocumentAiAgentRuntimeInput = RunDocumentAiAgentInput & {
+  documentImages?: ChatImageAttachment[];
+};
+
 async function runDocumentChatOnlyAgent({
   complete = chatCompletionStream,
   documentContent,
   documentPath,
+  documentImages = [],
   history = [],
   model,
   onTextDelta,
@@ -132,13 +154,13 @@ async function runDocumentChatOnlyAgent({
   thinkingEnabled,
   webSearchEnabled = false,
   workspaceFiles = []
-}: RunDocumentAiAgentInput): Promise<RunDocumentAiAgentResult> {
+}: RunDocumentAiAgentRuntimeInput): Promise<RunDocumentAiAgentResult> {
   const toolResults = await runReadOnlyAgentTools({
     documentContent,
     documentPath,
     workspaceFiles
   });
-  const messages = buildDocumentAgentMessages({ history, prompt, selection, toolResults, webSearchEnabled });
+  const messages = buildDocumentAgentMessages({ documentImages, history, prompt, selection, toolResults, webSearchEnabled });
   let streamedContent = "";
   let streamedThinking = "";
   const response = await complete(provider, model, messages, {
@@ -181,6 +203,7 @@ async function runDocumentToolCallingAgent({
   documentContent,
   documentEndPosition = 0,
   documentPath,
+  documentImages = [],
   history = [],
   headingAnchors = [],
   model,
@@ -197,7 +220,7 @@ async function runDocumentToolCallingAgent({
   thinkingEnabled,
   webSearchEnabled = false,
   workspaceFiles = []
-}: RunDocumentAiAgentInput): Promise<RunDocumentAiAgentResult> {
+}: RunDocumentAiAgentRuntimeInput): Promise<RunDocumentAiAgentResult> {
   let preparedPreview = false;
   const piAgentModel = createPiAgentModel(provider, model);
   const agent = new Agent({
@@ -261,7 +284,7 @@ async function runDocumentToolCallingAgent({
     finishReason = event.message.stopReason;
   });
 
-  await agent.prompt(buildDocumentToolCallingTurnMessages({ prompt, selection, webSearchEnabled }));
+  await agent.prompt(buildDocumentToolCallingTurnMessages({ documentImages, prompt, selection, webSearchEnabled }));
 
   return {
     content: preparedPreview ? "" : (finalContent || latestAssistantText).trim(),
@@ -319,13 +342,86 @@ function isDocumentWriteToolName(toolName: string) {
   ].includes(toolName);
 }
 
+async function readPromptedDocumentImages({
+  documentContent,
+  model,
+  prompt,
+  provider,
+  readDocumentImage
+}: {
+  documentContent: string;
+  model: string;
+  prompt: string;
+  provider: AiProviderConfig;
+  readDocumentImage?: (src: string) => Promise<DocumentAiImage | null>;
+}) {
+  if (!readDocumentImage || !shouldAttachDocumentImages(prompt) || !modelSupportsVision(provider, model)) {
+    return [];
+  }
+
+  const references = extractMarkdownImageReferences(documentContent).slice(0, 4);
+  const images: ChatImageAttachment[] = [];
+
+  for (const reference of references) {
+    try {
+      const image = await readDocumentImage(reference.src);
+      if (image) {
+        images.push({
+          dataUrl: image.dataUrl,
+          mimeType: image.mimeType
+        });
+      }
+    } catch {
+      // Missing local images should not block the text-only AI turn.
+    }
+  }
+
+  return images;
+}
+
+function modelSupportsVision(provider: AiProviderConfig, model: string) {
+  return provider.models.some((item) => item.id === model && item.enabled && item.capabilities.includes("vision"));
+}
+
+function shouldAttachDocumentImages(prompt: string) {
+  return /图片|图像|截图|照片|图表|这张图|这幅图|看图|识别|image|screenshot|photo|picture|figure|diagram|chart|visual/iu.test(prompt);
+}
+
+function extractMarkdownImageReferences(markdown: string) {
+  const references: Array<{ alt: string; src: string }> = [];
+  const imagePattern = /!\[([^\]]*)\]\(([^)]+)\)/gu;
+  let match: RegExpExecArray | null = imagePattern.exec(markdown);
+
+  while (match) {
+    const src = normalizeMarkdownImageSrc(match[2] ?? "");
+    if (src) references.push({ alt: match[1] ?? "", src });
+    match = imagePattern.exec(markdown);
+  }
+
+  return references;
+}
+
+function normalizeMarkdownImageSrc(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (trimmed.startsWith("<")) {
+    const end = trimmed.indexOf(">");
+    return end > 0 ? trimmed.slice(1, end).trim() : "";
+  }
+
+  return trimmed.split(/\s+/u)[0] ?? "";
+}
+
 function buildDocumentAgentMessages({
+  documentImages,
   history,
   prompt,
   selection,
   toolResults,
   webSearchEnabled
 }: {
+  documentImages: ChatImageAttachment[];
   history: DocumentAiHistoryMessage[];
   prompt: string;
   selection: AiSelectionContext | null;
@@ -355,16 +451,19 @@ function buildDocumentAgentMessages({
     },
     {
       content: buildCurrentUserRequest(prompt),
+      ...(documentImages.length ? { images: documentImages } : {}),
       role: "user"
     }
   ];
 }
 
 function buildDocumentToolCallingTurnMessages({
+  documentImages,
   prompt,
   selection,
   webSearchEnabled
 }: {
+  documentImages: ChatImageAttachment[];
   prompt: string;
   selection: AiSelectionContext | null;
   webSearchEnabled: boolean;
@@ -377,7 +476,7 @@ function buildDocumentToolCallingTurnMessages({
         webSearchEnabled
       })
     ),
-    createAgentUserMessage(buildCurrentUserRequest(prompt))
+    createAgentUserMessage(buildCurrentUserRequest(prompt), documentImages)
   ];
 }
 
@@ -454,9 +553,18 @@ function buildDocumentToolCallingHistoryMessages({
     .filter((message): message is AgentMessage => message !== null);
 }
 
-function createAgentUserMessage(content: string): AgentMessage {
+function createAgentUserMessage(content: string, images: ChatImageAttachment[] = []): AgentMessage {
   return {
-    content,
+    content: images.length
+      ? [
+          { text: content, type: "text" },
+          ...images.map((image) => ({
+            data: image.dataUrl,
+            mimeType: image.mimeType,
+            type: "image" as const
+          }))
+        ]
+      : content,
     role: "user",
     timestamp: Date.now()
   };

@@ -15,6 +15,7 @@ import {
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
+  readNativeMarkdownImageFile,
   readNativeMarkdownFile,
   resolveNativeMarkdownPath,
   saveNativeClipboardImage,
@@ -197,6 +198,31 @@ describe("native file access", () => {
 
     expect(mockedInvoke).toHaveBeenCalledWith("read_markdown_file", {
       path: mockReadmePath
+    });
+  });
+
+  it("reads a local markdown image as a data URL for vision models", async () => {
+    mockedInvoke.mockResolvedValue({
+      bytes: [104, 101, 108, 108, 111],
+      mimeType: "image/png",
+      path: "/mock-files/assets/arch.png"
+    });
+
+    await expect(
+      readNativeMarkdownImageFile({
+        documentPath: mockReadmePath,
+        src: "assets/arch.png"
+      })
+    ).resolves.toEqual({
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      path: "/mock-files/assets/arch.png",
+      src: "assets/arch.png"
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("read_markdown_image_file", {
+      documentPath: mockReadmePath,
+      src: "assets/arch.png"
     });
   });
 

@@ -87,6 +87,18 @@ export type SavedNativeClipboardImage = {
   src: string;
 };
 
+export type ReadNativeMarkdownImageInput = {
+  documentPath: string;
+  src: string;
+};
+
+export type NativeMarkdownImageFile = {
+  dataUrl: string;
+  mimeType: string;
+  path: string;
+  src: string;
+};
+
 export type NativeMarkdownFileChangeHandler = (path: string) => unknown | Promise<unknown>;
 export type NativeMarkdownTreeChangeHandler = (path: string) => unknown | Promise<unknown>;
 export type NativeMarkdownFileDropHandler = (target: NativeMarkdownDroppedTarget) => unknown | Promise<unknown>;
@@ -102,6 +114,12 @@ type MarkdownTreeChangedPayload = {
 
 type ClipboardImageFileResponse = {
   relativePath: string;
+};
+
+type MarkdownImageFileResponse = {
+  bytes: number[];
+  mimeType: string;
+  path: string;
 };
 
 const markdownFileChangedEvent = "markra://file-changed";
@@ -137,6 +155,34 @@ export async function readNativeMarkdownFile(path: string): Promise<NativeMarkdo
     path: file.path,
     name: fileNameFromPath(file.path),
     content: file.contents
+  };
+}
+
+function bytesToBase64(bytes: number[]) {
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(index, index + chunkSize));
+  }
+
+  return btoa(binary);
+}
+
+export async function readNativeMarkdownImageFile({
+  documentPath,
+  src
+}: ReadNativeMarkdownImageInput): Promise<NativeMarkdownImageFile> {
+  const image = await invoke<MarkdownImageFileResponse>("read_markdown_image_file", {
+    documentPath,
+    src
+  });
+
+  return {
+    dataUrl: `data:${image.mimeType};base64,${bytesToBase64(image.bytes)}`,
+    mimeType: image.mimeType,
+    path: image.path,
+    src
   };
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { runDocumentAiAgent, type DocumentAiHistoryMessage } from "../lib/ai/agent/documentAgent";
+import { runDocumentAiAgent, type DocumentAiHistoryMessage, type DocumentAiImage } from "../lib/ai/agent/documentAgent";
 import { generateAiAgentSessionTitle } from "../lib/ai/agent/sessionTitle";
 import {
   applyAgentEventToProcesses,
@@ -42,6 +42,7 @@ type AiAgentSessionContext = {
   panelOpen?: boolean;
   panelWidth?: number | null;
   provider: AiProviderConfig | null;
+  readDocumentImage?: (src: string) => Promise<DocumentAiImage | null>;
   readWorkspaceFile?: (path: string) => Promise<string>;
   sessionId?: string | null;
   settingsLoading: boolean;
@@ -368,6 +369,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         },
         prompt,
         provider: ctx.provider,
+        readDocumentImage: ctx.readDocumentImage,
         readWorkspaceFile: ctx.readWorkspaceFile,
         headingAnchors: ctx.getHeadingAnchors?.() ?? [],
         sectionAnchors: ctx.getSectionAnchors?.(),

@@ -35,6 +35,14 @@ pub(crate) struct ClipboardImageFile {
 }
 
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MarkdownImageFile {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) mime_type: String,
+    pub(crate) path: String,
+}
+
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub(crate) enum MarkdownOpenPath {
     File { path: String },
@@ -124,6 +132,133 @@ fn clipboard_image_extension(mime_type: &str) -> Result<&'static str, String> {
         "image/bmp" => Ok("bmp"),
         _ => Err("Clipboard image type is not supported".to_string()),
     }
+}
+
+fn markdown_image_mime_type(path: &Path) -> Result<&'static str, String> {
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    match extension.as_str() {
+        "png" => Ok("image/png"),
+        "jpg" | "jpeg" => Ok("image/jpeg"),
+        "gif" => Ok("image/gif"),
+        "webp" => Ok("image/webp"),
+        "avif" => Ok("image/avif"),
+        "bmp" => Ok("image/bmp"),
+        "svg" => Ok("image/svg+xml"),
+        _ => Err("Markdown image type is not supported".to_string()),
+    }
+}
+
+fn strip_markdown_image_src_suffix(src: &str) -> &str {
+    let query_index = src.find('?');
+    let fragment_index = src.find('#');
+    let end_index = [query_index, fragment_index]
+        .into_iter()
+        .flatten()
+        .min()
+        .unwrap_or(src.len());
+
+    &src[..end_index]
+}
+
+fn percent_decode_markdown_path(path: &str) -> Result<String, String> {
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            if index + 2 >= bytes.len() {
+                return Err("Markdown image path has invalid percent encoding".to_string());
+            }
+
+            let hex = std::str::from_utf8(&bytes[index + 1..index + 3])
+                .map_err(|_| "Markdown image path has invalid percent encoding".to_string())?;
+            let byte = u8::from_str_radix(hex, 16)
+                .map_err(|_| "Markdown image path has invalid percent encoding".to_string())?;
+            decoded.push(byte);
+            index += 3;
+            continue;
+        }
+
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+
+    String::from_utf8(decoded)
+        .map_err(|_| "Markdown image path has invalid UTF-8 encoding".to_string())
+}
+
+fn local_markdown_image_src(src: &str) -> Result<String, String> {
+    let trimmed = src.trim();
+    if trimmed.is_empty() {
+        return Err("Markdown image path is empty".to_string());
+    }
+
+    let normalized_scheme = trimmed.to_ascii_lowercase();
+    if normalized_scheme.starts_with("data:") || normalized_scheme.contains("://") {
+        return Err("Only local Markdown images can be read".to_string());
+    }
+
+    let local_src = strip_markdown_image_src_suffix(trimmed).trim();
+    if local_src.is_empty() {
+        return Err("Markdown image path is empty".to_string());
+    }
+
+    percent_decode_markdown_path(local_src)
+}
+
+fn read_markdown_image_file_for_document(
+    document_path: String,
+    src: String,
+) -> Result<MarkdownImageFile, String> {
+    const MAX_AI_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
+
+    let document_path = PathBuf::from(document_path)
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    if !document_path.is_file() || !is_markdown_open_file(&document_path) {
+        return Err("Current document must be a saved Markdown file".to_string());
+    }
+
+    let root = document_path
+        .parent()
+        .ok_or_else(|| "Current document folder is invalid".to_string())?
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    let decoded_src = local_markdown_image_src(&src)?;
+    let src_path = Path::new(&decoded_src);
+    let candidate_path = if src_path.is_absolute() {
+        src_path.to_path_buf()
+    } else {
+        root.join(src_path)
+    };
+    let canonical_path = candidate_path
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+
+    canonical_path
+        .strip_prefix(&root)
+        .map_err(|_| "Markdown image is outside the current Markdown folder".to_string())?;
+
+    if !canonical_path.is_file() || !is_markdown_tree_asset_file(&canonical_path) {
+        return Err("Path is not a supported Markdown image".to_string());
+    }
+
+    let metadata = fs::metadata(&canonical_path).map_err(|error| error.to_string())?;
+    if metadata.len() > MAX_AI_IMAGE_BYTES {
+        return Err("Markdown image is too large for AI vision context".to_string());
+    }
+
+    Ok(MarkdownImageFile {
+        bytes: fs::read(&canonical_path).map_err(|error| error.to_string())?,
+        mime_type: markdown_image_mime_type(&canonical_path)?.to_string(),
+        path: path_to_string(&canonical_path),
+    })
 }
 
 fn normalize_clipboard_image_folder(folder: &str) -> Result<PathBuf, String> {
@@ -448,7 +583,10 @@ fn pick_markdown_path<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub(crate) fn read_markdown_file(app: tauri::AppHandle, path: String) -> Result<MarkdownFile, String> {
+pub(crate) fn read_markdown_file(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<MarkdownFile, String> {
     let path_buf = PathBuf::from(&path);
     let contents = fs::read_to_string(&path_buf).map_err(|error| error.to_string())?;
     if let Some(parent) = path_buf.parent() {
@@ -603,6 +741,14 @@ pub(crate) fn save_clipboard_image(
 }
 
 #[tauri::command]
+pub(crate) fn read_markdown_image_file(
+    document_path: String,
+    src: String,
+) -> Result<MarkdownImageFile, String> {
+    read_markdown_image_file_for_document(document_path, src)
+}
+
+#[tauri::command]
 pub(crate) fn open_markdown_file_in_new_window(
     app: tauri::AppHandle,
     path: String,
@@ -700,7 +846,10 @@ mod tests {
                 },
                 MarkdownFolderFile {
                     kind: MarkdownFolderEntryKind::Asset,
-                    path: assets.join("pasted-image.png").to_string_lossy().to_string(),
+                    path: assets
+                        .join("pasted-image.png")
+                        .to_string_lossy()
+                        .to_string(),
                     relative_path: "assets/pasted-image.png".to_string(),
                 },
                 MarkdownFolderFile {
@@ -896,7 +1045,9 @@ mod tests {
         )
         .expect("clipboard image should be saved");
 
-        assert!(saved.relative_path.starts_with("assets/screenshots/pasted-image-"));
+        assert!(saved
+            .relative_path
+            .starts_with("assets/screenshots/pasted-image-"));
         assert!(saved.relative_path.ends_with(".png"));
         assert_eq!(
             fs::read(root.join(saved.relative_path)).expect("saved image should be readable"),
@@ -904,6 +1055,84 @@ mod tests {
         );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn reads_markdown_images_below_the_current_markdown_file_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-read-image-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let note = root.join("note.md");
+        let assets = root.join("assets");
+        let image = assets.join("arch.png");
+
+        fs::create_dir_all(&assets).expect("assets folder should be created");
+        fs::write(&note, "# Note").expect("markdown file should be created");
+        fs::write(&image, [104, 101, 108, 108, 111]).expect("image file should be created");
+
+        let read = read_markdown_image_file_for_document(
+            note.to_string_lossy().to_string(),
+            "assets/arch.png".to_string(),
+        )
+        .expect("markdown image should be readable");
+
+        assert_eq!(
+            read,
+            MarkdownImageFile {
+                bytes: vec![104, 101, 108, 108, 111],
+                mime_type: "image/png".to_string(),
+                path: image
+                    .canonicalize()
+                    .expect("image should have a canonical path")
+                    .to_string_lossy()
+                    .to_string(),
+            }
+        );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn rejects_markdown_images_outside_the_current_markdown_file_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-read-image-boundary-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let sibling = std::env::temp_dir().join(format!(
+            "markra-read-image-sibling-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let note = root.join("note.md");
+        let image = sibling.join("arch.png");
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        fs::create_dir_all(&sibling).expect("sibling folder should be created");
+        fs::write(&note, "# Note").expect("markdown file should be created");
+        fs::write(&image, [1, 2, 3]).expect("sibling image file should be created");
+
+        assert!(read_markdown_image_file_for_document(
+            note.to_string_lossy().to_string(),
+            "../".to_string()
+                + sibling
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or_default()
+                + "/arch.png",
+        )
+        .is_err());
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+        fs::remove_dir_all(sibling).expect("sibling tree should be removed");
     }
 
     #[test]

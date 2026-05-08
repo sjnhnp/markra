@@ -24,6 +24,20 @@ const messages: ChatMessage[] = [
   { content: "Rewrite this.", role: "user" }
 ];
 
+const multimodalMessages: ChatMessage[] = [
+  { content: "You inspect Markdown images.", role: "system" },
+  {
+    content: "User request:\n这张截图里有什么？",
+    images: [
+      {
+        dataUrl: "data:image/png;base64,aGVsbG8=",
+        mimeType: "image/png",
+      }
+    ],
+    role: "user"
+  }
+];
+
 describe("AI chat adapters", () => {
   it("builds OpenAI-compatible chat completion requests with JSON headers", () => {
     const request = getChatAdapter("openai-compatible").buildRequest(
@@ -147,6 +161,55 @@ describe("AI chat adapters", () => {
         "content-type": "application/json"
       },
       url: "https://markra.openai.azure.com/openai/deployments/writer-deployment/chat/completions?api-version=2024-10-21"
+    });
+  });
+
+  it("builds multimodal image parts for supported chat APIs", () => {
+    expect(
+      getChatAdapter("openai").buildRequest(provider({ baseUrl: "https://api.openai.com/v1", type: "openai" }), "gpt-5.5", multimodalMessages)
+        .body
+    ).toMatchObject({
+      messages: [
+        { content: "You inspect Markdown images.", role: "system" },
+        {
+          content: [
+            { text: "User request:\n这张截图里有什么？", type: "text" },
+            { image_url: { url: "data:image/png;base64,aGVsbG8=" }, type: "image_url" }
+          ],
+          role: "user"
+        }
+      ]
+    });
+
+    expect(getChatAdapter("anthropic").buildRequest(provider({ type: "anthropic" }), "claude-opus-4-7", multimodalMessages).body)
+      .toMatchObject({
+        messages: [
+          {
+            content: [
+              { text: "User request:\n这张截图里有什么？", type: "text" },
+              {
+                source: { data: "aGVsbG8=", media_type: "image/png", type: "base64" },
+                type: "image"
+              }
+            ],
+            role: "user"
+          }
+        ]
+      });
+
+    expect(
+      getChatAdapter("google").buildRequest(provider({ baseUrl: "https://generativelanguage.googleapis.com/v1beta", type: "google" }), "gemini", multimodalMessages)
+        .body
+    ).toMatchObject({
+      contents: [
+        {
+          parts: [
+            { text: "User request:\n这张截图里有什么？" },
+            { inlineData: { data: "aGVsbG8=", mimeType: "image/png" } }
+          ],
+          role: "user"
+        }
+      ]
     });
   });
 

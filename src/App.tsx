@@ -46,6 +46,7 @@ import {
 import {
   confirmNativeMarkdownFileDelete,
   confirmNativeUnsavedMarkdownDocumentDiscard,
+  readNativeMarkdownImageFile,
   readNativeMarkdownFile,
   saveNativeClipboardImage,
   type NativeMarkdownFolderFile
@@ -174,6 +175,14 @@ export default function App() {
 
     return file.content;
   }, []);
+  const readAiDocumentImage = useCallback(async (src: string) => {
+    if (!document.path) return null;
+
+    return readNativeMarkdownImageFile({
+      documentPath: document.path,
+      src
+    });
+  }, [document.path]);
   const getActiveAiSelection = useCallback(() => activeAiSelectionRef.current, []);
   const updateActiveAiSelection = useCallback((selection: AiSelectionContext | null) => {
     activeAiSelectionRef.current = selection;
@@ -251,6 +260,7 @@ export default function App() {
     panelOpen: aiAgentOpen,
     panelWidth: aiAgentPanelWidth,
     provider: aiSettings.agentProvider,
+    readDocumentImage: readAiDocumentImage,
     readWorkspaceFile: readAiWorkspaceFile,
     sessionId: activeAiAgentSessionId,
     settingsLoading: aiSettings.loading,

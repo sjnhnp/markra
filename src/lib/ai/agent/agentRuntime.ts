@@ -388,7 +388,7 @@ function messagesFromPiContext(context: Context): ChatMessage[] {
 
 function chatMessageFromPiMessage(message: Message): ChatMessage[] {
   if (message.role === "user") {
-    return [{ content: piContentToText(message.content), role: "user" }];
+    return [chatMessageFromPiUserMessage(message.content)];
   }
 
   if (message.role === "assistant") {
@@ -401,6 +401,24 @@ function chatMessageFromPiMessage(message: Message): ChatMessage[] {
       role: "user"
     }
   ];
+}
+
+function chatMessageFromPiUserMessage(content: string | (TextContent | ImageContent)[]): ChatMessage {
+  if (typeof content === "string") return { content, role: "user" };
+
+  const text = content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n");
+  const images = content
+    .filter((part): part is ImageContent => part.type === "image")
+    .map((part) => ({
+      dataUrl: part.data,
+      mimeType: part.mimeType
+    }));
+
+  return {
+    content: text,
+    ...(images.length ? { images } : {}),
+    role: "user"
+  };
 }
 
 function piContentToText(content: string | (TextContent | ImageContent)[]) {
