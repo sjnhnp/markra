@@ -1,5 +1,6 @@
 import { runDocumentAiAgent, type DocumentAiHistoryMessage } from "./documentAgent";
 import type { AiProviderConfig } from "../providers/aiProviders";
+import type { ChatMessage } from "./chatAdapters";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
   return {
@@ -17,7 +18,7 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
 
 describe("document AI agent", () => {
   it("asks the tool-calling agent to answer in the user's language", async () => {
-    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages[0]?.content).toContain("Reply in the user's language");
 
       return {
@@ -44,7 +45,7 @@ describe("document AI agent", () => {
   });
 
   it("passes tool-calling history as transcript messages instead of embedding it in the current prompt", async () => {
-    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages.map((message) => message.role)).toEqual(["system", "user", "assistant", "user", "user"]);
       expect(messages[1]?.content).toBe("Earlier synthetic request");
       expect(messages[2]?.content).toContain("Earlier synthetic answer");
@@ -86,6 +87,13 @@ describe("document AI agent", () => {
           from: 10,
           original: "old-token",
           replacement: "new-token",
+          target: {
+            from: 10,
+            id: "table:0",
+            kind: "table",
+            title: "Cost impact",
+            to: 19
+          },
           to: 19,
           type: "replace"
         },
@@ -94,9 +102,10 @@ describe("document AI agent", () => {
       }
     ];
 
-    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages.map((message) => message.role)).toEqual(["system", "assistant", "user", "user"]);
       expect(messages[1]?.content).toContain("Prepared editor preview");
+      expect(messages[1]?.content).toContain("Target: table: Cost impact (10-19)");
       expect(messages[1]?.content).toContain("old-token");
       expect(messages[1]?.content).toContain("new-token");
       expect(messages[2]?.content).toContain("Document runtime context:");
@@ -127,7 +136,7 @@ describe("document AI agent", () => {
   });
 
   it("keeps tool-calling runtime context separate from the current user request", async () => {
-    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages.map((message) => message.role)).toEqual(["system", "user", "user"]);
       expect(messages[1]?.content).toContain("Document runtime context:");
       expect(messages[1]?.content).toContain("Current selection snapshot:");
@@ -169,7 +178,7 @@ describe("document AI agent", () => {
   });
 
   it("guides the tool-calling agent to use table-specific replacement for table edits", async () => {
-    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages[0]?.content).toContain("replace_table");
       expect(messages[0]?.content).toContain("table anchor");
 
@@ -197,7 +206,7 @@ describe("document AI agent", () => {
   });
 
   it("keeps chat-only context and read-only tool output separate from the current user request", async () => {
-    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages) => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages.map((message) => message.role)).toEqual(["system", "user", "user", "user"]);
       expect(messages[1]?.content).toContain("Document runtime context:");
       expect(messages[1]?.content).toContain("Current cursor snapshot:");
@@ -675,6 +684,13 @@ describe("document AI agent", () => {
       from: tableStart,
       original: table,
       replacement,
+      target: {
+        from: tableStart,
+        id: "table:0",
+        kind: "table",
+        title: "Section Alpha table",
+        to: tableStart + table.length
+      },
       to: tableStart + table.length,
       type: "replace"
     });

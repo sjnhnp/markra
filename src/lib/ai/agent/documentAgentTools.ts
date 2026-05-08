@@ -1,6 +1,6 @@
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@mariozechner/pi-ai";
-import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "./inlineAi";
+import type { AiDiffResult, AiDiffTarget, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "./inlineAi";
 import type { AgentWorkspaceFile } from "./agentTools";
 
 type DocumentAgentToolContext = {
@@ -333,6 +333,7 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
           from: region.region.from,
           original: region.region.original,
           replacement: args.replacement,
+          ...(region.region.target ? { target: region.region.target } : {}),
           to: region.region.to,
           type: "replace"
         };
@@ -372,6 +373,7 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
           from: table.anchor.from,
           original: table.anchor.text ?? sliceDocumentText(context.documentContent, table.anchor.from, table.anchor.to),
           replacement: args.replacement,
+          target: diffTargetFromAnchor(table.anchor),
           to: table.anchor.to,
           type: "replace"
         };
@@ -852,7 +854,7 @@ function resolveWriteRegion(
   context: DocumentAgentToolContext,
   anchorId: string | undefined,
   mode: RegionOperation
-): { error: AgentToolResult<{ message: string }> } | { region: { from: number; original: string; to: number } } {
+): { error: AgentToolResult<{ message: string }> } | { region: { from: number; original: string; target?: AiDiffTarget; to: number } } {
   if (!anchorId) {
     if (!context.selection?.text.trim()) {
       return {
@@ -885,12 +887,23 @@ function resolveWriteRegion(
   }
 
   return {
-      region: {
-        from: anchor.from,
-        original: anchor.text ?? sliceDocumentText(context.documentContent, anchor.from, anchor.to),
-        to: anchor.to
-      }
-    };
+    region: {
+      from: anchor.from,
+      original: anchor.text ?? sliceDocumentText(context.documentContent, anchor.from, anchor.to),
+      ...(anchor.kind === "table" ? { target: diffTargetFromAnchor(anchor) } : {}),
+      to: anchor.to
+    }
+  };
+}
+
+function diffTargetFromAnchor(anchor: AiDocumentAnchor): AiDiffTarget {
+  return {
+    from: anchor.from,
+    id: anchor.id,
+    kind: anchor.kind,
+    title: anchor.title,
+    to: anchor.to
+  };
 }
 
 function ensureReplacementFitsRegion(

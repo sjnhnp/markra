@@ -7,6 +7,7 @@ import {
   saveStoredAiAgentSession,
   saveStoredAiAgentSessionTitle
 } from "../lib/settings/appSettings";
+import type { I18nKey } from "../lib/i18n";
 import { useAiAgentSession } from "./useAiAgentSession";
 
 vi.mock("../lib/ai/agent/documentAgent", () => ({
@@ -30,6 +31,10 @@ const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
 const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
 const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession);
 const mockedSaveStoredAiAgentSessionTitle = vi.mocked(saveStoredAiAgentSessionTitle);
+
+function testTranslate(translations: Partial<Record<I18nKey, string>> = {}) {
+  return (key: I18nKey) => translations[key] ?? key;
+}
 
 describe("useAiAgentSession", () => {
   beforeEach(() => {
@@ -320,11 +325,10 @@ describe("useAiAgentSession", () => {
           type: "openai"
         },
         settingsLoading: false,
-        translate: (key) =>
-          ({
-            "app.aiAgentPreviewReady": "The editor change is ready.",
-            "app.aiEmptyResponse": "AI returned no usable text."
-          })[key] ?? key,
+        translate: testTranslate({
+          "app.aiAgentPreviewReady": "The editor change is ready.",
+          "app.aiEmptyResponse": "AI returned no usable text."
+        }),
         workspaceFiles: []
       })
     );
@@ -353,6 +357,13 @@ describe("useAiAgentSession", () => {
       from: 10,
       original: "old-token",
       replacement: "new-token",
+      target: {
+        from: 10,
+        id: "table:0",
+        kind: "table" as const,
+        title: "Cost impact",
+        to: 19
+      },
       to: 19,
       type: "replace" as const
     };
@@ -387,10 +398,9 @@ describe("useAiAgentSession", () => {
           type: "openai"
         },
         settingsLoading: false,
-        translate: (key) =>
-          ({
-            "app.aiAgentPreviewReady": "The editor change is ready."
-          })[key] ?? key,
+        translate: testTranslate({
+          "app.aiAgentPreviewReady": "The editor change is ready."
+        }),
         workspaceFiles: []
       })
     );
@@ -407,7 +417,7 @@ describe("useAiAgentSession", () => {
 
     expect(mockedRunDocumentAiAgent).toHaveBeenCalledTimes(2);
     expect(mockedRunDocumentAiAgent.mock.calls[1]?.[0].history).toEqual([
-      { role: "user", text: "Prepare synthetic edit" },
+      { preview: undefined, role: "user", text: "Prepare synthetic edit" },
       {
         preview,
         role: "assistant",
@@ -532,12 +542,11 @@ describe("useAiAgentSession", () => {
         },
         sessionId: "session-a",
         settingsLoading: false,
-        translate: (key) =>
-          ({
-            "app.aiAgentTraceCall": "AI call",
-            "app.aiAgentTraceRequestedTools": "Requested tool calls",
-            "app.aiAgentProcessReadDocument": "Read current document"
-          })[key] ?? key,
+        translate: testTranslate({
+          "app.aiAgentTraceCall": "AI call",
+          "app.aiAgentTraceRequestedTools": "Requested tool calls",
+          "app.aiAgentProcessReadDocument": "Read current document"
+        }),
         workspaceFiles: []
       })
     );

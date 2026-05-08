@@ -1,4 +1,5 @@
 import { cancelAgentProcesses, type AiAgentProcessItem, type AiAgentProcessKind, type AiAgentProcessStatus } from "./agentProcessTrace";
+import type { AiDiffTarget } from "./inlineAi";
 import { clampNumber, isRecord } from "../../utils";
 
 export type AiAgentSessionMessage = {
@@ -15,6 +16,7 @@ export type AiAgentSessionPreview = {
   from?: number;
   original: string;
   replacement: string;
+  target?: AiDiffTarget;
   to?: number;
   type: "insert" | "replace";
 };
@@ -156,14 +158,41 @@ function normalizeSessionPreview(value: unknown): AiAgentSessionPreview | undefi
   if (!isRecord(value)) return undefined;
   if (value.type !== "insert" && value.type !== "replace") return undefined;
   if (typeof value.original !== "string" || typeof value.replacement !== "string") return undefined;
+  const target = normalizeSessionPreviewTarget(value.target);
 
   return {
     from: normalizeOptionalDocumentPosition(value.from),
     original: value.original,
     replacement: value.replacement,
+    ...(target ? { target } : {}),
     to: normalizeOptionalDocumentPosition(value.to),
     type: value.type
   };
+}
+
+function normalizeSessionPreviewTarget(value: unknown): AiDiffTarget | undefined {
+  if (!isRecord(value)) return undefined;
+  if (!isAiDiffTargetKind(value.kind)) return undefined;
+
+  return {
+    from: normalizeOptionalDocumentPosition(value.from),
+    id: typeof value.id === "string" ? value.id : undefined,
+    kind: value.kind,
+    title: typeof value.title === "string" ? value.title : undefined,
+    to: normalizeOptionalDocumentPosition(value.to)
+  };
+}
+
+function isAiDiffTargetKind(value: unknown): value is AiDiffTarget["kind"] {
+  return (
+    value === "current_block" ||
+    value === "document" ||
+    value === "document_end" ||
+    value === "heading" ||
+    value === "section" ||
+    value === "selection" ||
+    value === "table"
+  );
 }
 
 function normalizeOptionalDocumentPosition(value: unknown) {

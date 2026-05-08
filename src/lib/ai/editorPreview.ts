@@ -35,6 +35,10 @@ type AiEditorPreviewMeta =
       result: AiDiffResult;
     }
   | {
+      kind: "confirm_apply";
+      result: AiDiffResult;
+    }
+  | {
       kind: "clear";
     }
   | {
@@ -113,6 +117,15 @@ export function showAiEditorPreview(
 
 export function clearAiEditorPreview(view: EditorView) {
   view.dispatch(view.state.tr.setMeta(aiEditorPreviewKey, { kind: "clear" } satisfies AiEditorPreviewMeta));
+}
+
+export function confirmAiEditorResultApplied(view: EditorView, result: AiDiffResult) {
+  if (!isTextDiffResult(result)) return;
+
+  view.dispatch(view.state.tr.setMeta(aiEditorPreviewKey, {
+    kind: "confirm_apply",
+    result
+  } satisfies AiEditorPreviewMeta));
 }
 
 export function applyAiEditorResult(view: EditorView, result: AiDiffResult, options: ApplyAiEditorResultOptions = {}) {
@@ -258,6 +271,18 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
             applied: {
               labels: meta.labels ?? previewState.pending?.labels,
               renderedReplacementHtml: previewState.pending?.renderedReplacementHtml,
+              result: meta.result
+            },
+            decorations: DecorationSet.empty
+          };
+        }
+        if (meta?.kind === "confirm_apply" && isTextDiffResult(meta.result)) {
+          const snapshot = previewState.applied ?? previewState.pending;
+
+          return {
+            applied: {
+              labels: snapshot?.labels,
+              renderedReplacementHtml: snapshot?.renderedReplacementHtml,
               result: meta.result
             },
             decorations: DecorationSet.empty
@@ -423,18 +448,46 @@ function formatPreviewScope(
   const charLabel = labels.chars ?? defaultLabels.chars ?? "chars";
   const affectedLength = result.type === "insert" ? result.replacement.length : result.original.length;
   const affectedText = `${affectedLength} ${charLabel}`;
+  const targetText = formatPreviewTarget(result.target);
 
   if (result.type === "insert") {
-    return `${labels.insertScope ?? defaultLabels.insertScope ?? "Insert"} | ${affectedText} | pos ${from}`;
+    const scope = withPreviewTarget(labels.insertScope ?? defaultLabels.insertScope ?? "Insert", targetText);
+
+    return `${scope} | ${affectedText} | pos ${from}`;
   }
   if (from === 0 && to >= docSize) {
-    return `${labels.replaceDocumentScope ?? defaultLabels.replaceDocumentScope ?? "Replace entire document"} | ${affectedText}`;
+    const scope = withPreviewTarget(
+      labels.replaceDocumentScope ?? defaultLabels.replaceDocumentScope ?? "Replace entire document",
+      targetText
+    );
+
+    return `${scope} | ${affectedText}`;
   }
   if (from < to) {
-    return `${labels.replaceSelectionScope ?? defaultLabels.replaceSelectionScope ?? "Replace selection"} | ${affectedText} | ${from}-${to}`;
+    const scope = withPreviewTarget(
+      labels.replaceSelectionScope ?? defaultLabels.replaceSelectionScope ?? "Replace selection",
+      targetText
+    );
+
+    return `${scope} | ${affectedText} | ${from}-${to}`;
   }
 
-  return `${labels.replaceRegionScope ?? defaultLabels.replaceRegionScope ?? "Replace region"} | ${affectedText}`;
+  const scope = withPreviewTarget(labels.replaceRegionScope ?? defaultLabels.replaceRegionScope ?? "Replace region", targetText);
+
+  return `${scope} | ${affectedText}`;
+}
+
+function formatPreviewTarget(target: AiTextDiffResult["target"]) {
+  if (!target) return null;
+
+  const title = target.title?.trim() || target.id?.trim();
+  if (!title) return target.kind;
+
+  return `${target.kind}: ${title}`;
+}
+
+function withPreviewTarget(scope: string, targetText: string | null) {
+  return targetText ? `${scope} - ${targetText}` : scope;
 }
 
 function createActionButton(

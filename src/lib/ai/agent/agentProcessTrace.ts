@@ -225,26 +225,44 @@ function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end
   if (event.toolName === "locate_section" && typeof event.result?.details?.anchorId === "string") {
     return formatLocatedAnchorDetail(event.result.details);
   }
-  if (event.toolName === "replace_region" && typeof event.result?.details?.original === "string") {
-    return `${event.result.details.original.length} chars`;
-  }
-  if (event.toolName === "replace_document" && typeof event.result?.details?.original === "string") {
-    return `${event.result.details.original.length} chars`;
-  }
-  if (event.toolName === "replace_section" && typeof event.result?.details?.original === "string") {
-    return `${event.result.details.original.length} chars`;
-  }
-  if (event.toolName === "delete_region" && typeof event.result?.details?.original === "string") {
-    return `${event.result.details.original.length} chars`;
-  }
-  if (event.toolName === "delete_section" && typeof event.result?.details?.original === "string") {
-    return `${event.result.details.original.length} chars`;
-  }
-  if (event.toolName === "delete_selection" && typeof event.result?.details?.original === "string") {
-    return `${event.result.details.original.length} chars`;
+  if (
+    (
+      event.toolName === "replace_region" ||
+      event.toolName === "replace_table" ||
+      event.toolName === "replace_document" ||
+      event.toolName === "replace_section" ||
+      event.toolName === "delete_region" ||
+      event.toolName === "delete_section" ||
+      event.toolName === "delete_selection"
+    ) &&
+    typeof event.result?.details?.original === "string"
+  ) {
+    return formatPreparedWriteDetail(event.result.details);
   }
 
   return undefined;
+}
+
+function formatPreparedWriteDetail(details: { original: string; target?: unknown }) {
+  const length = `${details.original.length} chars`;
+  const target = formatPreparedWriteTarget(details.target);
+
+  return target ? `${target} · ${length}` : length;
+}
+
+function formatPreparedWriteTarget(target: unknown) {
+  if (!target || typeof target !== "object") return undefined;
+
+  const targetRecord = target as Record<string, unknown>;
+  if (typeof targetRecord.kind !== "string") return undefined;
+
+  const title = typeof targetRecord.title === "string" && targetRecord.title.trim()
+    ? targetRecord.title.trim()
+    : typeof targetRecord.id === "string" && targetRecord.id.trim()
+      ? targetRecord.id.trim()
+      : null;
+
+  return title ? `${targetRecord.kind}: ${title}` : targetRecord.kind;
 }
 
 function formatToolErrorResult(result: unknown) {

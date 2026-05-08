@@ -8,6 +8,7 @@ import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContex
 import {
   applyAiEditorResult,
   clearAiEditorPreview,
+  confirmAiEditorResultApplied,
   showAiEditorPreview,
   type AiEditorPreviewLabels
 } from "../lib/ai/editorPreview";
@@ -375,6 +376,19 @@ export function useEditorController() {
     }
   }, []);
 
+  const confirmAiResultApplied = useCallback((result: AiDiffResult) => {
+    if (result.type === "error") return;
+
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return;
+
+      confirmAiEditorResultApplied(view, result);
+    } catch {
+      // The editor may already have been torn down; the document edit itself has still been applied.
+    }
+  }, []);
+
   const holdAiSelection = useCallback((selection: AiSelectionContext) => {
     try {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
@@ -465,6 +479,7 @@ export function useEditorController() {
     applyAiResult,
     clearAiPreview,
     clearAiSelection,
+    confirmAiResultApplied,
     getDocumentEndPosition,
     getHeadingAnchors,
     getCurrentMarkdown,

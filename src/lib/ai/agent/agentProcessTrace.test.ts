@@ -71,6 +71,40 @@ describe("agentProcessTrace", () => {
     }));
   });
 
+  it("shows the prepared write target in replacement process details", () => {
+    const initialProcesses = createInitialAgentProcesses(translate);
+    const nextProcesses = applyAgentEventToProcesses(
+      initialProcesses,
+      {
+        isError: false,
+        result: {
+          details: {
+            original: "old-token",
+            target: {
+              from: 10,
+              id: "table:0",
+              kind: "table",
+              title: "Cost impact",
+              to: 19
+            }
+          }
+        },
+        toolCallId: "call_replace_table",
+        toolName: "replace_table",
+        type: "tool_execution_end"
+      } as AgentEvent,
+      translate
+    );
+
+    expect(nextProcesses).toContainEqual(expect.objectContaining({
+      detail: "table: Cost impact · 9 chars",
+      id: "tool:call_replace_table",
+      label: "app.aiAgentProcessRunTool",
+      rawLabel: "replace_table",
+      status: "completed"
+    }));
+  });
+
   it("marks failed tool executions as errors with the tool message", () => {
     const initialProcesses = createInitialAgentProcesses(translate);
     const nextProcesses = applyAgentEventToProcesses(

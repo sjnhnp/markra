@@ -444,6 +444,7 @@ function sessionPreviewFromAiResult(result: AiDiffResult): AiAgentSessionPreview
     from: result.from,
     original: result.original,
     replacement: result.replacement,
+    ...(result.target ? { target: result.target } : {}),
     to: result.to,
     type: result.type
   };

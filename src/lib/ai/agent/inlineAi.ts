@@ -1,8 +1,17 @@
+export type AiDiffTarget = {
+  from?: number;
+  id?: string;
+  kind: "current_block" | "document" | "document_end" | "heading" | "section" | "selection" | "table";
+  title?: string;
+  to?: number;
+};
+
 export type AiDiffResult =
   | {
       from?: number;
       original: string;
       replacement: string;
+      target?: AiDiffTarget;
       to?: number;
       type: "insert" | "replace";
     }

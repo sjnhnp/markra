@@ -19,7 +19,8 @@ import {
   saveStoredLanguage,
   saveStoredTheme,
   saveStoredWorkspaceState,
-  setStoredAiAgentSessionArchived
+  setStoredAiAgentSessionArchived,
+  type AiProviderSettings
 } from "./appSettings";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
@@ -479,7 +480,7 @@ describe("app settings", () => {
   });
 
   it("persists AI provider settings in the app settings store", async () => {
-    const settings = {
+    const settings: AiProviderSettings = {
       defaultModelId: "gpt-4o",
       defaultProviderId: "openai",
       providers: [
@@ -491,7 +492,7 @@ describe("app settings", () => {
           id: "openai",
           models: [
             {
-              capabilities: ["text", "reasoning", "tools"] as const,
+              capabilities: ["text", "reasoning", "tools"],
               enabled: true,
               id: "gpt-4o",
               name: "GPT-4o"
@@ -1060,8 +1061,10 @@ describe("app settings", () => {
   });
 
   it("generates a random AI agent session id from crypto when available", () => {
-    globalThis.crypto.randomUUID = vi.fn(() => "session-random");
+    globalThis.crypto.randomUUID = vi.fn(
+      (): ReturnType<Crypto["randomUUID"]> => "00000000-0000-4000-8000-000000000000"
+    );
 
-    expect(createAiAgentSessionId()).toBe("session-random");
+    expect(createAiAgentSessionId()).toBe("00000000-0000-4000-8000-000000000000");
   });
 });

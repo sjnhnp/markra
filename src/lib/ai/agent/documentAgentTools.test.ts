@@ -1,4 +1,11 @@
+import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { createDocumentAgentTools } from "./documentAgentTools";
+
+function toolText(result: AgentToolResult<unknown> | undefined) {
+  const content = result?.content[0];
+
+  return content?.type === "text" ? content.text : "";
+}
 
 describe("documentAgentTools", () => {
   it("reads a workspace Markdown file by exact relative path", async () => {
@@ -24,8 +31,8 @@ describe("documentAgentTools", () => {
     });
 
     expect(readWorkspaceFile).toHaveBeenCalledWith("/vault/notes/compare.md");
-    expect(result?.content[0]?.text).toContain("Workspace file: notes/compare.md");
-    expect(result?.content[0]?.text).toContain("Useful context.");
+    expect(toolText(result)).toContain("Workspace file: notes/compare.md");
+    expect(toolText(result)).toContain("Useful context.");
   });
 
   it("rejects workspace file reads outside the known Markdown tree", async () => {
@@ -69,8 +76,8 @@ describe("documentAgentTools", () => {
 
     const result = await tool?.execute("tool_get_document_outline", {});
 
-    expect(result?.content[0]?.text).toContain("# Title (0-8)");
-    expect(result?.content[0]?.text).toContain("## Section (10-21)");
+    expect(toolText(result)).toContain("# Title (0-8)");
+    expect(toolText(result)).toContain("## Section (10-21)");
   });
 
   it("returns section anchors derived from headings", async () => {
@@ -88,8 +95,8 @@ describe("documentAgentTools", () => {
 
     const result = await tool?.execute("tool_get_document_sections", {});
 
-    expect(result?.content[0]?.text).toContain("section:0: Title (0-31)");
-    expect(result?.content[0]?.text).toContain("section:1: Section (15-31)");
+    expect(toolText(result)).toContain("section:0: Title (0-31)");
+    expect(toolText(result)).toContain("section:1: Section (15-31)");
   });
 
   it("prepares a delete preview for the current selection", async () => {
@@ -117,7 +124,7 @@ describe("documentAgentTools", () => {
       to: 7,
       type: "replace"
     });
-    expect(result?.content[0]?.text).toContain("Prepared a deletion preview");
+    expect(toolText(result)).toContain("Prepared a deletion preview");
   });
 
   it("prepares a full-document replacement preview", async () => {
@@ -142,7 +149,7 @@ describe("documentAgentTools", () => {
       to: 17,
       type: "replace"
     });
-    expect(result?.content[0]?.text).toContain("Prepared a full-document replacement preview");
+    expect(toolText(result)).toContain("Prepared a full-document replacement preview");
   });
 
   it("returns available anchors for the current editing context", async () => {
@@ -166,10 +173,10 @@ describe("documentAgentTools", () => {
 
     const result = await tool?.execute("tool_get_available_anchors", {});
 
-    expect(result?.content[0]?.text).toContain("current-context");
-    expect(result?.content[0]?.text).toContain("whole-document");
-    expect(result?.content[0]?.text).toContain("heading:1");
-    expect(result?.content[0]?.text).toContain("document-end");
+    expect(toolText(result)).toContain("current-context");
+    expect(toolText(result)).toContain("whole-document");
+    expect(toolText(result)).toContain("heading:1");
+    expect(toolText(result)).toContain("document-end");
   });
 
   it("locates the most appropriate region before insertion", async () => {
@@ -235,7 +242,7 @@ describe("documentAgentTools", () => {
     expect(result?.details).toEqual(expect.objectContaining({
       anchorId: "table:0"
     }));
-    expect(result?.content[0]?.text).toContain("table:0");
+    expect(toolText(result)).toContain("table:0");
   });
 
   it("uses enum schemas for bounded tool arguments", () => {
@@ -344,7 +351,7 @@ describe("documentAgentTools", () => {
       to: 21,
       type: "insert"
     });
-    expect(result?.content[0]?.text).toContain("Prepared an insertion preview at after_anchor (heading:1).");
+    expect(toolText(result)).toContain("Prepared an insertion preview at after_anchor (heading:1).");
   });
 
   it("rejects anchor-based insertion when the anchor is missing", async () => {
@@ -434,6 +441,13 @@ describe("documentAgentTools", () => {
       from: tableStart,
       original: table,
       replacement,
+      target: {
+        from: tableStart,
+        id: "table:0",
+        kind: "table",
+        title: "Section Alpha table",
+        to: tableStart + table.length
+      },
       to: tableStart + table.length,
       type: "replace"
     });
@@ -476,10 +490,17 @@ describe("documentAgentTools", () => {
       from: tableStart,
       original: table,
       replacement,
+      target: {
+        from: tableStart,
+        id: "table:0",
+        kind: "table",
+        title: "Section Alpha table",
+        to: tableStart + table.length
+      },
       to: tableStart + table.length,
       type: "replace"
     });
-    expect(result?.content[0]?.text).toContain("Prepared a table replacement preview");
+    expect(toolText(result)).toContain("Prepared a table replacement preview");
   });
 
   it("prepares a table replacement preview when the document has no headings", async () => {
@@ -513,6 +534,13 @@ describe("documentAgentTools", () => {
       from: 0,
       original: table,
       replacement,
+      target: {
+        from: 0,
+        id: "table:0",
+        kind: "table",
+        title: "Table: Field / Variant One / Variant Two",
+        to: table.length
+      },
       to: table.length,
       type: "replace"
     });
@@ -561,6 +589,13 @@ describe("documentAgentTools", () => {
       from: 42,
       original: table,
       replacement,
+      target: {
+        from: 42,
+        id: "table:0",
+        kind: "table",
+        title: "Section Alpha table",
+        to: 91
+      },
       to: 91,
       type: "replace"
     });

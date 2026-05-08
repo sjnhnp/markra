@@ -10,6 +10,7 @@ import {
   type AiEditorPreviewActionDetail,
   applyAiEditorResult,
   clearAiEditorPreview,
+  confirmAiEditorResultApplied,
   showAiEditorPreview
 } from "../lib/ai/editorPreview";
 import {
@@ -268,6 +269,31 @@ describe("MarkdownPaper editing", () => {
 
     expect(scope).toHaveTextContent("Replace entire document");
     expect(scope).toHaveTextContent("13 chars");
+  });
+
+  it("shows AI preview target details for table replacements", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const to = from + "Original".length;
+
+    showAiEditorPreview(view, {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      target: {
+        from,
+        id: "table:0",
+        kind: "table",
+        title: "Cost impact",
+        to
+      },
+      to,
+      type: "replace"
+    });
+
+    const scope = container.querySelector(".ProseMirror .markra-ai-preview-scope");
+
+    expect(scope).toHaveTextContent("table: Cost impact");
   });
 
   it("updates an existing AI replacement preview when streaming text grows", async () => {
@@ -790,6 +816,35 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror .markra-ai-preview-actions")).toBeInTheDocument();
 
     window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("clears a stale pending preview after the applied result is confirmed", async () => {
+    const { container, view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+
+    showAiEditorPreview(view, result);
+    expect(applyAiEditorResult(view, result)).toBe(true);
+
+    showAiEditorPreview(view, result);
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+
+    confirmAiEditorResultApplied(view, result);
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
+
+    expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
+
     clearAiEditorPreview(view);
     await settleMarkdownListener();
   });

@@ -338,6 +338,10 @@ export default function App() {
       console.debug("[markra-ai-preview] apply ignored: duplicate result", {
         type: result.type
       });
+      editor.confirmAiResultApplied(result);
+      editor.clearAiSelection();
+      updateAiResult(null);
+      handleAiCommandClose();
       return;
     }
 
@@ -345,10 +349,20 @@ export default function App() {
     console.debug("[markra-ai-preview] app apply result", { applied });
 
     if (applied) {
+      const confirmAppliedPreview = () => {
+        editor.confirmAiResultApplied(result);
+      };
+
       appliedAiResultSignaturesRef.current.add(signature);
       editor.clearAiSelection();
       updateAiResult(null);
       handleAiCommandClose();
+      confirmAppliedPreview();
+      if (typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(confirmAppliedPreview);
+      } else {
+        window.setTimeout(confirmAppliedPreview, 0);
+      }
     }
   }, [aiResult, editor, handleAiCommandClose, updateAiResult]);
   const handleRejectAiResult = useCallback(() => {

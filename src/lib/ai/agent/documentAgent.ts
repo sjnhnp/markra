@@ -3,7 +3,7 @@ import type { AiProviderConfig } from "../providers/aiProviders";
 import { createNativeChatStreamFn, createPiAgentModel, type InlineAiAgentComplete } from "./agentRuntime";
 import { chatCompletionStream } from "./chatCompletion";
 import { runReadOnlyAgentTools, type AgentWorkspaceFile } from "./agentTools";
-import type { AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "./inlineAi";
+import type { AiDiffTarget, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "./inlineAi";
 import type { ChatMessage } from "./chatAdapters";
 import type { AiDiffResult } from "./inlineAi";
 import { getProviderCapabilities } from "./providerCapabilities";
@@ -19,6 +19,7 @@ export type DocumentAiHistoryPreview = {
   from?: number;
   original: string;
   replacement: string;
+  target?: AiDiffTarget;
   to?: number;
   type: "insert" | "replace";
 };
@@ -469,14 +470,26 @@ function formatHistoryMessageText(message: DocumentAiHistoryMessage) {
 
 function formatHistoryPreviewSummary(preview: DocumentAiHistoryPreview) {
   const range = preview.from === undefined || preview.to === undefined ? "unknown range" : `${preview.from}-${preview.to}`;
+  const target = formatHistoryPreviewTarget(preview.target);
 
   return [
     "Prepared editor preview:",
     `Type: ${preview.type}`,
+    ...(target ? [`Target: ${target}`] : []),
     `Range: ${range}`,
     `Original excerpt: ${formatHistoryPreviewExcerpt(preview.original)}`,
     `Replacement excerpt: ${formatHistoryPreviewExcerpt(preview.replacement)}`
   ].join("\n");
+}
+
+function formatHistoryPreviewTarget(target: AiDiffTarget | undefined) {
+  if (!target) return null;
+
+  const title = target.title?.trim() || target.id?.trim();
+  const label = title ? `${target.kind}: ${title}` : target.kind;
+  const range = target.from === undefined || target.to === undefined ? null : `${target.from}-${target.to}`;
+
+  return range ? `${label} (${range})` : label;
 }
 
 function formatHistoryPreviewExcerpt(value: string) {

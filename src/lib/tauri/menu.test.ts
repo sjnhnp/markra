@@ -1,4 +1,4 @@
-import { Menu } from "@tauri-apps/api/menu";
+import { Menu, type MenuOptions } from "@tauri-apps/api/menu";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -26,6 +26,25 @@ vi.mock("@tauri-apps/api/window", () => ({
 const mockedMenuNew = vi.mocked(Menu.new);
 const mockedListen = vi.mocked(listen);
 const mockedGetCurrentWindow = vi.mocked(getCurrentWindow);
+type TestMenuItem = NonNullable<MenuOptions["items"]>[number];
+type TestActionMenuItem = TestMenuItem & {
+  action?: (id: string) => unknown;
+  id?: string;
+};
+
+function latestMenuItems() {
+  const menuOptions = mockedMenuNew.mock.calls[0]?.[0];
+  if (!menuOptions) throw new Error("Expected a native menu to be created.");
+
+  return menuOptions.items ?? [];
+}
+
+function menuItemById(items: TestMenuItem[], id: string) {
+  const item = items.find((candidate) => "id" in candidate && candidate.id === id);
+  if (!item) throw new Error(`Expected menu item ${id}.`);
+
+  return item as TestActionMenuItem;
+}
 
 describe("native menu", () => {
   const setAsAppMenu = vi.fn();
@@ -151,21 +170,21 @@ describe("native menu", () => {
       renameFile
     }, "en", file);
 
-    const items = mockedMenuNew.mock.calls[0]?.[0].items ?? [];
-    const newFile = items.find((item) => "id" in item && item.id === "markra:file-tree:new");
-    const newFolder = items.find((item) => "id" in item && item.id === "markra:file-tree:new-folder");
-    const rename = items.find((item) => "id" in item && item.id === "markra:file-tree:rename");
-    const deleteItem = items.find((item) => "id" in item && item.id === "markra:file-tree:delete");
+    const items = latestMenuItems();
+    const newFile = menuItemById(items, "markra:file-tree:new");
+    const newFolder = menuItemById(items, "markra:file-tree:new-folder");
+    const rename = menuItemById(items, "markra:file-tree:rename");
+    const deleteItem = menuItemById(items, "markra:file-tree:delete");
 
     expect(newFile).toMatchObject({ text: "New file" });
     expect(newFolder).toMatchObject({ text: "New Folder" });
     expect(rename).toMatchObject({ text: "Rename file" });
     expect(deleteItem).toMatchObject({ text: "Delete file" });
 
-    if ("action" in newFile!) newFile.action?.();
-    if ("action" in newFolder!) newFolder.action?.();
-    if ("action" in rename!) rename.action?.();
-    if ("action" in deleteItem!) deleteItem.action?.();
+    newFile.action?.("markra:file-tree:new");
+    newFolder.action?.("markra:file-tree:new-folder");
+    rename.action?.("markra:file-tree:rename");
+    deleteItem.action?.("markra:file-tree:delete");
 
     expect(createFile).toHaveBeenCalledTimes(1);
     expect(createFolder).toHaveBeenCalledTimes(1);
@@ -182,7 +201,7 @@ describe("native menu", () => {
       renameFile: vi.fn()
     }, "en");
 
-    const items = mockedMenuNew.mock.calls[0]?.[0].items ?? [];
+    const items = latestMenuItems();
 
     expect(items).toEqual([
       expect.objectContaining({ id: "markra:file-tree:new", text: "New file" }),
