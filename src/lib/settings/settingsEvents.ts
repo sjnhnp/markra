@@ -8,6 +8,7 @@ import {
   type EditorPreferences
 } from "./appSettings";
 import { isAppLanguage, type AppLanguage } from "../i18n";
+import { hasTauriRuntime } from "../utils";
 
 const themeChangedEvent = "markra://theme-changed";
 const languageChangedEvent = "markra://language-changed";
@@ -29,10 +30,6 @@ type EditorPreferencesChangedPayload = {
 type AiSettingsChangedPayload = {
   settings: AiProviderSettings;
 };
-
-function hasTauriRuntime() {
-  return "__TAURI_INTERNALS__" in window;
-}
 
 export async function notifyAppThemeChanged(theme: AppTheme) {
   if (!hasTauriRuntime()) return;

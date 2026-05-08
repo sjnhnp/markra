@@ -13,6 +13,7 @@ import {
   FileText,
   Folder,
   FolderTree,
+  ImageIcon,
   Plus,
   Search,
   Settings,
@@ -270,6 +271,7 @@ export function MarkdownFileTreeDrawer({
   const openContextMenu = (event: ReactMouseEvent, file?: NativeMarkdownFolderFile) => {
     event.preventDefault();
     event.stopPropagation();
+    if (file?.kind === "asset") return;
 
     showNativeMarkdownFileTreeContextMenu(
       {
@@ -398,6 +400,8 @@ export function MarkdownFileTreeDrawer({
 
         const active = node.file.path === currentPath;
         const renaming = renamingPath === node.file.path;
+        const asset = node.file.kind === "asset";
+        const FileIcon = asset ? ImageIcon : FileText;
 
         return (
           <li key={node.file.path}>
@@ -405,7 +409,7 @@ export function MarkdownFileTreeDrawer({
               <div
                 className={`relative grid h-8 w-full grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${rowIndentClass} ${rowBranchClass}`}
               >
-                <FileText aria-hidden="true" className="shrink-0" size={15} />
+                <FileIcon aria-hidden="true" className="shrink-0" size={15} />
                 <input
                   aria-label={label("app.renameMarkdownFile")}
                   autoFocus
@@ -440,7 +444,7 @@ export function MarkdownFileTreeDrawer({
                   onOpenFile(node.file);
                 }}
               >
-                <FileText aria-hidden="true" className="shrink-0" size={15} />
+                <FileIcon aria-hidden="true" className="shrink-0" size={15} />
                 <span className="min-w-0 truncate">{node.name}</span>
               </button>
             )}

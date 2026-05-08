@@ -10,6 +10,7 @@ import {
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
   readNativeMarkdownFile,
+  saveNativeClipboardImage,
   saveNativeMarkdownFile,
   installNativeMarkdownFileDrop,
   listNativeMarkdownFilesForPath,
@@ -75,6 +76,7 @@ vi.mock("./lib/tauri/file", () => ({
   openNativeMarkdownPath: vi.fn(),
   readNativeMarkdownFile: vi.fn(),
   renameNativeMarkdownTreeFile: vi.fn(),
+  saveNativeClipboardImage: vi.fn(),
   saveNativeMarkdownFile: vi.fn(),
   watchNativeMarkdownFile: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn()
@@ -92,6 +94,7 @@ vi.mock("./lib/settings/appSettings", () => ({
   defaultEditorPreferences: {
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
+    clipboardImageFolder: "assets",
     contentWidth: "default",
     lineHeight: 1.65,
     restoreWorkspaceOnStartup: true,
@@ -106,6 +109,16 @@ vi.mock("./lib/settings/appSettings", () => ({
   getStoredWorkspaceState: vi.fn(),
   initializeStoredAiAgentSession: vi.fn(),
   listStoredAiAgentSessions: vi.fn(),
+  normalizeEditorPreferences: vi.fn((preferences) => ({
+    autoOpenAiOnSelection: true,
+    bodyFontSize: 16,
+    clipboardImageFolder: "assets",
+    contentWidth: "default",
+    lineHeight: 1.65,
+    restoreWorkspaceOnStartup: true,
+    showWordCount: true,
+    ...preferences
+  })),
   resetWelcomeDocumentState: vi.fn(),
   saveStoredAiAgentSession: vi.fn(),
   saveStoredAiAgentSessionTitle: vi.fn(),
@@ -338,6 +351,7 @@ describe("Markra workspace", () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
+      clipboardImageFolder: "assets",
       contentWidth: "default",
       lineHeight: 1.65,
       restoreWorkspaceOnStartup: true,
@@ -1125,6 +1139,49 @@ describe("Markra workspace", () => {
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
   });
 
+  it("previews an image asset from the current folder tree and returns to markdown files", async () => {
+    const guidePath = "/mock-files/docs/guide.md";
+    const imagePath = "/mock-files/assets/pasted-image.png";
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "native.md", path: mockNativePath, relativePath: "native.md" },
+      { kind: "folder", name: "assets", path: "/mock-files/assets", relativePath: "assets" },
+      { kind: "asset", name: "pasted-image.png", path: imagePath, relativePath: "assets/pasted-image.png" },
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOpened from the folder tree.",
+      name: "guide.md",
+      path: guidePath
+    });
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+    fireEvent.click(await screen.findByRole("button", { name: "assets" }));
+    fireEvent.click(await screen.findByRole("button", { name: "assets/pasted-image.png" }));
+
+    const previewImage = await screen.findByRole("img", { name: "pasted-image.png" });
+    expect(previewImage).toHaveAttribute("src", imagePath);
+    expect(screen.getByRole("heading", { name: "pasted-image.png" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    expect(screen.getByLabelText("Markdown editor")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "pasted-image.png" })).not.toBeInTheDocument();
+  });
+
   it("switches between unmodified folder files without asking to discard changes", async () => {
     const guidePath = "/mock-files/vault/docs/guide.md";
     const notesPath = "/mock-files/vault/docs/notes.md";
@@ -1880,11 +1937,49 @@ describe("Markra workspace", () => {
 
     expect(await screen.findByText("Native file")).toBeInTheDocument();
 
-    await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenCalledWith(mockNativePath, expect.any(Function)));
+    await waitFor(() =>
+      expect(mockedWatchNativeMarkdownFile).toHaveBeenCalledWith(
+        mockNativePath,
+        expect.any(Function),
+        expect.any(Function)
+      )
+    );
     await emitExternalChange(mockNativePath);
 
     expect(await screen.findByText("Changed elsewhere")).toBeInTheDocument();
     expect(screen.getByText("Reloaded from disk.")).toBeInTheDocument();
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockNativePath);
+  });
+
+  it("refreshes the markdown file tree when the native folder watcher reports a new asset", async () => {
+    let emitTreeChange: (path: string) => unknown | Promise<unknown> = () => {};
+
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "native.md", path: mockNativePath, relativePath: "native.md" }
+    ]);
+    mockedWatchNativeMarkdownFile.mockImplementation(async (_path, _onChange, onTreeChange) => {
+      emitTreeChange = (path) => onTreeChange?.(path);
+      return () => {};
+    });
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockNativePath));
+
+    const callsBeforeTreeChange = mockedListNativeMarkdownFilesForPath.mock.calls.length;
+    await act(async () => {
+      await emitTreeChange("/mock-files/assets/pasted-image.png");
+    });
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath.mock.calls.length).toBeGreaterThan(callsBeforeTreeChange));
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith(mockNativePath);
   });
 });

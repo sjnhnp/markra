@@ -3,6 +3,7 @@ import {
   fileNameFromPath,
   firstMarkdownPath,
   folderNameFromDocumentPath,
+  hasTauriRuntime,
   isMarkdownPath,
   isRecord,
   joinApiUrl,
@@ -12,6 +13,10 @@ import {
 } from "./utils";
 
 describe("utilities", () => {
+  beforeEach(() => {
+    delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  });
+
   it("normalizes blank or non-string values to null", () => {
     expect(normalizeNullableString("")).toBeNull();
     expect(normalizeNullableString("   ")).toBeNull();
@@ -28,6 +33,14 @@ describe("utilities", () => {
     expect(isRecord([])).toBe(true);
     expect(isRecord(null)).toBe(false);
     expect(isRecord("text")).toBe(false);
+  });
+
+  it("detects whether the app is running inside Tauri", () => {
+    expect(hasTauriRuntime()).toBe(false);
+
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+
+    expect(hasTauriRuntime()).toBe(true);
   });
 
   it("clamps numeric values and rejects non-numeric input", () => {

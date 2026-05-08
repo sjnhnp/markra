@@ -103,6 +103,46 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(openFile).toHaveBeenCalledWith(markdownFiles[2]);
   });
 
+  it("opens image assets from the file tree without showing markdown file menus", () => {
+    const openFile = vi.fn();
+    const asset = {
+      kind: "asset" as const,
+      name: "pasted-image.png",
+      path: "/vault/assets/pasted-image.png",
+      relativePath: "assets/pasted-image.png"
+    };
+    const { container } = render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={[
+          ...markdownFiles,
+          { kind: "folder", name: "assets", path: "/vault/assets", relativePath: "assets" },
+          asset
+        ]}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={openFile}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "assets" }));
+
+    const assetButton = screen.getByRole("button", { name: "assets/pasted-image.png" });
+    expect(assetButton).toContainElement(container.querySelector(".lucide-image"));
+
+    fireEvent.click(assetButton);
+    fireEvent.contextMenu(assetButton);
+
+    expect(openFile).toHaveBeenCalledWith(asset);
+    expect(mockedShowNativeMarkdownFileTreeContextMenu).not.toHaveBeenCalledWith(
+      expect.anything(),
+      "en",
+      asset
+    );
+  });
+
   it("supports creating and renaming markdown files from the file tree", () => {
     const createFile = vi.fn();
     const createFolder = vi.fn();

@@ -21,6 +21,7 @@ import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/re
 import { Plugin } from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
 import { markraLiveMarkdownPlugin } from "../lib/markdown/inputRules";
+import { markraClipboardImagePlugin, type SaveClipboardImage } from "../lib/markdown/clipboardImages";
 import { markraLinkImageLivePlugin } from "../lib/markdown/linkImageInputRules";
 import { markraMarkdownShortcuts } from "../lib/markdown/shortcuts";
 import { markraAiEditorPreviewPlugin } from "../lib/ai/editorPreview";
@@ -56,7 +57,9 @@ type MarkdownPaperProps = {
   lineHeight?: number;
   onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => unknown;
   onMarkdownChange: (content: string) => unknown;
+  onSaveClipboardImage?: SaveClipboardImage;
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
+  resolveImageSrc?: (src: string) => string;
   revision: number;
 };
 
@@ -72,7 +75,9 @@ type MilkdownSurfaceProps = {
   language: AppLanguage;
   onEditorReady: MarkdownPaperProps["onEditorReady"];
   onMarkdownChange: (content: string) => unknown;
+  onSaveClipboardImage?: MarkdownPaperProps["onSaveClipboardImage"];
   onTextSelectionChange?: MarkdownPaperProps["onTextSelectionChange"];
+  resolveImageSrc?: MarkdownPaperProps["resolveImageSrc"];
 };
 
 function markraTextSelectionObserverPlugin(
@@ -164,19 +169,26 @@ function MilkdownSurface({
   language,
   onEditorReady,
   onMarkdownChange,
-  onTextSelectionChange
+  onSaveClipboardImage,
+  onTextSelectionChange,
+  resolveImageSrc
 }: MilkdownSurfaceProps) {
   const initialContentRef = useRef(initialContent);
+  const onSaveClipboardImageRef = useRef(onSaveClipboardImage);
   const onTextSelectionChangeRef = useRef(onTextSelectionChange);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
+
+  useEffect(() => {
+    onSaveClipboardImageRef.current = onSaveClipboardImage;
+  }, [onSaveClipboardImage]);
 
   useEffect(() => {
     onTextSelectionChangeRef.current = onTextSelectionChange;
   }, [onTextSelectionChange]);
 
   const createEditor = useCallback(
-    (root: HTMLElement) =>
-      Editor.make()
+    (root: HTMLElement) => {
+      const editor = Editor.make()
         .config((ctx) => {
           ctx.set(rootCtx, root);
           ctx.set(defaultValueCtx, initialContentRef.current);
@@ -208,9 +220,18 @@ function MilkdownSurface({
             onTextSelectionChangeRef.current?.(selection);
           })
         )
-        .use(markraLinkImageLivePlugin)
-        .use(markraLiveMarkdownPlugin),
-    [markdownDocumentLabel, onMarkdownChange]
+        .use(markraLinkImageLivePlugin(resolveImageSrc))
+        .use(markraLiveMarkdownPlugin);
+
+      if (onSaveClipboardImageRef.current) {
+        editor.use(
+          markraClipboardImagePlugin((image) => onSaveClipboardImageRef.current?.(image) ?? Promise.resolve(null))
+        );
+      }
+
+      return editor;
+    },
+    [markdownDocumentLabel, onMarkdownChange, resolveImageSrc]
   );
 
   useEditor(createEditor, [createEditor]);
@@ -232,7 +253,9 @@ export function MarkdownPaper({
   lineHeight = 1.65,
   onEditorReady,
   onMarkdownChange,
+  onSaveClipboardImage,
   onTextSelectionChange,
+  resolveImageSrc,
   revision
 }: MarkdownPaperProps) {
   const paperStyle = {
@@ -260,7 +283,9 @@ export function MarkdownPaper({
             language={language}
             onEditorReady={onEditorReady}
             onMarkdownChange={onMarkdownChange}
+            onSaveClipboardImage={onSaveClipboardImage}
             onTextSelectionChange={onTextSelectionChange}
+            resolveImageSrc={resolveImageSrc}
           />
         </MilkdownProvider>
       </article>

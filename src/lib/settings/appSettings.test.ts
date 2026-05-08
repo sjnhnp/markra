@@ -125,6 +125,7 @@ describe("app settings", () => {
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
+      clipboardImageFolder: "assets",
       contentWidth: "default",
       lineHeight: 1.65,
       restoreWorkspaceOnStartup: true,
@@ -138,6 +139,7 @@ describe("app settings", () => {
     store.get.mockResolvedValue({
       autoOpenAiOnSelection: false,
       bodyFontSize: 99,
+      clipboardImageFolder: "media/screenshots",
       contentWidth: "page",
       lineHeight: 2,
       restoreWorkspaceOnStartup: false,
@@ -147,6 +149,7 @@ describe("app settings", () => {
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       autoOpenAiOnSelection: false,
       bodyFontSize: 16,
+      clipboardImageFolder: "media/screenshots",
       contentWidth: "default",
       lineHeight: 1.65,
       restoreWorkspaceOnStartup: false,
@@ -154,10 +157,27 @@ describe("app settings", () => {
     });
   });
 
+  it("falls back to the default clipboard image folder when the stored folder is unsafe", async () => {
+    store.get.mockResolvedValue({
+      clipboardImageFolder: "../outside"
+    });
+
+    await expect(getStoredEditorPreferences()).resolves.toEqual({
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "assets",
+      contentWidth: "default",
+      lineHeight: 1.65,
+      restoreWorkspaceOnStartup: true,
+      showWordCount: true
+    });
+  });
+
   it("persists editor preferences", async () => {
     await saveStoredEditorPreferences({
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
+      clipboardImageFolder: "images",
       contentWidth: "wide",
       lineHeight: 1.8,
       restoreWorkspaceOnStartup: false,
@@ -167,6 +187,7 @@ describe("app settings", () => {
     expect(store.set).toHaveBeenCalledWith("editorPreferences", {
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
+      clipboardImageFolder: "images",
       contentWidth: "wide",
       lineHeight: 1.8,
       restoreWorkspaceOnStartup: false,

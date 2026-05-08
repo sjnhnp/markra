@@ -7,6 +7,7 @@ vi.mock("../lib/settings/appSettings", () => ({
   defaultEditorPreferences: {
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
+    clipboardImageFolder: "assets",
     contentWidth: "default",
     lineHeight: 1.65,
     restoreWorkspaceOnStartup: true,
@@ -34,6 +35,7 @@ describe("useEditorPreferences", () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
+      clipboardImageFolder: "assets",
       contentWidth: "default",
       lineHeight: 1.65,
       restoreWorkspaceOnStartup: true,
@@ -54,6 +56,7 @@ describe("useEditorPreferences", () => {
       onPreferencesChanged?.({
         autoOpenAiOnSelection: false,
         bodyFontSize: 18,
+        clipboardImageFolder: "images",
         contentWidth: "wide",
         lineHeight: 1.8,
         restoreWorkspaceOnStartup: false,

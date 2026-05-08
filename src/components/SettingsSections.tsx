@@ -144,6 +144,29 @@ function SettingsSelect({
   );
 }
 
+function SettingsTextInput({
+  label,
+  onChange,
+  placeholder,
+  value
+}: {
+  label: string;
+  onChange: (value: string) => unknown;
+  placeholder?: string;
+  value: string;
+}) {
+  return (
+    <input
+      className="h-8 w-44 rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out placeholder:text-(--text-secondary) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+      type="text"
+      aria-label={label}
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.currentTarget.value)}
+    />
+  );
+}
+
 function SettingsButton({
   children,
   label,
@@ -384,6 +407,23 @@ export function EditorSettings({
                 onUpdatePreferences({
                   ...preferences,
                   contentWidth: value as EditorContentWidth
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.clipboardImageFolder")}
+          description={translate("settings.editor.clipboardImageFolderDescription")}
+          action={
+            <SettingsTextInput
+              label={translate("settings.editor.clipboardImageFolder")}
+              value={preferences.clipboardImageFolder}
+              placeholder="assets"
+              onChange={(value) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  clipboardImageFolder: value
                 })
               }
             />

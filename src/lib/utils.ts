@@ -19,6 +19,10 @@ export function folderNameFromDocumentPath(path: string | null) {
   return parts.at(-2) ?? "Files";
 }
 
+export function hasTauriRuntime() {
+  return "__TAURI_INTERNALS__" in window;
+}
+
 export function isMarkdownPath(path: string) {
   return /\.(md|markdown|txt)$/i.test(fileNameFromPath(path));
 }

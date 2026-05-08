@@ -32,6 +32,7 @@ export type EditorContentWidth = "narrow" | "default" | "wide";
 export type EditorPreferences = {
   autoOpenAiOnSelection: boolean;
   bodyFontSize: number;
+  clipboardImageFolder: string;
   contentWidth: EditorContentWidth;
   lineHeight: number;
   restoreWorkspaceOnStartup: boolean;
@@ -49,6 +50,7 @@ export type { AppLanguage };
 export const defaultEditorPreferences: EditorPreferences = {
   autoOpenAiOnSelection: true,
   bodyFontSize: 16,
+  clipboardImageFolder: "assets",
   contentWidth: "default",
   lineHeight: 1.65,
   restoreWorkspaceOnStartup: true,
@@ -362,6 +364,7 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     bodyFontSize: editorBodyFontSizeOptions.includes(preferences.bodyFontSize as typeof editorBodyFontSizeOptions[number])
       ? Number(preferences.bodyFontSize)
       : defaultEditorPreferences.bodyFontSize,
+    clipboardImageFolder: normalizeClipboardImageFolder(preferences.clipboardImageFolder),
     contentWidth: editorContentWidthOptions.includes(preferences.contentWidth as EditorContentWidth)
       ? (preferences.contentWidth as EditorContentWidth)
       : defaultEditorPreferences.contentWidth,
@@ -375,6 +378,27 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     showWordCount:
       typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount
   };
+}
+
+export function normalizeClipboardImageFolder(value: unknown) {
+  if (typeof value !== "string") return defaultEditorPreferences.clipboardImageFolder;
+
+  const normalized = value.trim().replace(/\\/gu, "/").replace(/\/+/gu, "/");
+  if (normalized === ".") return ".";
+  if (!normalized || normalized.startsWith("/") || /^[a-zA-Z]:/u.test(normalized)) {
+    return defaultEditorPreferences.clipboardImageFolder;
+  }
+
+  const parts = normalized
+    .split("/")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && part !== ".");
+
+  if (!parts.length || parts.some((part) => part === "..")) {
+    return defaultEditorPreferences.clipboardImageFolder;
+  }
+
+  return parts.join("/");
 }
 
 export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {

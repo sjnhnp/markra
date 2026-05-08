@@ -26,7 +26,9 @@ import { clearAiSelectionHold, showAiSelectionHold } from "../lib/ai/selectionHo
 async function renderEditor(
   initialContent = "",
   options: {
+    onSaveClipboardImage?: (image: File) => Promise<{ alt: string; src: string } | null>;
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
+    resolveImageSrc?: (src: string) => string;
   } = {}
 ) {
   let editor: Editor | null = null;
@@ -37,7 +39,9 @@ async function renderEditor(
         editor = instance;
       }}
       onMarkdownChange={() => {}}
+      onSaveClipboardImage={options.onSaveClipboardImage}
       onTextSelectionChange={options.onTextSelectionChange}
+      resolveImageSrc={options.resolveImageSrc}
       revision={0}
     />
   );
@@ -162,6 +166,21 @@ function pressShortcut(
   return view.someProp("handleKeyDown", (handler) => handler(view, event));
 }
 
+function pasteImage(view: EditorView, image: File) {
+  const event = new Event("paste", {
+    bubbles: true,
+    cancelable: true
+  }) as ClipboardEvent;
+  Object.defineProperty(event, "clipboardData", {
+    value: {
+      files: [image],
+      getData: () => ""
+    }
+  });
+
+  return view.someProp("handlePaste", (handler) => handler(view, event, view.state.selection.content()));
+}
+
 function expectLiveMark(container: HTMLElement, kind: string, text: string) {
   expect(container.querySelector(`.ProseMirror .markra-live-mark-${kind}`)).toHaveTextContent(text);
 }
@@ -205,6 +224,22 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelector(".paper-scroll")).toHaveClass("overscroll-none");
     expect(container.querySelector(".paper-scroll")).toHaveClass("h-full", "min-h-0", "overflow-auto");
+  });
+
+  it("saves pasted clipboard images and inserts markdown image references", async () => {
+    const onSaveClipboardImage = vi.fn().mockResolvedValue({
+      alt: "Screenshot",
+      src: "assets/pasted-image.png"
+    });
+    const image = new File([new Uint8Array([1, 2, 3])], "Screenshot.png", { type: "image/png" });
+    const { view } = await renderEditor("", { onSaveClipboardImage });
+
+    expect(pasteImage(view, image)).toBe(true);
+
+    await waitFor(() => expect(onSaveClipboardImage).toHaveBeenCalledWith(image));
+    await waitFor(() => {
+      expect(view.state.doc.textContent).toContain("![Screenshot](assets/pasted-image.png)");
+    });
   });
 
   it("renders AI replacement comparison inside the editor", async () => {
@@ -1464,6 +1499,19 @@ describe("MarkdownPaper editing", () => {
     expect(image).toBeInTheDocument();
     expect(image).toHaveAttribute("alt", "Markra logo");
     await settleMarkdownListener();
+  });
+
+  it("renders local image markdown with resolved preview sources", async () => {
+    const { container } = await renderEditor("![Screenshot](assets/pasted-image.png)", {
+      resolveImageSrc: (src) => `asset://current-note/${src}`
+    });
+
+    const image = container.querySelector<HTMLImageElement>(
+      '.ProseMirror img[src="asset://current-note/assets/pasted-image.png"]'
+    );
+
+    expect(image).toBeInTheDocument();
+    expect(image).toHaveAttribute("alt", "Screenshot");
   });
 
   it("keeps typed link markdown editable and styles the label live", async () => {

@@ -17,6 +17,7 @@ import {
   openNativeMarkdownPath,
   readNativeMarkdownFile,
   resolveNativeMarkdownPath,
+  saveNativeClipboardImage,
   renameNativeMarkdownTreeFile,
   saveNativeMarkdownFile,
   watchNativeMarkdownFile
@@ -202,12 +203,19 @@ describe("native file access", () => {
   it("lists markdown files below the current file folder", async () => {
     mockedInvoke.mockResolvedValue([
       { path: "/mock-files/docs", relativePath: "docs" },
+      { kind: "asset", path: "/mock-files/assets/pasted-image.png", relativePath: "assets/pasted-image.png" },
       { path: "/mock-files/readme.md", relativePath: "readme.md" },
       { path: "/mock-files/docs/guide.md", relativePath: "docs/guide.md" }
     ]);
 
     await expect(listNativeMarkdownFilesForPath(mockReadmePath)).resolves.toEqual([
       { kind: "folder", path: "/mock-files/docs", name: "docs", relativePath: "docs" },
+      {
+        kind: "asset",
+        path: "/mock-files/assets/pasted-image.png",
+        name: "pasted-image.png",
+        relativePath: "assets/pasted-image.png"
+      },
       { path: "/mock-files/readme.md", name: "readme.md", relativePath: "readme.md" },
       { path: "/mock-files/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" }
     ]);
@@ -345,35 +353,76 @@ describe("native file access", () => {
     });
   });
 
-  it("starts and stops a native watcher for the selected markdown path", async () => {
-    const unlisten: () => unknown = vi.fn();
-    const onChange = vi.fn();
-    let emitChange: (path: string) => unknown = () => {};
+  it("saves a clipboard image next to the current markdown file through Tauri", async () => {
+    const image = new File([new Uint8Array([1, 2, 3])], "Screenshot 1.png", { type: "image/png" });
+    mockedInvoke.mockResolvedValue({
+      relativePath: "assets/pasted-image-123.png"
+    });
 
-    mockedListen.mockImplementation(async (_, handler) => {
-      emitChange = (path) => {
+    await expect(
+      saveNativeClipboardImage({
+        documentPath: mockReadmePath,
+        folder: "assets",
+        image
+      })
+    ).resolves.toEqual({
+      alt: "Screenshot 1",
+      src: "assets/pasted-image-123.png"
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("save_clipboard_image", {
+      bytes: [1, 2, 3],
+      documentPath: mockReadmePath,
+      folder: "assets",
+      mimeType: "image/png"
+    });
+  });
+
+  it("starts and stops a native watcher for the selected markdown path and tree", async () => {
+    const unlistenFile: () => unknown = vi.fn();
+    const unlistenTree: () => unknown = vi.fn();
+    const onChange = vi.fn();
+    const onTreeChange = vi.fn();
+    let emitFileChange: (path: string) => unknown = () => {};
+    let emitTreeChange: (payload: { path: string; rootPath: string }) => unknown = () => {};
+
+    mockedListen.mockImplementation(async (event, handler) => {
+      if (event === "markra://tree-changed") {
+        emitTreeChange = (payload) => {
+          handler({ payload } as never);
+        };
+        return unlistenTree;
+      }
+
+      emitFileChange = (path) => {
         handler({ payload: { path } } as never);
       };
-      return unlisten;
+      return unlistenFile;
     });
     mockedInvoke.mockResolvedValue(undefined);
 
-    const unwatch = await watchNativeMarkdownFile(mockReadmePath, onChange);
+    const unwatch = await watchNativeMarkdownFile(mockReadmePath, onChange, onTreeChange);
 
     expect(mockedListen).toHaveBeenCalledWith("markra://file-changed", expect.any(Function));
+    expect(mockedListen).toHaveBeenCalledWith("markra://tree-changed", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("watch_markdown_file", {
       path: mockReadmePath
     });
 
-    emitChange(mockReadmePath);
-    emitChange("/mock-files/other.md");
+    emitFileChange(mockReadmePath);
+    emitFileChange("/mock-files/other.md");
+    emitTreeChange({ path: "/mock-files/assets/pasted-image.png", rootPath: "/mock-files" });
+    emitTreeChange({ path: "/other-vault/assets/pasted-image.png", rootPath: "/other-vault" });
 
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith(mockReadmePath);
+    expect(onTreeChange).toHaveBeenCalledTimes(1);
+    expect(onTreeChange).toHaveBeenCalledWith("/mock-files/assets/pasted-image.png");
 
     unwatch();
 
-    expect(unlisten).toHaveBeenCalledTimes(1);
+    expect(unlistenFile).toHaveBeenCalledTimes(1);
+    expect(unlistenTree).toHaveBeenCalledTimes(1);
     expect(mockedInvoke).toHaveBeenCalledWith("unwatch_markdown_file", {
       path: mockReadmePath
     });

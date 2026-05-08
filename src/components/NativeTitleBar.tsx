@@ -1,4 +1,4 @@
-import { Bot, FileText, FolderOpen, Moon, PanelLeft, Save, SquarePen, Sun } from "lucide-react";
+import { Bot, FileText, FolderOpen, ImageIcon, Moon, PanelLeft, Save, SquarePen, Sun } from "lucide-react";
 import type { ResolvedAppTheme } from "../lib/settings/appSettings";
 import { t, type AppLanguage } from "../lib/i18n";
 
@@ -7,7 +7,7 @@ type NativeTitleBarProps = {
   aiAgentResizing?: boolean;
   aiAgentWidth?: number;
   dirty: boolean;
-  documentKind?: "file" | "folder";
+  documentKind?: "file" | "folder" | "image";
   documentName: string;
   language?: AppLanguage;
   markdownFilesOpen: boolean;
@@ -53,7 +53,7 @@ export function NativeTitleBar({
   const titleTransform = titleOffset === 0 ? undefined : `translateX(${titleOffset}px)`;
   const titleResizing = aiAgentResizing || markdownFilesResizing;
   const showQuickCreateMarkdownFile = quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
-  const TitleIcon = documentKind === "folder" ? FolderOpen : FileText;
+  const TitleIcon = documentKind === "folder" ? FolderOpen : documentKind === "image" ? ImageIcon : FileText;
 
   return (
     <header

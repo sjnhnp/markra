@@ -40,6 +40,7 @@ type AbsoluteRawMarkdownRange = RawMarkdownRange & {
   from: number;
   to: number;
 };
+export type ResolveMarkdownImageSrc = (src: string) => string;
 
 function overlaps(ranges: RawMarkdownRange[], from: number, to: number) {
   return ranges.some((range) => from < range.to && to > range.from);
@@ -131,10 +132,10 @@ function findActiveRawMarkdownRange(state: EditorState): AbsoluteRawMarkdownRang
   return range ? makeAbsoluteRange(range, $from.start()) : null;
 }
 
-function createImagePreview(range: RawImageRange) {
+function createImagePreview(range: RawImageRange, resolveImageSrc: ResolveMarkdownImageSrc | undefined) {
   const image = document.createElement("img");
   image.className = "markra-live-image-preview";
-  image.src = range.src;
+  image.src = resolveImageSrc?.(range.src) ?? range.src;
   image.alt = range.alt;
   image.draggable = false;
 
@@ -170,7 +171,8 @@ function buildLinkDecorations(
 function buildImageDecorations(
   decorations: Decoration[],
   range: Extract<AbsoluteRawMarkdownRange, { kind: "image" }>,
-  isActive: boolean
+  isActive: boolean,
+  resolveImageSrc: ResolveMarkdownImageSrc | undefined
 ) {
   const sourceClass = isActive ? "markra-md-delimiter" : "markra-md-hidden-delimiter";
 
@@ -182,11 +184,15 @@ function buildImageDecorations(
 
   if (!isActive) {
     // Fold inactive image source behind a preview, matching the live Markdown model used for marks.
-    decorations.push(Decoration.widget(range.from, () => createImagePreview(range), { side: -1 }));
+    decorations.push(Decoration.widget(range.from, () => createImagePreview(range, resolveImageSrc), { side: -1 }));
   }
 }
 
-function buildLiveLinkImageDecorations(doc: ProseNode, activeRange: AbsoluteRawMarkdownRange | null) {
+function buildLiveLinkImageDecorations(
+  doc: ProseNode,
+  activeRange: AbsoluteRawMarkdownRange | null,
+  resolveImageSrc: ResolveMarkdownImageSrc | undefined
+) {
   const decorations: Decoration[] = [];
 
   doc.descendants((node, position) => {
@@ -200,7 +206,7 @@ function buildLiveLinkImageDecorations(doc: ProseNode, activeRange: AbsoluteRawM
       const isActive = activeRange?.from === range.from && activeRange.to === range.to;
 
       if (range.kind === "image") {
-        buildImageDecorations(decorations, range, isActive);
+        buildImageDecorations(decorations, range, isActive, resolveImageSrc);
       } else {
         buildLinkDecorations(decorations, range, isActive);
       }
@@ -246,25 +252,58 @@ function replaceRawMarkdownTarget(state: EditorState, link: MarkType, image: Nod
     : replaceLinkMarkdown(state, link, target);
 }
 
-export const markraLinkImageLivePlugin = $prose((ctx) => {
-  const link = linkSchema.type(ctx);
-  const image = imageSchema.type(ctx);
+function updateImageNodeDom(dom: HTMLImageElement, node: ProseNode, resolveImageSrc: ResolveMarkdownImageSrc | undefined) {
+  const src = String(node.attrs.src ?? "");
+  const title = String(node.attrs.title ?? "");
 
-  return new Plugin({
-    key: linkImageLiveKey,
-    props: {
-      decorations: (state) => buildLiveLinkImageDecorations(state.doc, findActiveRawMarkdownRange(state)),
-      handleKeyDown: (view, event) => {
-        const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
-        if (event.key !== "Enter" || hasModifier) return false;
+  dom.src = resolveImageSrc?.(src) ?? src;
+  dom.alt = String(node.attrs.alt ?? "");
+  dom.draggable = true;
 
-        const tr = replaceRawMarkdownTarget(view.state, link, image);
-        if (!tr) return false;
+  if (title) {
+    dom.title = title;
+  } else {
+    dom.removeAttribute("title");
+  }
+}
 
-        event.preventDefault();
-        view.dispatch(tr.scrollIntoView());
-        return true;
+export function markraLinkImageLivePlugin(resolveImageSrc?: ResolveMarkdownImageSrc) {
+  return $prose((ctx) => {
+    const link = linkSchema.type(ctx);
+    const image = imageSchema.type(ctx);
+
+    return new Plugin({
+      key: linkImageLiveKey,
+      props: {
+        decorations: (state) => buildLiveLinkImageDecorations(state.doc, findActiveRawMarkdownRange(state), resolveImageSrc),
+        handleKeyDown: (view, event) => {
+          const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
+          if (event.key !== "Enter" || hasModifier) return false;
+
+          const tr = replaceRawMarkdownTarget(view.state, link, image);
+          if (!tr) return false;
+
+          event.preventDefault();
+          view.dispatch(tr.scrollIntoView());
+          return true;
+        },
+        nodeViews: {
+          image: (node) => {
+            const dom = document.createElement("img");
+            updateImageNodeDom(dom, node, resolveImageSrc);
+
+            return {
+              dom,
+              update(nextNode) {
+                if (nextNode.type.name !== "image") return false;
+
+                updateImageNodeDom(dom, nextNode, resolveImageSrc);
+                return true;
+              }
+            };
+          }
+        }
       }
-    }
+    });
   });
-});
+}

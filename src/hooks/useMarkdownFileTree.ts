@@ -182,6 +182,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     open,
     openFolderPath,
     rootNameForDocument,
+    refresh,
     setRootFromMarkdownFilePath,
     sourcePath,
     openMarkdownFolder,

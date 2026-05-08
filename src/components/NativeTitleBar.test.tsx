@@ -225,6 +225,27 @@ describe("NativeTitleBar", () => {
     expect(createMarkdownFile).toHaveBeenCalledTimes(1);
   });
 
+  it("uses an image icon for image preview titles", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentKind="image"
+        documentName="pasted-image.png"
+        markdownFilesOpen={false}
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "pasted-image.png" })).toBeInTheDocument();
+    expect(container.querySelector(".native-title")).toContainElement(container.querySelector(".lucide-image"));
+  });
+
   it("hides the quick new file button while the markdown files sidebar is open", () => {
     render(
       <NativeTitleBar

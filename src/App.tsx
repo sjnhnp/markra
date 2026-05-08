@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { AiAgentPanel } from "./components/AiAgentPanel";
+import { ImagePreview } from "./components/ImagePreview";
 import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
 import { NativeTitleBar } from "./components/NativeTitleBar";
@@ -24,6 +25,8 @@ import {
   useNativeMenus
 } from "./hooks/useNativeBindings";
 import { aiTranslationLanguageName, t, type I18nKey } from "./lib/i18n";
+import { showAppToast } from "./lib/appToast";
+import { createMarkdownImageSrcResolver } from "./lib/markdown/localImages";
 import { openSettingsWindow } from "./lib/tauri/window";
 import type { AiDiffResult, AiSelectionContext } from "./lib/ai/agent/inlineAi";
 import {
@@ -44,6 +47,7 @@ import {
   confirmNativeMarkdownFileDelete,
   confirmNativeUnsavedMarkdownDocumentDiscard,
   readNativeMarkdownFile,
+  saveNativeClipboardImage,
   type NativeMarkdownFolderFile
 } from "./lib/tauri/file";
 import { clampNumber } from "./lib/utils";
@@ -83,6 +87,7 @@ export default function App() {
   const [aiAgentPanelWidth, setAiAgentPanelWidth] = useState(aiAgentPanelDefaultWidth);
   const [aiAgentPanelResizing, setAiAgentPanelResizing] = useState(false);
   const [aiResult, setAiResult] = useState<AiDiffResult | null>(null);
+  const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
   const aiResultRef = useRef<AiDiffResult | null>(null);
   const appliedAiResultSignaturesRef = useRef(new Set<string>());
@@ -102,6 +107,7 @@ export default function App() {
     openFolderPath,
     openMarkdownFolder,
     renameFile: renameMarkdownTreeFile,
+    refresh: refreshMarkdownFileTree,
     resizing: fileTreeResizing,
     resize: resizeFileTree,
     endResize: endFileTreeResize,
@@ -125,6 +131,7 @@ export default function App() {
   const markdownDocument = useMarkdownDocument({
     confirmDiscardUnsavedChanges,
     getCurrentMarkdown: editor.getCurrentMarkdown,
+    onMarkdownTreeChange: refreshMarkdownFileTree,
     onTreeRootFromFolderPath: openFolderPath,
     onTreeRootFromFilePath: setRootFromMarkdownFilePath,
     onWorkspaceSessionChange: setAiAgentSessionId,
@@ -152,6 +159,12 @@ export default function App() {
   } = markdownDocument;
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
   const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
+  const resolveImageSrc = useMemo(() => createMarkdownImageSrcResolver(document.path), [document.path]);
+  const imagePreviewSrc = useMemo(() => {
+    if (!activeImageFile) return "";
+
+    return createMarkdownImageSrcResolver(activeImageFile.path)(activeImageFile.path);
+  }, [activeImageFile]);
   const getAiDocumentContent = useCallback(
     () => (document.open ? editor.getCurrentMarkdown(document.content) : document.content),
     [document.content, document.open, editor]
@@ -414,15 +427,44 @@ export default function App() {
     if (!result || result.type === "error") return;
     navigator.clipboard?.writeText(result.replacement);
   }, [aiResult]);
+  const handleSaveClipboardImage = useCallback(async (image: File) => {
+    if (!document.path) {
+      showAppToast({
+        message: translate("app.clipboardImageRequiresSavedDocument"),
+        status: "error"
+      });
+      return null;
+    }
+
+    try {
+      const savedImage = await saveNativeClipboardImage({
+        documentPath: document.path,
+        folder: editorPreferences.preferences.clipboardImageFolder,
+        image
+      });
+      await refreshMarkdownFileTree(document.path);
+      return savedImage;
+    } catch {
+      showAppToast({
+        message: translate("app.clipboardImageSaveFailed"),
+        status: "error"
+      });
+      return null;
+    }
+  }, [document.path, editorPreferences.preferences.clipboardImageFolder, refreshMarkdownFileTree, translate]);
   const handleCreateMarkdownTreeFile = useCallback(async (fileName: string) => {
     try {
       const file = await createMarkdownTreeFile(fileName);
-      if (file) await openTreeMarkdownFile(file);
+      if (file) {
+        setActiveImageFile(null);
+        await openTreeMarkdownFile(file);
+      }
     } catch {
       // Native file errors are surfaced by the platform operation when possible.
     }
   }, [createMarkdownTreeFile, openTreeMarkdownFile]);
   const handleQuickCreateMarkdownTreeFile = useCallback(() => {
+    setActiveImageFile(null);
     createBlankDocument().catch(() => {});
   }, [createBlankDocument]);
   const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string) => {
@@ -455,6 +497,19 @@ export default function App() {
       // Leave the file visible when native deletion fails.
     }
   }, [deleteMarkdownTreeFile, detachDeletedDocumentFile, translate]);
+  const handleOpenTreeFile = useCallback(async (file: NativeMarkdownFolderFile) => {
+    if (file.kind === "asset") {
+      setActiveImageFile(file);
+      return;
+    }
+
+    setActiveImageFile(null);
+    await openTreeMarkdownFile(file);
+  }, [openTreeMarkdownFile]);
+  const handleOpenMarkdownFile = useCallback(async () => {
+    setActiveImageFile(null);
+    await openMarkdownFile();
+  }, [openMarkdownFile]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
   const handleAiAgentToggle = useCallback(() => {
     setAiAgentOpen((open) => !open);
@@ -470,15 +525,18 @@ export default function App() {
         ? translate("app.files")
         : rawFileTreeRootName;
   const hasOpenDocument = document.open;
-  const titleDocumentName = hasOpenDocument ? document.name : fileTreeRootName;
-  const titleDocumentKind = hasOpenDocument ? "file" : "folder";
+  const titleDocumentName = activeImageFile ? activeImageFile.name : hasOpenDocument ? document.name : fileTreeRootName;
+  const titleDocumentKind = activeImageFile ? "image" : hasOpenDocument ? "file" : "folder";
   const supportsAiThinking = selectedInlineAiModel?.capabilities.includes("reasoning") ?? false;
   const handleOpenMarkdownFolder = useCallback(async () => {
     const canDiscard = await confirmCanDiscardCurrentDocument();
     if (!canDiscard) return;
 
     const folder = await openMarkdownFolder();
-    if (folder) clearOpenDocument();
+    if (folder) {
+      setActiveImageFile(null);
+      clearOpenDocument();
+    }
   }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder]);
   const aiAgentContext = useMemo(() => ({
     documentName: titleDocumentName,
@@ -500,7 +558,7 @@ export default function App() {
   ]);
   const nativeMenuHandlers = useNativeMenuHandlers({
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
-    openDocument: openMarkdownFile,
+    openDocument: handleOpenMarkdownFile,
     runEditorShortcut: editor.runEditorShortcut,
     saveDocument: handleSaveClick,
     saveDocumentAs
@@ -509,7 +567,7 @@ export default function App() {
   useNativeMarkdownDrop(handleDroppedMarkdownPath);
   useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null);
   useApplicationShortcuts({
-    openDocument: openMarkdownFile,
+    openDocument: handleOpenMarkdownFile,
     openFolder: handleOpenMarkdownFolder,
     saveDocument: handleSaveClick,
     saveDocumentAs
@@ -586,7 +644,7 @@ export default function App() {
           aiAgentOpen={aiAgentOpen}
           aiAgentResizing={aiAgentPanelResizing}
           aiAgentWidth={aiAgentPanelWidth}
-          dirty={hasOpenDocument && document.dirty}
+          dirty={!activeImageFile && hasOpenDocument && document.dirty}
           documentKind={titleDocumentKind}
           documentName={titleDocumentName}
           language={appLanguage.language}
@@ -594,10 +652,10 @@ export default function App() {
           markdownFilesResizing={fileTreeResizing}
           markdownFilesWidth={fileTreeWidth}
           quickCreateMarkdownFileVisible={!fileTreeOpen}
-          saveDisabled={!hasOpenDocument}
+          saveDisabled={!hasOpenDocument || Boolean(activeImageFile)}
           theme={appTheme.resolvedTheme}
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
-          onOpenMarkdown={openMarkdownFile}
+          onOpenMarkdown={handleOpenMarkdownFile}
           onSaveMarkdown={handleSaveClick}
           onToggleAiAgent={handleAiAgentToggle}
           onToggleMarkdownFiles={handleFileTreeToggle}
@@ -609,7 +667,7 @@ export default function App() {
         <div className={workspaceLayoutClassName} style={workspaceLayoutStyle}>
           <div className="markdown-file-tree-slot min-h-0 overflow-hidden">
             <MarkdownFileTreeDrawer
-              currentPath={hasOpenDocument ? document.path : null}
+              currentPath={activeImageFile?.path ?? (hasOpenDocument ? document.path : null)}
               files={fileTreeFiles}
               language={appLanguage.language}
               maxWidth={fileTreeMaxWidth}
@@ -621,7 +679,7 @@ export default function App() {
               onCreateFile={handleCreateMarkdownTreeFile}
               onCreateFolder={handleCreateMarkdownTreeFolder}
               onDeleteFile={handleDeleteMarkdownTreeFile}
-              onOpenFile={openTreeMarkdownFile}
+              onOpenFile={handleOpenTreeFile}
               onOpenSettings={handleOpenSettings}
               onRenameFile={handleRenameMarkdownTreeFile}
               onResize={resizeFileTree}
@@ -636,7 +694,13 @@ export default function App() {
             style={{ gridTemplateColumns: `minmax(0,1fr) ${aiAgentInset}` }}
           >
             <div className="editor-content-slot relative h-full min-h-0 overflow-hidden">
-              {hasOpenDocument ? (
+              {activeImageFile ? (
+                <ImagePreview
+                  alt={activeImageFile.name}
+                  language={appLanguage.language}
+                  src={imagePreviewSrc}
+                />
+              ) : hasOpenDocument ? (
                 <>
                   <MarkdownPaper
                     autoFocus={shouldFocusEditorOnReady(document.content)}
@@ -647,7 +711,9 @@ export default function App() {
                     lineHeight={editorPreferences.preferences.lineHeight}
                     onEditorReady={editor.handleEditorReady}
                     onMarkdownChange={handleMarkdownChange}
+                    onSaveClipboardImage={handleSaveClipboardImage}
                     onTextSelectionChange={handleTextSelectionChange}
+                    resolveImageSrc={resolveImageSrc}
                     revision={document.revision}
                   />
                   <QuietStatus

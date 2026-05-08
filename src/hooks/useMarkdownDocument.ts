@@ -63,6 +63,7 @@ function isEquivalentEditorMarkdown(left: string, right: string) {
 type UseMarkdownDocumentOptions = {
   confirmDiscardUnsavedChanges?: (document: DocumentState) => boolean | Promise<boolean>;
   getCurrentMarkdown: (fallbackContent: string) => string;
+  onMarkdownTreeChange?: (path: string) => unknown | Promise<unknown>;
   onTreeRootFromFolderPath: (path: string, name: string, sessionId?: string | null) => unknown;
   onTreeRootFromFilePath: (path: string) => unknown;
   onWorkspaceSessionChange?: (sessionId: string) => unknown;
@@ -77,6 +78,7 @@ function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState
 export function useMarkdownDocument({
   confirmDiscardUnsavedChanges,
   getCurrentMarkdown,
+  onMarkdownTreeChange,
   onTreeRootFromFolderPath,
   onTreeRootFromFilePath,
   onWorkspaceSessionChange,
@@ -504,6 +506,9 @@ export function useMarkdownDocument({
           revision: latest.revision + 1
         };
       });
+    }, (changedPath) => {
+      if (!active) return;
+      onMarkdownTreeChange?.(changedPath);
     }).then((stopWatching) => {
       if (!active) {
         stopWatching();
@@ -517,7 +522,7 @@ export function useMarkdownDocument({
       active = false;
       unwatch?.();
     };
-  }, [document.path]);
+  }, [document.path, onMarkdownTreeChange]);
 
   return {
     clearOpenDocument,

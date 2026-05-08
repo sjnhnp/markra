@@ -10,7 +10,7 @@ type MarkdownFileResponse = {
 };
 
 type MarkdownFolderFileResponse = {
-  kind?: "file" | "folder";
+  kind?: "asset" | "file" | "folder";
   path: string;
   relativePath: string;
 };
@@ -32,7 +32,7 @@ export type NativeMarkdownFile = {
 };
 
 export type NativeMarkdownFolderFile = {
-  kind?: "folder";
+  kind?: "asset" | "folder";
   path: string;
   name: string;
   relativePath: string;
@@ -76,14 +76,36 @@ export type SavedNativeMarkdownFile = {
   name: string;
 };
 
+export type SaveNativeClipboardImageInput = {
+  documentPath: string;
+  folder: string;
+  image: File;
+};
+
+export type SavedNativeClipboardImage = {
+  alt: string;
+  src: string;
+};
+
 export type NativeMarkdownFileChangeHandler = (path: string) => unknown | Promise<unknown>;
+export type NativeMarkdownTreeChangeHandler = (path: string) => unknown | Promise<unknown>;
 export type NativeMarkdownFileDropHandler = (target: NativeMarkdownDroppedTarget) => unknown | Promise<unknown>;
 
 type MarkdownFileChangedPayload = {
   path: string;
 };
 
+type MarkdownTreeChangedPayload = {
+  path: string;
+  rootPath: string;
+};
+
+type ClipboardImageFileResponse = {
+  relativePath: string;
+};
+
 const markdownFileChangedEvent = "markra://file-changed";
+const markdownTreeChangedEvent = "markra://tree-changed";
 
 const markdownFilters = [
   {
@@ -94,6 +116,16 @@ const markdownFilters = [
 
 function isMarkdownTreeFilePath(path: string) {
   return /\.(md|markdown)$/i.test(path);
+}
+
+function isMarkdownTreeAssetPath(path: string) {
+  return /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(path);
+}
+
+function parentPathFromPath(path: string) {
+  const lastSeparatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  if (lastSeparatorIndex < 0) return ".";
+  return path.slice(0, lastSeparatorIndex);
 }
 
 export async function readNativeMarkdownFile(path: string): Promise<NativeMarkdownFile> {
@@ -123,7 +155,9 @@ function markdownFolderFileFromResponse(file: MarkdownFolderFileResponse): Nativ
     relativePath: file.relativePath
   };
 
-  if (file.kind === "folder" || (!file.kind && !isMarkdownTreeFilePath(file.relativePath))) {
+  if (file.kind === "asset" || (!file.kind && isMarkdownTreeAssetPath(file.relativePath))) {
+    mappedFile.kind = "asset";
+  } else if (file.kind === "folder" || (!file.kind && !isMarkdownTreeFilePath(file.relativePath))) {
     mappedFile.kind = "folder";
   }
 
@@ -307,21 +341,73 @@ export async function saveNativeMarkdownFile({
   };
 }
 
-export async function watchNativeMarkdownFile(path: string, onChange: NativeMarkdownFileChangeHandler) {
-  const unlisten = await listen<MarkdownFileChangedPayload>(markdownFileChangedEvent, (event) => {
+function imageAltFromFileName(fileName: string) {
+  const trimmedName = fileName.trim();
+  if (!trimmedName) return "image";
+
+  const withoutExtension = trimmedName.replace(/\.[^.]*$/u, "").trim();
+  return withoutExtension || "image";
+}
+
+function encodeMarkdownUrlSegment(segment: string) {
+  return encodeURIComponent(segment).replace(/[!'()*]/gu, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+}
+
+function encodeMarkdownRelativePath(path: string) {
+  return path.split("/").map(encodeMarkdownUrlSegment).join("/");
+}
+
+export async function saveNativeClipboardImage({
+  documentPath,
+  folder,
+  image
+}: SaveNativeClipboardImageInput): Promise<SavedNativeClipboardImage> {
+  const bytes = Array.from(new Uint8Array(await image.arrayBuffer()));
+  const savedImage = await invoke<ClipboardImageFileResponse>("save_clipboard_image", {
+    bytes,
+    documentPath,
+    folder,
+    mimeType: image.type
+  });
+
+  return {
+    alt: imageAltFromFileName(image.name),
+    src: encodeMarkdownRelativePath(savedImage.relativePath)
+  };
+}
+
+export async function watchNativeMarkdownFile(
+  path: string,
+  onChange: NativeMarkdownFileChangeHandler,
+  onTreeChange?: NativeMarkdownTreeChangeHandler
+) {
+  const unlistenFile = await listen<MarkdownFileChangedPayload>(markdownFileChangedEvent, (event) => {
     if (event.payload.path !== path) return;
     onChange(event.payload.path);
   });
+  let unlistenTree: (() => unknown) | null = null;
 
   try {
+    if (onTreeChange) {
+      const rootPath = parentPathFromPath(path);
+      unlistenTree = await listen<MarkdownTreeChangedPayload>(markdownTreeChangedEvent, (event) => {
+        if (event.payload.rootPath !== rootPath) return;
+        onTreeChange(event.payload.path);
+      });
+    }
+
     await invoke("watch_markdown_file", { path });
   } catch (error) {
-    unlisten();
+    unlistenFile();
+    unlistenTree?.();
     throw error;
   }
 
   return () => {
-    unlisten();
+    unlistenFile();
+    unlistenTree?.();
     invoke("unwatch_markdown_file", { path });
   };
 }

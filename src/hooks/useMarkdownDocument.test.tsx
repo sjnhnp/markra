@@ -131,4 +131,41 @@ describe("useMarkdownDocument", () => {
     expect(confirmDiscardUnsavedChanges).not.toHaveBeenCalled();
     expect(result.current.document.name).toBe("second.md");
   });
+
+  it("forwards native folder tree changes while watching an opened markdown file", async () => {
+    const onMarkdownTreeChange = vi.fn();
+    let emitTreeChange: (path: string) => unknown = () => {};
+    mockedOpenNativeMarkdownPath.mockResolvedValueOnce({
+      kind: "file",
+      file: {
+        content: "# First file",
+        name: "first.md",
+        path: "/mock-files/first.md"
+      }
+    });
+    mockedWatchNativeMarkdownFile.mockImplementation(async (_path, _onChange, onTreeChange) => {
+      emitTreeChange = (path) => onTreeChange?.(path);
+      return () => {};
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onMarkdownTreeChange,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openMarkdownFile();
+    });
+
+    await act(async () => {
+      emitTreeChange("/mock-files/assets/pasted-image.png");
+    });
+
+    expect(onMarkdownTreeChange).toHaveBeenCalledWith("/mock-files/assets/pasted-image.png");
+  });
 });

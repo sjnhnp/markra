@@ -1,9 +1,10 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::windows::{
     editor_window_url_for_folder, editor_window_url_for_path, spawn_editor_window,
 };
+use tauri::Manager;
 
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct MarkdownFile {
@@ -14,6 +15,7 @@ pub(crate) struct MarkdownFile {
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum MarkdownFolderEntryKind {
+    Asset,
     File,
     Folder,
 }
@@ -23,6 +25,12 @@ pub(crate) enum MarkdownFolderEntryKind {
 pub(crate) struct MarkdownFolderFile {
     pub(crate) kind: MarkdownFolderEntryKind,
     pub(crate) path: String,
+    pub(crate) relative_path: String,
+}
+
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ClipboardImageFile {
     pub(crate) relative_path: String,
 }
 
@@ -38,6 +46,17 @@ fn is_markdown_tree_file(path: &Path) -> bool {
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
             matches!(extension.to_ascii_lowercase().as_str(), "md" | "markdown")
+        })
+}
+
+fn is_markdown_tree_asset_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "avif" | "bmp" | "gif" | "jpg" | "jpeg" | "png" | "svg" | "webp"
+            )
         })
 }
 
@@ -88,6 +107,125 @@ fn markdown_tree_relative_path(root: &Path, path: &Path) -> Result<String, Strin
     Ok(parts.join("/"))
 }
 
+fn clipboard_image_extension(mime_type: &str) -> Result<&'static str, String> {
+    let normalized = mime_type
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+
+    match normalized.as_str() {
+        "image/png" => Ok("png"),
+        "image/jpeg" | "image/jpg" => Ok("jpg"),
+        "image/gif" => Ok("gif"),
+        "image/webp" => Ok("webp"),
+        "image/avif" => Ok("avif"),
+        "image/bmp" => Ok("bmp"),
+        _ => Err("Clipboard image type is not supported".to_string()),
+    }
+}
+
+fn normalize_clipboard_image_folder(folder: &str) -> Result<PathBuf, String> {
+    let normalized = folder.trim().replace('\\', "/");
+    if normalized == "." {
+        return Ok(PathBuf::new());
+    }
+
+    let candidate = Path::new(&normalized);
+    if normalized.is_empty() || candidate.is_absolute() {
+        return Err("Clipboard image folder must be relative".to_string());
+    }
+
+    let mut target = PathBuf::new();
+    for component in candidate.components() {
+        match component {
+            Component::Normal(part) => target.push(part),
+            Component::CurDir => {}
+            _ => return Err("Clipboard image folder cannot leave the current folder".to_string()),
+        }
+    }
+
+    if target.as_os_str().is_empty() {
+        return Err("Clipboard image folder is invalid".to_string());
+    }
+
+    Ok(target)
+}
+
+fn clipboard_image_file_name(extension: &str, attempt: usize) -> String {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0);
+    let suffix = if attempt == 0 {
+        String::new()
+    } else {
+        format!("-{}", attempt + 1)
+    };
+
+    format!("pasted-image-{millis}{suffix}.{extension}")
+}
+
+fn allow_asset_directory<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    directory: &Path,
+) -> Result<(), String> {
+    app.asset_protocol_scope()
+        .allow_directory(directory, true)
+        .map_err(|error| error.to_string())
+}
+
+fn save_clipboard_image_file(
+    document_path: String,
+    folder: String,
+    mime_type: String,
+    bytes: Vec<u8>,
+    allow_root_assets: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<ClipboardImageFile, String> {
+    if bytes.is_empty() {
+        return Err("Clipboard image is empty".to_string());
+    }
+
+    let extension = clipboard_image_extension(&mime_type)?;
+    let document_path = PathBuf::from(document_path)
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    if !document_path.is_file() || !is_markdown_open_file(&document_path) {
+        return Err("Current document must be a saved Markdown file".to_string());
+    }
+
+    let root = document_path
+        .parent()
+        .ok_or_else(|| "Current document folder is invalid".to_string())?
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    allow_root_assets(&root)?;
+    let folder = normalize_clipboard_image_folder(&folder)?;
+    let target_folder = root.join(folder);
+
+    fs::create_dir_all(&target_folder).map_err(|error| error.to_string())?;
+    target_folder
+        .canonicalize()
+        .map_err(|error| error.to_string())?
+        .strip_prefix(&root)
+        .map_err(|_| "Clipboard image folder is outside the current Markdown folder".to_string())?;
+
+    for attempt in 0..1000 {
+        let target_path = target_folder.join(clipboard_image_file_name(extension, attempt));
+        if target_path.exists() {
+            continue;
+        }
+
+        fs::write(&target_path, &bytes).map_err(|error| error.to_string())?;
+        return Ok(ClipboardImageFile {
+            relative_path: markdown_tree_relative_path(&root, &target_path)?,
+        });
+    }
+
+    Err("Could not create a unique clipboard image file".to_string())
+}
+
 fn markdown_folder_file(
     root: &Path,
     path: &Path,
@@ -133,12 +271,20 @@ fn collect_markdown_tree_files(
             continue;
         }
 
-        if file_type.is_file() && is_markdown_tree_file(&path) {
-            files.push(markdown_folder_file(
-                root,
-                &path,
-                MarkdownFolderEntryKind::File,
-            )?);
+        if file_type.is_file() {
+            if is_markdown_tree_file(&path) {
+                files.push(markdown_folder_file(
+                    root,
+                    &path,
+                    MarkdownFolderEntryKind::File,
+                )?);
+            } else if is_markdown_tree_asset_file(&path) {
+                files.push(markdown_folder_file(
+                    root,
+                    &path,
+                    MarkdownFolderEntryKind::Asset,
+                )?);
+            }
         }
     }
 
@@ -302,9 +448,12 @@ fn pick_markdown_path<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub(crate) fn read_markdown_file(path: String) -> Result<MarkdownFile, String> {
+pub(crate) fn read_markdown_file(app: tauri::AppHandle, path: String) -> Result<MarkdownFile, String> {
     let path_buf = PathBuf::from(&path);
     let contents = fs::read_to_string(&path_buf).map_err(|error| error.to_string())?;
+    if let Some(parent) = path_buf.parent() {
+        allow_asset_directory(&app, parent)?;
+    }
 
     Ok(MarkdownFile { path, contents })
 }
@@ -441,6 +590,19 @@ pub(crate) fn write_markdown_file(path: String, contents: String) -> Result<(), 
 }
 
 #[tauri::command]
+pub(crate) fn save_clipboard_image(
+    app: tauri::AppHandle,
+    document_path: String,
+    folder: String,
+    mime_type: String,
+    bytes: Vec<u8>,
+) -> Result<ClipboardImageFile, String> {
+    save_clipboard_image_file(document_path, folder, mime_type, bytes, |root| {
+        allow_asset_directory(&app, root)
+    })
+}
+
+#[tauri::command]
 pub(crate) fn open_markdown_file_in_new_window(
     app: tauri::AppHandle,
     path: String,
@@ -506,13 +668,18 @@ mod tests {
                 .as_nanos()
         ));
         let docs = root.join("docs");
+        let assets = root.join("assets");
         let ignored = root.join("node_modules").join("package");
 
+        fs::create_dir_all(&assets).expect("assets folder should be created");
         fs::create_dir_all(&docs).expect("docs folder should be created");
         fs::create_dir_all(root.join("empty")).expect("empty folder should be created");
         fs::create_dir_all(&ignored).expect("ignored folder should be created");
         fs::write(root.join("Untitled.md"), "# Untitled").expect("root markdown should be created");
         fs::write(root.join("AWS.md"), "# AWS").expect("root markdown should be created");
+        fs::write(assets.join("pasted-image.png"), [1, 2, 3])
+            .expect("asset image should be created");
+        fs::write(assets.join("raw.txt"), "raw").expect("non-asset should be created");
         fs::write(root.join("notes.txt"), "notes").expect("non-markdown should be created");
         fs::write(docs.join("guide.markdown"), "# Guide")
             .expect("nested markdown should be created");
@@ -526,6 +693,16 @@ mod tests {
         assert_eq!(
             files,
             vec![
+                MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::Folder,
+                    path: assets.to_string_lossy().to_string(),
+                    relative_path: "assets".to_string(),
+                },
+                MarkdownFolderFile {
+                    kind: MarkdownFolderEntryKind::Asset,
+                    path: assets.join("pasted-image.png").to_string_lossy().to_string(),
+                    relative_path: "assets/pasted-image.png".to_string(),
+                },
                 MarkdownFolderFile {
                     kind: MarkdownFolderEntryKind::File,
                     path: root.join("AWS.md").to_string_lossy().to_string(),
@@ -692,6 +869,65 @@ mod tests {
             .expect("markdown file should be deleted");
 
         assert!(!root.join("Journal.markdown").exists());
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn saves_clipboard_images_below_the_current_markdown_file_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-clipboard-image-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let note = root.join("note.md");
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        fs::write(&note, "# Note").expect("markdown file should be created");
+
+        let saved = save_clipboard_image_file(
+            note.to_string_lossy().to_string(),
+            "assets/screenshots".to_string(),
+            "image/png".to_string(),
+            vec![1, 2, 3],
+            |_| Ok(()),
+        )
+        .expect("clipboard image should be saved");
+
+        assert!(saved.relative_path.starts_with("assets/screenshots/pasted-image-"));
+        assert!(saved.relative_path.ends_with(".png"));
+        assert_eq!(
+            fs::read(root.join(saved.relative_path)).expect("saved image should be readable"),
+            vec![1, 2, 3]
+        );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn rejects_clipboard_image_folders_outside_the_current_markdown_file_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-clipboard-image-boundary-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let note = root.join("note.md");
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        fs::write(&note, "# Note").expect("markdown file should be created");
+
+        assert!(save_clipboard_image_file(
+            note.to_string_lossy().to_string(),
+            "../outside".to_string(),
+            "image/png".to_string(),
+            vec![1, 2, 3],
+            |_| Ok(()),
+        )
+        .is_err());
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }

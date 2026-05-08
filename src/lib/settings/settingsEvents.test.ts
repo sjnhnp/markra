@@ -87,6 +87,7 @@ describe("settings events", () => {
     const preferences = {
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
+      clipboardImageFolder: "images",
       contentWidth: "wide" as const,
       lineHeight: 1.8,
       restoreWorkspaceOnStartup: false,
