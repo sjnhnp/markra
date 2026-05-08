@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
-import { fileNameFromPath, firstMarkdownPath } from "../utils";
+import { fileNameFromPath } from "../utils";
 
 type MarkdownFileResponse = {
   path: string;
@@ -53,6 +53,18 @@ export type NativeMarkdownOpenTarget =
       folder: NativeMarkdownFolder;
     };
 
+export type NativeMarkdownDroppedTarget =
+  | {
+      kind: "file";
+      path: string;
+      name: string;
+    }
+  | {
+      kind: "folder";
+      path: string;
+      name: string;
+    };
+
 export type SaveNativeMarkdownFileInput = {
   path: string | null;
   suggestedName: string;
@@ -65,7 +77,7 @@ export type SavedNativeMarkdownFile = {
 };
 
 export type NativeMarkdownFileChangeHandler = (path: string) => unknown | Promise<unknown>;
-export type NativeMarkdownFileDropHandler = (path: string) => unknown | Promise<unknown>;
+export type NativeMarkdownFileDropHandler = (target: NativeMarkdownDroppedTarget) => unknown | Promise<unknown>;
 
 type MarkdownFileChangedPayload = {
   path: string;
@@ -188,6 +200,10 @@ export async function openNativeMarkdownFileInNewWindow(path: string) {
   await invoke("open_markdown_file_in_new_window", { path });
 }
 
+export async function openNativeMarkdownFolderInNewWindow(path: string) {
+  await invoke("open_markdown_folder_in_new_window", { path });
+}
+
 export async function openNativeMarkdownFile(): Promise<NativeMarkdownFile | null> {
   // The native dialog gives us a real filesystem path; Rust owns the actual disk read.
   const selectedPath = await open({
@@ -219,6 +235,34 @@ export async function openNativeMarkdownPath(): Promise<NativeMarkdownOpenTarget
     kind: "file",
     file: await readNativeMarkdownFile(target.path)
   };
+}
+
+function droppedTargetFromResponse(target: MarkdownOpenPathResponse): NativeMarkdownDroppedTarget {
+  return {
+    kind: target.kind,
+    path: target.path,
+    name: fileNameFromPath(target.path)
+  };
+}
+
+export async function resolveNativeMarkdownPath(path: string): Promise<NativeMarkdownDroppedTarget> {
+  const target = await invoke<MarkdownOpenPathResponse>("resolve_markdown_path", {
+    path
+  });
+
+  return droppedTargetFromResponse(target);
+}
+
+async function firstDroppedMarkdownTarget(paths: string[]) {
+  for (const path of paths) {
+    try {
+      return await resolveNativeMarkdownPath(path);
+    } catch {
+      // Keep looking; drag payloads can contain images or other unsupported files.
+    }
+  }
+
+  return null;
 }
 
 export async function openNativeMarkdownFolder(): Promise<NativeMarkdownFolder | null> {
@@ -287,10 +331,11 @@ export async function installNativeMarkdownFileDrop(onDrop: NativeMarkdownFileDr
     return await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type !== "drop") return;
 
-      const path = firstMarkdownPath(event.payload.paths);
-      if (!path) return;
+      firstDroppedMarkdownTarget(event.payload.paths).then((target) => {
+        if (!target) return;
 
-      onDrop(path);
+        onDrop(target);
+      }).catch(() => {});
     });
   } catch {
     return () => {};

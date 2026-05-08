@@ -3,5 +3,6 @@ export type DocumentState = {
   name: string;
   content: string;
   dirty: boolean;
+  open: boolean;
   revision: number;
 };

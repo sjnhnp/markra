@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { installNativeMarkdownFileDrop } from "../lib/tauri/file";
+import { installNativeMarkdownFileDrop, type NativeMarkdownDroppedTarget } from "../lib/tauri/file";
 import {
   installNativeApplicationMenu,
   installNativeEditorContextMenu,
@@ -53,7 +53,7 @@ export function useNativeMenuHandlers({
   );
 }
 
-export function useNativeMarkdownDrop(onDrop: (path: string) => unknown | Promise<unknown>) {
+export function useNativeMarkdownDrop(onDrop: (target: NativeMarkdownDroppedTarget) => unknown | Promise<unknown>) {
   useEffect(() => {
     let active = true;
     let cleanup: (() => unknown) | null = null;

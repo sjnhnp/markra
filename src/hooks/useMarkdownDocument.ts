@@ -8,15 +8,18 @@ import {
 } from "../lib/settings/appSettings";
 import { getMarkdownOutline, getWordCount } from "../lib/markdown/markdown";
 import {
+  openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
   readNativeMarkdownFile,
   saveNativeMarkdownFile,
   watchNativeMarkdownFile,
+  type NativeMarkdownDroppedTarget,
   type NativeMarkdownFile,
   type NativeMarkdownFolderFile
 } from "../lib/tauri/file";
 import { setNativeWindowTitle } from "../lib/tauri/window";
+import { pathNameFromPath } from "../lib/utils";
 import type { DocumentState } from "../types/document";
 
 function isBlankEditorWindow() {
@@ -27,18 +30,23 @@ function initialMarkdownFilePath() {
   return new URLSearchParams(window.location.search).get("path");
 }
 
+function initialMarkdownFolderPath() {
+  return new URLSearchParams(window.location.search).get("folder");
+}
+
 function createInitialDocumentState(): DocumentState {
   return {
     path: null,
     name: "Untitled.md",
     content: "",
     dirty: false,
+    open: true,
     revision: 0
   };
 }
 
 function isPristineUntitledDocument(document: DocumentState) {
-  return document.path === null && document.content === "" && !document.dirty && document.revision === 0;
+  return document.open && document.path === null && document.content === "" && !document.dirty && document.revision === 0;
 }
 
 type UseMarkdownDocumentOptions = {
@@ -102,11 +110,15 @@ export function useMarkdownDocument({
 
   const currentMarkdown = useCallback(() => {
     const current = documentRef.current;
+    if (!current.open) return current.content;
+
     return getCurrentMarkdown(current.content);
   }, [getCurrentMarkdown]);
 
   const hasDiscardableUnsavedChanges = useCallback(() => {
     const current = documentRef.current;
+    if (!current.open) return false;
+
     const editorMarkdown = currentMarkdown();
     if (!current.dirty) {
       return editorMarkdown.trim() !== current.content.trim() && (current.path !== null || editorMarkdown.trim().length > 0);
@@ -123,7 +135,11 @@ export function useMarkdownDocument({
   }, [confirmDiscardUnsavedChanges, hasDiscardableUnsavedChanges]);
 
   const handleMarkdownChange = useCallback((content: string) => {
-    setDocument((current) => (current.content === content ? current : { ...current, content, dirty: true }));
+    setDocument((current) => {
+      if (!current.open || current.content === content) return current;
+
+      return { ...current, content, dirty: true };
+    });
   }, []);
 
   const resetToBlankDocument = useCallback(() => {
@@ -132,6 +148,7 @@ export function useMarkdownDocument({
       name: "Untitled.md",
       content: "",
       dirty: true,
+      open: true,
       revision: current.revision + 1
     }));
     persistWorkspaceState({ filePath: null });
@@ -153,6 +170,18 @@ export function useMarkdownDocument({
     });
   }, [confirmCanDiscardCurrentDocument, resetToBlankDocument]);
 
+  const clearOpenDocument = useCallback(() => {
+    setDocument((current) => ({
+      path: null,
+      name: "",
+      content: "",
+      dirty: false,
+      open: false,
+      revision: current.revision + 1
+    }));
+    persistWorkspaceState({ filePath: null });
+  }, []);
+
   const applyNativeMarkdownFile = useCallback(
     (file: NativeMarkdownFile, updateTreeRoot = true, preferredSessionId?: string | null) => {
       const sessionId = updateTreeRoot
@@ -164,6 +193,7 @@ export function useMarkdownDocument({
         name: file.name,
         content: file.content,
         dirty: false,
+        open: true,
         revision: current.revision + 1
       }));
 
@@ -194,6 +224,7 @@ export function useMarkdownDocument({
       if (!canDiscard) return;
 
       const sessionId = resolveWorkspaceSessionId();
+      clearOpenDocument();
       onTreeRootFromFolderPath(target.folder.path, target.folder.name, sessionId);
       return;
     }
@@ -202,7 +233,7 @@ export function useMarkdownDocument({
     if (!canDiscard) return;
 
     applyNativeMarkdownFile(target.file);
-  }, [applyNativeMarkdownFile, confirmCanDiscardCurrentDocument, onTreeRootFromFolderPath, resolveWorkspaceSessionId]);
+  }, [applyNativeMarkdownFile, clearOpenDocument, confirmCanDiscardCurrentDocument, onTreeRootFromFolderPath, resolveWorkspaceSessionId]);
 
   const openTreeMarkdownFile = useCallback(
     async (file: NativeMarkdownFolderFile) => {
@@ -244,6 +275,7 @@ export function useMarkdownDocument({
         ...current,
         dirty: true,
         name: "Untitled.md",
+        open: true,
         path: null,
         revision: current.revision + 1
       };
@@ -255,6 +287,8 @@ export function useMarkdownDocument({
   const saveCurrentDocument = useCallback(
     async (saveAs = false) => {
       const current = documentRef.current;
+      if (!current.open) return;
+
       const contents = currentMarkdown();
       const savedFile = await saveNativeMarkdownFile({
         path: saveAs ? null : current.path,
@@ -285,24 +319,36 @@ export function useMarkdownDocument({
   }, [saveCurrentDocument]);
 
   const handleDroppedMarkdownPath = useCallback(
-    async (path: string) => {
+    async (target: NativeMarkdownDroppedTarget) => {
       const current = documentRef.current;
-      const isEmptyUntitledDocument = current.path === null && currentMarkdown().trim() === "";
+      const isEmptyUntitledDocument = !current.open || (current.path === null && currentMarkdown().trim() === "");
 
-      if (isEmptyUntitledDocument) {
-        await loadNativeMarkdownPath(path);
+      if (target.kind === "folder") {
+        if (!isEmptyUntitledDocument) {
+          await openNativeMarkdownFolderInNewWindow(target.path);
+          return;
+        }
+
+        const sessionId = resolveWorkspaceSessionId();
+        clearOpenDocument();
+        onTreeRootFromFolderPath(target.path, target.name, sessionId);
         return;
       }
 
-      await openNativeMarkdownFileInNewWindow(path);
+      if (isEmptyUntitledDocument) {
+        await loadNativeMarkdownPath(target.path);
+        return;
+      }
+
+      await openNativeMarkdownFileInNewWindow(target.path);
     },
-    [currentMarkdown, loadNativeMarkdownPath]
+    [clearOpenDocument, currentMarkdown, loadNativeMarkdownPath, onTreeRootFromFolderPath, resolveWorkspaceSessionId]
   );
 
   useEffect(() => {
-    const title = document.dirty ? `${document.name} *` : document.name;
+    const title = document.open && document.dirty ? `${document.name} *` : document.name;
     setNativeWindowTitle(title);
-  }, [document.name, document.dirty]);
+  }, [document.name, document.dirty, document.open]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -335,7 +381,16 @@ export function useMarkdownDocument({
   }, [applyNativeMarkdownFile]);
 
   useEffect(() => {
-    if (isBlankEditorWindow() || initialMarkdownFilePath()) return;
+    const folderPath = initialMarkdownFolderPath();
+    if (!folderPath) return;
+
+    const sessionId = resolveWorkspaceSessionId();
+    clearOpenDocument();
+    onTreeRootFromFolderPath(folderPath, pathNameFromPath(folderPath), sessionId);
+  }, [clearOpenDocument, onTreeRootFromFolderPath, resolveWorkspaceSessionId]);
+
+  useEffect(() => {
+    if (isBlankEditorWindow() || initialMarkdownFilePath() || initialMarkdownFolderPath()) return;
     if (!preferencesReady) return;
 
     let active = true;
@@ -351,6 +406,7 @@ export function useMarkdownDocument({
           assignWorkspaceSessionId(sessionId);
 
           if (workspace.folderPath && workspace.fileTreeOpen) {
+            clearOpenDocument();
             onTreeRootFromFolderPath(workspace.folderPath, workspace.folderName ?? workspace.folderPath, sessionId);
             restoredWorkspace = true;
           }
@@ -400,6 +456,7 @@ export function useMarkdownDocument({
   }, [
     applyNativeMarkdownFile,
     assignWorkspaceSessionId,
+    clearOpenDocument,
     onTreeRootFromFolderPath,
     preferencesReady,
     resolveWorkspaceSessionId,
@@ -428,6 +485,7 @@ export function useMarkdownDocument({
           name: file.name,
           content: file.content,
           dirty: false,
+          open: true,
           revision: latest.revision + 1
         };
       });
@@ -447,6 +505,7 @@ export function useMarkdownDocument({
   }, [document.path]);
 
   return {
+    clearOpenDocument,
     createBlankDocument,
     createWorkspaceSession,
     confirmCanDiscardCurrentDocument,

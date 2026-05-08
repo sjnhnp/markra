@@ -129,6 +129,7 @@ export default function App() {
     restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup
   });
   const {
+    clearOpenDocument,
     createBlankDocument,
     createWorkspaceSession,
     confirmCanDiscardCurrentDocument,
@@ -148,7 +149,10 @@ export default function App() {
   } = markdownDocument;
   const workspaceKey = fileTree.sourcePath ?? document.path ?? null;
   const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
-  const getAiDocumentContent = useCallback(() => editor.getCurrentMarkdown(document.content), [document.content, editor]);
+  const getAiDocumentContent = useCallback(
+    () => (document.open ? editor.getCurrentMarkdown(document.content) : document.content),
+    [document.content, document.open, editor]
+  );
   const readAiWorkspaceFile = useCallback(async (path: string) => {
     const file = await readNativeMarkdownFile(path);
 
@@ -444,15 +448,19 @@ export default function App() {
       : rawFileTreeRootName === "Files"
         ? translate("app.files")
         : rawFileTreeRootName;
+  const hasOpenDocument = document.open;
+  const titleDocumentName = hasOpenDocument ? document.name : fileTreeRootName;
+  const titleDocumentKind = hasOpenDocument ? "file" : "folder";
   const supportsAiThinking = selectedInlineAiModel?.capabilities.includes("reasoning") ?? false;
   const handleOpenMarkdownFolder = useCallback(async () => {
     const canDiscard = await confirmCanDiscardCurrentDocument();
     if (!canDiscard) return;
 
-    await openMarkdownFolder();
-  }, [confirmCanDiscardCurrentDocument, openMarkdownFolder]);
+    const folder = await openMarkdownFolder();
+    if (folder) clearOpenDocument();
+  }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder]);
   const aiAgentContext = useMemo(() => ({
-    documentName: document.name,
+    documentName: titleDocumentName,
     headingCount: editor.getHeadingAnchors().length,
     messageCount: aiAgent.messages.length,
     sectionCount: editor.getSectionAnchors().length,
@@ -464,7 +472,7 @@ export default function App() {
     activeAiSelection,
     aiAgent.messages.length,
     document.content,
-    document.name,
+    titleDocumentName,
     document.revision,
     editor
   ]);
@@ -536,13 +544,15 @@ export default function App() {
           aiAgentOpen={aiAgentOpen}
           aiAgentResizing={aiAgentPanelResizing}
           aiAgentWidth={aiAgentPanelWidth}
-          dirty={document.dirty}
-          documentName={document.name}
+          dirty={hasOpenDocument && document.dirty}
+          documentKind={titleDocumentKind}
+          documentName={titleDocumentName}
           language={appLanguage.language}
           markdownFilesOpen={fileTreeOpen}
           markdownFilesResizing={fileTreeResizing}
           markdownFilesWidth={fileTreeWidth}
           quickCreateMarkdownFileVisible={!fileTreeOpen}
+          saveDisabled={!hasOpenDocument}
           theme={appTheme.resolvedTheme}
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
           onOpenMarkdown={openMarkdownFile}
@@ -552,12 +562,12 @@ export default function App() {
           onToggleTheme={appTheme.toggleTheme}
         />
 
-        <span className="screen-reader-title sr-only">{document.name}</span>
+        <span className="screen-reader-title sr-only">{titleDocumentName}</span>
 
         <div className={workspaceLayoutClassName} style={workspaceLayoutStyle}>
           <div className="markdown-file-tree-slot min-h-0 overflow-hidden">
             <MarkdownFileTreeDrawer
-              currentPath={document.path}
+              currentPath={hasOpenDocument ? document.path : null}
               files={fileTreeFiles}
               language={appLanguage.language}
               maxWidth={fileTreeMaxWidth}
@@ -584,24 +594,28 @@ export default function App() {
             style={{ gridTemplateColumns: `minmax(0,1fr) ${aiAgentInset}` }}
           >
             <div className="editor-content-slot relative h-full min-h-0 overflow-hidden">
-              <MarkdownPaper
-                autoFocus={shouldFocusEditorOnReady(document.content)}
-                bodyFontSize={editorPreferences.preferences.bodyFontSize}
-                contentWidth={editorPreferences.preferences.contentWidth}
-                initialContent={document.content}
-                language={appLanguage.language}
-                lineHeight={editorPreferences.preferences.lineHeight}
-                onEditorReady={editor.handleEditorReady}
-                onMarkdownChange={handleMarkdownChange}
-                onTextSelectionChange={handleTextSelectionChange}
-                revision={document.revision}
-              />
-              <QuietStatus
-                dirty={document.dirty}
-                language={appLanguage.language}
-                showWordCount={editorPreferences.preferences.showWordCount}
-                wordCount={wordCount}
-              />
+              {hasOpenDocument ? (
+                <>
+                  <MarkdownPaper
+                    autoFocus={shouldFocusEditorOnReady(document.content)}
+                    bodyFontSize={editorPreferences.preferences.bodyFontSize}
+                    contentWidth={editorPreferences.preferences.contentWidth}
+                    initialContent={document.content}
+                    language={appLanguage.language}
+                    lineHeight={editorPreferences.preferences.lineHeight}
+                    onEditorReady={editor.handleEditorReady}
+                    onMarkdownChange={handleMarkdownChange}
+                    onTextSelectionChange={handleTextSelectionChange}
+                    revision={document.revision}
+                  />
+                  <QuietStatus
+                    dirty={document.dirty}
+                    language={appLanguage.language}
+                    showWordCount={editorPreferences.preferences.showWordCount}
+                    wordCount={wordCount}
+                  />
+                </>
+              ) : null}
             </div>
             <div className="ai-agent-panel-slot relative z-20 min-h-0 overflow-hidden">
               <AiAgentPanel

@@ -12,9 +12,11 @@ import {
   listNativeMarkdownFilesForPath,
   openNativeMarkdownFolder,
   openNativeMarkdownFile,
+  openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
   readNativeMarkdownFile,
+  resolveNativeMarkdownPath,
   renameNativeMarkdownTreeFile,
   saveNativeMarkdownFile,
   watchNativeMarkdownFile
@@ -136,6 +138,31 @@ describe("native file access", () => {
     await expect(openNativeMarkdownPath()).resolves.toBeNull();
 
     expect(mockedInvoke).toHaveBeenCalledWith("open_markdown_path");
+  });
+
+  it("resolves dropped markdown file or folder paths without opening a picker", async () => {
+    mockedInvoke
+      .mockResolvedValueOnce({ kind: "folder", path: mockFolderPath })
+      .mockResolvedValueOnce({ kind: "file", path: mockReadmePath });
+
+    await expect(resolveNativeMarkdownPath(mockFolderPath)).resolves.toEqual({
+      kind: "folder",
+      name: "vault",
+      path: mockFolderPath
+    });
+
+    await expect(resolveNativeMarkdownPath(mockReadmePath)).resolves.toEqual({
+      kind: "file",
+      name: "readme.md",
+      path: mockReadmePath
+    });
+
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "resolve_markdown_path", {
+      path: mockFolderPath
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "resolve_markdown_path", {
+      path: mockReadmePath
+    });
   });
 
   it("opens a markdown folder through the native directory dialog", async () => {
@@ -352,7 +379,7 @@ describe("native file access", () => {
     });
   });
 
-  it("routes dropped markdown files from the native window event", async () => {
+  it("routes dropped markdown files and folders from the native window event", async () => {
     const unlisten = vi.fn();
     const onDrop = vi.fn();
     let emitDragDrop: (event: unknown) => unknown = () => {};
@@ -360,27 +387,45 @@ describe("native file access", () => {
       emitDragDrop = handler;
       return unlisten;
     });
+    mockedInvoke
+      .mockRejectedValueOnce(new Error("Unsupported path"))
+      .mockResolvedValueOnce({ kind: "file", path: mockReadmePath })
+      .mockResolvedValueOnce({ kind: "folder", path: mockFolderPath });
 
     const cleanup = await installNativeMarkdownFileDrop(onDrop);
 
     emitDragDrop({ payload: { type: "enter", paths: [mockReadmePath] } });
     emitDragDrop({ payload: { type: "drop", paths: ["/mock-files/image.png", mockReadmePath] } });
+    emitDragDrop({ payload: { type: "drop", paths: [mockFolderPath] } });
 
-    expect(onDrop).toHaveBeenCalledTimes(1);
-    expect(onDrop).toHaveBeenCalledWith(mockReadmePath);
+    await vi.waitFor(() => expect(onDrop).toHaveBeenCalledTimes(2));
+    expect(onDrop).toHaveBeenNthCalledWith(1, {
+      kind: "file",
+      name: "readme.md",
+      path: mockReadmePath
+    });
+    expect(onDrop).toHaveBeenNthCalledWith(2, {
+      kind: "folder",
+      name: "vault",
+      path: mockFolderPath
+    });
 
     cleanup();
 
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
-  it("opens a markdown file path in a new native window", async () => {
+  it("opens markdown file and folder paths in a new native window", async () => {
     mockedInvoke.mockResolvedValue(undefined);
 
     await openNativeMarkdownFileInNewWindow(mockReadmePath);
+    await openNativeMarkdownFolderInNewWindow(mockFolderPath);
 
     expect(mockedInvoke).toHaveBeenCalledWith("open_markdown_file_in_new_window", {
       path: mockReadmePath
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("open_markdown_folder_in_new_window", {
+      path: mockFolderPath
     });
   });
 });

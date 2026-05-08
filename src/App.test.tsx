@@ -6,6 +6,7 @@ import {
   createNativeMarkdownTreeFile,
   deleteNativeMarkdownTreeFile,
   openNativeMarkdownFolder,
+  openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
   readNativeMarkdownFile,
@@ -69,6 +70,7 @@ vi.mock("./lib/tauri/file", () => ({
   deleteNativeMarkdownTreeFile: vi.fn(),
   installNativeMarkdownFileDrop: vi.fn(),
   openNativeMarkdownFolder: vi.fn(),
+  openNativeMarkdownFolderInNewWindow: vi.fn(),
   openNativeMarkdownFileInNewWindow: vi.fn(),
   openNativeMarkdownPath: vi.fn(),
   readNativeMarkdownFile: vi.fn(),
@@ -145,6 +147,7 @@ vi.mock("./lib/tauri/window", () => ({
 }));
 
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
+const mockedOpenNativeMarkdownFolderInNewWindow = vi.mocked(openNativeMarkdownFolderInNewWindow);
 const mockedConfirmNativeMarkdownFileDelete = vi.mocked(confirmNativeMarkdownFileDelete);
 const mockedConfirmNativeUnsavedMarkdownDocumentDiscard = vi.mocked(confirmNativeUnsavedMarkdownDocumentDiscard);
 const mockedCreateNativeMarkdownTreeFile = vi.mocked(createNativeMarkdownTreeFile);
@@ -256,6 +259,7 @@ describe("Markra workspace", () => {
     mockedDeleteNativeMarkdownTreeFile.mockReset();
     mockedInstallNativeMarkdownFileDrop.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
+    mockedOpenNativeMarkdownFolderInNewWindow.mockReset();
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
     mockedOpenNativeMarkdownPath.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
@@ -632,8 +636,12 @@ describe("Markra workspace", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true")
     );
-    expect(screen.getByText("vault")).toBeInTheDocument();
+    expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "vault" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Untitled.md" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
@@ -1043,8 +1051,12 @@ describe("Markra workspace", () => {
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("vault")).toBeInTheDocument();
+    expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "vault" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Untitled.md" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
   });
 
@@ -1064,9 +1076,13 @@ describe("Markra workspace", () => {
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("vault")).toBeInTheDocument();
+    expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "docs" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("heading", { name: "vault" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Untitled.md" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
   });
 
@@ -1428,6 +1444,25 @@ describe("Markra workspace", () => {
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
 
+  it("opens a markdown folder when a native folder window opens with an initial path", async () => {
+    window.history.pushState({}, "", "/?folder=%2Fmock-files%2Fvault");
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "index.md", path: "/mock-files/vault/index.md", relativePath: "index.md" }
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
+    expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
+    expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "vault" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Untitled.md" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
+    expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+  });
+
   it("opens a dropped markdown file in the current empty editor", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockedReadNativeMarkdownFile.mockResolvedValue({
@@ -1441,7 +1476,7 @@ describe("Markra workspace", () => {
     const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
 
     await act(async () => {
-      await handleDrop?.(mockDroppedPath);
+      await handleDrop?.({ kind: "file", name: "dropped.md", path: mockDroppedPath });
     });
 
     expect(await screen.findByText("Dropped file")).toBeInTheDocument();
@@ -1457,11 +1492,58 @@ describe("Markra workspace", () => {
     const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
 
     await act(async () => {
-      await handleDrop?.(mockDroppedPath);
+      await handleDrop?.({ kind: "file", name: "dropped.md", path: mockDroppedPath });
     });
 
     expect(mockedOpenNativeMarkdownFileInNewWindow).toHaveBeenCalledWith(mockDroppedPath);
     expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalledWith(mockDroppedPath);
+    expect(screen.getByText("Welcome to Markra")).toBeInTheDocument();
+  });
+
+  it("opens a dropped markdown folder into the current empty editor file tree", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockedCreateAiAgentSessionId.mockReturnValue("session-dropped-folder");
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "index.md", path: "/mock-files/vault/index.md", relativePath: "index.md" },
+      { name: "note.md", path: "/mock-files/vault/docs/note.md", relativePath: "docs/note.md" }
+    ]);
+
+    render(<App />);
+    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
+    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
+
+    await act(async () => {
+      await handleDrop?.({ kind: "folder", name: "vault", path: mockFolderPath });
+    });
+
+    expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
+    expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "docs" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("heading", { name: "vault" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Untitled.md" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
+    expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalled();
+    expect(mockedOpenNativeMarkdownFileInNewWindow).not.toHaveBeenCalled();
+    expect(mockedOpenNativeMarkdownFolderInNewWindow).not.toHaveBeenCalled();
+  });
+
+  it("opens a dropped markdown folder in a new window when the current editor has content", async () => {
+    render(<App />);
+    await screen.findByText("Welcome to Markra");
+    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
+    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
+
+    await act(async () => {
+      await handleDrop?.({ kind: "folder", name: "vault", path: mockFolderPath });
+    });
+
+    expect(mockedOpenNativeMarkdownFolderInNewWindow).toHaveBeenCalledWith(mockFolderPath);
+    expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalledWith(mockFolderPath);
+    expect(screen.queryByRole("complementary", { name: "Markdown file tree" })).not.toBeInTheDocument();
     expect(screen.getByText("Welcome to Markra")).toBeInTheDocument();
   });
 

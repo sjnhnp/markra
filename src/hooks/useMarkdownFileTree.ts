@@ -94,9 +94,10 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
 
   const openMarkdownFolder = useCallback(async () => {
     const folder = await openNativeMarkdownFolder();
-    if (!folder) return;
+    if (!folder) return null;
 
     openFolderPath(folder.path, folder.name);
+    return folder;
   }, [openFolderPath]);
 
   const createFile = useCallback(async (fileName: string) => {

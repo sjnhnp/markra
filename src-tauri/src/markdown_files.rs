@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::windows::{editor_window_url_for_path, spawn_editor_window};
+use crate::windows::{
+    editor_window_url_for_folder, editor_window_url_for_path, spawn_editor_window,
+};
 
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct MarkdownFile {
@@ -160,7 +162,9 @@ fn normalize_markdown_tree_file_name(file_name: &str) -> Result<String, String> 
     }
 
     let candidate = Path::new(trimmed_name);
-    if candidate.components().count() != 1 || trimmed_name.contains('/') || trimmed_name.contains('\\')
+    if candidate.components().count() != 1
+        || trimmed_name.contains('/')
+        || trimmed_name.contains('\\')
     {
         return Err("File name cannot include folders".to_string());
     }
@@ -317,6 +321,11 @@ pub(crate) fn open_markdown_path(
 }
 
 #[tauri::command]
+pub(crate) fn resolve_markdown_path(path: String) -> Result<MarkdownOpenPath, String> {
+    markdown_open_path_for_path(&PathBuf::from(path))
+}
+
+#[tauri::command]
 pub(crate) fn list_markdown_files_for_path(
     path: String,
 ) -> Result<Vec<MarkdownFolderFile>, String> {
@@ -440,9 +449,52 @@ pub(crate) fn open_markdown_file_in_new_window(
     Ok(())
 }
 
+#[tauri::command]
+pub(crate) fn open_markdown_folder_in_new_window(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<(), String> {
+    spawn_editor_window(app, editor_window_url_for_folder(&path));
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolves_markdown_file_or_folder_path() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-drop-resolve-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("test folder should be created");
+        let markdown_file = root.join("Dropped.md");
+        let unsupported_file = root.join("image.png");
+        fs::write(&markdown_file, "# Dropped").expect("markdown file should be created");
+        fs::write(&unsupported_file, "not markdown").expect("unsupported file should be created");
+
+        assert_eq!(
+            resolve_markdown_path(root.to_string_lossy().to_string())
+                .expect("folder should resolve"),
+            MarkdownOpenPath::Folder {
+                path: root.to_string_lossy().to_string(),
+            }
+        );
+        assert_eq!(
+            resolve_markdown_path(markdown_file.to_string_lossy().to_string())
+                .expect("markdown file should resolve"),
+            MarkdownOpenPath::File {
+                path: markdown_file.to_string_lossy().to_string(),
+            }
+        );
+        assert!(resolve_markdown_path(unsupported_file.to_string_lossy().to_string()).is_err());
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
 
     #[test]
     fn lists_markdown_files_below_the_current_file_directory() {
@@ -595,11 +647,9 @@ mod tests {
             .canonicalize()
             .expect("test folder should have a canonical path");
 
-        let created = create_markdown_tree_file(
-            root.to_string_lossy().to_string(),
-            "Daily note".to_string(),
-        )
-        .expect("markdown file should be created");
+        let created =
+            create_markdown_tree_file(root.to_string_lossy().to_string(), "Daily note".to_string())
+                .expect("markdown file should be created");
 
         assert_eq!(
             created,
@@ -613,7 +663,8 @@ mod tests {
             }
         );
         assert_eq!(
-            fs::read_to_string(root.join("Daily note.md")).expect("created file should be readable"),
+            fs::read_to_string(root.join("Daily note.md"))
+                .expect("created file should be readable"),
             ""
         );
 
@@ -703,17 +754,18 @@ mod tests {
             .canonicalize()
             .expect("test folder should have a canonical path");
 
-        let created = create_markdown_tree_folder(
-            root.to_string_lossy().to_string(),
-            "Research".to_string(),
-        )
-        .expect("markdown folder should be created");
+        let created =
+            create_markdown_tree_folder(root.to_string_lossy().to_string(), "Research".to_string())
+                .expect("markdown folder should be created");
 
         assert_eq!(
             created,
             MarkdownFolderFile {
                 kind: MarkdownFolderEntryKind::Folder,
-                path: canonical_root.join("Research").to_string_lossy().to_string(),
+                path: canonical_root
+                    .join("Research")
+                    .to_string_lossy()
+                    .to_string(),
                 relative_path: "Research".to_string(),
             }
         );

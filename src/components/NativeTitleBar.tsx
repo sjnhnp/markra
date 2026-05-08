@@ -7,12 +7,14 @@ type NativeTitleBarProps = {
   aiAgentResizing?: boolean;
   aiAgentWidth?: number;
   dirty: boolean;
+  documentKind?: "file" | "folder";
   documentName: string;
   language?: AppLanguage;
   markdownFilesOpen: boolean;
   markdownFilesResizing?: boolean;
   markdownFilesWidth?: number;
   quickCreateMarkdownFileVisible?: boolean;
+  saveDisabled?: boolean;
   theme: ResolvedAppTheme;
   onCreateMarkdownFile?: () => unknown;
   onOpenMarkdown: () => unknown;
@@ -27,12 +29,14 @@ export function NativeTitleBar({
   aiAgentResizing = false,
   aiAgentWidth = 384,
   dirty,
+  documentKind = "file",
   documentName,
   language = "en",
   markdownFilesOpen,
   markdownFilesResizing = false,
   markdownFilesWidth = 288,
   quickCreateMarkdownFileVisible = false,
+  saveDisabled = false,
   theme,
   onCreateMarkdownFile,
   onOpenMarkdown,
@@ -49,6 +53,7 @@ export function NativeTitleBar({
   const titleTransform = titleOffset === 0 ? undefined : `translateX(${titleOffset}px)`;
   const titleResizing = aiAgentResizing || markdownFilesResizing;
   const showQuickCreateMarkdownFile = quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
+  const TitleIcon = documentKind === "folder" ? FolderOpen : FileText;
 
   return (
     <header
@@ -84,7 +89,7 @@ export function NativeTitleBar({
         data-tauri-drag-region
         style={{ transform: titleTransform }}
       >
-        <FileText aria-hidden="true" size={15} />
+        <TitleIcon aria-hidden="true" size={15} />
         <span className="min-w-0 truncate" data-tauri-drag-region>
           {documentName}
         </span>
@@ -123,8 +128,9 @@ export function NativeTitleBar({
           <FolderOpen aria-hidden="true" size={15} />
         </button>
         <button
-          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-(--text-secondary)"
           type="button"
+          disabled={saveDisabled}
           onClick={onSaveMarkdown}
           aria-label={label("app.saveMarkdown")}
         >
