@@ -433,6 +433,86 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
     },
     {
       description:
+        [
+          "Replace the first Markdown table under a matching heading title with new Markdown.",
+          "Use this when the user refers to a table by its visible section heading instead of an anchor id.",
+          "This tool resolves the table location programmatically, reducing accidental heading-only replacement."
+        ].join(" "),
+      execute: async (_toolCallId, params) => {
+        const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "replace");
+        if ("error" in writeCheck) return writeCheck.error;
+
+        const args = typedReplaceTableByHeadingArgs(params);
+        const table = resolveTableByHeading(context, args.headingTitle);
+        if ("error" in table) return table.error;
+        const tableCheck = ensureCompleteTableReplacement(args.replacement);
+        if ("error" in tableCheck) return tableCheck.error;
+
+        hasPreparedWrite = true;
+        const result: AiDiffResult = {
+          from: table.anchor.from,
+          original: table.anchor.text ?? sliceDocumentText(context.documentContent, table.anchor.from, table.anchor.to),
+          replacement: args.replacement,
+          target: diffTargetFromAnchor(table.anchor),
+          to: table.anchor.to,
+          type: "replace"
+        };
+        context.onPreviewResult?.(result);
+
+        return previewPreparedResult(
+          result,
+          `Prepared a table replacement preview for ${table.anchor.title ?? table.anchor.id}.`
+        );
+      },
+      label: "Replace table by heading",
+      name: "replace_table_by_heading",
+      parameters: Type.Object({
+        headingTitle: Type.String({ minLength: 1 }),
+        replacement: Type.String({ minLength: 1 })
+      })
+    },
+    {
+      description:
+        [
+          "Replace one exact existing Markdown text block with new Markdown.",
+          "Use this when the user quotes the text to change and there is no reliable editor selection.",
+          "The tool rejects missing or duplicate text matches so the agent does not guess a character range."
+        ].join(" "),
+      execute: async (_toolCallId, params) => {
+        const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "replace", {
+          requireEditableContext: false
+        });
+        if ("error" in writeCheck) return writeCheck.error;
+
+        const args = typedReplaceBlockByTextArgs(params);
+        const block = resolveBlockByText(context, args.originalText);
+        if ("error" in block) return block.error;
+
+        hasPreparedWrite = true;
+        const result: AiDiffResult = {
+          from: block.region.from,
+          original: block.region.original,
+          replacement: args.replacement,
+          target: block.region.target,
+          to: block.region.to,
+          type: "replace"
+        };
+        context.onPreviewResult?.(result);
+
+        return previewPreparedResult(
+          result,
+          "Prepared a block replacement preview for matched text."
+        );
+      },
+      label: "Replace block by text",
+      name: "replace_block_by_text",
+      parameters: Type.Object({
+        originalText: Type.String({ minLength: 1 }),
+        replacement: Type.String({ minLength: 1 })
+      })
+    },
+    {
+      description:
         "Replace an entire Markdown section identified by a section anchor. Use this when the user asks to rewrite or remove a whole numbered section or heading group.",
       execute: async (_toolCallId, params) => {
         const writeCheck = beginPreparedWrite(context, hasPreparedWrite, "replace");
@@ -1086,6 +1166,105 @@ function resolveTableAnchor(
   return { anchor: tableAnchor };
 }
 
+function resolveTableByHeading(
+  context: DocumentAgentToolContext,
+  headingTitle: string
+): { error: AgentToolResult<{ message: string }> } | { anchor: AiDocumentAnchor } {
+  const normalizedHeadingTitle = normalizeText(headingTitle);
+  if (!normalizedHeadingTitle) {
+    return {
+      error: toolErrorResult("Cannot resolve a table because the heading title is empty.")
+    };
+  }
+
+  const tables = documentTableAnchors(context);
+  if (!tables.length) {
+    return {
+      error: toolErrorResult("Cannot resolve a table because the current document has no Markdown table anchors.")
+    };
+  }
+
+  const headings = [...(context.headingAnchors ?? [])].sort((left, right) => left.from - right.from);
+  const headingIndex = headings.findIndex((heading) => {
+    const normalizedTitle = normalizeText(heading.title);
+
+    return normalizedTitle.length > 0 && (
+      normalizedTitle === normalizedHeadingTitle ||
+      normalizedTitle.includes(normalizedHeadingTitle) ||
+      normalizedHeadingTitle.includes(normalizedTitle)
+    );
+  });
+
+  if (headingIndex >= 0) {
+    const heading = headings[headingIndex]!;
+    const nextHeading = headings.slice(headingIndex + 1).find((candidate) => candidate.from > heading.from);
+    const sectionEnd = nextHeading?.from ?? context.documentEndPosition;
+    const table = tables.find((candidate) => candidate.from >= heading.to && candidate.from < sectionEnd);
+
+    if (table) return { anchor: table };
+  }
+
+  const scoredTables = tables
+    .map((anchor) => ({
+      anchor,
+      score: overlapScore(normalizedHeadingTitle, normalizeText(anchor.title ?? ""))
+    }))
+    .sort((left, right) => right.score - left.score);
+  const best = scoredTables[0];
+  if (best && best.score > 0) return { anchor: best.anchor };
+
+  return {
+    error: toolErrorResult(`Cannot resolve a table under heading "${headingTitle}". Read available anchors first or pass an exact table anchor.`)
+  };
+}
+
+function resolveBlockByText(
+  context: DocumentAgentToolContext,
+  originalText: string
+): {
+  error: AgentToolResult<{ message: string }>;
+} | {
+  region: { from: number; original: string; target: AiDiffTarget; to: number };
+} {
+  if (!originalText) {
+    return {
+      error: toolErrorResult("Cannot replace a block by text because originalText is empty.")
+    };
+  }
+
+  const from = context.documentContent.indexOf(originalText);
+  if (from < 0) {
+    return {
+      error: toolErrorResult("Cannot replace a block by text because the original text was not found in the current document.")
+    };
+  }
+
+  const duplicateFrom = context.documentContent.indexOf(originalText, from + originalText.length);
+  if (duplicateFrom >= 0) {
+    return {
+      error: toolErrorResult("Cannot replace a block by text because the original text appears multiple times. Use a more specific text snippet or resolve an anchor.")
+    };
+  }
+
+  const to = from + originalText.length;
+  const target: AiDiffTarget = {
+    from,
+    id: "text-match",
+    kind: "current_block",
+    title: summarizeAnchorTitle(originalText),
+    to
+  };
+
+  return {
+    region: {
+      from,
+      original: originalText,
+      target,
+      to
+    }
+  };
+}
+
 function ensureCompleteTableReplacement(
   replacement: string
 ): { error: AgentToolResult<{ message: string }> } | { ok: true } {
@@ -1273,6 +1452,24 @@ function typedReplaceBlockArgs(params: unknown) {
 
 function typedReplaceTableArgs(params: unknown) {
   return params as { anchorId: string; replacement: string };
+}
+
+function typedReplaceTableByHeadingArgs(params: unknown) {
+  const args = params as { headingTitle: string; replacement: string };
+
+  return {
+    headingTitle: args.headingTitle.trim(),
+    replacement: args.replacement
+  };
+}
+
+function typedReplaceBlockByTextArgs(params: unknown) {
+  const args = params as { originalText: string; replacement: string };
+
+  return {
+    originalText: args.originalText.trim(),
+    replacement: args.replacement
+  };
 }
 
 function typedDeleteRegionArgs(params: unknown) {

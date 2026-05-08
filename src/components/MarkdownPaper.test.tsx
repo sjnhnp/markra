@@ -5,8 +5,10 @@ import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
 import {
+  AI_EDITOR_PREVIEW_APPLIED_EVENT,
   AI_EDITOR_PREVIEW_ACTION_EVENT,
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
+  type AiEditorPreviewAppliedDetail,
   type AiEditorPreviewActionDetail,
   applyAiEditorResult,
   clearAiEditorPreview,
@@ -845,6 +847,34 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
 
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("dispatches an applied acknowledgement when an AI preview is applied", async () => {
+    const { view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+    const onApplied = vi.fn((event: Event) => (event as CustomEvent<AiEditorPreviewAppliedDetail>).detail);
+
+    window.addEventListener(AI_EDITOR_PREVIEW_APPLIED_EVENT, onApplied);
+    showAiEditorPreview(view, result);
+
+    expect(applyAiEditorResult(view, result)).toBe(true);
+
+    expect(onApplied).toHaveBeenCalledWith(expect.objectContaining({
+      detail: {
+        result
+      }
+    }));
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_APPLIED_EVENT, onApplied);
     clearAiEditorPreview(view);
     await settleMarkdownListener();
   });

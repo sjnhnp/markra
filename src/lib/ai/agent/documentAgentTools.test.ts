@@ -584,6 +584,91 @@ describe("documentAgentTools", () => {
     expect(toolText(result)).toContain("Prepared a table replacement preview");
   });
 
+  it("prepares a table replacement preview by heading title without requiring an anchor id", async () => {
+    const onPreviewResult = vi.fn();
+    const table = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (old-token) |"
+    ].join("\n");
+    const replacement = [
+      "| Field | Variant One | Variant Two |",
+      "| ----- | ----------- | ----------- |",
+      "| Sync note | None | Needs source token (new-token) |"
+    ].join("\n");
+    const documentContent = ["### Section Alpha", "", table, "", "### Section Beta"].join("\n");
+    const tableStart = documentContent.indexOf(table);
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      headingAnchors: [
+        { from: 0, level: 3, title: "Section Alpha", to: "### Section Alpha".length },
+        { from: documentContent.indexOf("### Section Beta"), level: 3, title: "Section Beta", to: documentContent.length }
+      ],
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_table_by_heading");
+
+    expect(tool).toBeDefined();
+    const result = await tool?.execute("tool_replace_table_by_heading", {
+      headingTitle: "Section Alpha",
+      replacement
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith(expect.objectContaining({
+      from: tableStart,
+      original: table,
+      replacement,
+      target: expect.objectContaining({
+        id: "table:0",
+        kind: "table",
+        title: "Section Alpha table"
+      }),
+      to: tableStart + table.length,
+      type: "replace"
+    }));
+    expect(toolText(result)).toContain("Prepared a table replacement preview for Section Alpha table");
+  });
+
+  it("prepares a block replacement preview by matching existing text", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = "# Title\n\nAlpha paragraph.\n\nBeta paragraph.";
+    const original = "Beta paragraph.";
+    const from = documentContent.indexOf(original);
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_block_by_text");
+
+    expect(tool).toBeDefined();
+    const result = await tool?.execute("tool_replace_block_by_text", {
+      originalText: original,
+      replacement: "Gamma paragraph."
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from,
+      original,
+      replacement: "Gamma paragraph.",
+      target: {
+        from,
+        id: "text-match",
+        kind: "current_block",
+        title: original,
+        to: from + original.length
+      },
+      to: from + original.length,
+      type: "replace"
+    });
+    expect(toolText(result)).toContain("Prepared a block replacement preview for matched text.");
+  });
+
   it("prepares a table replacement preview when the document has no headings", async () => {
     const onPreviewResult = vi.fn();
     const table = [

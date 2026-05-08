@@ -27,8 +27,10 @@ import { aiTranslationLanguageName, t, type I18nKey } from "./lib/i18n";
 import { openSettingsWindow } from "./lib/tauri/window";
 import type { AiDiffResult, AiSelectionContext } from "./lib/ai/agent/inlineAi";
 import {
+  AI_EDITOR_PREVIEW_APPLIED_EVENT,
   AI_EDITOR_PREVIEW_ACTION_EVENT,
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
+  type AiEditorPreviewAppliedDetail,
   type AiEditorPreviewActionDetail,
   type AiEditorPreviewRestoreDetail
 } from "./lib/ai/editorPreview";
@@ -85,6 +87,7 @@ export default function App() {
   const aiResultRef = useRef<AiDiffResult | null>(null);
   const appliedAiResultSignaturesRef = useRef(new Set<string>());
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
+  const reconciledAiWorkspaceKeyRef = useRef<string | null | undefined>(undefined);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const editor = useEditorController();
   const fileTree = useMarkdownFileTree({
@@ -250,6 +253,39 @@ export default function App() {
     aiAgent.titleVersion
   ].join(":");
   const aiAgentSessions = useAiAgentSessionList(workspaceKey, aiAgentSessionRefreshKey);
+  useEffect(() => {
+    if (!workspaceKey || !activeAiAgentSessionId || !aiAgentSessions.ready) return;
+
+    const activeSessions = aiAgentSessions.sessions.filter((session) => session.archivedAt === null);
+    const activeSessionBelongsToWorkspace = activeSessions.some((session) => session.id === activeAiAgentSessionId);
+    if (activeSessionBelongsToWorkspace) {
+      reconciledAiWorkspaceKeyRef.current = workspaceKey;
+      return;
+    }
+
+    const previousWorkspaceKey = reconciledAiWorkspaceKeyRef.current;
+    if (previousWorkspaceKey === workspaceKey) return;
+
+    reconciledAiWorkspaceKeyRef.current = workspaceKey;
+
+    const newestSession = activeSessions[0];
+    if (newestSession) {
+      selectWorkspaceSession(newestSession.id);
+      return;
+    }
+
+    if (previousWorkspaceKey === undefined) {
+      initializeStoredAiAgentSession(activeAiAgentSessionId, workspaceKey).then(() => {
+        aiAgentSessions.refresh().catch(() => {});
+      }).catch(() => {});
+      return;
+    }
+
+    const nextSessionId = createWorkspaceSession();
+    initializeStoredAiAgentSession(nextSessionId, workspaceKey).then(() => {
+      aiAgentSessions.refresh().catch(() => {});
+    }).catch(() => {});
+  }, [activeAiAgentSessionId, aiAgentSessions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
   const restoreAiCommand = aiCommand.restoreAiCommand;
   const handleAiCommandClose = useCallback(() => {
     aiCommand.closeAiCommand();
@@ -357,30 +393,15 @@ export default function App() {
         type: result.type
       });
       editor.confirmAiResultApplied(result);
-      editor.clearAiSelection();
-      updateAiResult(null);
-      handleAiCommandClose();
       return;
     }
 
+    appliedAiResultSignaturesRef.current.add(signature);
     const applied = editor.applyAiResult(result);
     console.debug("[markra-ai-preview] app apply result", { applied });
 
-    if (applied) {
-      const confirmAppliedPreview = () => {
-        editor.confirmAiResultApplied(result);
-      };
-
-      appliedAiResultSignaturesRef.current.add(signature);
-      editor.clearAiSelection();
-      updateAiResult(null);
-      handleAiCommandClose();
-      confirmAppliedPreview();
-      if (typeof window.requestAnimationFrame === "function") {
-        window.requestAnimationFrame(confirmAppliedPreview);
-      } else {
-        window.setTimeout(confirmAppliedPreview, 0);
-      }
+    if (!applied) {
+      appliedAiResultSignaturesRef.current.delete(signature);
     }
   }, [aiResult, editor, handleAiCommandClose, updateAiResult]);
   const handleRejectAiResult = useCallback(() => {
@@ -461,9 +482,9 @@ export default function App() {
   }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder]);
   const aiAgentContext = useMemo(() => ({
     documentName: titleDocumentName,
-    headingCount: editor.getHeadingAnchors().length,
+    headingCount: outlineItems.length,
     messageCount: aiAgent.messages.length,
-    sectionCount: editor.getSectionAnchors().length,
+    sectionCount: outlineItems.length,
     selectionChars: activeAiSelection?.text.trim().length ?? 0,
     sessionId: activeAiAgentSessionId,
     tableCount: editor.getTableAnchors().length
@@ -474,7 +495,8 @@ export default function App() {
     document.content,
     titleDocumentName,
     document.revision,
-    editor
+    editor,
+    outlineItems.length
   ]);
   const nativeMenuHandlers = useNativeMenuHandlers({
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
@@ -519,6 +541,26 @@ export default function App() {
       window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, handlePreviewAction);
     };
   }, [handleApplyAiResult, handleCopyAiResult, handleRejectAiResult]);
+
+  useEffect(() => {
+    const handlePreviewApplied = (event: Event) => {
+      const result = (event as CustomEvent<Partial<AiEditorPreviewAppliedDetail>>).detail?.result;
+      if (!result || (result.type !== "insert" && result.type !== "replace")) return;
+
+      const signature = aiResultSignature(result);
+      if (!appliedAiResultSignaturesRef.current.has(signature)) return;
+
+      editor.confirmAiResultApplied(result);
+      editor.clearAiSelection();
+      updateAiResult(null);
+      handleAiCommandClose();
+    };
+
+    window.addEventListener(AI_EDITOR_PREVIEW_APPLIED_EVENT, handlePreviewApplied);
+    return () => {
+      window.removeEventListener(AI_EDITOR_PREVIEW_APPLIED_EVENT, handlePreviewApplied);
+    };
+  }, [editor, handleAiCommandClose, updateAiResult]);
 
   useEffect(() => {
     const handlePreviewRestore = (event: Event) => {

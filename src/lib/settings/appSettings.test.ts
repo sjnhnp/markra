@@ -609,6 +609,58 @@ describe("app settings", () => {
     expect(indexStore.save).toHaveBeenCalledTimes(1);
   });
 
+  it("does not move an existing AI agent session to a different workspace during autosave", async () => {
+    const sessionStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/session-a.json") return sessionStore as unknown as Awaited<ReturnType<typeof load>>;
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    sessionStore.get.mockResolvedValue({
+      archivedAt: null,
+      createdAt: 10,
+      id: "session-a",
+      messageCount: 1,
+      title: "Folder chat",
+      titleSource: "manual",
+      updatedAt: 20,
+      workspaceKey: "/mock-files/vault"
+    });
+    indexStore.get.mockResolvedValue([]);
+
+    await saveStoredAiAgentSession("session-a", {
+      draft: "",
+      messages: [{ id: 1, role: "user", text: "hello" }],
+      panelOpen: true,
+      panelWidth: 384,
+      thinkingEnabled: false,
+      webSearchEnabled: false
+    }, {
+      workspaceKey: "/mock-files/vault/docs/guide.md"
+    });
+
+    expect(sessionStore.set).toHaveBeenCalledWith("meta", expect.objectContaining({
+      id: "session-a",
+      workspaceKey: "/mock-files/vault"
+    }));
+    expect(indexStore.set).toHaveBeenCalledWith("entries", [
+      expect.objectContaining({
+        id: "session-a",
+        workspaceKey: "/mock-files/vault"
+      })
+    ]);
+  });
+
   it("lists stored AI agent sessions for the active workspace", async () => {
     const indexStore = {
       get: vi.fn(),

@@ -49,6 +49,17 @@ function isPristineUntitledDocument(document: DocumentState) {
   return document.open && document.path === null && document.content === "" && !document.dirty && document.revision === 0;
 }
 
+function comparableMarkdown(content: string) {
+  return content
+    .replace(/\r\n?/gu, "\n")
+    .replace(/[ \t]+$/gmu, "")
+    .trim();
+}
+
+function isEquivalentEditorMarkdown(left: string, right: string) {
+  return comparableMarkdown(left) === comparableMarkdown(right);
+}
+
 type UseMarkdownDocumentOptions = {
   confirmDiscardUnsavedChanges?: (document: DocumentState) => boolean | Promise<boolean>;
   getCurrentMarkdown: (fallbackContent: string) => string;
@@ -118,10 +129,11 @@ export function useMarkdownDocument({
   const hasDiscardableUnsavedChanges = useCallback(() => {
     const current = documentRef.current;
     if (!current.open) return false;
+    if (current.path === null && current.content.trim().length === 0) return false;
 
     const editorMarkdown = currentMarkdown();
     if (!current.dirty) {
-      return editorMarkdown.trim() !== current.content.trim() && (current.path !== null || editorMarkdown.trim().length > 0);
+      return !isEquivalentEditorMarkdown(editorMarkdown, current.content) && (current.path !== null || editorMarkdown.trim().length > 0);
     }
     if (current.path) return true;
 
@@ -137,6 +149,9 @@ export function useMarkdownDocument({
   const handleMarkdownChange = useCallback((content: string) => {
     setDocument((current) => {
       if (!current.open || current.content === content) return current;
+      if (!current.dirty && isEquivalentEditorMarkdown(current.content, content)) {
+        return { ...current, content, dirty: false };
+      }
 
       return { ...current, content, dirty: true };
     });

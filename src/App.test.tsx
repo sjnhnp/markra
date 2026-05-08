@@ -1125,6 +1125,51 @@ describe("Markra workspace", () => {
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
   });
 
+  it("switches between unmodified folder files without asking to discard changes", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    const notesPath = "/mock-files/vault/docs/notes.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" },
+      { name: "notes.md", path: notesPath, relativePath: "docs/notes.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === guidePath) {
+        return {
+          content: "# Guide\n\nRead-only content.",
+          name: "guide.md",
+          path: guidePath
+        };
+      }
+
+      return {
+        content: "# Notes\n\nSecond read-only content.",
+        name: "notes.md",
+        path: notesPath
+      };
+    });
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/notes.md" }));
+    expect(await screen.findByText("Notes")).toBeInTheDocument();
+
+    expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
+  });
+
   it("updates the Markra AI context when selecting a markdown file from a folder workspace", async () => {
     const guidePath = "/mock-files/vault/docs/guide.md";
     mockedOpenNativeMarkdownPath.mockResolvedValue({
@@ -1164,6 +1209,97 @@ describe("Markra workspace", () => {
     expect(within(agentPanel).queryByText("vault")).not.toBeInTheDocument();
   });
 
+  it("selects the current file's existing Markra AI session when changing files inside a folder workspace", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOpened from the folder tree.",
+      name: "guide.md",
+      path: guidePath
+    });
+    mockedListStoredAiAgentSessions.mockImplementation(async (workspaceKey) =>
+      workspaceKey === guidePath
+        ? [
+            {
+              archivedAt: null,
+              createdAt: 10,
+              id: "session-guide",
+              messageCount: 2,
+              title: "Guide session",
+              titleSource: "manual",
+              updatedAt: 20,
+              workspaceKey: guidePath
+            }
+          ]
+        : []
+    );
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    fireEvent.click(within(agentPanel).getByRole("button", { name: "Current context" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(within(agentPanel).getByText("session-guide")).toBeInTheDocument());
+    await waitFor(() => expect(mockedGetStoredAiAgentSession).toHaveBeenCalledWith("session-guide"));
+  });
+
+  it("creates a separate Markra AI session when selecting a file without existing session history", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    mockedCreateAiAgentSessionId
+      .mockReturnValueOnce("session-startup")
+      .mockReturnValueOnce("session-folder")
+      .mockReturnValueOnce("session-guide");
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOpened from the folder tree.",
+      name: "guide.md",
+      path: guidePath
+    });
+    mockedListStoredAiAgentSessions.mockResolvedValue([]);
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    fireEvent.click(within(agentPanel).getByRole("button", { name: "Current context" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(within(agentPanel).getByText("session-guide")).toBeInTheDocument());
+    expect(within(agentPanel).queryByText("session-folder")).not.toBeInTheDocument();
+  });
+
   it("quick opens an unsaved blank markdown document from the titlebar while the file tree is collapsed", async () => {
     mockOpenMarkdownFile({
       content: "# Native file\n\nOpened from disk.",
@@ -1199,6 +1335,37 @@ describe("Markra workspace", () => {
         })
       )
     );
+  });
+
+  it("opens another file from an untouched blank document without asking to discard changes", async () => {
+    mockedOpenNativeMarkdownPath
+      .mockResolvedValueOnce({
+        kind: "file",
+        file: {
+          content: "# Native file\n\nOpened from disk.",
+          name: "native.md",
+          path: mockNativePath
+        }
+      })
+      .mockResolvedValueOnce({
+        kind: "file",
+        file: {
+          content: "# Other file\n\nAlso clean.",
+          name: "other.md",
+          path: "/mock-files/other.md"
+        }
+      });
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "New file" }));
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+
+    expect(await screen.findByText("Other file")).toBeInTheDocument();
+    expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
   });
 
   it("keeps dirty editor content when opening another markdown file is cancelled", async () => {

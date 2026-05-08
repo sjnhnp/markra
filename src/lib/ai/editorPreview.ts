@@ -6,8 +6,12 @@ import type { AiDiffResult } from "./agent/inlineAi";
 import { clampNumber } from "../utils";
 
 export const AI_EDITOR_PREVIEW_ACTION_EVENT = "markra-ai-preview-action";
+export const AI_EDITOR_PREVIEW_APPLIED_EVENT = "markra-ai-preview-applied";
 export const AI_EDITOR_PREVIEW_RESTORE_EVENT = "markra-ai-preview-restore";
 export type AiEditorPreviewAction = "apply" | "copy" | "reject";
+export type AiEditorPreviewAppliedDetail = {
+  result: AiTextDiffResult;
+};
 export type AiEditorPreviewActionDetail = {
   action: AiEditorPreviewAction;
   result: AiTextDiffResult;
@@ -193,6 +197,27 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
         update(view, previousState) {
           const previousPreviewState = aiEditorPreviewKey.getState(previousState);
           const nextPreviewState = aiEditorPreviewKey.getState(view.state);
+          const previousAppliedSignature = previousPreviewState?.applied
+            ? previewSnapshotSignature(previousPreviewState.applied)
+            : null;
+          const nextAppliedSignature = nextPreviewState?.applied
+            ? previewSnapshotSignature(nextPreviewState.applied)
+            : null;
+
+          if (
+            nextPreviewState?.applied &&
+            nextAppliedSignature &&
+            nextAppliedSignature !== previousAppliedSignature &&
+            !nextPreviewState.pending
+          ) {
+            window.dispatchEvent(
+              new CustomEvent<AiEditorPreviewAppliedDetail>(AI_EDITOR_PREVIEW_APPLIED_EVENT, {
+                detail: {
+                  result: nextPreviewState.applied.result
+                }
+              })
+            );
+          }
 
           if (
             !previousPreviewState?.pending &&
@@ -379,6 +404,16 @@ function previewKeySegment(text: string) {
   }
 
   return `${text.length}-${hash.toString(36)}`;
+}
+
+function previewSnapshotSignature(snapshot: AiEditorPreviewSnapshot) {
+  return [
+    snapshot.result.type,
+    snapshot.result.from,
+    snapshot.result.to,
+    snapshot.result.original,
+    snapshot.result.replacement
+  ].join("\u001f");
 }
 
 const defaultLabels: AiEditorPreviewLabels = {

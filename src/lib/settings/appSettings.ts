@@ -197,7 +197,7 @@ export async function saveStoredAiAgentSession(
     title: preserveManagedTitle ? existingSummary.title : fallbackTitle,
     titleSource: preserveManagedTitle ? existingSummary?.titleSource ?? null : fallbackTitle ? "fallback" : null,
     updatedAt: now,
-    workspaceKey: normalizeAiAgentWorkspaceKey(options.workspaceKey ?? existingSummary?.workspaceKey)
+    workspaceKey: normalizeAiAgentWorkspaceKey(existingSummary?.workspaceKey ?? options.workspaceKey)
   };
 
   await store.set(aiAgentSessionStateKey, normalizedSession);
@@ -237,7 +237,7 @@ export async function saveStoredAiAgentSessionTitle(
     title: normalizedTitle,
     titleSource: options.source ?? "ai",
     updatedAt: now,
-    workspaceKey: normalizeAiAgentWorkspaceKey(options.workspaceKey ?? existingSummary?.workspaceKey)
+    workspaceKey: normalizeAiAgentWorkspaceKey(existingSummary?.workspaceKey ?? options.workspaceKey)
   };
 
   await store.set(aiAgentSessionMetaKey, summary);
