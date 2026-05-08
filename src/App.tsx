@@ -147,7 +147,7 @@ export default function App() {
     workspaceSessionId,
     wordCount
   } = markdownDocument;
-  const workspaceKey = fileTree.sourcePath ?? document.path ?? null;
+  const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
   const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
   const getAiDocumentContent = useCallback(
     () => (document.open ? editor.getCurrentMarkdown(document.content) : document.content),

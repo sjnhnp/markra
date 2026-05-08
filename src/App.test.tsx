@@ -1125,6 +1125,45 @@ describe("Markra workspace", () => {
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
   });
 
+  it("updates the Markra AI context when selecting a markdown file from a folder workspace", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOpened from the folder tree.",
+      name: "guide.md",
+      path: guidePath
+    });
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    fireEvent.click(within(agentPanel).getByRole("button", { name: "Current context" }));
+
+    expect(within(agentPanel).getByText("vault")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(within(agentPanel).getByText("guide.md")).toBeInTheDocument());
+    await waitFor(() => expect(within(agentPanel).getByText("1 headings · 1 sections · 0 tables")).toBeInTheDocument());
+    await waitFor(() => expect(mockedListStoredAiAgentSessions).toHaveBeenCalledWith(guidePath, { includeArchived: true }));
+    expect(within(agentPanel).queryByText("vault")).not.toBeInTheDocument();
+  });
+
   it("quick opens an unsaved blank markdown document from the titlebar while the file tree is collapsed", async () => {
     mockOpenMarkdownFile({
       content: "# Native file\n\nOpened from disk.",
