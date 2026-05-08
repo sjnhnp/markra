@@ -447,7 +447,7 @@ describe("Markra workspace", () => {
     expect(mockedOpenSettingsWindow).toHaveBeenCalledTimes(1);
   });
 
-  it("opens a right-side AI Agent workspace from the titlebar", async () => {
+  it("opens a right-side Markra AI workspace from the titlebar", async () => {
     mockedGetStoredAiSettings.mockResolvedValue({
       defaultModelId: "gpt-5.5",
       defaultProviderId: "openai",
@@ -475,10 +475,10 @@ describe("Markra workspace", () => {
 
     await screen.findByText("Welcome to Markra");
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle AI Agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
 
-    expect(screen.getByRole("button", { name: "Toggle AI Agent" })).toHaveAttribute("aria-pressed", "true");
-    const agentPanel = screen.getByRole("complementary", { name: "AI Agent" });
+    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "true");
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
     expect(agentPanel).toBeInTheDocument();
     expect(within(agentPanel).getAllByText("OpenAI · GPT-5.5")[0]).toBeInTheDocument();
     expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveTextContent("OpenAI · GPT-5.5");
@@ -486,9 +486,9 @@ describe("Markra workspace", () => {
       "minmax(0,1fr) 384px"
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Close AI Agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close Markra AI" }));
 
-    expect(screen.getByRole("button", { name: "Toggle AI Agent" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "false");
     expect((container.querySelector(".editor-agent-layout") as HTMLElement).style.gridTemplateColumns).toBe(
       "minmax(0,1fr) 0px"
     );

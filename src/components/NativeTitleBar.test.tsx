@@ -24,14 +24,14 @@ describe("NativeTitleBar", () => {
     expect(screen.getByRole("button", { name: "Open Markdown or Folder" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle AI Agent" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toBeInTheDocument();
     expect(titlebar).toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
     expect(titlebar).toHaveClass("h-10");
     expect(container.querySelector(".document-actions")).toHaveClass("h-10");
   });
 
-  it("toggles the right-side AI Agent panel from the file action area", () => {
+  it("toggles the right-side Markra AI panel from the file action area", () => {
     const toggleAiAgent = vi.fn();
     const { container } = render(
       <NativeTitleBar
@@ -49,7 +49,7 @@ describe("NativeTitleBar", () => {
       />
     );
 
-    const button = screen.getByRole("button", { name: "Toggle AI Agent" });
+    const button = screen.getByRole("button", { name: "Toggle Markra AI" });
 
     expect(button).toHaveAttribute("aria-pressed", "true");
     expect(button).toContainElement(container.querySelector(".lucide-bot"));
@@ -60,7 +60,7 @@ describe("NativeTitleBar", () => {
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
   });
 
-  it("centers the document title inside the editor area when the AI Agent panel is open", () => {
+  it("centers the document title inside the editor area when the Markra AI panel is open", () => {
     const { container } = render(
       <NativeTitleBar
         aiAgentOpen
@@ -101,7 +101,7 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".native-title")).toHaveStyle({ transform: "translateX(110px)" });
   });
 
-  it("balances the document title between the markdown files sidebar and AI Agent panel", () => {
+  it("balances the document title between the markdown files sidebar and Markra AI panel", () => {
     const { container } = render(
       <NativeTitleBar
         aiAgentOpen
@@ -122,7 +122,7 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".native-title")).toHaveStyle({ transform: "translateX(-112px)" });
   });
 
-  it("keeps file actions synced immediately while the AI Agent panel is resizing", () => {
+  it("keeps file actions synced immediately while the Markra AI panel is resizing", () => {
     const { container } = render(
       <NativeTitleBar
         aiAgentOpen

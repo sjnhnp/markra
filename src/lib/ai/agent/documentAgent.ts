@@ -272,7 +272,7 @@ async function runDocumentToolCallingAgent({
 
 function buildDocumentAgentSystemPrompt() {
   return [
-    "You are Markra AI Agent, a local-first Markdown writing assistant.",
+    "You are Markra AI, a local-first Markdown writing assistant.",
     "Help with the current document and nearby workspace notes using only the context that is provided in this turn.",
     "Be concise, practical, and explicit about what you know from the provided context.",
     "Reply in the user's language unless the user asks for another language.",
@@ -283,7 +283,7 @@ function buildDocumentAgentSystemPrompt() {
 
 function buildDocumentToolCallingSystemPrompt() {
   return [
-    "You are Markra AI Agent, a local-first Markdown assistant.",
+    "You are Markra AI, a local-first Markdown assistant.",
     "Use the available tools in three stages: inspect, locate, then execute.",
     "Inspect the document and current context first, especially when the user asks you to insert or restructure content.",
     "Reply in the user's language unless the user asks for another language.",
