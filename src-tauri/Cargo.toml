@@ -3,7 +3,7 @@ name = "markra"
 version = "0.0.1"
 description = "AI-native Markdown editor"
 authors = ["Markra contributors"]
-license = "MIT"
+license = "AGPL-3.0-only"
 repository = ""
 edition = "2021"
 
