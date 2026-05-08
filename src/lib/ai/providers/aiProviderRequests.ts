@@ -177,6 +177,7 @@ function readModelName(apiStyle: AiProviderApiStyle, record: Record<string, unkn
   return id;
 }
 
+// Converts provider-specific model metadata into Markra's internal capability flags.
 function inferModelCapabilities(apiStyle: AiProviderApiStyle, record: Record<string, unknown>, id: string): AiModelCapability[] {
   if (apiStyle === "google") return inferGoogleCapabilities(record, id);
   if (apiStyle === "openrouter") return inferOpenRouterCapabilities(record, id);
@@ -191,6 +192,7 @@ function inferModelCapabilities(apiStyle: AiProviderApiStyle, record: Record<str
   return normalizeAiModelCapabilities(capabilities, []);
 }
 
+// Infers capabilities from Google's model-list shape.
 function inferGoogleCapabilities(record: Record<string, unknown>, id: string): AiModelCapability[] {
   const normalizedId = id.toLowerCase();
   const methods = Array.isArray(record.supportedGenerationMethods)
@@ -209,6 +211,7 @@ function inferGoogleCapabilities(record: Record<string, unknown>, id: string): A
   return ["text"];
 }
 
+// Infers capabilities from OpenRouter architecture metadata.
 function inferOpenRouterCapabilities(record: Record<string, unknown>, id: string): AiModelCapability[] {
   const architecture = isRecord(record.architecture) ? record.architecture : undefined;
   const modality = typeof architecture?.modality === "string" ? architecture.modality.toLowerCase() : "";
@@ -236,6 +239,7 @@ function inferOpenRouterCapabilities(record: Record<string, unknown>, id: string
   return normalizeAiModelCapabilities(capabilities, []);
 }
 
+// Infers capabilities from a model id when provider metadata is sparse.
 function inferCapabilitiesFromId(id: string): AiModelCapability[] {
   const normalizedId = id.toLowerCase();
   if (normalizedId.includes("image") || normalizedId.includes("dall")) return ["image"];
@@ -260,10 +264,12 @@ function inferCapabilitiesFromId(id: string): AiModelCapability[] {
   return normalizeAiModelCapabilities(capabilities, []);
 }
 
+// Returns whether a Gemini model should expose web/search grounding capability.
 function googleGeminiSupportsSearchGrounding(normalizedId: string) {
   return !normalizedId.includes("3.1-flash-lite");
 }
 
+// Identifies model-list entries that are not useful for Markra chat/image workflows.
 function isUnsupportedModelCapability(value: string) {
   return (
     value.includes("audio") ||
