@@ -395,24 +395,13 @@ function chatMessageFromPiMessage(message: Message): ChatMessage[] {
     return [{ content: assistantTextContent(message), role: "assistant" }];
   }
 
-  return [
-    {
-      content: [`Tool result from ${message.toolName}:`, piContentToText(message.content)].join("\n"),
-      role: "user"
-    }
-  ];
+  return [chatMessageFromPiToolResultMessage(message)];
 }
 
 function chatMessageFromPiUserMessage(content: string | (TextContent | ImageContent)[]): ChatMessage {
   if (typeof content === "string") return { content, role: "user" };
 
-  const text = content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n");
-  const images = content
-    .filter((part): part is ImageContent => part.type === "image")
-    .map((part) => ({
-      dataUrl: part.data,
-      mimeType: part.mimeType
-    }));
+  const { images, text } = chatContentFromPiContent(content);
 
   return {
     content: text,
@@ -421,10 +410,32 @@ function chatMessageFromPiUserMessage(content: string | (TextContent | ImageCont
   };
 }
 
-function piContentToText(content: string | (TextContent | ImageContent)[]) {
-  if (typeof content === "string") return content;
+function chatMessageFromPiToolResultMessage(message: Extract<Message, { role: "toolResult" }>): ChatMessage {
+  const { images, text } = chatContentFromPiContent(message.content);
 
-  return content.map((part) => (part.type === "text" ? part.text : `[image:${part.mimeType}]`)).join("\n");
+  return {
+    content: [`Tool result from ${message.toolName}:`, text].filter((part) => part.length > 0).join("\n"),
+    ...(images.length ? { images } : {}),
+    role: "user"
+  };
+}
+
+function chatContentFromPiContent(content: (TextContent | ImageContent)[]) {
+  return {
+    images: content
+      .filter((part): part is ImageContent => part.type === "image")
+      .map((part) => ({
+        dataUrl: imageDataUrlFromPiImage(part),
+        mimeType: part.mimeType
+      })),
+    text: content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n")
+  };
+}
+
+function imageDataUrlFromPiImage(image: ImageContent) {
+  if (image.data.startsWith("data:")) return image.data;
+
+  return `data:${image.mimeType};base64,${image.data}`;
 }
 
 export function assistantTextContent(message: AssistantMessage) {

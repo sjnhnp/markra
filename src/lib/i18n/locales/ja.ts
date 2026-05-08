@@ -215,6 +215,8 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessLocateRegion": "ドキュメント領域を特定",
   "app.aiAgentProcessLocateSection": "セクションを特定",
   "app.aiAgentProcessReadSelection": "現在の選択範囲を読む",
+  "app.aiAgentProcessListDocumentImages": "ドキュメント画像を確認",
+  "app.aiAgentProcessReadDocumentImage": "ドキュメント画像を読む",
   "app.aiAgentProcessListWorkspaceFiles": "ワークスペースファイルを確認",
   "app.aiAgentProcessReadWorkspaceFile": "ワークスペースファイルを読む",
   "app.aiAgentProcessReplaceDocument": "ドキュメント全体の置換を準備",

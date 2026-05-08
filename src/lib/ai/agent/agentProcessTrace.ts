@@ -204,6 +204,16 @@ function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end
 
     return `${event.result.details.relativePath}${length}`;
   }
+  if (event.toolName === "list_document_images" && typeof event.result?.details?.count === "number") {
+    const unit = event.result.details.count === 1 ? "image" : "images";
+
+    return `${event.result.details.count} ${unit}`;
+  }
+  if (event.toolName === "view_document_image" && typeof event.result?.details?.src === "string") {
+    const mimeType = typeof event.result.details.mimeType === "string" ? ` · ${event.result.details.mimeType}` : "";
+
+    return `${event.result.details.src}${mimeType}`;
+  }
   if (event.toolName === "get_document" && typeof event.result?.details?.length === "number") {
     return `${event.result.details.length} chars`;
   }
@@ -303,6 +313,8 @@ function toolLabelForName(toolName: string, translate: Translate) {
   if (toolName === "locate_markdown_region") return translate("app.aiAgentProcessLocateRegion");
   if (toolName === "locate_section") return translate("app.aiAgentProcessLocateSection");
   if (toolName === "get_selection") return translate("app.aiAgentProcessReadSelection");
+  if (toolName === "list_document_images") return translate("app.aiAgentProcessListDocumentImages");
+  if (toolName === "view_document_image") return translate("app.aiAgentProcessReadDocumentImage");
   if (toolName === "list_workspace_files") return translate("app.aiAgentProcessListWorkspaceFiles");
   if (toolName === "read_workspace_file") return translate("app.aiAgentProcessReadWorkspaceFile");
   if (toolName === "replace_document") return translate("app.aiAgentProcessReplaceDocument");

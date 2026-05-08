@@ -12,10 +12,16 @@ describe("AI provider capabilities", () => {
       chat: true,
       modelList: true,
       streaming: true,
-      toolCalling: false
+      toolCalling: true
     });
-    expect(getProviderCapabilities("volcengine", "openai-compatible").modelList).toBe(true);
-    expect(getProviderCapabilities("xiaomi-mimo", "openai-compatible").modelList).toBe(true);
+    expect(getProviderCapabilities("volcengine", "openai-compatible")).toMatchObject({
+      modelList: true,
+      toolCalling: true
+    });
+    expect(getProviderCapabilities("xiaomi-mimo", "openai-compatible")).toMatchObject({
+      modelList: true,
+      toolCalling: true
+    });
     expect(getProviderCapabilities("azure-openai", "azure-openai")).toEqual({
       chat: true,
       modelList: false,

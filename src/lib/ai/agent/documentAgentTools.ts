@@ -9,11 +9,26 @@ type DocumentAgentToolContext = {
   documentPath: string | null;
   headingAnchors?: AiHeadingAnchor[];
   onPreviewResult?: (result: AiDiffResult) => unknown;
+  readDocumentImage?: (src: string) => Promise<DocumentAgentImage | null>;
   readWorkspaceFile?: (path: string) => Promise<string>;
   sectionAnchors?: AiDocumentAnchor[];
   selection: AiSelectionContext | null;
   tableAnchors?: AiDocumentAnchor[];
   workspaceFiles: AgentWorkspaceFile[];
+};
+
+type DocumentAgentImage = {
+  alt?: string;
+  dataUrl: string;
+  mimeType: string;
+  path?: string;
+  src: string;
+};
+
+type MarkdownImageReference = {
+  alt: string;
+  fileName: string;
+  src: string;
 };
 
 const workspaceFileReadMaxChars = 24_000;
@@ -31,8 +46,10 @@ type RegionOperation = "delete" | "insert" | "replace";
 
 export function createDocumentAgentTools(context: DocumentAgentToolContext): AgentTool[] {
   let hasPreparedWrite = false;
+  const imageTools = context.readDocumentImage ? createDocumentImageTools(context) : [];
 
   return [
+    ...imageTools,
     {
       description: "Read the full current Markdown document.",
       execute: async () => ({
@@ -658,6 +675,100 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
   ];
 }
 
+function createDocumentImageTools(context: DocumentAgentToolContext): AgentTool[] {
+  return [
+    {
+      description:
+        [
+          "List local Markdown image references in the current document.",
+          "Use this before view_document_image when the user asks about screenshots, figures, diagrams, photos, or other visual content in the document.",
+          "The src values returned by this tool are the only values view_document_image can read."
+        ].join(" "),
+      execute: async () => {
+        const references = extractMarkdownImageReferences(context.documentContent);
+
+        return {
+          content: [
+            {
+              text: formatDocumentImageReferencesText(references),
+              type: "text" as const
+            }
+          ],
+          details: {
+            count: references.length,
+            images: references
+          },
+          terminate: false
+        };
+      },
+      label: "List document images",
+      name: "list_document_images",
+      parameters: Type.Object({})
+    },
+    {
+      description:
+        [
+          "Read one local image referenced by the current Markdown document and return it for visual understanding.",
+          "Call list_document_images first, then pass an exact src from that list.",
+          "Use this only when the user's request requires understanding the image pixels."
+        ].join(" "),
+      execute: async (_toolCallId, params) => {
+        const args = typedViewDocumentImageArgs(params);
+        const references = extractMarkdownImageReferences(context.documentContent);
+        const reference = resolveMarkdownImageReference(references, args.src);
+        if (!reference) {
+          return toolErrorResult("Cannot read that image because it is not referenced by the current Markdown document. Call list_document_images and pass an exact src.");
+        }
+
+        if (!context.readDocumentImage) {
+          return toolErrorResult("Document image reading is unavailable in this session.");
+        }
+
+        try {
+          const image = await context.readDocumentImage(reference.src);
+          if (!image) {
+            return toolErrorResult(`Failed to read Markdown image "${reference.src}".`);
+          }
+
+          return {
+            content: [
+              {
+                text: [
+                  `Image src: ${reference.src}`,
+                  `Alt text: ${reference.alt || "(empty)"}`,
+                  `Resolved path: ${image.path ?? "(unavailable)"}`
+                ].join("\n"),
+                type: "text" as const
+              },
+              {
+                data: image.dataUrl,
+                mimeType: image.mimeType,
+                type: "image" as const
+              }
+            ],
+            details: {
+              alt: reference.alt,
+              mimeType: image.mimeType,
+              path: image.path ?? null,
+              src: reference.src
+            },
+            terminate: false
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown image read error.";
+
+          return toolErrorResult(`Failed to read Markdown image "${reference.src}": ${message}`);
+        }
+      },
+      label: "View document image",
+      name: "view_document_image",
+      parameters: Type.Object({
+        src: Type.String({ minLength: 1 })
+      })
+    }
+  ];
+}
+
 function buildDocumentAnchors(context: DocumentAgentToolContext): AiDocumentAnchor[] {
   const anchors: AiDocumentAnchor[] = [];
 
@@ -888,6 +999,73 @@ function formatWorkspaceFileContentText(file: AgentWorkspaceFile, content: strin
     "",
     content.trim().length > 0 ? content : "(empty file)"
   ].join("\n");
+}
+
+function formatDocumentImageReferencesText(references: MarkdownImageReference[]) {
+  if (!references.length) return "No local Markdown image references are available in the current document.";
+
+  return [
+    "Markdown image references:",
+    ...references.map((reference, index) => [
+      `${index + 1}. src: ${reference.src}`,
+      `   file: ${reference.fileName || "(unknown)"}`,
+      `   alt: ${reference.alt || "(empty)"}`
+    ].join("\n"))
+  ].join("\n");
+}
+
+function extractMarkdownImageReferences(markdown: string): MarkdownImageReference[] {
+  const references: MarkdownImageReference[] = [];
+  const imagePattern = /!\[([^\]]*)\]\(([^)]+)\)/gu;
+  let match: RegExpExecArray | null = imagePattern.exec(markdown);
+
+  while (match) {
+    const src = normalizeMarkdownImageSrc(match[2] ?? "");
+    if (src) {
+      references.push({
+        alt: match[1] ?? "",
+        fileName: fileNameFromImageReference(src),
+        src
+      });
+    }
+    match = imagePattern.exec(markdown);
+  }
+
+  return references;
+}
+
+function resolveMarkdownImageReference(references: MarkdownImageReference[], src: string) {
+  const normalizedSrc = src.trim();
+
+  return references.find((reference) => reference.src === normalizedSrc) ?? null;
+}
+
+function normalizeMarkdownImageSrc(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (trimmed.startsWith("<")) {
+    const end = trimmed.indexOf(">");
+    return end > 0 ? trimmed.slice(1, end).trim() : "";
+  }
+
+  return trimmed.split(/\s+/u)[0] ?? "";
+}
+
+function fileNameFromImageReference(value: string) {
+  const withoutQuery = value.split(/[?#]/u)[0] ?? "";
+  const normalized = decodeImageReferenceText(withoutQuery).replace(/\\/gu, "/");
+  const lastSeparator = normalized.lastIndexOf("/");
+
+  return lastSeparator >= 0 ? normalized.slice(lastSeparator + 1) : normalized;
+}
+
+function decodeImageReferenceText(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function truncateWorkspaceFileContent(content: string) {
@@ -1430,6 +1608,14 @@ function typedReadWorkspaceFileArgs(params: unknown) {
   return {
     path: args.path?.trim() || undefined,
     relativePath: args.relativePath?.trim() || undefined
+  };
+}
+
+function typedViewDocumentImageArgs(params: unknown) {
+  const args = params as { src: string };
+
+  return {
+    src: args.src.trim()
   };
 }
 

@@ -215,6 +215,8 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessLocateRegion": "Localizar região do documento",
   "app.aiAgentProcessLocateSection": "Localizar seção",
   "app.aiAgentProcessReadSelection": "Ler seleção atual",
+  "app.aiAgentProcessListDocumentImages": "Inspecionar imagens do documento",
+  "app.aiAgentProcessReadDocumentImage": "Ler imagem do documento",
   "app.aiAgentProcessListWorkspaceFiles": "Inspecionar arquivos do workspace",
   "app.aiAgentProcessReadWorkspaceFile": "Ler arquivo do workspace",
   "app.aiAgentProcessReplaceDocument": "Preparar substituição do documento",

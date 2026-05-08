@@ -33,6 +33,56 @@ describe("agentProcessTrace", () => {
     }));
   });
 
+  it("labels document image tools with image counts and sources", () => {
+    const initialProcesses = createInitialAgentProcesses(translate);
+    const listedProcesses = applyAgentEventToProcesses(
+      initialProcesses,
+      {
+        isError: false,
+        result: {
+          details: {
+            count: 2
+          }
+        },
+        toolCallId: "call_list_document_images",
+        toolName: "list_document_images",
+        type: "tool_execution_end"
+      } as AgentEvent,
+      translate
+    );
+    const viewedProcesses = applyAgentEventToProcesses(
+      listedProcesses,
+      {
+        isError: false,
+        result: {
+          details: {
+            mimeType: "image/png",
+            src: "assets/arch.png"
+          }
+        },
+        toolCallId: "call_view_document_image",
+        toolName: "view_document_image",
+        type: "tool_execution_end"
+      } as AgentEvent,
+      translate
+    );
+
+    expect(viewedProcesses).toContainEqual(expect.objectContaining({
+      detail: "2 images",
+      id: "tool:call_list_document_images",
+      label: "app.aiAgentProcessListDocumentImages",
+      rawLabel: "list_document_images",
+      status: "completed"
+    }));
+    expect(viewedProcesses).toContainEqual(expect.objectContaining({
+      detail: "assets/arch.png · image/png",
+      id: "tool:call_view_document_image",
+      label: "app.aiAgentProcessReadDocumentImage",
+      rawLabel: "view_document_image",
+      status: "completed"
+    }));
+  });
+
   it("shows the located section title and reason in the process detail", () => {
     const initialProcesses = createInitialAgentProcesses(translate);
     const nextProcesses = applyAgentEventToProcesses(

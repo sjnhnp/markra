@@ -83,21 +83,13 @@ export async function runDocumentAiAgent({
   webSearchEnabled = false,
   workspaceFiles = []
 }: RunDocumentAiAgentInput): Promise<RunDocumentAiAgentResult> {
-  const documentImages = await readPromptedDocumentImages({
-    documentContent,
-    model,
-    prompt,
-    provider,
-    readDocumentImage
-  });
   const capabilities = getProviderCapabilities(provider.id, provider.type);
-  if (capabilities.toolCalling && supportsDocumentToolCalling(provider.type)) {
+  if (capabilities.toolCalling && supportsDocumentToolCalling(provider.type) && modelSupportsTools(provider, model)) {
     return runDocumentToolCallingAgent({
       complete,
       documentContent,
       documentEndPosition,
       documentPath,
-      documentImages,
       headingAnchors,
       history,
       model,
@@ -107,6 +99,7 @@ export async function runDocumentAiAgent({
       onThinkingDelta,
       prompt,
       provider,
+      readDocumentImage: modelSupportsVision(provider, model) ? readDocumentImage : undefined,
       readWorkspaceFile,
       sectionAnchors,
       selection,
@@ -117,6 +110,14 @@ export async function runDocumentAiAgent({
     });
   }
 
+  const documentImages = await readPromptedDocumentImages({
+    complete,
+    documentContent,
+    model,
+    prompt,
+    provider,
+    readDocumentImage
+  });
   return runDocumentChatOnlyAgent({
     complete,
     documentContent,
@@ -203,7 +204,6 @@ async function runDocumentToolCallingAgent({
   documentContent,
   documentEndPosition = 0,
   documentPath,
-  documentImages = [],
   history = [],
   headingAnchors = [],
   model,
@@ -213,6 +213,7 @@ async function runDocumentToolCallingAgent({
   onThinkingDelta,
   prompt,
   provider,
+  readDocumentImage,
   readWorkspaceFile,
   sectionAnchors,
   selection = null,
@@ -250,6 +251,7 @@ async function runDocumentToolCallingAgent({
           preparedPreview = true;
           onPreviewResult?.(result);
         },
+        readDocumentImage,
         readWorkspaceFile,
         sectionAnchors,
         selection,
@@ -284,7 +286,7 @@ async function runDocumentToolCallingAgent({
     finishReason = event.message.stopReason;
   });
 
-  await agent.prompt(buildDocumentToolCallingTurnMessages({ documentImages, prompt, selection, webSearchEnabled }));
+  await agent.prompt(buildDocumentToolCallingTurnMessages({ documentImages: [], prompt, selection, webSearchEnabled }));
 
   return {
     content: preparedPreview ? "" : (finalContent || latestAssistantText).trim(),
@@ -311,6 +313,8 @@ function buildDocumentToolCallingSystemPrompt() {
     "Inspect the document and current context first, especially when the user asks you to insert or restructure content.",
     "Reply in the user's language unless the user asks for another language.",
     "When the user asks about nearby notes, call list_workspace_files first, then read_workspace_file for the exact Markdown files you need.",
+    "When the user asks about images in the document and image tools are available, call list_document_images first, then view_document_image for the exact src you need.",
+    "Do not guess image contents from alt text or filenames when view_document_image is available.",
     "Use locate_markdown_region or get_available_anchors before writing whenever the edit position is not trivially obvious.",
     "When the user asks to rewrite, compress, clean up, or keep only part of the whole document, use replace_document.",
     "Use get_document_sections and locate_section when the user asks to rewrite, delete, move, or regenerate an entire section.",
@@ -343,23 +347,36 @@ function isDocumentWriteToolName(toolName: string) {
 }
 
 async function readPromptedDocumentImages({
+  complete,
   documentContent,
   model,
   prompt,
   provider,
   readDocumentImage
 }: {
+  complete: InlineAiAgentComplete;
   documentContent: string;
   model: string;
   prompt: string;
   provider: AiProviderConfig;
   readDocumentImage?: (src: string) => Promise<DocumentAiImage | null>;
 }) {
-  if (!readDocumentImage || !shouldAttachDocumentImages(prompt) || !modelSupportsVision(provider, model)) {
+  if (!readDocumentImage || !modelSupportsVision(provider, model)) {
     return [];
   }
 
   const references = extractMarkdownImageReferences(documentContent).slice(0, 4);
+  if (!references.length) return [];
+
+  const shouldAttachImages = await classifyDocumentImageIntent({
+    complete,
+    model,
+    prompt,
+    provider,
+    references
+  });
+  if (!shouldAttachImages) return [];
+
   const images: ChatImageAttachment[] = [];
 
   for (const reference of references) {
@@ -383,12 +400,76 @@ function modelSupportsVision(provider: AiProviderConfig, model: string) {
   return provider.models.some((item) => item.id === model && item.enabled && item.capabilities.includes("vision"));
 }
 
-function shouldAttachDocumentImages(prompt: string) {
-  return /图片|图像|截图|照片|图表|这张图|这幅图|看图|识别|image|screenshot|photo|picture|figure|diagram|chart|visual/iu.test(prompt);
+function modelSupportsTools(provider: AiProviderConfig, model: string) {
+  return provider.models.some((item) => item.id === model && item.enabled && item.capabilities.includes("tools"));
 }
 
-function extractMarkdownImageReferences(markdown: string) {
-  const references: Array<{ alt: string; src: string }> = [];
+async function classifyDocumentImageIntent({
+  complete,
+  model,
+  prompt,
+  provider,
+  references
+}: {
+  complete: InlineAiAgentComplete;
+  model: string;
+  prompt: string;
+  provider: AiProviderConfig;
+  references: MarkdownImageReference[];
+}) {
+  try {
+    const response = await complete(provider, model, buildDocumentImageIntentMessages({ prompt, references }), {
+      thinkingEnabled: false
+    });
+
+    return imageIntentResponseIsPositive(response.content);
+  } catch {
+    return false;
+  }
+}
+
+function buildDocumentImageIntentMessages({
+  prompt,
+  references
+}: {
+  prompt: string;
+  references: MarkdownImageReference[];
+}): ChatMessage[] {
+  return [
+    {
+      content: [
+        "Decide whether the user's latest request requires visual understanding of image pixels from the current Markdown document.",
+        "Understand the request in any language.",
+        "Return exactly YES or NO.",
+        "Return YES only when the visual content of one or more listed Markdown images is needed.",
+        "Return NO for text-only editing, rewriting, translation, or summarization that does not ask about image contents."
+      ].join("\n"),
+      role: "system"
+    },
+    {
+      content: [
+        "User request:",
+        prompt.trim(),
+        "",
+        "Markdown image references:",
+        ...references.map((reference, index) => `${index + 1}. alt=${reference.alt || "(empty)"} src=${reference.src}`)
+      ].join("\n"),
+      role: "user"
+    }
+  ];
+}
+
+function imageIntentResponseIsPositive(content: string) {
+  return /^\s*yes\b/iu.test(content);
+}
+
+type MarkdownImageReference = {
+  alt: string;
+  src: string;
+};
+
+function extractMarkdownImageReferences(markdown: string): MarkdownImageReference[] {
+  const references: MarkdownImageReference[] = [];
   const imagePattern = /!\[([^\]]*)\]\(([^)]+)\)/gu;
   let match: RegExpExecArray | null = imagePattern.exec(markdown);
 

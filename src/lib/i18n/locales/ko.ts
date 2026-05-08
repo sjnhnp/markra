@@ -215,6 +215,8 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessLocateRegion": "문서 영역 찾기",
   "app.aiAgentProcessLocateSection": "섹션 찾기",
   "app.aiAgentProcessReadSelection": "현재 선택 영역 읽기",
+  "app.aiAgentProcessListDocumentImages": "문서 이미지 검사",
+  "app.aiAgentProcessReadDocumentImage": "문서 이미지 읽기",
   "app.aiAgentProcessListWorkspaceFiles": "워크스페이스 파일 검사",
   "app.aiAgentProcessReadWorkspaceFile": "워크스페이스 파일 읽기",
   "app.aiAgentProcessReplaceDocument": "전체 문서 교체 준비",

@@ -23,9 +23,9 @@ const defaultByApiStyle: Record<AiProviderApiStyle, ProviderCapabilities> = {
 };
 
 const providerOverrides: Record<string, Partial<ProviderCapabilities>> = {
-  "aliyun-bailian": { modelList: true },
-  volcengine: { modelList: true },
-  "xiaomi-mimo": { modelList: true }
+  "aliyun-bailian": { modelList: true, toolCalling: true },
+  volcengine: { modelList: true, toolCalling: true },
+  "xiaomi-mimo": { modelList: true, toolCalling: true }
 };
 
 export function getProviderCapabilities(providerId: string, apiStyle: AiProviderApiStyle): ProviderCapabilities {

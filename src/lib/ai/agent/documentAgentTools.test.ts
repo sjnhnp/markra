@@ -8,6 +8,64 @@ function toolText(result: AgentToolResult<unknown> | undefined) {
 }
 
 describe("documentAgentTools", () => {
+  it("lists and reads Markdown document images", async () => {
+    const readDocumentImage = vi.fn(async (src: string) => ({
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      path: `/vault/${src}`,
+      src
+    }));
+    const tools = createDocumentAgentTools({
+      documentContent: "# Current\n\n![Screen shot](<assets/screen%20shot.png>)",
+      documentEndPosition: 53,
+      documentPath: "/vault/current.md",
+      readDocumentImage,
+      selection: null,
+      workspaceFiles: []
+    });
+    const listTool = tools.find((item) => item.name === "list_document_images");
+    const viewTool = tools.find((item) => item.name === "view_document_image");
+
+    const listResult = await listTool?.execute("tool_list_document_images", {});
+    expect(toolText(listResult)).toContain("src: assets/screen%20shot.png");
+    expect(toolText(listResult)).toContain("file: screen shot.png");
+
+    const viewResult = await viewTool?.execute("tool_view_document_image", {
+      src: "assets/screen%20shot.png"
+    });
+
+    expect(readDocumentImage).toHaveBeenCalledWith("assets/screen%20shot.png");
+    expect(toolText(viewResult)).toContain("Image src: assets/screen%20shot.png");
+    expect(viewResult?.content[1]).toEqual({
+      data: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      type: "image"
+    });
+  });
+
+  it("rejects document image reads that are not referenced by the current document", async () => {
+    const readDocumentImage = vi.fn(async () => ({
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      src: "private.png"
+    }));
+    const viewTool = createDocumentAgentTools({
+      documentContent: "# Current\n\n![Visible](assets/visible.png)",
+      documentEndPosition: 40,
+      documentPath: "/vault/current.md",
+      readDocumentImage,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "view_document_image");
+
+    await expect(viewTool?.execute("tool_view_document_image", {
+      src: "../private.png"
+    })).rejects.toThrow(
+      "Cannot read that image because it is not referenced by the current Markdown document."
+    );
+    expect(readDocumentImage).not.toHaveBeenCalled();
+  });
+
   it("reads a workspace Markdown file by exact relative path", async () => {
     const readWorkspaceFile = vi.fn(async () => "# Nearby note\n\nUseful context.");
     const context = {

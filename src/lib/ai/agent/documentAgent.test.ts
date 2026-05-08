@@ -9,7 +9,7 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
     defaultModelId: "gpt-5.5",
     enabled: true,
     id: "openai",
-    models: [],
+    models: [{ capabilities: ["text", "vision", "tools"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }],
     name: "OpenAI",
     type: "openai",
     ...overrides
@@ -22,29 +22,29 @@ describe("document AI agent", () => {
       expect(messages[0]?.content).toContain("Reply in the user's language");
 
       return {
-        content: "好的，我会按中文回复。",
+        content: "I will answer in the user's language.",
         finishReason: "stop"
       };
     });
 
     const result = await runDocumentAiAgent({
       complete,
-      documentContent: "# 草稿",
+      documentContent: "# Draft",
       documentPath: "/vault/README.md",
       model: "gpt-5.5",
-      prompt: "帮我看看这份文档",
+      prompt: "Please review this document.",
       provider: provider(),
       workspaceFiles: []
     });
 
     expect(result).toEqual({
-      content: "好的，我会按中文回复。",
+      content: "I will answer in the user's language.",
       finishReason: "stop",
       preparedPreview: false
     });
   });
 
-  it("attaches referenced document images only when a vision model needs them", async () => {
+  it("lets the tool-calling agent read document images through a tool", async () => {
     const readDocumentImage = vi.fn(async (src: string) => ({
       alt: "Architecture screenshot",
       dataUrl: "data:image/png;base64,aGVsbG8=",
@@ -52,18 +52,75 @@ describe("document AI agent", () => {
       path: `/vault/${src}`,
       src
     }));
-    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
-      const request = messages.at(-1);
-      expect(request?.content).toBe("User request:\n这张截图里有什么？");
-      expect(request?.images).toEqual([
-        {
-          dataUrl: "data:image/png;base64,aGVsbG8=",
-          mimeType: "image/png"
-        }
-      ]);
+    const complete = vi.fn()
+      .mockImplementationOnce(async (_provider, _model, _messages: ChatMessage[], options) => {
+        const toolNames = options?.tools?.map((tool: { name: string }) => tool.name) ?? [];
+        expect(toolNames).toEqual(expect.arrayContaining([
+          "list_document_images",
+          "view_document_image"
+        ]));
+        expect(readDocumentImage).not.toHaveBeenCalled();
+        options?.onToolCallDelta?.({
+          id: "call_view_document_image",
+          index: 0,
+          nameDelta: "view_document_image"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            src: "assets/arch.png"
+          }),
+          index: 0
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+        const toolResult = messages.at(-1);
+        expect(toolResult?.content).toContain("Tool result from view_document_image:");
+        expect(toolResult?.images).toEqual([
+          {
+            dataUrl: "data:image/png;base64,aGVsbG8=",
+            mimeType: "image/png"
+          }
+        ]);
+
+        return {
+          content: "The screenshot shows an architecture diagram.",
+          finishReason: "stop"
+        };
+      });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Note\n\n![Architecture screenshot](assets/arch.png)",
+      documentPath: "/vault/note.md",
+      model: "gpt-5.5",
+      prompt: "What is shown in this screenshot?",
+      provider: provider({
+        models: [{ capabilities: ["text", "vision", "tools"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
+      }),
+      readDocumentImage,
+      workspaceFiles: []
+    });
+
+    expect(readDocumentImage).toHaveBeenCalledWith("assets/arch.png");
+    expect(result.content).toBe("The screenshot shows an architecture diagram.");
+  });
+
+  it("uses document image tools for Qwen vision models", async () => {
+    const readDocumentImage = vi.fn();
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, _messages: ChatMessage[], options) => {
+      const toolNames = options?.tools?.map((tool: { name: string }) => tool.name) ?? [];
+      expect(toolNames).toEqual(expect.arrayContaining([
+        "list_document_images",
+        "view_document_image"
+      ]));
 
       return {
-        content: "截图里是一张架构图。",
+        content: "I can inspect document images with tools.",
         finishReason: "stop"
       };
     });
@@ -72,23 +129,129 @@ describe("document AI agent", () => {
       complete,
       documentContent: "# Note\n\n![Architecture screenshot](assets/arch.png)",
       documentPath: "/vault/note.md",
-      model: "gpt-5.5",
-      prompt: "这张截图里有什么？",
+      model: "qwen3.6-plus",
+      prompt: "What is shown in this screenshot?",
       provider: provider({
-        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
+        id: "aliyun-bailian",
+        models: [{ capabilities: ["text", "vision", "tools"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+        name: "Qwen",
+        type: "openai-compatible"
       }),
       readDocumentImage,
       workspaceFiles: []
     });
 
+    expect(readDocumentImage).not.toHaveBeenCalled();
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(result.content).toBe("I can inspect document images with tools.");
+  });
+
+  it("attaches referenced document images in chat-only mode when a vision model needs them", async () => {
+    const readDocumentImage = vi.fn(async (src: string) => ({
+      alt: "Architecture screenshot",
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      path: `/vault/${src}`,
+      src
+    }));
+    const complete = vi.fn()
+      .mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+        expect(messages.at(-1)?.content).toContain("What is shown in this screenshot?");
+        expect(messages.at(-1)?.images).toBeUndefined();
+
+        return {
+          content: "YES",
+          finishReason: "stop"
+        };
+      })
+      .mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+        const request = messages.at(-1);
+        expect(request?.content).toBe("User request:\nWhat is shown in this screenshot?");
+        expect(request?.images).toEqual([
+          {
+            dataUrl: "data:image/png;base64,aGVsbG8=",
+            mimeType: "image/png"
+          }
+        ]);
+
+        return {
+          content: "The screenshot shows an architecture diagram.",
+          finishReason: "stop"
+        };
+      });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Note\n\n![Architecture screenshot](assets/arch.png)",
+      documentPath: "/vault/note.md",
+      model: "gpt-5.5",
+      prompt: "What is shown in this screenshot?",
+      provider: provider({
+        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }],
+        type: "openai-compatible"
+      }),
+      readDocumentImage,
+      workspaceFiles: []
+    });
+
+    expect(complete).toHaveBeenCalledTimes(2);
     expect(readDocumentImage).toHaveBeenCalledWith("assets/arch.png");
-    expect(result.content).toBe("截图里是一张架构图。");
+    expect(result.content).toBe("The screenshot shows an architecture diagram.");
+  });
+
+  it("uses the model to classify image requests before attaching images", async () => {
+    const readDocumentImage = vi.fn(async (src: string) => ({
+      alt: "Architecture screenshot",
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      path: `/vault/${src}`,
+      src
+    }));
+    const complete = vi.fn()
+      .mockResolvedValueOnce({
+        content: "YES",
+        finishReason: "stop"
+      })
+      .mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+        const request = messages.at(-1);
+        expect(request?.content).toBe("User request:\nWhat does this capture show?");
+        expect(request?.images).toEqual([
+          {
+            dataUrl: "data:image/png;base64,aGVsbG8=",
+            mimeType: "image/png"
+          }
+        ]);
+
+        return {
+          content: "The capture shows an architecture diagram.",
+          finishReason: "stop"
+        };
+      });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Note\n\n![Architecture screenshot](assets/arch.png)",
+      documentPath: "/vault/note.md",
+      model: "gpt-5.5",
+      prompt: "What does this capture show?",
+      provider: provider({
+        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }],
+        type: "openai-compatible"
+      }),
+      readDocumentImage,
+      workspaceFiles: []
+    });
+
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(complete.mock.calls[0]?.[2].at(-1)?.content).toContain("What does this capture show?");
+    expect(readDocumentImage).toHaveBeenCalledWith("assets/arch.png");
+    expect(result.content).toBe("The capture shows an architecture diagram.");
   });
 
   it("does not read document images for non-visual turns", async () => {
     const readDocumentImage = vi.fn();
     const complete = vi.fn().mockResolvedValue({
-      content: "这篇文档有一个图片引用。",
+      content: "This document contains one image reference.",
       finishReason: "stop"
     });
 
@@ -97,7 +260,7 @@ describe("document AI agent", () => {
       documentContent: "# Note\n\n![Architecture screenshot](assets/arch.png)",
       documentPath: "/vault/note.md",
       model: "gpt-5.5",
-      prompt: "总结这篇文档",
+      prompt: "Summarize this document.",
       provider: provider({
         models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
       }),

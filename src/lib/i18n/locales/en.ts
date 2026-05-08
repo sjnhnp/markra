@@ -188,6 +188,8 @@ const messages: BaseLocaleMessages = {
   "app.aiAgentProcessLocateRegion": "Locate document region",
   "app.aiAgentProcessLocateSection": "Locate section",
   "app.aiAgentProcessReadSelection": "Read current selection",
+  "app.aiAgentProcessListDocumentImages": "Inspect document images",
+  "app.aiAgentProcessReadDocumentImage": "Read document image",
   "app.aiAgentProcessListWorkspaceFiles": "Inspect workspace files",
   "app.aiAgentProcessReadWorkspaceFile": "Read workspace file",
   "app.aiAgentProcessReplaceDocument": "Prepare document replacement",

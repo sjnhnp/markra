@@ -199,6 +199,8 @@ export type I18nKey =
   | "app.aiAgentProcessLocateRegion"
   | "app.aiAgentProcessLocateSection"
   | "app.aiAgentProcessReadSelection"
+  | "app.aiAgentProcessListDocumentImages"
+  | "app.aiAgentProcessReadDocumentImage"
   | "app.aiAgentProcessListWorkspaceFiles"
   | "app.aiAgentProcessReadWorkspaceFile"
   | "app.aiAgentProcessReplaceDocument"
