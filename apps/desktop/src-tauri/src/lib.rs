@@ -1,4 +1,5 @@
 mod ai_http;
+mod external_urls;
 mod language;
 mod markdown_files;
 mod menu;
@@ -8,6 +9,7 @@ mod web_http;
 mod windows;
 
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
+use external_urls::open_external_url;
 use markdown_files::{
     create_markdown_tree_file, create_markdown_tree_folder, delete_markdown_tree_file,
     list_markdown_files_for_path, open_markdown_file_in_new_window,
@@ -83,6 +85,7 @@ pub fn run() {
             save_clipboard_image,
             open_blank_editor_window,
             open_settings_window,
+            open_external_url,
             request_ai_provider_json,
             request_native_chat,
             request_native_chat_stream,

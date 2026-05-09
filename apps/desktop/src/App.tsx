@@ -28,7 +28,7 @@ import {
 import { aiTranslationLanguageName, t, type I18nKey } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
-import { openSettingsWindow } from "./lib/tauri";
+import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
 import type { AiDiffResult, AiSelectionContext } from "@markra/ai";
 import {
   AI_EDITOR_PREVIEW_APPLIED_EVENT,
@@ -779,6 +779,7 @@ export default function App() {
                     onEditorReady={editor.handleEditorReady}
                     onMarkdownChange={handleMarkdownChange}
                     onSaveClipboardImage={handleSaveClipboardImage}
+                    openExternalUrl={openNativeExternalUrl}
                     onTextSelectionChange={handleTextSelectionChange}
                     resolveImageSrc={resolveImageSrc}
                     revision={document.revision}

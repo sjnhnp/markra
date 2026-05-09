@@ -4,6 +4,15 @@ export function openSettingsWindow() {
   return invoke("open_settings_window");
 }
 
+export function openNativeExternalUrl(url: string) {
+  if (!("__TAURI_INTERNALS__" in window)) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return Promise.resolve();
+  }
+
+  return invoke("open_external_url", { url });
+}
+
 export async function setNativeWindowTitle(title: string) {
   window.document.title = title;
 

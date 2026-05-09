@@ -58,6 +58,7 @@ type MarkdownPaperProps = {
   onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => unknown;
   onMarkdownChange: (content: string) => unknown;
   onSaveClipboardImage?: SaveClipboardImage;
+  openExternalUrl?: (url: string) => unknown;
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
   resolveImageSrc?: (src: string) => string;
   revision: number;
@@ -76,6 +77,7 @@ type MilkdownSurfaceProps = {
   onEditorReady: MarkdownPaperProps["onEditorReady"];
   onMarkdownChange: (content: string) => unknown;
   onSaveClipboardImage?: MarkdownPaperProps["onSaveClipboardImage"];
+  openExternalUrl?: MarkdownPaperProps["openExternalUrl"];
   onTextSelectionChange?: MarkdownPaperProps["onTextSelectionChange"];
   resolveImageSrc?: MarkdownPaperProps["resolveImageSrc"];
 };
@@ -140,6 +142,45 @@ function markraTextSelectionObserverPlugin(
   });
 }
 
+function linkHrefFromClickTarget(target: EventTarget | null) {
+  const targetElement =
+    target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+  if (!targetElement) return null;
+
+  const linkTarget = targetElement.closest<HTMLAnchorElement | HTMLElement>("a[href], .markra-live-link-label[data-markra-href]");
+  if (!linkTarget) return null;
+
+  if (linkTarget instanceof HTMLAnchorElement) {
+    return linkTarget.getAttribute("href") ?? linkTarget.href;
+  }
+
+  return linkTarget.dataset.markraHref ?? null;
+}
+
+function markraExternalLinkClickPlugin(openExternalUrl: (url: string) => unknown) {
+  return $prose(() => {
+    return new Plugin({
+      props: {
+        handleDOMEvents: {
+          click(_view, event) {
+            const href = linkHrefFromClickTarget(event.target);
+            if (!href) return false;
+
+            event.preventDefault();
+
+            try {
+              Promise.resolve(openExternalUrl(href)).catch(() => {});
+            } catch {
+              // Opening external links is best-effort; editing should not be interrupted by opener failures.
+            }
+
+            return true;
+          }
+        }
+      }
+    });
+  });
+}
 
 function MilkdownInstanceBridge({ autoFocus, onEditorReady }: Pick<MilkdownSurfaceProps, "autoFocus" | "onEditorReady">) {
   const [loading, getEditor] = useInstance();
@@ -170,6 +211,7 @@ function MilkdownSurface({
   onEditorReady,
   onMarkdownChange,
   onSaveClipboardImage,
+  openExternalUrl,
   onTextSelectionChange,
   resolveImageSrc
 }: MilkdownSurfaceProps) {
@@ -223,6 +265,10 @@ function MilkdownSurface({
         .use(markraLinkImageLivePlugin(resolveImageSrc))
         .use(markraLiveMarkdownPlugin);
 
+      if (openExternalUrl) {
+        editor.use(markraExternalLinkClickPlugin(openExternalUrl));
+      }
+
       if (onSaveClipboardImageRef.current) {
         editor.use(
           markraClipboardImagePlugin((image) => onSaveClipboardImageRef.current?.(image) ?? Promise.resolve(null))
@@ -231,7 +277,7 @@ function MilkdownSurface({
 
       return editor;
     },
-    [markdownDocumentLabel, onMarkdownChange, resolveImageSrc]
+    [markdownDocumentLabel, onMarkdownChange, openExternalUrl, resolveImageSrc]
   );
 
   useEditor(createEditor, [createEditor]);
@@ -254,6 +300,7 @@ export function MarkdownPaper({
   onEditorReady,
   onMarkdownChange,
   onSaveClipboardImage,
+  openExternalUrl,
   onTextSelectionChange,
   resolveImageSrc,
   revision
@@ -284,6 +331,7 @@ export function MarkdownPaper({
             onEditorReady={onEditorReady}
             onMarkdownChange={onMarkdownChange}
             onSaveClipboardImage={onSaveClipboardImage}
+            openExternalUrl={openExternalUrl}
             onTextSelectionChange={onTextSelectionChange}
             resolveImageSrc={resolveImageSrc}
           />

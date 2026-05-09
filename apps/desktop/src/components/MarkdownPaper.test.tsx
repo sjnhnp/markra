@@ -27,6 +27,7 @@ async function renderEditor(
   initialContent = "",
   options: {
     onSaveClipboardImage?: (image: File) => Promise<{ alt: string; src: string } | null>;
+    openExternalUrl?: (url: string) => unknown;
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
     resolveImageSrc?: (src: string) => string;
   } = {}
@@ -40,6 +41,7 @@ async function renderEditor(
       }}
       onMarkdownChange={() => {}}
       onSaveClipboardImage={options.onSaveClipboardImage}
+      openExternalUrl={options.openExternalUrl}
       onTextSelectionChange={options.onTextSelectionChange}
       resolveImageSrc={options.resolveImageSrc}
       revision={0}
@@ -1671,6 +1673,18 @@ describe("MarkdownPaper editing", () => {
     expect(image).toBeInTheDocument();
     expect(image).toHaveAttribute("alt", "Markra logo");
     await settleMarkdownListener();
+  });
+
+  it("opens finalized links with a normal click", async () => {
+    const openExternalUrl = vi.fn();
+    const { container } = await renderEditor("[Markra](https://example.com)", { openExternalUrl });
+
+    const link = container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="https://example.com"]');
+    expect(link).toBeInTheDocument();
+
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    expect(openExternalUrl).toHaveBeenCalledWith("https://example.com");
   });
 
   it("renders local image markdown with resolved preview sources", async () => {

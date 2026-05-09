@@ -321,11 +321,24 @@
   }
 
   .markdown-paper a {
-    @apply text-(--accent-hover) underline underline-offset-2;
+    @apply cursor-pointer text-(--accent-hover) underline underline-offset-2;
   }
 
   .markdown-paper .markra-live-link-label {
-    @apply text-(--accent-hover) underline underline-offset-2;
+    @apply cursor-pointer text-(--accent-hover) underline underline-offset-2;
+  }
+
+  .markdown-paper a[href]::after,
+  .markdown-paper .markra-live-link-label::after {
+    content: "↗";
+    display: inline-block;
+    margin-left: 0.18em;
+    transform: translateY(-0.08em);
+    font-size: 0.72em;
+    font-weight: 650;
+    line-height: 1;
+    text-decoration: none;
+    opacity: 0.7;
   }
 
   .markdown-paper img {

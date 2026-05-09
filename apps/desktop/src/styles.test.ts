@@ -52,4 +52,13 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("animation: markra-ai-agent-border-run");
     expect(styles).toContain("mask-composite: exclude");
   });
+
+  it("adds a small external-link affordance after editor links", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain(".markdown-paper a[href]::after");
+    expect(styles).toContain(".markdown-paper .markra-live-link-label::after");
+    expect(styles).toContain("content: \"↗\"");
+    expect(styles).toContain("@apply cursor-pointer text-(--accent-hover) underline underline-offset-2");
+  });
 });
