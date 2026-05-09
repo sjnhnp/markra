@@ -16,6 +16,7 @@ import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import type { AiModelCapability, AiProviderApiStyle, StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
 import type { AiAgentPanelMessage } from "../hooks/useAiAgentSession";
 import { clampNumber } from "@markra/shared";
+import { ToggleButton } from "@markra/ui";
 
 type AiAgentModelOption = AiModelPickerOption & { capabilities: AiModelCapability[] };
 
@@ -577,38 +578,26 @@ export function AiAgentPanel({
             />
             <div className="mt-2 flex items-center justify-between gap-3 border-t border-(--border-default) pt-2">
               <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5">
-                <button
-                  className={`inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-[12px] leading-5 font-[620] transition-[background-color,border-color,color,opacity] duration-150 ease-out focus-visible:outline-none disabled:cursor-default disabled:opacity-45 ${
-                    thinkingEnabled
-                      ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
-                      : "border-(--border-default) bg-(--bg-secondary) text-(--text-secondary) hover:border-(--accent) hover:text-(--accent)"
-                  }`}
-                  type="button"
-                  aria-label={label("app.aiDeepThinking")}
+                <ToggleButton
+                  label={label("app.aiDeepThinking")}
                   title={label("app.aiDeepThinking")}
-                  aria-pressed={thinkingEnabled}
+                  pressed={thinkingEnabled}
                   disabled={!supportsThinking}
                   onClick={onToggleThinking}
                 >
                   <BrainCircuit aria-hidden="true" size={14} />
                   <span>{label("app.aiDeepThinking")}</span>
-                </button>
-                <button
-                  className={`inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-[12px] leading-5 font-[620] transition-[background-color,border-color,color,opacity] duration-150 ease-out focus-visible:outline-none disabled:cursor-default disabled:opacity-45 ${
-                    webSearchEnabled
-                      ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
-                      : "border-(--border-default) bg-(--bg-secondary) text-(--text-secondary) hover:border-(--accent) hover:text-(--accent)"
-                  }`}
-                  type="button"
-                  aria-label={label("app.aiWebSearch")}
+                </ToggleButton>
+                <ToggleButton
+                  label={label("app.aiWebSearch")}
                   title={label("app.aiWebSearch")}
-                  aria-pressed={webSearchEnabled}
+                  pressed={webSearchEnabled}
                   disabled={!supportsWebSearch}
                   onClick={onToggleWebSearch}
                 >
                   <Globe2 aria-hidden="true" size={14} />
                   <span>{label("app.aiWebSearch")}</span>
-                </button>
+                </ToggleButton>
               </div>
               <button
                 className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-(--bg-active) p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--accent) hover:text-(--bg-primary) focus-visible:bg-(--accent) focus-visible:text-(--bg-primary) focus-visible:outline-none disabled:cursor-default disabled:opacity-40 disabled:hover:bg-(--bg-active) disabled:hover:text-(--text-secondary)"

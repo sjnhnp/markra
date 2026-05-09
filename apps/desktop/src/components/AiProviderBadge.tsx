@@ -14,6 +14,7 @@ import volcengineLogo from "../assets/provider-logos/volcengine.svg";
 import xiaomiMimoLogo from "../assets/provider-logos/xiaomi-mimo.svg";
 import type { AiProviderApiStyle, AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
+import { Badge } from "@markra/ui";
 
 type Translate = (key: I18nKey) => string;
 
@@ -59,7 +60,7 @@ export function AiProviderBadge({ provider, translate }: { provider: AiProviderC
   const logo = providerLogoById[provider.id] ?? providerLogoByType[provider.type];
 
   return (
-    <span className="inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--border-default) bg-[oklch(0.985_0.004_255)] text-[11px] leading-none font-[750] text-(--accent)">
+    <Badge className="size-7 overflow-hidden border border-(--border-default) bg-[oklch(0.985_0.004_255)] px-0 leading-none font-[750] text-(--accent)">
       {logo ? (
         <img
           className="size-5 object-contain"
@@ -70,6 +71,6 @@ export function AiProviderBadge({ provider, translate }: { provider: AiProviderC
       ) : (
         provider.name.slice(0, 2)
       )}
-    </span>
+    </Badge>
   );
 }

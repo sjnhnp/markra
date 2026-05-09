@@ -44,6 +44,9 @@ importers:
       '@markra/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@markra/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@milkdown/kit':
         specifier: ^7.20.0
         version: 7.20.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1)(typescript@6.0.3)
@@ -229,6 +232,39 @@ importers:
       jsdom:
         specifier: 29.1.1
         version: 29.1.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.5
+        version: 4.1.5(@types/node@24.10.0)(jsdom@29.1.1)(vite@8.0.10(@types/node@24.10.0)(jiti@2.6.1)(yaml@2.8.4))
+
+  packages/ui:
+    devDependencies:
+      '@testing-library/jest-dom':
+        specifier: 6.9.1
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: 16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@types/node':
+        specifier: 24.10.0
+        version: 24.10.0
+      '@types/react':
+        specifier: 19.2.7
+        version: 19.2.7
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.7)
+      jsdom:
+        specifier: 29.1.1
+        version: 29.1.1
+      react:
+        specifier: 19.2.5
+        version: 19.2.5
+      react-dom:
+        specifier: 19.2.5
+        version: 19.2.5(react@19.2.5)
       typescript:
         specifier: 6.0.3
         version: 6.0.3

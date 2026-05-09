@@ -24,6 +24,7 @@ import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import type { AiDiffResult, AiEditIntent } from "@markra/ai";
 import type { AiProviderApiStyle } from "../lib/settings/app-settings";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
+import { ToggleButton } from "@markra/ui";
 
 type AiCommandAction = {
   icon: LucideIcon;
@@ -483,21 +484,16 @@ export function AiCommandBar({
         >
           {showAgentStatus ? renderAgentStatus() : null}
           {!showAgentStatus && showThinkingToggle ? (
-            <button
-              className={`inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-[12px] leading-5 font-[620] transition-[background-color,border-color,color,opacity] duration-150 ease-out focus-visible:outline-none disabled:cursor-default disabled:opacity-50 ${
-                thinkingEnabled
-                  ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
-                  : "border-(--border-default) bg-(--bg-secondary) text-(--text-secondary) hover:border-(--accent) hover:text-(--accent)"
-              }`}
-              type="button"
-              aria-label={label("app.aiDeepThinking")}
-              aria-pressed={thinkingEnabled}
+            <ToggleButton
+              label={label("app.aiDeepThinking")}
+              pressed={thinkingEnabled}
+              size="sm"
               disabled={submitting}
               onClick={() => setThinkingEnabled((enabled) => !enabled)}
             >
               <BrainCircuit aria-hidden="true" size={14} />
               <span>{label("app.aiDeepThinking")}</span>
-            </button>
+            </ToggleButton>
           ) : null}
           <div className="flex shrink-0 items-center gap-2">
             {showModelSelector ? (

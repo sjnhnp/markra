@@ -23,6 +23,7 @@
     "@markra/markdown": "workspace:*",
     "@markra/providers": "workspace:*",
     "@markra/shared": "workspace:*",
+    "@markra/ui": "workspace:*",
     "@milkdown/kit": "^7.20.0",
     "@milkdown/react": "^7.20.0",
     "@tauri-apps/api": "2.11.0",

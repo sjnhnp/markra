@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../../packages/ui/src";
 @import "@milkdown/kit/prose/view/style/prosemirror.css";
 @import "@milkdown/kit/prose/tables/style/tables.css";
 

@@ -1,6 +1,7 @@
 import { Brain, Eye, Globe2, ImageIcon, Type, Wrench, type LucideIcon } from "lucide-react";
 import type { AiModelCapability } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
+import { Badge } from "@markra/ui";
 
 type Translate = (key: I18nKey) => string;
 
@@ -48,14 +49,14 @@ function CapabilityPill({ capability, translate }: { capability: AiModelCapabili
   const label = modelCapabilityLabel(capability, translate);
 
   return (
-    <span
-      className={`inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-4 font-bold ${capabilityPillClasses[capability]}`}
+    <Badge
+      className={capabilityPillClasses[capability]}
       aria-label={label}
       title={label}
     >
       <Icon aria-hidden="true" size={13} strokeWidth={2.1} />
       <span className="sr-only">{label}</span>
-    </span>
+    </Badge>
   );
 }
 

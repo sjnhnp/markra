@@ -1,5 +1,6 @@
 import { lazy, Suspense, useId, useState } from "react";
 import { Braces, KeyRound, X } from "lucide-react";
+import { Button, Modal } from "@markra/ui";
 import {
   AiSettingsActionButton,
   AiSettingsSection,
@@ -148,66 +149,47 @@ export function AiProviderConnectionSection({
         </p>
       </div>
       {customHeadersDialogOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color:rgba(31,35,44,0.42)] px-4 py-6">
-          <div
-            aria-labelledby={customHeadersDialogTitleId}
-            aria-modal="true"
-            className="grid max-h-[min(640px,calc(100vh-48px))] w-full max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) shadow-xl"
-            role="dialog"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-(--border-default) px-4 py-3">
-              <h4 className="m-0 text-[13px] leading-5 font-[700] text-(--text-heading)" id={customHeadersDialogTitleId}>
-                {translate("settings.ai.customHeaders")}
-              </h4>
-              <button
-                aria-label={translate("settings.ai.cancelEditModel")}
-                className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-                type="button"
-                onClick={() => setCustomHeadersDialogOpen(false)}
-              >
-                <X aria-hidden="true" size={15} />
-              </button>
-            </div>
-            <div className="grid min-h-0 gap-2 overflow-auto px-4 py-4">
-              <Suspense fallback={<JsonCodeEditorFallback label={customHeadersJsonLabel} />}>
-                <LazyJsonCodeEditor
-                  label={customHeadersJsonLabel}
-                  value={customHeadersDraft}
-                  onChange={(value) => {
-                    setCustomHeadersDraft(value);
-                    setCustomHeadersError(null);
-                  }}
-                />
-              </Suspense>
-              {customHeadersError ? (
-                <p className="m-0 text-[11px] leading-4 text-(--danger)" role="alert">
-                  {customHeadersError}
-                </p>
-              ) : (
-                <p className="m-0 text-[11px] leading-4 text-(--text-secondary)">
-                  {translate("settings.ai.customHeadersDescription")}
-                </p>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 border-t border-(--border-default) px-4 py-3">
-              <button
-                className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[650] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-                type="button"
-                onClick={() => setCustomHeadersDialogOpen(false)}
-              >
+        <Modal
+          title={translate("settings.ai.customHeaders")}
+          titleId={customHeadersDialogTitleId}
+          closeLabel={translate("settings.ai.cancelEditModel")}
+          closeIcon={<X aria-hidden="true" size={15} />}
+          onClose={() => setCustomHeadersDialogOpen(false)}
+          footer={
+            <>
+              <Button onClick={() => setCustomHeadersDialogOpen(false)}>
                 {translate("settings.ai.cancelEditModel")}
-              </button>
-              <button
+              </Button>
+              <Button
                 aria-label={translate("settings.ai.customHeadersSave")}
-                className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-(--accent) bg-(--accent) px-3 text-[12px] leading-5 font-[700] text-(--bg-primary) transition-colors duration-150 ease-out hover:border-(--accent-hover) hover:bg-(--accent-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-                type="button"
+                variant="primary"
                 onClick={saveCustomHeaders}
               >
                 {translate("settings.ai.customHeadersSave")}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </>
+          }
+        >
+          <Suspense fallback={<JsonCodeEditorFallback label={customHeadersJsonLabel} />}>
+            <LazyJsonCodeEditor
+              label={customHeadersJsonLabel}
+              value={customHeadersDraft}
+              onChange={(value) => {
+                setCustomHeadersDraft(value);
+                setCustomHeadersError(null);
+              }}
+            />
+          </Suspense>
+          {customHeadersError ? (
+            <p className="m-0 text-[11px] leading-4 text-(--danger)" role="alert">
+              {customHeadersError}
+            </p>
+          ) : (
+            <p className="m-0 text-[11px] leading-4 text-(--text-secondary)">
+              {translate("settings.ai.customHeadersDescription")}
+            </p>
+          )}
+        </Modal>
       ) : null}
     </AiSettingsSection>
   );

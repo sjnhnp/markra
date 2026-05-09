@@ -8,6 +8,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { Children, type ReactNode } from "react";
+import { Button, SegmentedControl, SegmentedControlItem, Switch } from "@markra/ui";
 import type {
   AppTheme,
   EditorContentWidth,
@@ -100,21 +101,7 @@ function SettingsSwitch({
   label: string;
   onChange: () => unknown;
 }) {
-  return (
-    <button
-      className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-(--border-strong) bg-(--bg-secondary) transition-colors duration-150 ease-out aria-checked:border-(--accent) aria-checked:bg-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={onChange}
-    >
-      <span
-        className="inline-block size-3.5 translate-x-0.75 rounded-full bg-(--text-secondary) transition-transform duration-150 ease-out aria-checked:translate-x-4.5 aria-checked:bg-(--bg-primary)"
-        aria-checked={checked}
-      />
-    </button>
-  );
+  return <Switch checked={checked} label={label} onCheckedChange={onChange} />;
 }
 
 function SettingsSelect({
@@ -184,14 +171,14 @@ function SettingsButton({
   onClick: () => unknown;
 }) {
   return (
-    <button
-      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-      type="button"
+    <Button
+      className="gap-1.5"
+      size="sm"
       aria-label={label}
       onClick={onClick}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -233,30 +220,24 @@ function ThemeSegmentedControl({
   translate: Translate;
 }) {
   return (
-    <div
-      className="grid shrink-0 grid-cols-3 rounded-md border border-(--border-default) bg-(--bg-secondary) p-0.5"
-      role="group"
-      aria-label={translate("settings.theme.groupLabel")}
-    >
+    <SegmentedControl className="grid-cols-3" label={translate("settings.theme.groupLabel")}>
       {themeOptions.map((option) => {
         const Icon = option.icon;
         const active = selectedTheme === option.value;
 
         return (
-          <button
-            className="inline-flex h-7 min-w-16 items-center justify-center gap-1.5 rounded-sm border-0 bg-transparent px-2.5 text-[12px] leading-5 font-[560] text-(--text-secondary) transition-colors duration-150 ease-out hover:text-(--text-heading) aria-pressed:bg-(--bg-active) aria-pressed:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-            type="button"
+          <SegmentedControlItem
             key={option.value}
-            aria-label={translate(option.actionLabelKey)}
-            aria-pressed={active}
+            label={translate(option.actionLabelKey)}
+            selected={active}
             onClick={() => onSelectTheme(option.value)}
           >
             <Icon aria-hidden="true" size={13} />
             {translate(option.labelKey)}
-          </button>
+          </SegmentedControlItem>
         );
       })}
-    </div>
+    </SegmentedControl>
   );
 }
 
