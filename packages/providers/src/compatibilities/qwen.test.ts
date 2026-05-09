@@ -1,5 +1,10 @@
-import { getDashScopeQwenNativeWebSearchKind, getQwenThinkingRequestOptions, isDashScopeProvider } from "./qwen";
-import type { AiProviderConfig } from "../../providers/providers";
+import {
+  getDashScopeQwenChatWebSearchRequestOptions,
+  getDashScopeQwenNativeWebSearchKind,
+  getQwenThinkingRequestOptions,
+  isDashScopeProvider
+} from "./qwen";
+import type { AiProviderConfig } from "../providers";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
   return {
@@ -40,6 +45,23 @@ describe("qwen", () => {
       baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
       id: "aliyun-bailian"
     }), "qwen3-max")).toBe("dashscope-enable-search");
+  });
+
+  it("builds forced DashScope chat web search options for compatible Qwen models", () => {
+    expect(getDashScopeQwenChatWebSearchRequestOptions(provider({
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      id: "aliyun-bailian"
+    }), "qwen3-max", true)).toEqual({
+      enable_search: true,
+      search_options: {
+        forced_search: true,
+        search_strategy: "max"
+      }
+    });
+    expect(getDashScopeQwenChatWebSearchRequestOptions(provider({
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      id: "aliyun-bailian"
+    }), "qwen3.6-plus", true)).toEqual({});
   });
 
   it("builds provider-specific Qwen thinking request options", () => {

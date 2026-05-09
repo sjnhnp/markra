@@ -1,5 +1,5 @@
 import type { Tool } from "@mariozechner/pi-ai";
-import type { AiProviderConfig } from "../../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 import { buildAnthropicTools } from "./anthropic";
 import { buildGoogleTools } from "./google";
 import { buildOpenAiCompatibleFunctionTools, buildResponsesStyleTools } from "./openai-compatible";

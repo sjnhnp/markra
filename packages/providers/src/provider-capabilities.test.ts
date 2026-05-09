@@ -1,6 +1,6 @@
 import { getProviderCapabilities } from "./provider-capabilities";
 
-describe("AI provider capabilities", () => {
+describe("provider capabilities", () => {
   it("uses api-style defaults and provider-level overrides", () => {
     expect(getProviderCapabilities("custom-provider-1", "openai-compatible")).toEqual({
       chat: true,

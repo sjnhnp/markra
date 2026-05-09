@@ -121,7 +121,8 @@ describe("AI provider requests", () => {
       "text",
       "vision",
       "reasoning",
-      "tools"
+      "tools",
+      "web"
     ]);
     expect(settings.providers.find((item) => item.id === "aliyun-bailian")?.models.map((model) => model.id)).toEqual([
       "qwen3.6-plus",

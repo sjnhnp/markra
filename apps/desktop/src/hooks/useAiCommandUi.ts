@@ -2,9 +2,9 @@ import { useCallback, useRef, useState } from "react";
 import type { AgentEvent } from "@mariozechner/pi-agent-core";
 import { chatCompletionStream, runInlineAiAgent } from "@markra/ai";
 import type { AgentWorkspaceFile } from "@markra/ai";
-import { getProviderCapabilities } from "@markra/ai";
+import { getProviderCapabilities } from "@markra/providers";
 import type { AiDiffResult, AiEditIntent, AiSelectionContext } from "@markra/ai";
-import type { AiProviderConfig } from "@markra/ai";
+import type { AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 import { requestNativeChatStream } from "../lib/tauri";
 

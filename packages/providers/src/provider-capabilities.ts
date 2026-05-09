@@ -1,4 +1,4 @@
-import type { AiProviderApiStyle } from "../providers/providers";
+import type { AiProviderApiStyle } from "./providers";
 
 export type ProviderCapabilities = {
   chat: boolean;

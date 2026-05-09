@@ -1,5 +1,5 @@
 import { getNativeWebSearchKind, providerSupportsNativeWebSearch } from "./native-web-search";
-import type { AiProviderConfig } from "../providers/providers";
+import type { AiProviderConfig } from "./providers";
 
 function provider(overrides: Partial<AiProviderConfig>): AiProviderConfig {
   return {
@@ -57,6 +57,12 @@ describe("native web search support", () => {
       models: [{ capabilities: ["text", "web"], enabled: true, id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro" }],
       type: "openai-compatible"
     }), "mimo-v2.5-pro")).toBe("mimo-web-search-tool");
+    expect(getNativeWebSearchKind(provider({
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      id: "volcengine",
+      models: [{ capabilities: ["text", "web"], enabled: true, id: "doubao-seed-1-6-flash-250715", name: "Doubao Seed 1.6 Flash" }],
+      type: "openai-compatible"
+    }), "doubao-seed-1-6-flash-250715")).toBe("volcengine-responses-tool");
     expect(getNativeWebSearchKind(provider({
       models: [{ capabilities: ["text", "web"], enabled: true, id: "groq/compound", name: "Groq Compound" }],
       type: "groq"

@@ -8,7 +8,7 @@ import {
   type ToolCall
 } from "@mariozechner/pi-ai";
 
-import type { AiProviderConfig } from "../../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 import { createAssistantMessage, messagesFromPiContext, stopReasonFromFinishReason } from "./messages";
 import type { AssistantContentBlock, InlineAiAgentComplete } from "./types";
 

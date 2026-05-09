@@ -13,7 +13,7 @@ import {
   readAiProviderCustomHeaders,
   type AiProviderApiStyle,
   type AiProviderConfig
-} from "@markra/ai";
+} from "@markra/providers";
 import type { AiProviderActionState } from "../hooks/useAiProviderSettingsPanelState";
 import type { I18nKey } from "@markra/shared";
 

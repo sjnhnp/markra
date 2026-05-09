@@ -1,9 +1,9 @@
 import type {
   AiAgentProcessItem,
-  AiProviderConfig,
   StoredAiAgentSessionState,
   StoredAiAgentSessionSummary
 } from "@markra/ai";
+import type { AiProviderConfig } from "@markra/providers";
 import type { AiAgentPanelMessage } from "../hooks/useAiAgentSession";
 
 export function testProvider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {

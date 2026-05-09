@@ -15,9 +15,9 @@ import {
   type StoredAiAgentSessionState
 } from "@markra/ai";
 import type { AgentWorkspaceFile } from "@markra/ai";
-import { getProviderCapabilities } from "@markra/ai";
+import { getProviderCapabilities } from "@markra/providers";
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "@markra/ai";
-import type { AiProviderConfig } from "@markra/ai";
+import type { AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 import type { WebSearchSettings } from "@markra/ai";
 import { requestNativeChat, requestNativeChatStream, requestNativeWebResource } from "../lib/tauri";

@@ -3,7 +3,7 @@ import {
   type ChatMessage
 } from "./chat-adapters";
 import { buildInlineAiMessages } from "./inline-prompt";
-import type { AiProviderConfig } from "../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 import type { Tool } from "@mariozechner/pi-ai";
 
 function provider(overrides: Partial<AiProviderConfig>): AiProviderConfig {
@@ -219,6 +219,10 @@ describe("AI chat adapters", () => {
     ).toMatchObject({
       enable_search: true,
       model: "qwen3-max",
+      search_options: {
+        forced_search: true,
+        search_strategy: "max"
+      },
       stream: true
     });
     expect(
@@ -464,6 +468,39 @@ describe("AI chat adapters", () => {
     });
   });
 
+  it("uses the Responses API shape for Volcengine Ark native web search", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+        id: "volcengine",
+        models: [
+          {
+            capabilities: ["text", "vision", "reasoning", "tools", "web"],
+            enabled: true,
+            id: "doubao-seed-1-6-flash-250715",
+            name: "Doubao Seed 1.6 Flash"
+          }
+        ],
+        type: "openai-compatible"
+      }),
+      "doubao-seed-1-6-flash-250715",
+      messages,
+      { stream: true, thinkingEnabled: true, webSearchEnabled: true }
+    );
+
+    expect(request).toMatchObject({
+      body: {
+        input: [{ content: [{ text: "Rewrite this.", type: "input_text" }], role: "user" }],
+        instructions: "You edit Markdown.",
+        model: "doubao-seed-1-6-flash-250715",
+        stream: true,
+        thinking: { type: "enabled" },
+        tools: [{ type: "web_search" }]
+      },
+      url: "https://ark.cn-beijing.volces.com/api/v3/responses"
+    });
+  });
+
   it("parses OpenAI Responses API text and function-call stream events", () => {
     const adapter = getChatAdapter("openai");
 
@@ -601,6 +638,50 @@ describe("AI chat adapters", () => {
     });
   });
 
+  it("uses Together.ai reasoning controls without leaking compatible helper fields", () => {
+    const kimiEnabledRequest = getChatAdapter("together").buildRequest(
+      provider({ baseUrl: "https://api.together.xyz/v1", type: "together" }),
+      "moonshotai/Kimi-K2.5",
+      messages,
+      { stream: true, thinkingEnabled: true }
+    );
+    const kimiDisabledRequest = getChatAdapter("together").buildRequest(
+      provider({ baseUrl: "https://api.together.xyz/v1", type: "together" }),
+      "moonshotai/Kimi-K2.5",
+      messages,
+      { stream: true, thinkingEnabled: false }
+    );
+    const gptOssRequest = getChatAdapter("together").buildRequest(
+      provider({ baseUrl: "https://api.together.xyz/v1", type: "together" }),
+      "openai/gpt-oss-120b",
+      messages,
+      { stream: true, thinkingEnabled: true }
+    );
+    const deepseekReasoningOnlyRequest = getChatAdapter("together").buildRequest(
+      provider({ baseUrl: "https://api.together.xyz/v1", type: "together" }),
+      "deepseek-ai/DeepSeek-R1",
+      messages,
+      { stream: true, thinkingEnabled: true }
+    );
+
+    expect(kimiEnabledRequest.body).toMatchObject({
+      reasoning: { enabled: true }
+    });
+    expect(kimiEnabledRequest.body).not.toHaveProperty("thinking");
+    expect(kimiEnabledRequest.body).not.toHaveProperty("reasoning_effort");
+    expect(kimiDisabledRequest.body).toMatchObject({
+      reasoning: { enabled: false }
+    });
+    expect(kimiDisabledRequest.body).not.toHaveProperty("thinking");
+    expect(gptOssRequest.body).toMatchObject({
+      reasoning_effort: "high"
+    });
+    expect(gptOssRequest.body).not.toHaveProperty("reasoning");
+    expect(deepseekReasoningOnlyRequest.body).not.toHaveProperty("thinking");
+    expect(deepseekReasoningOnlyRequest.body).not.toHaveProperty("reasoning");
+    expect(deepseekReasoningOnlyRequest.body).not.toHaveProperty("reasoning_effort");
+  });
+
   it("infers Cherry-style thinking parameters for custom compatible reasoning models", () => {
     const request = getChatAdapter("openai-compatible").buildRequest(
       provider({
@@ -702,7 +783,18 @@ describe("AI chat adapters", () => {
         { stream: true, thinkingEnabled: true }
       ).body
     ).toMatchObject({
+      reasoning_effort: "high",
       reasoning_format: "parsed"
+    });
+    expect(
+      getChatAdapter("groq").buildRequest(
+        provider({ baseUrl: "https://api.groq.com/openai/v1", type: "groq" }),
+        "openai/gpt-oss-120b",
+        messages,
+        { stream: true, thinkingEnabled: false }
+      ).body
+    ).toMatchObject({
+      reasoning_format: "hidden"
     });
     expect(
       getChatAdapter("mistral").buildRequest(
@@ -713,6 +805,64 @@ describe("AI chat adapters", () => {
       ).body
     ).toMatchObject({
       reasoning_effort: "high"
+    });
+  });
+
+  it("explicitly disables provider reasoning when an API has a documented off switch", () => {
+    expect(
+      getChatAdapter("ollama").buildRequest(
+        provider({ baseUrl: "http://localhost:11434/v1", type: "ollama" }),
+        "qwen3:8b",
+        messages,
+        { stream: true, thinkingEnabled: true }
+      ).body
+    ).toMatchObject({
+      think: true
+    });
+    expect(
+      getChatAdapter("ollama").buildRequest(
+        provider({ baseUrl: "http://localhost:11434/v1", type: "ollama" }),
+        "qwen3:8b",
+        messages,
+        { stream: true, thinkingEnabled: false }
+      ).body
+    ).toMatchObject({
+      think: false
+    });
+    expect(
+      getChatAdapter("mistral").buildRequest(
+        provider({ baseUrl: "https://api.mistral.ai/v1", type: "mistral" }),
+        "mistral-small-latest",
+        messages,
+        { stream: true, thinkingEnabled: false }
+      ).body
+    ).toMatchObject({
+      reasoning_effort: "none"
+    });
+    expect(
+      getChatAdapter("xai").buildRequest(
+        provider({ baseUrl: "https://api.x.ai/v1", type: "xai" }),
+        "grok-4.3",
+        messages,
+        { stream: true, thinkingEnabled: false }
+      ).body
+    ).toMatchObject({
+      reasoning_effort: "none"
+    });
+    expect(
+      getChatAdapter("xai").buildRequest(
+        provider({
+          baseUrl: "https://api.x.ai/v1",
+          models: [{ capabilities: ["text", "web"], enabled: true, id: "grok-4.3", name: "Grok 4.3" }],
+          type: "xai"
+        }),
+        "grok-4.3",
+        messages,
+        { stream: true, thinkingEnabled: false, webSearchEnabled: true }
+      ).body
+    ).toMatchObject({
+      reasoning: { effort: "none" },
+      tools: [{ type: "web_search" }]
     });
   });
 

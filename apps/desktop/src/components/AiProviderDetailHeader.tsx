@@ -1,7 +1,7 @@
 import { Trash2 } from "lucide-react";
 import { AiProviderBadge, aiProviderApiStyleLabel } from "./AiProviderBadge";
 import { AiProviderSwitch, AiSettingsActionButton } from "./AiProviderSettingsControls";
-import type { AiProviderConfig } from "@markra/ai";
+import type { AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 
 type Translate = (key: I18nKey) => string;

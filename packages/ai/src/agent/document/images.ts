@@ -1,4 +1,4 @@
-import type { AiProviderConfig } from "../../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 import type { ChatImageAttachment, ChatMessage } from "../chat/types";
 import type { InlineAiAgentComplete } from "../runtime";
 import { extractMarkdownImageReferences, type MarkdownImageReference } from "../tools/images";

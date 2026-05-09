@@ -1,5 +1,5 @@
 import { runDocumentAiAgent, type DocumentAiHistoryMessage } from "./document-agent";
-import type { AiProviderConfig } from "../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 import type { ChatMessage } from "./chat/types";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {

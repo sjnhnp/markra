@@ -10,7 +10,7 @@ import {
   type StoredAiAgentSessionSummary,
   type StoredAiAgentSessionState
 } from "@markra/ai";
-import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "@markra/ai";
+import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "@markra/providers";
 import { isAppLanguage, type AppLanguage } from "@markra/shared";
 import { normalizeNullableString } from "@markra/shared";
 import { type WebSearchProviderId, type WebSearchSettings } from "@markra/ai";
@@ -409,7 +409,7 @@ export type {
   AiProviderConfig,
   AiProviderModel,
   AiProviderSettings
-} from "@markra/ai";
+} from "@markra/providers";
 export type { StoredAiAgentSessionSummary };
 
 export function normalizeAiAgentPreferences(value: unknown): AiAgentPreferences {

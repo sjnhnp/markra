@@ -1,6 +1,6 @@
 import type { Model } from "@mariozechner/pi-ai";
 
-import type { AiProviderConfig } from "../../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 
 export function createPiAgentModel(provider: AiProviderConfig, modelId: string): Model<any> {
   return {

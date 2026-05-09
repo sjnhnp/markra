@@ -1,5 +1,5 @@
 import { emit, listen } from "@tauri-apps/api/event";
-import { normalizeAiSettings } from "@markra/ai";
+import { normalizeAiSettings } from "@markra/providers";
 import {
   isAppTheme,
   normalizeEditorPreferences,

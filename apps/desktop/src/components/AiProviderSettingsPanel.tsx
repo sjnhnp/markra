@@ -8,7 +8,7 @@ import {
   type AiProviderConfig,
   type AiProviderModel,
   type AiProviderSettings
-} from "@markra/ai";
+} from "@markra/providers";
 import { useAiProviderSettingsPanelState } from "../hooks/useAiProviderSettingsPanelState";
 import { dismissAppToast, showAppToast } from "../lib/app-toast";
 import type { I18nKey } from "@markra/shared";

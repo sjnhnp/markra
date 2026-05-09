@@ -1,5 +1,12 @@
-import type { AiProviderApiStyle, AiProviderConfig } from "../providers/providers";
-import { readAiProviderCustomHeaders } from "../providers/providers";
+import type { AiProviderApiStyle, AiProviderConfig } from "@markra/providers";
+import {
+  buildAnthropicThinkingRequestOptions,
+  buildDeepSeekThinkingRequestOptions,
+  buildOpenAiCompatibleRequestParts,
+  buildResponsesStyleRequestOptions,
+  getNativeWebSearchKind,
+  readAiProviderCustomHeaders
+} from "@markra/providers";
 import { isRecord, joinApiUrl } from "@markra/shared";
 import type {
   ChatAdapter,
@@ -11,15 +18,6 @@ import type {
   ChatToolCall,
   ChatToolCallDelta
 } from "./chat/types";
-import { getClaudeCompatibleThinkingRequestOptions, supportsAnthropicAdaptiveThinking as claudeSupportsAnthropicAdaptiveThinking } from "./compatibilities/claude";
-import { getDeepSeekCompatibleThinkingRequestOptions } from "./compatibilities/deepseek";
-import { getDoubaoCompatibleThinkingRequestOptions } from "./compatibilities/doubao";
-import { getGeminiCompatibleThinkingRequestOptions } from "./compatibilities/gemini";
-import { getKimiCompatibleThinkingRequestOptions } from "./compatibilities/kimi";
-import { getMimoCompatibleThinkingRequestOptions, mimoWebSearchTool } from "./compatibilities/mimo";
-import { getNativeWebSearchKind } from "./native-web-search";
-import { getQwenThinkingRequestOptions } from "./compatibilities/qwen";
-import { getZhipuCompatibleThinkingRequestOptions } from "./compatibilities/zhipu";
 import { buildChatCompletionsRequestBody } from "./requests/chat-completions";
 import { buildResponsesRequestBody } from "./requests/responses";
 import { mergeRequestBody } from "./requests/shared";
@@ -47,7 +45,8 @@ const openAiCompatibleAdapter: ChatAdapter = {
     if (
       nativeWebSearchKind === "dashscope-responses-tool" ||
       nativeWebSearchKind === "openai-responses" ||
-      nativeWebSearchKind === "openrouter-server-tool"
+      nativeWebSearchKind === "openrouter-server-tool" ||
+      nativeWebSearchKind === "volcengine-responses-tool"
     ) {
       return buildResponsesStyleRequest({
         authHeaders: {
@@ -56,6 +55,7 @@ const openAiCompatibleAdapter: ChatAdapter = {
           ...readAiProviderCustomHeaders(config)
         },
         baseUrl,
+        config,
         messages,
         model,
         nativeWebSearchToolType: nativeWebSearchKind === "openrouter-server-tool" ? "openrouter:web_search" : "web_search",
@@ -64,14 +64,12 @@ const openAiCompatibleAdapter: ChatAdapter = {
       });
     }
 
+    const requestParts = buildOpenAiCompatibleRequestParts(config, model, options);
     const body = buildChatCompletionsRequestBody({
-      extraBody: mergeRequestBody(
-        openAiCompatibleThinkingOptions(config, model, options),
-        openAiCompatibleNativeWebSearchOptions(config, model, options)
-      ),
+      extraBody: requestParts.extraBody,
       messages: messages.map(openAiCompatibleMessage),
       model,
-      nativeTools: openAiCompatibleNativeTools(config, model, options),
+      nativeTools: requestParts.nativeTools,
       stream: options.stream,
       tools: options.tools
     });
@@ -111,6 +109,7 @@ const openAiCompatibleAdapter: ChatAdapter = {
 function buildResponsesStyleRequest({
   authHeaders,
   baseUrl,
+  config,
   messages,
   model,
   nativeWebSearchToolType,
@@ -119,6 +118,7 @@ function buildResponsesStyleRequest({
 }: {
   authHeaders: Record<string, string>;
   baseUrl: string;
+  config: AiProviderConfig;
   messages: ChatMessage[];
   model: string;
   nativeWebSearchToolType: "openrouter:web_search" | "web_search";
@@ -126,7 +126,7 @@ function buildResponsesStyleRequest({
   responsePath: string;
 }): ChatRequest {
   const body = buildResponsesRequestBody({
-    extraBody: responsesStyleRequestOptions(baseUrl, model, nativeWebSearchToolType, options),
+    extraBody: buildResponsesStyleRequestOptions(config, model, nativeWebSearchToolType, options),
     messages,
     model,
     nativeWebSearchToolType,
@@ -141,89 +141,11 @@ function buildResponsesStyleRequest({
   };
 }
 
-function responsesStyleRequestOptions(
-  baseUrl: string,
-  model: string,
-  nativeWebSearchToolType: "openrouter:web_search" | "web_search",
-  options: ChatRequestOptions
-) {
-  const qwenRequestOptions = getQwenThinkingRequestOptions({
-    baseUrl,
-    id: ""
-  }, model, options.thinkingEnabled);
-  if (Object.keys(qwenRequestOptions).length > 0) return qwenRequestOptions;
-
-  if (!options.thinkingEnabled) return {};
-  if (nativeWebSearchToolType === "openrouter:web_search") return { reasoning: { effort: "high" } };
-
-  return { reasoning: { effort: "high" } };
-}
-
-function openAiCompatibleNativeWebSearchOptions(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
-  if (options.webSearchEnabled !== true) return {};
-  if (getNativeWebSearchKind(config, model) === "dashscope-enable-search") return { enable_search: true };
-
-  return {};
-}
-
-function openAiCompatibleNativeTools(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
-  if (options.webSearchEnabled !== true) return [];
-  if (getNativeWebSearchKind(config, model) === "mimo-web-search-tool") return [mimoWebSearchTool];
-
-  return [];
-}
-
-function openAiCompatibleThinkingOptions(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
-  const thinkingEnabled = options.thinkingEnabled === true;
-  const thinkingExplicitlyDisabled = options.thinkingEnabled === false;
-  const normalizedModel = model.toLowerCase();
-  const qwenThinkingOptions = getQwenThinkingRequestOptions(config, normalizedModel, options.thinkingEnabled);
-  if (Object.keys(qwenThinkingOptions).length > 0) return qwenThinkingOptions;
-
-  if (config.type === "ollama" && (thinkingEnabled || thinkingExplicitlyDisabled)) {
-    return { think: thinkingEnabled };
-  }
-
-  const disabledThinkingRequestOptions = firstDefinedRequestOptions([
-    getDeepSeekCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getDoubaoCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getKimiCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getMimoCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getZhipuCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled)
-  ]);
-  if (thinkingExplicitlyDisabled && disabledThinkingRequestOptions) return disabledThinkingRequestOptions;
-
-  if (!thinkingEnabled) return {};
-
-  if (config.type === "openrouter" || config.id === "openrouter") return { reasoning: { effort: "high" } };
-  if (config.type === "groq") return { reasoning_format: "parsed" };
-  if (config.type === "mistral" || config.type === "openai" || config.type === "azure-openai" || config.type === "xai") {
-    return { reasoning_effort: "high" };
-  }
-  if (config.type === "together") return { reasoning: { enabled: true }, reasoning_effort: "high" };
-  const enabledThinkingRequestOptions = firstDefinedRequestOptions([
-    getGeminiCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getDeepSeekCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getDoubaoCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getKimiCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getMimoCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getZhipuCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
-    getClaudeCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled)
-  ]);
-  if (enabledThinkingRequestOptions) return enabledThinkingRequestOptions;
-
-  return {};
-}
-
-function firstDefinedRequestOptions(candidates: Record<string, unknown>[]) {
-  return candidates.find((candidate) => Object.keys(candidate).length > 0);
-}
-
 const deepseekAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle.deepseek!;
     const body = buildChatCompletionsRequestBody({
-      extraBody: deepseekThinkingOptions(options),
+      extraBody: buildDeepSeekThinkingRequestOptions(options),
       messages: messages.map((message) => deepseekCompatibleMessage(message, options.thinkingEnabled)),
       model,
       stream: options.stream,
@@ -256,12 +178,6 @@ function deepseekCompatibleMessage(message: ChatMessage, thinkingEnabled: boolea
   };
 }
 
-function deepseekThinkingOptions(options: ChatRequestOptions) {
-  return {
-    thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" }
-  };
-}
-
 const anthropicAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const systemMessage = messages.find((message) => message.role === "system");
@@ -279,7 +195,7 @@ const anthropicAdapter: ChatAdapter = {
         ...(tools.length ? { tools } : {}),
         ...(systemMessage ? { system: systemMessage.content } : {})
       },
-      anthropicThinkingOptions(model, options)
+      buildAnthropicThinkingRequestOptions(model, options)
     );
 
     return {
@@ -363,26 +279,6 @@ const anthropicAdapter: ChatAdapter = {
   }
 };
 
-function anthropicThinkingOptions(model: string, options: ChatRequestOptions) {
-  if (!options.thinkingEnabled) return {};
-
-  if (claudeSupportsAnthropicAdaptiveThinking(model.toLowerCase())) {
-    return {
-      thinking: {
-        display: "summarized",
-        type: "adaptive"
-      }
-    };
-  }
-
-  return {
-    thinking: {
-      budget_tokens: 1024,
-      type: "enabled"
-    }
-  };
-}
-
 const azureAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle["azure-openai"]!;
@@ -394,6 +290,7 @@ const azureAdapter: ChatAdapter = {
           ...readAiProviderCustomHeaders(config)
         },
         baseUrl,
+        config,
         messages,
         model,
         nativeWebSearchToolType: "web_search",
@@ -403,7 +300,7 @@ const azureAdapter: ChatAdapter = {
     }
 
     const body = buildChatCompletionsRequestBody({
-      extraBody: openAiCompatibleThinkingOptions(config, model, options),
+      extraBody: buildOpenAiCompatibleRequestParts(config, model, options).extraBody,
       messages: messages.map(openAiCompatibleMessage),
       stream: options.stream,
       tools: options.tools

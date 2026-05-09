@@ -178,8 +178,8 @@ export const defaultProviderTemplates: AiProviderConfigSeed[] = [
     enabled: false,
     id: "volcengine",
     models: [
-      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "doubao-seed-1-6-flash-250715", name: "Doubao Seed 1.6 Flash" },
-      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "doubao-seed-1-6-thinking-250715", name: "Doubao Seed 1.6 Thinking" },
+      { capabilities: ["text", "vision", "reasoning", "tools", "web"], enabled: true, id: "doubao-seed-1-6-flash-250715", name: "Doubao Seed 1.6 Flash" },
+      { capabilities: ["text", "vision", "reasoning", "tools", "web"], enabled: true, id: "doubao-seed-1-6-thinking-250715", name: "Doubao Seed 1.6 Thinking" },
       { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "deepseek-v3-2-250915", name: "DeepSeek V3.2" },
       { capabilities: ["text", "reasoning"], enabled: true, id: "deepseek-r1-250528", name: "DeepSeek R1" }
     ],

@@ -13,7 +13,7 @@ import {
   type AiProviderModelDraft
 } from "../hooks/useAiProviderSettingsPanelState";
 import type { Dispatch, SetStateAction } from "react";
-import type { AiProviderConfig, AiProviderModel, AiProviderSettings } from "@markra/ai";
+import type { AiProviderConfig, AiProviderModel, AiProviderSettings } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 
 type Translate = (key: I18nKey) => string;

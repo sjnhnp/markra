@@ -1,6 +1,6 @@
 import { Plus, Search } from "lucide-react";
 import { AiProviderBadge } from "./AiProviderBadge";
-import type { AiProviderConfig } from "@markra/ai";
+import type { AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 
 type Translate = (key: I18nKey) => string;

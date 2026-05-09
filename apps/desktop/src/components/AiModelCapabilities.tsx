@@ -1,5 +1,5 @@
 import { Brain, Eye, Globe2, ImageIcon, Type, Wrench, type LucideIcon } from "lucide-react";
-import type { AiModelCapability } from "@markra/ai";
+import type { AiModelCapability } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 
 type Translate = (key: I18nKey) => string;

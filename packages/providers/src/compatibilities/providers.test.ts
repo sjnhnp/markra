@@ -1,11 +1,14 @@
-import type { AiProviderConfig } from "../../providers/providers";
+import type { AiProviderConfig } from "../providers";
 import { supportsAnthropicAdaptiveThinking } from "./claude";
 import { getDeepSeekCompatibleThinkingRequestOptions } from "./deepseek";
 import { getDoubaoCompatibleThinkingRequestOptions } from "./doubao";
 import { getGeminiCompatibleThinkingRequestOptions } from "./gemini";
+import { getGroqThinkingRequestOptions } from "./groq";
 import { getKimiCompatibleThinkingRequestOptions } from "./kimi";
 import { getMimoCompatibleThinkingRequestOptions } from "./mimo";
 import { getQwenThinkingRequestOptions, getDashScopeQwenNativeWebSearchKind, isDashScopeProvider } from "./qwen";
+import { getTogetherThinkingRequestOptions } from "./together";
+import { supportsVolcengineNativeWebSearch } from "./volcengine";
 import { getZhipuCompatibleThinkingRequestOptions } from "./zhipu";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
@@ -83,5 +86,42 @@ describe("provider/model helpers", () => {
   it("keeps Claude-specific adaptive thinking detection in the dedicated helper", () => {
     expect(supportsAnthropicAdaptiveThinking("claude-opus-4-7")).toBe(true);
     expect(supportsAnthropicAdaptiveThinking("claude-haiku-4-5")).toBe(false);
+  });
+
+  it("keeps Together-specific reasoning controls in the dedicated helper", () => {
+    expect(getTogetherThinkingRequestOptions("moonshotai/Kimi-K2.5", true)).toEqual({
+      reasoning: { enabled: true }
+    });
+    expect(getTogetherThinkingRequestOptions("moonshotai/Kimi-K2.5", false)).toEqual({
+      reasoning: { enabled: false }
+    });
+    expect(getTogetherThinkingRequestOptions("openai/gpt-oss-120b", true)).toEqual({
+      reasoning_effort: "high"
+    });
+  });
+
+  it("keeps Groq-specific reasoning controls in the dedicated helper", () => {
+    expect(getGroqThinkingRequestOptions("openai/gpt-oss-120b", true)).toEqual({
+      reasoning_effort: "high",
+      reasoning_format: "parsed"
+    });
+    expect(getGroqThinkingRequestOptions("openai/gpt-oss-120b", false)).toEqual({
+      reasoning_format: "hidden"
+    });
+    expect(getGroqThinkingRequestOptions("qwen/qwen3-32b", false)).toEqual({
+      reasoning_effort: "none",
+      reasoning_format: "hidden"
+    });
+  });
+
+  it("keeps Volcengine native web search detection in the dedicated helper", () => {
+    expect(supportsVolcengineNativeWebSearch(provider({
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      id: "volcengine"
+    }), "doubao-seed-1-6-flash-250715")).toBe(true);
+    expect(supportsVolcengineNativeWebSearch(provider({
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      id: "volcengine"
+    }), "deepseek-v3-2-250915")).toBe(false);
   });
 });

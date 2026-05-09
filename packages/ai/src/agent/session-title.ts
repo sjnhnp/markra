@@ -1,4 +1,4 @@
-import type { AiProviderConfig } from "../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 import { chatCompletion, type ChatCompletionTransport } from "./chat-completion";
 import { normalizeAiAgentSessionTitle, type AiAgentSessionMessage } from "./session-state";
 

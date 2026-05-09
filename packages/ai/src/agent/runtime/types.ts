@@ -1,7 +1,7 @@
 import type { AgentEvent } from "@mariozechner/pi-agent-core";
 import type { ThinkingContent, TextContent, ToolCall } from "@mariozechner/pi-ai";
 
-import type { AiProviderConfig } from "../../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 import type { ChatCompletionStreamOptions } from "../chat-completion";
 import type { ChatMessage, ChatResponse } from "../chat/types";
 import type { AiEditIntent, AiTargetScope } from "../inline";

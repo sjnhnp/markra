@@ -1,5 +1,5 @@
 import type { Tool } from "@mariozechner/pi-ai";
-import type { AiProviderApiStyle, AiProviderConfig } from "../../providers/providers";
+import type { AiProviderApiStyle, AiProviderConfig } from "@markra/providers";
 
 export type ChatMessage = {
   content: string;

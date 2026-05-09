@@ -38,6 +38,9 @@ importers:
       '@markra/markdown':
         specifier: workspace:*
         version: link:../../packages/markdown
+      '@markra/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
       '@markra/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -126,6 +129,9 @@ importers:
       '@mariozechner/pi-ai':
         specifier: 0.73.0
         version: 0.73.0(ws@8.20.0)(zod@4.4.3)
+      '@markra/providers':
+        specifier: workspace:*
+        version: link:../providers
       '@markra/shared':
         specifier: workspace:*
         version: link:../shared
@@ -189,6 +195,22 @@ importers:
       jsdom:
         specifier: 29.1.1
         version: 29.1.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.5
+        version: 4.1.5(@types/node@24.10.0)(jsdom@29.1.1)(vite@8.0.10(@types/node@24.10.0)(jiti@2.6.1)(yaml@2.8.4))
+
+  packages/providers:
+    dependencies:
+      '@markra/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.0
+        version: 24.10.0
       typescript:
         specifier: 6.0.3
         version: 6.0.3

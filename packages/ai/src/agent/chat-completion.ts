@@ -1,4 +1,4 @@
-import type { AiProviderConfig } from "../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 import { isRecord } from "@markra/shared";
 import {
   getChatAdapter

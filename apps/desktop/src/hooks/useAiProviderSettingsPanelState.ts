@@ -5,7 +5,7 @@ import {
   type AiProviderConfig,
   type AiProviderModel,
   type AiProviderSettings
-} from "@markra/ai";
+} from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 
 type Translate = (key: I18nKey) => string;

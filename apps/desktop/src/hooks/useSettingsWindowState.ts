@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { fetchAiProviderModels, testAiProviderConnection } from "@markra/ai";
-import { createCustomAiProvider, createDefaultAiSettings } from "@markra/ai";
+import {
+  createCustomAiProvider,
+  createDefaultAiSettings,
+  fetchAiProviderModels,
+  testAiProviderConnection
+} from "@markra/providers";
 import { t, type I18nKey } from "@markra/shared";
 import {
   getStoredAiSettings,

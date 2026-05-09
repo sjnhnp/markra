@@ -1,6 +1,7 @@
-import type { AiModelCapability, AiProviderConfig } from "../providers/providers";
+import type { AiModelCapability, AiProviderConfig } from "./providers";
 import { supportsMimoNativeWebSearch } from "./compatibilities/mimo";
 import { getDashScopeQwenNativeWebSearchKind } from "./compatibilities/qwen";
+import { supportsVolcengineNativeWebSearch } from "./compatibilities/volcengine";
 
 export type NativeWebSearchKind =
   | "anthropic-server-tool"
@@ -12,7 +13,8 @@ export type NativeWebSearchKind =
   | "mimo-web-search-tool"
   | "openai-responses"
   | "openrouter-server-tool"
-  | "perplexity-sonar";
+  | "perplexity-sonar"
+  | "volcengine-responses-tool";
 
 type NativeWebSearchModel = {
   capabilities?: AiModelCapability[];
@@ -38,6 +40,7 @@ export function getNativeWebSearchKind(provider: AiProviderConfig, model: Native
   const dashScopeQwenNativeWebSearchKind = getDashScopeQwenNativeWebSearchKind(provider, modelId);
   if (dashScopeQwenNativeWebSearchKind) return dashScopeQwenNativeWebSearchKind;
   if (supportsMimoNativeWebSearch(provider)) return "mimo-web-search-tool";
+  if (supportsVolcengineNativeWebSearch(provider, modelId)) return "volcengine-responses-tool";
   if (isPerplexityProvider(provider.id.toLowerCase(), provider.baseUrl?.toLowerCase() ?? "")) return "perplexity-sonar";
 
   return null;

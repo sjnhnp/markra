@@ -1,6 +1,6 @@
 import { runInlineAiAgent } from "./runtime";
 import { messagesFromPiContext } from "./runtime/messages";
-import type { AiProviderConfig } from "../providers/providers";
+import type { AiProviderConfig } from "@markra/providers";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
   return {

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { EditorView } from "@codemirror/view";
 import { AiProviderConnectionSection } from "./AiProviderConnectionSection";
-import type { AiProviderConfig } from "@markra/ai";
+import type { AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 
 function translate(key: I18nKey) {

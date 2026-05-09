@@ -1,6 +1,6 @@
 import type { Tool } from "@mariozechner/pi-ai";
-import type { AiProviderConfig } from "../../providers/providers";
-import { getNativeWebSearchKind } from "../native-web-search";
+import type { AiProviderConfig } from "@markra/providers";
+import { getNativeWebSearchKind } from "@markra/providers";
 
 export function buildAnthropicTools(
   config: AiProviderConfig,

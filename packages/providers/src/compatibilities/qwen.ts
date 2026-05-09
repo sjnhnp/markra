@@ -1,4 +1,4 @@
-import type { AiProviderConfig } from "../../providers/providers";
+import type { AiProviderConfig } from "../providers";
 
 type ProviderIdentity = Pick<AiProviderConfig, "baseUrl" | "id">;
 
@@ -32,6 +32,19 @@ export function getDashScopeQwenNativeWebSearchKind(
   if (!isDashScopeProvider(provider)) return null;
 
   return supportsDashScopeResponsesWebSearch(modelId) ? "dashscope-responses-tool" : "dashscope-enable-search";
+}
+
+export function getDashScopeQwenChatWebSearchRequestOptions(provider: ProviderIdentity, modelId: string, webSearchEnabled: boolean | undefined) {
+  if (webSearchEnabled !== true) return {};
+  if (getDashScopeQwenNativeWebSearchKind(provider, modelId) !== "dashscope-enable-search") return {};
+
+  return {
+    enable_search: true,
+    search_options: {
+      forced_search: true,
+      search_strategy: "max"
+    }
+  };
 }
 
 export function getQwenThinkingRequestOptions(

@@ -59,7 +59,7 @@ import {
   notifyAppThemeChanged,
   notifyAppWebSearchSettingsChanged
 } from "../lib/settings/settings-events";
-import { fetchAiProviderModels, testAiProviderConnection } from "@markra/ai";
+import { fetchAiProviderModels, testAiProviderConnection } from "@markra/providers";
 import { chatCompletion } from "@markra/ai";
 import { generateAiAgentSessionTitle } from "@markra/ai";
 vi.mock("../lib/tauri", () => ({
@@ -169,8 +169,16 @@ vi.mock("@markra/ai", async (importOriginal) => {
   return {
     ...actual,
     chatCompletion: vi.fn(),
+    generateAiAgentSessionTitle: vi.fn()
+  };
+});
+
+vi.mock("@markra/providers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@markra/providers")>();
+
+  return {
+    ...actual,
     fetchAiProviderModels: vi.fn(),
-    generateAiAgentSessionTitle: vi.fn(),
     testAiProviderConnection: vi.fn()
   };
 });

@@ -1,5 +1,5 @@
 import { aiAgentWebSearchAvailable } from "./web-search-availability";
-import type { AiProviderConfig, AiProviderModel } from "../providers/providers";
+import type { AiProviderConfig, AiProviderModel } from "@markra/providers";
 
 function provider(overrides: Partial<AiProviderConfig>): AiProviderConfig {
   return {
@@ -48,6 +48,16 @@ describe("AI agent web search availability", () => {
     expect(aiAgentWebSearchAvailable({
       model: model({ capabilities: ["text", "web"], id: "gpt-5.4" }),
       provider: provider({ type: "azure-openai" }),
+      settings: null,
+      settingsLoading: false
+    })).toBe(true);
+    expect(aiAgentWebSearchAvailable({
+      model: model({ capabilities: ["text", "web"], id: "doubao-seed-1-6-flash-250715" }),
+      provider: provider({
+        baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+        id: "volcengine",
+        type: "openai-compatible"
+      }),
       settings: null,
       settingsLoading: false
     })).toBe(true);
