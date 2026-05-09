@@ -385,6 +385,31 @@ describe("app settings", () => {
     expect(settings.providers.find((provider) => provider.id === "custom-provider-1")?.baseUrl).toBe("");
   });
 
+  it("preserves Xiaomi MiMo Token Plan API URLs because they are valid non-native-search endpoints", async () => {
+    store.get.mockResolvedValue({
+      defaultModelId: "mimo-v2.5",
+      defaultProviderId: "xiaomi-mimo",
+      providers: [
+        {
+          apiKey: "sk-test",
+          baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+          defaultModelId: "mimo-v2.5",
+          enabled: true,
+          id: "xiaomi-mimo",
+          models: [{ capabilities: ["text", "web"], enabled: true, id: "mimo-v2.5", name: "MiMo V2.5" }],
+          name: "Xiaomi MiMo",
+          type: "openai-compatible"
+        }
+      ]
+    });
+
+    const settings = await getStoredAiSettings();
+
+    expect(settings.providers.find((provider) => provider.id === "xiaomi-mimo")?.baseUrl).toBe(
+      "https://token-plan-cn.xiaomimimo.com/v1"
+    );
+  });
+
   it("removes the legacy OpenAI Compatible built-in provider while preserving custom compatible providers", async () => {
     store.get.mockResolvedValue({
       defaultModelId: "default",

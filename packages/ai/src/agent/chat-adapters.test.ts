@@ -118,6 +118,72 @@ describe("AI chat adapters", () => {
     });
   });
 
+  it("replays DeepSeek reasoning content for assistant tool calls in thinking mode", () => {
+    const request = getChatAdapter("deepseek").buildRequest(
+      provider({ baseUrl: "https://api.deepseek.com", type: "deepseek" }),
+      "deepseek-v4-flash",
+      [
+        { content: "Reply in the user's language.", role: "system" },
+        { content: "Read the current document.", role: "user" },
+        {
+          content: "",
+          role: "assistant",
+          thinking: "I need to inspect the document before answering.",
+          toolCalls: [
+            {
+              arguments: {},
+              id: "call_get_document",
+              name: "get_document"
+            }
+          ]
+        },
+        {
+          content: "Tool result from get_document:\n# Draft",
+          role: "user",
+          toolResult: {
+            outputText: "# Draft",
+            toolCallId: "call_get_document",
+            toolName: "get_document"
+          }
+        }
+      ],
+      {
+        stream: true,
+        thinkingEnabled: true,
+        tools: [readDocumentTool]
+      }
+    );
+
+    expect(request.body).toMatchObject({
+      messages: [
+        { content: "Reply in the user's language.", role: "system" },
+        { content: "Read the current document.", role: "user" },
+        {
+          content: "",
+          reasoning_content: "I need to inspect the document before answering.",
+          role: "assistant",
+          tool_calls: [
+            {
+              function: {
+                arguments: "{}",
+                name: "get_document"
+              },
+              id: "call_get_document",
+              type: "function"
+            }
+          ]
+        },
+        {
+          content: "# Draft",
+          name: "get_document",
+          role: "tool",
+          tool_call_id: "call_get_document"
+        }
+      ],
+      thinking: { type: "enabled" }
+    });
+  });
+
   it("passes Qwen thinking mode through DashScope OpenAI-compatible requests", () => {
     const request = getChatAdapter("openai-compatible").buildRequest(
       provider({
@@ -215,6 +281,73 @@ describe("AI chat adapters", () => {
         "content-type": "application/json"
       },
       url: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses"
+    });
+  });
+
+  it("does not send MiMo native web search parameters to Token Plan endpoints", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+        id: "xiaomi-mimo",
+        models: [{ capabilities: ["text", "web"], enabled: true, id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro" }],
+        type: "openai-compatible"
+      }),
+      "mimo-v2.5-pro",
+      messages,
+      { stream: true, tools: [readDocumentTool], webSearchEnabled: true }
+    );
+
+    expect(request).toMatchObject({
+      body: {
+        messages,
+        model: "mimo-v2.5-pro",
+        parallel_tool_calls: false,
+        stream: true,
+        temperature: 0.7,
+        tool_choice: "auto",
+        tools: [
+          {
+            function: {
+              description: "Read the document.",
+              name: "read_document",
+              parameters: readDocumentTool.parameters
+            },
+            type: "function"
+          }
+        ]
+      },
+      url: "https://token-plan-cn.xiaomimimo.com/v1/chat/completions"
+    });
+    expect(JSON.stringify(request.body)).not.toContain("web_search");
+  });
+
+  it("uses Xiaomi MiMo's native web search tool shape for the ordinary API endpoint", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://api.xiaomimimo.com/v1",
+        id: "xiaomi-mimo",
+        models: [{ capabilities: ["text", "web"], enabled: true, id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro" }],
+        type: "openai-compatible"
+      }),
+      "mimo-v2.5-pro",
+      messages,
+      { stream: true, tools: [readDocumentTool], webSearchEnabled: true }
+    );
+
+    expect(request).toMatchObject({
+      body: {
+        messages,
+        model: "mimo-v2.5-pro",
+        parallel_tool_calls: false,
+        stream: true,
+        temperature: 0.7,
+        tool_choice: "auto",
+        tools: [
+          { force_search: true, type: "web_search" },
+          expect.objectContaining({ type: "function" })
+        ]
+      },
+      url: "https://api.xiaomimimo.com/v1/chat/completions"
     });
   });
 
@@ -606,6 +739,24 @@ describe("AI chat adapters", () => {
         choices: [{ delta: { content: "Final answer" }, finish_reason: "stop" }]
       })
     ).toEqual({ contentDelta: "Final answer", finishReason: "stop" });
+  });
+
+  it("parses OpenAI-compatible stream events that carry final message content", () => {
+    const adapter = getChatAdapter("openai-compatible");
+
+    expect(
+      adapter.parseStreamEvent({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: "MiMo grounded answer",
+              role: "assistant"
+            }
+          }
+        ]
+      })
+    ).toEqual({ contentDelta: "MiMo grounded answer", finishReason: "stop" });
   });
 
   it("parses provider-specific visible thinking stream events separately from final text", () => {

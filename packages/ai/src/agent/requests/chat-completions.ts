@@ -6,6 +6,7 @@ type ChatCompletionsRequestBodyParams = {
   extraBody?: Record<string, unknown>;
   messages: unknown[];
   model?: string;
+  nativeTools?: Record<string, unknown>[];
   stream?: boolean;
   tools?: Tool[];
 };
@@ -14,19 +15,25 @@ export function buildChatCompletionsRequestBody({
   extraBody = {},
   messages,
   model,
+  nativeTools = [],
   stream,
   tools
 }: ChatCompletionsRequestBodyParams) {
+  const requestTools = [
+    ...nativeTools,
+    ...buildOpenAiCompatibleFunctionTools(tools)
+  ];
+
   return mergeRequestBody(
     {
       messages,
       ...(model ? { model } : {}),
       ...(stream ? { stream: true } : {}),
-      ...(tools?.length
+      ...(requestTools.length
         ? {
             parallel_tool_calls: false,
             tool_choice: "auto",
-            tools: buildOpenAiCompatibleFunctionTools(tools)
+            tools: requestTools
           }
         : {}),
       temperature: 0.7

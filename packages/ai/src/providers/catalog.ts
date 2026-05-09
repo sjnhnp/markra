@@ -164,9 +164,9 @@ export const defaultProviderTemplates: AiProviderConfigSeed[] = [
     enabled: false,
     id: "xiaomi-mimo",
     models: [
-      { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro" },
+      { capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro" },
       { capabilities: ["text", "vision", "reasoning", "tools", "web"], enabled: true, id: "mimo-v2.5", name: "MiMo V2.5" },
-      { capabilities: ["text", "tools"], enabled: true, id: "mimo-v2.5-flash", name: "MiMo V2.5 Flash" }
+      { capabilities: ["text", "tools", "web"], enabled: true, id: "mimo-v2.5-flash", name: "MiMo V2.5 Flash" }
     ],
     name: "Xiaomi MiMo",
     type: "openai-compatible"

@@ -111,6 +111,8 @@ export function buildDocumentToolCallingSystemPrompt(webSearchMode: DocumentTool
     "Use the available tools in three stages: inspect, locate, then execute.",
     "Inspect the document and current context first, especially when the user asks you to insert or restructure content.",
     "Reply in the user's language unless the user asks for another language.",
+    "After tool results return, provide a final user-visible answer with the concrete findings or prepared edit summary.",
+    "Do not put the final answer only in thinking. Thinking is for internal reasoning; the user-visible answer must be normal assistant text.",
     "When the user asks about nearby notes, call list_workspace_files first, then read_workspace_file for the exact Markdown files you need.",
     "When the user asks about images in the document and image tools are available, call list_document_images first, then view_document_image for the exact src you need.",
     "Do not guess image contents from alt text or filenames when view_document_image is available.",

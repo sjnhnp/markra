@@ -53,6 +53,34 @@ describe("chatCompletion", () => {
     );
   });
 
+  it("includes provider error details for failed native stream responses", async () => {
+    const streamTransport = vi.fn(async () => ({
+      body: {
+        error: {
+          message: "Param Incorrect",
+          param: "web search tool found in the request body, but webSearchEnabled is false"
+        }
+      },
+      status: 400
+    }));
+
+    await expect(
+      chatCompletionStream(
+        provider({
+          baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+          id: "xiaomi-mimo",
+          type: "openai-compatible"
+        }),
+        "mimo-v2.5",
+        [{ content: "Hi", role: "user" }],
+        {
+          streamTransport,
+          webSearchEnabled: true
+        }
+      )
+    ).rejects.toThrow("Param Incorrect: web search tool found in the request body, but webSearchEnabled is false");
+  });
+
   it("streams provider SSE chunks through the native transport", async () => {
     const onDelta = vi.fn();
     const onThinkingDelta = vi.fn();
@@ -90,6 +118,84 @@ describe("chatCompletion", () => {
     expect(onThinkingDelta).toHaveBeenCalledWith("Thinking");
     expect(onDelta).toHaveBeenNthCalledWith(1, "Better ");
     expect(onDelta).toHaveBeenNthCalledWith(2, "text");
+  });
+
+  it("falls back to a final provider body when streaming chunks contain no text", async () => {
+    const onDelta = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"choices":[{"delta":{"annotations":[{"type":"url_citation","url":"https://example.test"}]}}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return {
+        body: {
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: "MiMo final answer from response body",
+                role: "assistant"
+              }
+            }
+          ]
+        },
+        status: 200
+      };
+    });
+
+    await expect(
+      chatCompletionStream(
+        provider({
+          baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+          id: "xiaomi-mimo",
+          type: "openai-compatible"
+        }),
+        "mimo-v2.5-pro",
+        [{ content: "Hi", role: "user" }],
+        {
+          onDelta,
+          streamTransport,
+          webSearchEnabled: true
+        }
+      )
+    ).resolves.toEqual({
+      content: "MiMo final answer from response body",
+      finishReason: "stop"
+    });
+
+    expect(onDelta).toHaveBeenCalledWith("MiMo final answer from response body");
+  });
+
+  it("parses raw JSON stream chunks from compatible endpoints that do not prefix SSE data lines", async () => {
+    const onDelta = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('{"choices":[{"delta":{"content":"Grounded "}}]}\n');
+      onChunk('{"choices":[{"delta":{"content":"answer"},"finish_reason":"stop"}]}\n');
+
+      return { status: 200 };
+    });
+
+    await expect(
+      chatCompletionStream(
+        provider({
+          baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+          id: "xiaomi-mimo",
+          type: "openai-compatible"
+        }),
+        "mimo-v2.5",
+        [{ content: "Hi", role: "user" }],
+        {
+          onDelta,
+          streamTransport,
+          webSearchEnabled: true
+        }
+      )
+    ).resolves.toEqual({
+      content: "Grounded answer",
+      finishReason: "stop"
+    });
+
+    expect(onDelta).toHaveBeenNthCalledWith(1, "Grounded ");
+    expect(onDelta).toHaveBeenNthCalledWith(2, "answer");
   });
 
   it("extracts inline thinking tags from streamed content when thinking is enabled", async () => {

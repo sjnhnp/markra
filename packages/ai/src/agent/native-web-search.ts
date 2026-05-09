@@ -1,4 +1,5 @@
 import type { AiModelCapability, AiProviderConfig } from "../providers/providers";
+import { supportsMimoNativeWebSearch } from "./compatibilities/mimo";
 import { getDashScopeQwenNativeWebSearchKind } from "./compatibilities/qwen";
 
 export type NativeWebSearchKind =
@@ -8,6 +9,7 @@ export type NativeWebSearchKind =
   | "dashscope-responses-tool"
   | "google-search-grounding"
   | "groq-compound"
+  | "mimo-web-search-tool"
   | "openai-responses"
   | "openrouter-server-tool"
   | "perplexity-sonar";
@@ -35,6 +37,7 @@ export function getNativeWebSearchKind(provider: AiProviderConfig, model: Native
   if (provider.type === "openrouter") return "openrouter-server-tool";
   const dashScopeQwenNativeWebSearchKind = getDashScopeQwenNativeWebSearchKind(provider, modelId);
   if (dashScopeQwenNativeWebSearchKind) return dashScopeQwenNativeWebSearchKind;
+  if (supportsMimoNativeWebSearch(provider)) return "mimo-web-search-tool";
   if (isPerplexityProvider(provider.id.toLowerCase(), provider.baseUrl?.toLowerCase() ?? "")) return "perplexity-sonar";
 
   return null;

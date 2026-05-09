@@ -5,6 +5,7 @@ export type ChatMessage = {
   content: string;
   images?: ChatImageAttachment[];
   role: "assistant" | "system" | "user";
+  thinking?: string;
   toolCalls?: ChatToolCall[];
   toolResult?: {
     outputText: string;

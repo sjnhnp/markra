@@ -122,6 +122,19 @@ export async function chatCompletionStream(
 
     if (parsed.finishReason) finishReason = parsed.finishReason;
   };
+  const applyParsedFallbackResponse = (parsed: ChatResponse) => {
+    if (!finishReason && parsed.finishReason) finishReason = parsed.finishReason;
+    if (!content && parsed.content) processContentDelta(parsed.content);
+    if (toolCalls.size > 0 || !parsed.toolCalls?.length) return;
+
+    for (const [index, toolCall] of parsed.toolCalls.entries()) {
+      toolCalls.set(index, {
+        argumentsText: JSON.stringify(toolCall.arguments),
+        id: toolCall.id,
+        name: toolCall.name
+      });
+    }
+  };
   const response = await streamTransport(
     {
       body: JSON.stringify(request.body),
@@ -140,6 +153,9 @@ export async function chatCompletionStream(
 
   if (response.status < 200 || response.status >= 300) {
     throw new Error(readResponseError({ body: response.body ?? null, status: response.status }));
+  }
+  if ((!content || !finishReason) && response.body !== undefined) {
+    applyParsedFallbackResponse(adapter.parseResponse(response.body));
   }
 
   return {
@@ -168,7 +184,13 @@ function missingChatCompletionStreamTransport(): never {
 function readResponseError(response: NativeAiHttpResponse) {
   if (isRecord(response.body)) {
     if (typeof response.body.message === "string") return response.body.message;
-    if (isRecord(response.body.error) && typeof response.body.error.message === "string") return response.body.error.message;
+    if (isRecord(response.body.error) && typeof response.body.error.message === "string") {
+      if (typeof response.body.error.param === "string" && response.body.error.param.trim()) {
+        return `${response.body.error.message}: ${response.body.error.param}`;
+      }
+
+      return response.body.error.message;
+    }
     if (typeof response.body.error === "string") return response.body.error;
   }
 
@@ -196,18 +218,29 @@ function createServerSentEventParser() {
 }
 
 function parseServerSentEventBlock(block: string) {
-  const data = block
+  const lines = block
     .split("\n")
     .map((line) => line.trim())
+    .filter(Boolean);
+  const dataLines = lines
     .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice("data:".length).trimStart())
-    .join("\n")
-    .trim();
+    .map((line) => line.slice("data:".length).trimStart());
+  const data = dataLines.join("\n").trim();
 
+  if (dataLines.length === 0) return parseRawJsonStreamLines(lines);
   if (!data) return [];
   if (data === "[DONE]") return ["[DONE]"];
 
   return [JSON.parse(data) as unknown];
+}
+
+function parseRawJsonStreamLines(lines: string[]) {
+  return lines.flatMap((line) => {
+    if (line === "[DONE]") return ["[DONE]"];
+    if (!line.startsWith("{") && !line.startsWith("[")) return [];
+
+    return [JSON.parse(line) as unknown];
+  });
 }
 
 function parseToolArguments(rawArguments: string) {

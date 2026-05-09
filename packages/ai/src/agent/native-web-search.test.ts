@@ -52,6 +52,12 @@ describe("native web search support", () => {
       type: "openai-compatible"
     }), "sonar-pro")).toBe("perplexity-sonar");
     expect(getNativeWebSearchKind(provider({
+      baseUrl: "https://api.xiaomimimo.com/v1",
+      id: "xiaomi-mimo",
+      models: [{ capabilities: ["text", "web"], enabled: true, id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro" }],
+      type: "openai-compatible"
+    }), "mimo-v2.5-pro")).toBe("mimo-web-search-tool");
+    expect(getNativeWebSearchKind(provider({
       models: [{ capabilities: ["text", "web"], enabled: true, id: "groq/compound", name: "Groq Compound" }],
       type: "groq"
     }), "groq/compound")).toBe("groq-compound");
@@ -90,5 +96,18 @@ describe("native web search support", () => {
       models: [{ capabilities: ["text", "web"], enabled: true, id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" }],
       type: "deepseek"
     }), "deepseek-v4-pro")).toBe(false);
+  });
+
+  it.each([
+    "https://token-plan-cn.xiaomimimo.com/v1",
+    "https://token-plan-sgp.xiaomimimo.com/v1",
+    "https://token-plan-ams.xiaomimimo.com/v1"
+  ])("does not treat MiMo Token Plan endpoint %s as native web search", (baseUrl) => {
+    expect(providerSupportsNativeWebSearch(provider({
+      baseUrl,
+      id: "xiaomi-mimo",
+      models: [{ capabilities: ["text", "web"], enabled: true, id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro" }],
+      type: "openai-compatible"
+    }), "mimo-v2.5-pro")).toBe(false);
   });
 });

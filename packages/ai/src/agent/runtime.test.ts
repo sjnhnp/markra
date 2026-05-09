@@ -1,4 +1,5 @@
 import { runInlineAiAgent } from "./runtime";
+import { messagesFromPiContext } from "./runtime/messages";
 import type { AiProviderConfig } from "../providers/providers";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
@@ -120,5 +121,33 @@ describe("inline AI agent runtime", () => {
 
     expect(thinkingDeltas).toEqual(["Checking context"]);
     expect(deltas).toEqual(["Better ", "body"]);
+  });
+
+  it("preserves assistant thinking blocks when replaying tool-calling context", () => {
+    expect(messagesFromPiContext({
+      messages: [
+        {
+          content: [
+            { thinking: "Need to inspect the document first.", type: "thinking" },
+            { arguments: {}, id: "call_get_document", name: "get_document", type: "toolCall" }
+          ],
+          role: "assistant"
+        }
+      ],
+      systemPrompt: ""
+    } as never)).toEqual([
+      {
+        content: "",
+        role: "assistant",
+        thinking: "Need to inspect the document first.",
+        toolCalls: [
+          {
+            arguments: {},
+            id: "call_get_document",
+            name: "get_document"
+          }
+        ]
+      }
+    ]);
   });
 });

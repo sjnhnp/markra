@@ -20,6 +20,8 @@ describe("document AI agent", () => {
   it("asks the tool-calling agent to answer in the user's language", async () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages[0]?.content).toContain("Reply in the user's language");
+      expect(messages[0]?.content).toContain("After tool results return, provide a final user-visible answer");
+      expect(messages[0]?.content).toContain("Do not put the final answer only in thinking");
 
       return {
         content: "I will answer in the user's language.",

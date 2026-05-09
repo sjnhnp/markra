@@ -57,7 +57,12 @@ describe("AI provider requests", () => {
         expect.objectContaining({ defaultModelId: "openrouter/auto", id: "openrouter" }),
         expect.objectContaining({ defaultModelId: "moonshotai/Kimi-K2.5", id: "together" }),
         expect.objectContaining({ defaultModelId: "qwen3.6-plus", id: "aliyun-bailian", type: "openai-compatible" }),
-        expect.objectContaining({ defaultModelId: "mimo-v2.5-pro", id: "xiaomi-mimo", type: "openai-compatible" }),
+        expect.objectContaining({
+          baseUrl: "https://api.xiaomimimo.com/v1",
+          defaultModelId: "mimo-v2.5-pro",
+          id: "xiaomi-mimo",
+          type: "openai-compatible"
+        }),
         expect.objectContaining({ defaultModelId: "doubao-seed-1-6-flash-250715", id: "volcengine", type: "openai-compatible" }),
         expect.objectContaining({ defaultModelId: "grok-4.3", id: "xai" }),
         expect.objectContaining({ defaultModelId: "gpt-5.4", id: "azure-openai" }),
@@ -110,6 +115,8 @@ describe("AI provider requests", () => {
       "tools",
       "web"
     ]);
+    expect(findModelCapabilities("xiaomi-mimo", "mimo-v2.5-pro")).toContain("web");
+    expect(findModelCapabilities("xiaomi-mimo", "mimo-v2.5-flash")).toContain("web");
     expect(findModelCapabilities("volcengine", "doubao-seed-1-6-flash-250715")).toEqual([
       "text",
       "vision",
@@ -192,13 +199,13 @@ describe("AI provider requests", () => {
     expect(
       buildAiProviderModelsRequest(
         provider({
-          baseUrl: "https://api.xiaomimimo.com/v1",
+          baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
           id: "xiaomi-mimo",
           type: "openai-compatible"
         })
       )
     ).toMatchObject({
-      url: "https://api.xiaomimimo.com/v1/models"
+      url: "https://token-plan-cn.xiaomimimo.com/v1/models"
     });
     expect(
       buildAiProviderModelsRequest(

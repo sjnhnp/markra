@@ -16,7 +16,7 @@ import { getDeepSeekCompatibleThinkingRequestOptions } from "./compatibilities/d
 import { getDoubaoCompatibleThinkingRequestOptions } from "./compatibilities/doubao";
 import { getGeminiCompatibleThinkingRequestOptions } from "./compatibilities/gemini";
 import { getKimiCompatibleThinkingRequestOptions } from "./compatibilities/kimi";
-import { getMimoCompatibleThinkingRequestOptions } from "./compatibilities/mimo";
+import { getMimoCompatibleThinkingRequestOptions, mimoWebSearchTool } from "./compatibilities/mimo";
 import { getNativeWebSearchKind } from "./native-web-search";
 import { getQwenThinkingRequestOptions } from "./compatibilities/qwen";
 import { getZhipuCompatibleThinkingRequestOptions } from "./compatibilities/zhipu";
@@ -34,6 +34,7 @@ const azureApiVersion = "2024-10-21";
 const defaultChatBaseUrlByApiStyle: Partial<Record<AiProviderApiStyle, string>> = {
   anthropic: "https://api.anthropic.com/v1",
   "azure-openai": "https://your-resource-name.openai.azure.com",
+  deepseek: "https://api.deepseek.com",
   google: "https://generativelanguage.googleapis.com/v1beta",
   openai: "https://api.openai.com/v1"
 };
@@ -70,6 +71,7 @@ const openAiCompatibleAdapter: ChatAdapter = {
       ),
       messages: messages.map(openAiCompatibleMessage),
       model,
+      nativeTools: openAiCompatibleNativeTools(config, model, options),
       stream: options.stream,
       tools: options.tools
     });
@@ -164,6 +166,13 @@ function openAiCompatibleNativeWebSearchOptions(config: AiProviderConfig, model:
   return {};
 }
 
+function openAiCompatibleNativeTools(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
+  if (options.webSearchEnabled !== true) return [];
+  if (getNativeWebSearchKind(config, model) === "mimo-web-search-tool") return [mimoWebSearchTool];
+
+  return [];
+}
+
 function openAiCompatibleThinkingOptions(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
   const thinkingEnabled = options.thinkingEnabled === true;
   const thinkingExplicitlyDisabled = options.thinkingEnabled === false;
@@ -212,20 +221,40 @@ function firstDefinedRequestOptions(candidates: Record<string, unknown>[]) {
 
 const deepseekAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
-    const request = openAiCompatibleAdapter.buildRequest(config, model, messages, {
+    const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle.deepseek!;
+    const body = buildChatCompletionsRequestBody({
+      extraBody: deepseekThinkingOptions(options),
+      messages: messages.map((message) => deepseekCompatibleMessage(message, options.thinkingEnabled)),
+      model,
       stream: options.stream,
       tools: options.tools
     });
-    const body = isRecord(request.body) ? request.body : {};
 
     return {
-      ...request,
-      body: mergeRequestBody(body, deepseekThinkingOptions(options))
+      body,
+      headers: {
+        ...(config.apiKey?.trim() ? { Authorization: `Bearer ${config.apiKey.trim()}` } : {}),
+        "content-type": "application/json",
+        ...readAiProviderCustomHeaders(config)
+      },
+      url: joinApiUrl(baseUrl, "/chat/completions")
     };
   },
   parseResponse: openAiCompatibleAdapter.parseResponse,
   parseStreamEvent: openAiCompatibleAdapter.parseStreamEvent
 };
+
+function deepseekCompatibleMessage(message: ChatMessage, thinkingEnabled: boolean | undefined) {
+  const mappedMessage = openAiCompatibleMessage(message);
+  if (thinkingEnabled !== true || message.role !== "assistant" || !message.thinking?.trim() || !isRecord(mappedMessage)) {
+    return mappedMessage;
+  }
+
+  return {
+    ...mappedMessage,
+    reasoning_content: message.thinking
+  };
+}
 
 function deepseekThinkingOptions(options: ChatRequestOptions) {
   return {
@@ -719,8 +748,9 @@ function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult 
   const choices = Array.isArray(record.choices) ? record.choices : [];
   const firstChoice = isRecord(choices[0]) ? choices[0] : {};
   const delta = isRecord(firstChoice.delta) ? firstChoice.delta : {};
+  const message = isRecord(firstChoice.message) ? firstChoice.message : {};
   const result: ChatStreamEventResult = {};
-  const contentDeltas = readOpenAiCompatibleContentDeltas(delta.content);
+  const contentDeltas = readOpenAiCompatibleContentDeltas(delta.content ?? message.content);
   const thinkingDelta = readOpenAiCompatibleThinkingDelta(delta) ?? contentDeltas.thinkingDelta;
   const toolCallDeltas = readOpenAiCompatibleToolCallDeltas(delta);
 

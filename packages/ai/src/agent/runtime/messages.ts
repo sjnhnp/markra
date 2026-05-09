@@ -25,6 +25,7 @@ function chatMessageFromPiMessage(message: Message): ChatMessage[] {
   }
 
   if (message.role === "assistant") {
+    const thinking = assistantThinkingContent(message);
     const toolCalls = message.content
       .filter((part): part is ToolCall => part.type === "toolCall")
       .map((toolCall) => ({
@@ -36,6 +37,7 @@ function chatMessageFromPiMessage(message: Message): ChatMessage[] {
     return [{
       content: assistantTextContent(message),
       role: "assistant",
+      ...(thinking ? { thinking } : {}),
       ...(toolCalls.length ? { toolCalls } : {})
     }];
   }
@@ -90,6 +92,10 @@ function imageDataUrlFromPiImage(image: ImageContent) {
 
 export function assistantTextContent(message: AssistantMessage) {
   return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
+}
+
+function assistantThinkingContent(message: AssistantMessage) {
+  return message.content.map((part) => (part.type === "thinking" ? part.thinking : "")).join("");
 }
 
 export function createAssistantMessage(
