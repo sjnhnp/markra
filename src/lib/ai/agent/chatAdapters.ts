@@ -2,6 +2,7 @@ import type { Tool } from "@mariozechner/pi-ai";
 import type { AiProviderApiStyle, AiProviderConfig } from "../providers/aiProviders";
 import { readAiProviderCustomHeaders } from "../providers/aiProviders";
 import { isRecord, joinApiUrl } from "../../utils";
+import { getNativeWebSearchKind } from "./nativeWebSearch";
 
 export type ChatMessage = {
   content: string;
@@ -24,6 +25,7 @@ export type ChatRequestOptions = {
   stream?: boolean;
   thinkingEnabled?: boolean;
   tools?: Tool[];
+  webSearchEnabled?: boolean;
 };
 
 export type ChatToolCall = {
@@ -73,6 +75,10 @@ const openAiCompatibleAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle[config.type] || "";
     if (!baseUrl) throw new Error("API URL is required.");
+    if (usesOpenAiResponsesNativeWebSearch(config, model, options)) {
+      return buildOpenAiResponsesRequest(config, model, messages, options, baseUrl);
+    }
+
     const body = mergeChatRequestBody(
       {
         messages: messages.map(openAiCompatibleMessage),
@@ -93,7 +99,10 @@ const openAiCompatibleAdapter: ChatAdapter = {
           : {}),
         temperature: 0.7
       },
-      openAiCompatibleThinkingOptions(config, model, options)
+      mergeChatRequestBody(
+        openAiCompatibleThinkingOptions(config, model, options),
+        openAiCompatibleNativeWebSearchOptions(config, model, options)
+      )
     );
 
     return {
@@ -107,6 +116,8 @@ const openAiCompatibleAdapter: ChatAdapter = {
     };
   },
   parseResponse(body) {
+    if (isOpenAiResponsesBody(body)) return parseOpenAiResponsesResponse(body);
+
     const record = isRecord(body) ? body : {};
     const choices = Array.isArray(record.choices) ? record.choices : [];
     const firstChoice = isRecord(choices[0]) ? choices[0] : {};
@@ -120,8 +131,95 @@ const openAiCompatibleAdapter: ChatAdapter = {
       ...(toolCalls.length ? { toolCalls } : {})
     };
   },
-  parseStreamEvent: parseOpenAiCompatibleStreamEvent
+  parseStreamEvent(body) {
+    if (isOpenAiResponsesStreamEvent(body)) return parseOpenAiResponsesStreamEvent(body);
+
+    return parseOpenAiCompatibleStreamEvent(body);
+  }
 };
+
+function usesOpenAiResponsesNativeWebSearch(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
+  return options.webSearchEnabled === true && getNativeWebSearchKind(config, model) === "openai-responses";
+}
+
+function buildOpenAiResponsesRequest(
+  config: AiProviderConfig,
+  model: string,
+  messages: ChatMessage[],
+  options: ChatRequestOptions,
+  baseUrl: string
+): ChatRequest {
+  const body = mergeChatRequestBody(
+    {
+      input: openAiResponsesInputMessages(messages),
+      ...(openAiResponsesInstructions(messages) ? { instructions: openAiResponsesInstructions(messages) } : {}),
+      model,
+      ...(options.stream ? { stream: true } : {}),
+      tools: [
+        { type: "web_search" },
+        ...(options.tools ?? []).map((tool) => ({
+          description: tool.description,
+          name: tool.name,
+          parameters: tool.parameters,
+          type: "function"
+        }))
+      ]
+    },
+    openAiResponsesThinkingOptions(config, options)
+  );
+
+  return {
+    body,
+    headers: {
+      ...(config.apiKey?.trim() ? { Authorization: `Bearer ${config.apiKey.trim()}` } : {}),
+      "content-type": "application/json",
+      ...readAiProviderCustomHeaders(config)
+    },
+    url: joinApiUrl(baseUrl, "/responses")
+  };
+}
+
+function openAiResponsesInstructions(messages: ChatMessage[]) {
+  return messages
+    .filter((message) => message.role === "system")
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function openAiResponsesInputMessages(messages: ChatMessage[]) {
+  return messages
+    .filter((message) => message.role !== "system")
+    .map((message) => ({
+      content: openAiResponsesMessageContent(message),
+      role: message.role
+    }));
+}
+
+function openAiResponsesMessageContent(message: ChatMessage) {
+  if (message.role === "assistant" && !message.images?.length) return message.content;
+
+  return [
+    { text: message.content, type: "input_text" },
+    ...(message.images ?? []).map((image) => ({
+      image_url: image.dataUrl,
+      type: "input_image"
+    }))
+  ];
+}
+
+function openAiResponsesThinkingOptions(config: AiProviderConfig, options: ChatRequestOptions) {
+  if (!options.thinkingEnabled || (config.type !== "openai" && config.type !== "xai")) return {};
+
+  return { reasoning: { effort: "high" } };
+}
+
+function openAiCompatibleNativeWebSearchOptions(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
+  if (options.webSearchEnabled !== true) return {};
+  if (getNativeWebSearchKind(config, model) === "dashscope-enable-search") return { enable_search: true };
+
+  return {};
+}
 
 function openAiCompatibleThinkingOptions(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
   const thinkingEnabled = options.thinkingEnabled === true;
@@ -233,6 +331,7 @@ const anthropicAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const systemMessage = messages.find((message) => message.role === "system");
     const nonSystemMessages = messages.filter((message) => message.role !== "system");
+    const tools = anthropicTools(config, model, options);
     const body = mergeChatRequestBody(
       {
         max_tokens: 4096,
@@ -242,15 +341,7 @@ const anthropicAdapter: ChatAdapter = {
         })),
         model,
         ...(options.stream ? { stream: true } : {}),
-        ...(options.tools?.length
-          ? {
-              tools: options.tools.map((tool) => ({
-                description: tool.description,
-                input_schema: tool.parameters,
-                name: tool.name
-              }))
-            }
-          : {}),
+        ...(tools.length ? { tools } : {}),
         ...(systemMessage ? { system: systemMessage.content } : {})
       },
       anthropicThinkingOptions(model, options)
@@ -337,6 +428,19 @@ const anthropicAdapter: ChatAdapter = {
   }
 };
 
+function anthropicTools(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
+  return [
+    ...(options.webSearchEnabled === true && getNativeWebSearchKind(config, model) === "anthropic-server-tool"
+      ? [{ max_uses: 5, name: "web_search", type: "web_search_20250305" }]
+      : []),
+    ...(options.tools ?? []).map((tool) => ({
+      description: tool.description,
+      input_schema: tool.parameters,
+      name: tool.name
+    }))
+  ];
+}
+
 function anthropicThinkingOptions(model: string, options: ChatRequestOptions) {
   if (!options.thinkingEnabled) return {};
 
@@ -418,12 +522,14 @@ const googleAdapter: ChatAdapter = {
       }));
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle.google!;
     const key = encodeURIComponent(config.apiKey?.trim() ?? "");
+    const tools = googleTools(config, model, options);
     const body = mergeChatRequestBody(
       {
         contents,
         generationConfig: {
           temperature: 0.7
         },
+        ...(tools.length ? { tools } : {}),
         ...(systemMessage ? { systemInstruction: { parts: [{ text: systemMessage.content }] } } : {})
       },
       googleThinkingOptions(options)
@@ -467,6 +573,12 @@ const googleAdapter: ChatAdapter = {
     return result;
   }
 };
+
+function googleTools(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
+  return options.webSearchEnabled === true && getNativeWebSearchKind(config, model) === "google-search-grounding"
+    ? [{ google_search: {} }]
+    : [];
+}
 
 function googleThinkingOptions(options: ChatRequestOptions) {
   return options.thinkingEnabled
@@ -578,6 +690,85 @@ function base64DataFromDataUrl(dataUrl: string) {
   if (markerIndex < 0) return dataUrl;
 
   return dataUrl.slice(markerIndex + marker.length);
+}
+
+function isOpenAiResponsesBody(body: unknown) {
+  return isRecord(body) && (body.object === "response" || Array.isArray(body.output));
+}
+
+function parseOpenAiResponsesResponse(body: unknown): ChatResponse {
+  const record = isRecord(body) ? body : {};
+  const output = Array.isArray(record.output) ? record.output : [];
+  const content = output
+    .filter(isRecord)
+    .flatMap((item) => (Array.isArray(item.content) ? item.content : []))
+    .filter(isRecord)
+    .map((item) => (item.type === "output_text" && typeof item.text === "string" ? item.text : ""))
+    .join("");
+  const toolCalls = output.flatMap(readOpenAiResponsesToolCall);
+
+  return {
+    content,
+    ...(typeof record.status === "string" ? { finishReason: record.status } : {}),
+    ...(toolCalls.length ? { toolCalls } : {})
+  };
+}
+
+function readOpenAiResponsesToolCall(item: unknown): ChatToolCall[] {
+  if (!isRecord(item) || item.type !== "function_call") return [];
+
+  const id = typeof item.call_id === "string" ? item.call_id : typeof item.id === "string" ? item.id : "";
+  const name = typeof item.name === "string" ? item.name : "";
+  const rawArguments = typeof item.arguments === "string" ? item.arguments : "";
+  if (!id || !name) return [];
+
+  return [
+    {
+      arguments: parseToolArguments(rawArguments),
+      id,
+      name
+    }
+  ];
+}
+
+function isOpenAiResponsesStreamEvent(body: unknown) {
+  return isRecord(body) && typeof body.type === "string" && body.type.startsWith("response.");
+}
+
+function parseOpenAiResponsesStreamEvent(body: unknown): ChatStreamEventResult {
+  const record = isRecord(body) ? body : {};
+  if (record.type === "response.output_text.delta") {
+    const contentDelta = typeof record.delta === "string" ? record.delta : undefined;
+    return contentDelta ? { contentDelta } : {};
+  }
+  if (record.type === "response.output_item.added") {
+    const item = isRecord(record.item) ? record.item : {};
+    if (item.type !== "function_call") return {};
+
+    return {
+      toolCallDeltas: [
+        {
+          id: typeof item.call_id === "string" ? item.call_id : typeof item.id === "string" ? item.id : undefined,
+          index: typeof record.output_index === "number" ? record.output_index : 0,
+          nameDelta: typeof item.name === "string" ? item.name : undefined
+        }
+      ]
+    };
+  }
+  if (record.type === "response.function_call_arguments.delta") {
+    return {
+      toolCallDeltas: [
+        {
+          argumentsDelta: typeof record.delta === "string" ? record.delta : undefined,
+          index: typeof record.output_index === "number" ? record.output_index : 0
+        }
+      ]
+    };
+  }
+  if (record.type === "response.completed") return { finishReason: "stop" };
+  if (record.type === "response.failed") return { finishReason: "error" };
+
+  return {};
 }
 
 function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult {

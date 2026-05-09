@@ -13,6 +13,7 @@ import {
 import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "../ai/providers/aiProviders";
 import { isAppLanguage, type AppLanguage } from "../i18n";
 import { normalizeNullableString } from "../utils";
+import { type WebSearchProviderId, type WebSearchSettings } from "../web/webSearch";
 
 const settingsStorePath = "settings.json";
 const aiAgentSessionIndexStorePath = "ai-agent-sessions/index.json";
@@ -25,6 +26,7 @@ const languageKey = "language";
 const aiProvidersKey = "aiProviders";
 const aiAgentPreferencesKey = "aiAgentPreferences";
 const editorPreferencesKey = "editorPreferences";
+const webSearchKey = "webSearch";
 const workspaceKey = "workspace";
 
 export type AppTheme = "light" | "dark" | "system";
@@ -50,6 +52,7 @@ export type StoredWorkspaceState = {
   folderPath: string | null;
 };
 export type { AppLanguage };
+export type { WebSearchProviderId, WebSearchSettings };
 
 export const defaultEditorPreferences: EditorPreferences = {
   autoOpenAiOnSelection: true,
@@ -63,6 +66,14 @@ export const defaultEditorPreferences: EditorPreferences = {
 
 export const defaultAiAgentPreferences: AiAgentPreferences = {
   thinkingEnabled: false
+};
+
+export const defaultWebSearchSettings: WebSearchSettings = {
+  contentMaxChars: 12_000,
+  enabled: true,
+  maxResults: 5,
+  providerId: "local-bing",
+  searxngApiHost: ""
 };
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
@@ -345,6 +356,20 @@ export async function saveStoredEditorPreferences(preferences: EditorPreferences
   await store.save();
 }
 
+export async function getStoredWebSearchSettings(): Promise<WebSearchSettings> {
+  const store = await loadSettingsStore();
+  const settings = await store.get<Partial<WebSearchSettings>>(webSearchKey);
+
+  return normalizeWebSearchSettings(settings);
+}
+
+export async function saveStoredWebSearchSettings(settings: WebSearchSettings) {
+  const store = await loadSettingsStore();
+
+  await store.set(webSearchKey, normalizeWebSearchSettings(settings));
+  await store.save();
+}
+
 export async function getStoredWorkspaceState(): Promise<StoredWorkspaceState> {
   const store = await loadSettingsStore();
   const workspace = await store.get<StoredWorkspaceState>(workspaceKey);
@@ -438,6 +463,64 @@ export function normalizeClipboardImageFolder(value: unknown) {
   }
 
   return parts.join("/");
+}
+
+export function normalizeWebSearchSettings(value: unknown): WebSearchSettings {
+  if (typeof value !== "object" || value === null) return defaultWebSearchSettings;
+
+  const settings = value as Partial<WebSearchSettings>;
+
+  return {
+    contentMaxChars: normalizeWebSearchInteger(settings.contentMaxChars, {
+      defaultValue: defaultWebSearchSettings.contentMaxChars,
+      max: 40_000,
+      min: 2_000
+    }),
+    enabled:
+      typeof settings.enabled === "boolean"
+        ? settings.enabled
+        : defaultWebSearchSettings.enabled,
+    maxResults: normalizeWebSearchInteger(settings.maxResults, {
+      defaultValue: defaultWebSearchSettings.maxResults,
+      max: 20,
+      min: 1
+    }),
+    providerId: settings.providerId === "searxng" ? "searxng" : defaultWebSearchSettings.providerId,
+    searxngApiHost: normalizeWebSearchApiHost(settings.searxngApiHost)
+  };
+}
+
+function normalizeWebSearchInteger(
+  value: unknown,
+  limits: {
+    defaultValue: number;
+    max: number;
+    min: number;
+  }
+) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return limits.defaultValue;
+
+  return Math.min(Math.max(Math.round(value), limits.min), limits.max);
+}
+
+function normalizeWebSearchApiHost(value: unknown) {
+  if (typeof value !== "string") return "";
+
+  const trimmed = value.trim().replace(/\/+$/u, "");
+  if (!trimmed) return "";
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+
+    url.pathname = url.pathname.replace(/\/+$/u, "");
+    url.search = "";
+    url.hash = "";
+
+    return url.toString().replace(/\/+$/u, "");
+  } catch {
+    return "";
+  }
 }
 
 export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {

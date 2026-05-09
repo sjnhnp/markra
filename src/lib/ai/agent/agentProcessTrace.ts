@@ -214,6 +214,11 @@ function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end
 
     return `${event.result.details.src}${mimeType}`;
   }
+  if (event.toolName === "builtin_web_search" && typeof event.result?.details?.count === "number") {
+    const unit = event.result.details.count === 1 ? "source" : "sources";
+
+    return `${event.result.details.count} ${unit}`;
+  }
   if (event.toolName === "get_document" && typeof event.result?.details?.length === "number") {
     return `${event.result.details.length} chars`;
   }
@@ -315,6 +320,7 @@ function toolLabelForName(toolName: string, translate: Translate) {
   if (toolName === "get_selection") return translate("app.aiAgentProcessReadSelection");
   if (toolName === "list_document_images") return translate("app.aiAgentProcessListDocumentImages");
   if (toolName === "view_document_image") return translate("app.aiAgentProcessReadDocumentImage");
+  if (toolName === "builtin_web_search") return translate("app.aiAgentProcessWebSearch");
   if (toolName === "list_workspace_files") return translate("app.aiAgentProcessListWorkspaceFiles");
   if (toolName === "read_workspace_file") return translate("app.aiAgentProcessReadWorkspaceFile");
   if (toolName === "replace_document") return translate("app.aiAgentProcessReplaceDocument");

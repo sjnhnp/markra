@@ -206,7 +206,7 @@ function inferGoogleCapabilities(record: Record<string, unknown>, id: string): A
   if (isUnsupportedModelCapability(normalizedId)) return [];
   if (normalizedId.includes("gemini")) {
     const capabilities: AiModelCapability[] = [...inferCapabilitiesFromId(id), "vision", "reasoning", "tools"];
-    if (googleGeminiSupportsSearchGrounding(normalizedId)) capabilities.push("web");
+    capabilities.push("web");
 
     return normalizeAiModelCapabilities(capabilities, []);
   }
@@ -265,11 +265,6 @@ function inferCapabilitiesFromId(id: string): AiModelCapability[] {
   if (/(^|[-/:])r1($|[-/:])/.test(normalizedId) && normalizedId.includes("deepseek")) capabilities.push("tools");
 
   return normalizeAiModelCapabilities(capabilities, []);
-}
-
-// Returns whether a Gemini model should expose web/search grounding capability.
-function googleGeminiSupportsSearchGrounding(normalizedId: string) {
-  return !normalizedId.includes("3.1-flash-lite");
 }
 
 // Identifies model-list entries that are not useful for Markra chat/image workflows.

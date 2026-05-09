@@ -18,6 +18,7 @@ import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
+import { useWebSearchSettings } from "./hooks/useWebSearchSettings";
 import {
   useApplicationShortcuts,
   useNativeMarkdownDrop,
@@ -37,6 +38,7 @@ import {
   type AiEditorPreviewActionDetail,
   type AiEditorPreviewRestoreDetail
 } from "./lib/ai/editorPreview";
+import { aiAgentWebSearchAvailable } from "./lib/ai/agent/webSearchAvailability";
 import {
   deleteStoredAiAgentSession,
   initializeStoredAiAgentSession,
@@ -83,6 +85,7 @@ export default function App() {
   const appLanguage = useAppLanguage();
   const aiSettings = useAiSettings();
   const editorPreferences = useEditorPreferences();
+  const webSearchSettings = useWebSearchSettings();
   const [aiAgentSessionId, setAiAgentSessionId] = useState<string | null>(null);
   const [aiAgentOpen, setAiAgentOpen] = useState(false);
   const [aiAgentPanelWidth, setAiAgentPanelWidth] = useState(aiAgentPanelDefaultWidth);
@@ -204,6 +207,12 @@ export default function App() {
     ) ?? aiSettings.availableTextModels[0];
   const aiAgentProviderName = selectedAiAgentModel?.providerName ?? aiSettings.agentProvider?.name ?? null;
   const aiAgentModelName = selectedAiAgentModel?.name ?? aiSettings.agentModelId ?? null;
+  const webSearchAvailable = aiAgentWebSearchAvailable({
+    model: selectedAiAgentModel,
+    provider: aiSettings.agentProvider,
+    settings: webSearchSettings.settings,
+    settingsLoading: webSearchSettings.loading
+  });
   const aiAgentInset = aiAgentOpen ? `${aiAgentPanelWidth}px` : "0px";
   const editorAgentLayoutClassName = `editor-agent-layout grid min-h-0 ${
     aiAgentPanelResizing
@@ -265,6 +274,7 @@ export default function App() {
     sessionId: activeAiAgentSessionId,
     settingsLoading: aiSettings.loading,
     translate,
+    webSearchSettings: webSearchSettings.settings,
     workspaceKey,
     workspaceFiles: fileTreeFiles
   });
@@ -751,6 +761,7 @@ export default function App() {
                 selectedProviderId={aiSettings.agentProviderId}
                 status={aiAgent.status}
                 thinkingEnabled={aiAgent.thinkingEnabled}
+                webSearchAvailable={webSearchAvailable}
                 webSearchEnabled={aiAgent.webSearchEnabled}
                 maxWidth={aiAgentPanelMaxWidth}
                 minWidth={aiAgentPanelMinWidth}

@@ -394,11 +394,102 @@ describe("document AI agent", () => {
         to: 13
       },
       webSearchEnabled: true,
+      webSearchSettings: {
+        contentMaxChars: 12000,
+        enabled: true,
+        maxResults: 5,
+        providerId: "local-bing",
+        searxngApiHost: ""
+      },
       workspaceFiles: []
     });
 
     expect(result).toEqual({
       content: "Synthetic response",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
+  it("registers the Cherry-style web search tool for tool-calling agents when enabled and configured", async () => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+      expect(messages[0]?.content).toContain("builtin_web_search");
+
+      return {
+        content: "I can search the web with the configured tool.",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Section Alpha",
+      documentPath: "/vault/example.md",
+      model: "writer-tools",
+      prompt: "Search the current release notes",
+      provider: provider({
+        baseUrl: "https://proxy.example.test/v1",
+        models: [{ capabilities: ["text", "tools"], enabled: true, id: "writer-tools", name: "Writer Tools" }],
+        type: "openai-compatible"
+      }),
+      webSearchEnabled: true,
+      webSearchSettings: {
+        contentMaxChars: 12000,
+        enabled: true,
+        maxResults: 5,
+        providerId: "local-bing",
+        searxngApiHost: ""
+      },
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "I can search the web with the configured tool.",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
+  it("uses native web search instead of the Cherry-style web search tool when the provider supports it", async () => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[], options) => {
+      const toolNames = options?.tools?.map((tool: { name: string }) => tool.name) ?? [];
+
+      expect(messages[0]?.content).not.toContain("builtin_web_search");
+      expect(toolNames).not.toContain("builtin_web_search");
+      expect(options?.webSearchEnabled).toBe(true);
+
+      return {
+        content: "I can use native web search.",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Section Alpha",
+      documentPath: "/vault/example.md",
+      model: "qwen3.6-plus",
+      prompt: "Search the current release notes",
+      provider: provider({
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        id: "aliyun-bailian",
+        models: [{ capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+        name: "Qwen",
+        type: "openai-compatible"
+      }),
+      webSearchEnabled: true,
+      webSearchSettings: {
+        contentMaxChars: 12000,
+        enabled: true,
+        maxResults: 5,
+        providerId: "local-bing",
+        searxngApiHost: ""
+      },
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "I can use native web search.",
       finishReason: "stop",
       preparedPreview: false
     });

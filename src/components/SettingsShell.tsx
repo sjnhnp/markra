@@ -1,5 +1,6 @@
 import {
   Bot,
+  Globe2,
   Palette,
   PenLine,
   SlidersHorizontal,
@@ -27,6 +28,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: Bot,
     id: "ai",
     labelKey: "settings.categories.ai"
+  },
+  {
+    icon: Globe2,
+    id: "web",
+    labelKey: "settings.categories.web"
   },
   {
     icon: Palette,

@@ -4,6 +4,7 @@ import {
   type ChatMessage
 } from "./chatAdapters";
 import type { AiProviderConfig } from "../providers/aiProviders";
+import type { Tool } from "@mariozechner/pi-ai";
 
 function provider(overrides: Partial<AiProviderConfig>): AiProviderConfig {
   return {
@@ -37,6 +38,16 @@ const multimodalMessages: ChatMessage[] = [
     role: "user"
   }
 ];
+
+const readDocumentTool = {
+  description: "Read the document.",
+  name: "read_document",
+  parameters: {
+    additionalProperties: false,
+    properties: {},
+    type: "object"
+  }
+} as Tool;
 
 describe("AI chat adapters", () => {
   it("builds OpenAI-compatible chat completion requests with JSON headers", () => {
@@ -123,6 +134,129 @@ describe("AI chat adapters", () => {
       enable_thinking: true,
       model: "qwen3.6-plus",
       stream: true
+    });
+  });
+
+  it("enables native web search for providers with compatible chat request parameters", () => {
+    expect(
+      getChatAdapter("openai-compatible").buildRequest(
+        provider({
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          id: "aliyun-bailian",
+          models: [{ capabilities: ["text", "web"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+          type: "openai-compatible"
+        }),
+        "qwen3.6-plus",
+        messages,
+        { stream: true, webSearchEnabled: true }
+      ).body
+    ).toMatchObject({
+      enable_search: true,
+      model: "qwen3.6-plus",
+      stream: true
+    });
+    expect(
+      getChatAdapter("anthropic").buildRequest(
+        provider({
+          models: [{ capabilities: ["text", "web"], enabled: true, id: "claude-opus-4-7", name: "Claude Opus 4.7" }],
+          type: "anthropic"
+        }),
+        "claude-opus-4-7",
+        messages,
+        { tools: [readDocumentTool], webSearchEnabled: true }
+      ).body
+    ).toMatchObject({
+      tools: expect.arrayContaining([
+        { max_uses: 5, name: "web_search", type: "web_search_20250305" },
+        expect.objectContaining({ name: "read_document" })
+      ])
+    });
+    expect(
+      getChatAdapter("google").buildRequest(
+        provider({
+          baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+          models: [{ capabilities: ["text", "web"], enabled: true, id: "gemini-3.1-flash-lite-preview", name: "Gemini Flash-Lite" }],
+          type: "google"
+        }),
+        "gemini-3.1-flash-lite-preview",
+        messages,
+        { webSearchEnabled: true }
+      ).body
+    ).toMatchObject({
+      tools: [{ google_search: {} }]
+    });
+  });
+
+  it("uses the Responses API shape for OpenAI and xAI native web search", () => {
+    const openAiRequest = getChatAdapter("openai").buildRequest(
+      provider({
+        baseUrl: "https://api.openai.com/v1",
+        models: [{ capabilities: ["text", "web"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }],
+        type: "openai"
+      }),
+      "gpt-5.5",
+      messages,
+      { stream: true, tools: [readDocumentTool], webSearchEnabled: true }
+    );
+    const xaiRequest = getChatAdapter("xai").buildRequest(
+      provider({
+        baseUrl: "https://api.x.ai/v1",
+        models: [{ capabilities: ["text", "web"], enabled: true, id: "grok-4.3", name: "Grok 4.3" }],
+        type: "xai"
+      }),
+      "grok-4.3",
+      messages,
+      { stream: true, webSearchEnabled: true }
+    );
+
+    expect(openAiRequest).toMatchObject({
+      body: {
+        input: [{ content: [{ text: "Rewrite this.", type: "input_text" }], role: "user" }],
+        instructions: "You edit Markdown.",
+        model: "gpt-5.5",
+        stream: true,
+        tools: [
+          { type: "web_search" },
+          {
+            description: "Read the document.",
+            name: "read_document",
+            parameters: readDocumentTool.parameters,
+            type: "function"
+          }
+        ]
+      },
+      url: "https://api.openai.com/v1/responses"
+    });
+    expect(xaiRequest).toMatchObject({
+      body: {
+        input: [{ content: [{ text: "Rewrite this.", type: "input_text" }], role: "user" }],
+        instructions: "You edit Markdown.",
+        model: "grok-4.3",
+        stream: true,
+        tools: [{ type: "web_search" }]
+      },
+      url: "https://api.x.ai/v1/responses"
+    });
+  });
+
+  it("parses OpenAI Responses API text and function-call stream events", () => {
+    const adapter = getChatAdapter("openai");
+
+    expect(adapter.parseStreamEvent({ delta: "Native search answer", type: "response.output_text.delta" }))
+      .toEqual({ contentDelta: "Native search answer" });
+    expect(adapter.parseStreamEvent({
+      item: { call_id: "call_read", name: "read_document", type: "function_call" },
+      output_index: 1,
+      type: "response.output_item.added"
+    })).toEqual({
+      toolCallDeltas: [{ id: "call_read", index: 1, nameDelta: "read_document" }]
+    });
+    expect(adapter.parseStreamEvent({
+      delta: "{\"path\":\"README.md\"}",
+      output_index: 1,
+      type: "response.function_call_arguments.delta"
+    })).toEqual({
+      toolCallDeltas: [{ argumentsDelta: "{\"path\":\"README.md\"}", index: 1 }]
     });
   });
 

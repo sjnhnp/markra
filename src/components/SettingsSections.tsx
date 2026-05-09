@@ -8,7 +8,13 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { Children, type ReactNode } from "react";
-import type { AppTheme, EditorContentWidth, EditorPreferences } from "../lib/settings/appSettings";
+import type {
+  AppTheme,
+  EditorContentWidth,
+  EditorPreferences,
+  WebSearchProviderId,
+  WebSearchSettings
+} from "../lib/settings/appSettings";
 import { supportedLanguages, type AppLanguage, type I18nKey } from "../lib/i18n";
 
 type Translate = (key: I18nKey) => string;
@@ -42,6 +48,7 @@ const themeOptions: Array<{
 const bodyFontSizeOptions = [14, 15, 16, 17, 18, 20];
 const contentWidthOptions: EditorContentWidth[] = ["narrow", "default", "wide"];
 const lineHeightOptions = [1.5, 1.65, 1.8];
+const webSearchProviderOptions: WebSearchProviderId[] = ["local-bing", "searxng"];
 
 function SettingsSection({ children, label }: { children: ReactNode; label: string }) {
   const sectionId = `settings-section-${label.replace(/\s+/g, "-")}`;
@@ -464,6 +471,113 @@ export function EditorSettings({
           />
         }
       />
+      </SettingsSection>
+    </>
+  );
+}
+
+export function WebSearchSettings({
+  onUpdateSettings,
+  settings,
+  translate
+}: {
+  onUpdateSettings: (settings: WebSearchSettings) => unknown;
+  settings: WebSearchSettings;
+  translate: Translate;
+}) {
+  return (
+    <>
+      <SettingsSection label={translate("settings.sections.webSearch")}>
+        <SettingsRow
+          title={translate("settings.webSearch.enable")}
+          description={translate("settings.webSearch.enableDescription")}
+          action={
+            <SettingsSwitch
+              checked={settings.enabled}
+              label={translate("settings.webSearch.enable")}
+              onChange={() =>
+                onUpdateSettings({
+                  ...settings,
+                  enabled: !settings.enabled
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.webSearch.provider")}
+          description={translate("settings.webSearch.providerDescription")}
+          action={
+            <SettingsSelect
+              label={translate("settings.webSearch.provider")}
+              value={settings.providerId}
+              options={webSearchProviderOptions.map((providerId) => ({
+                label: translate(providerId === "local-bing" ? "settings.webSearch.provider.localBing" : "settings.webSearch.provider.searxng"),
+                value: providerId
+              }))}
+              onChange={(value) =>
+                onUpdateSettings({
+                  ...settings,
+                  providerId: value === "searxng" ? "searxng" : "local-bing"
+                })
+              }
+            />
+          }
+        />
+        {settings.providerId === "searxng" ? (
+          <SettingsRow
+            title={translate("settings.webSearch.searxngApiHost")}
+            description={translate("settings.webSearch.searxngApiHostDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.webSearch.searxngApiHost")}
+                value={settings.searxngApiHost}
+                placeholder="http://localhost:8888"
+                onChange={(value) =>
+                  onUpdateSettings({
+                    ...settings,
+                    searxngApiHost: value
+                  })
+                }
+              />
+            }
+          />
+        ) : null}
+      </SettingsSection>
+
+      <SettingsSection label={translate("settings.sections.webSearchLimits")}>
+        <SettingsRow
+          title={translate("settings.webSearch.maxResults")}
+          description={translate("settings.webSearch.maxResultsDescription")}
+          action={
+            <SettingsTextInput
+              label={translate("settings.webSearch.maxResults")}
+              value={String(settings.maxResults)}
+              onChange={(value) =>
+                onUpdateSettings({
+                  ...settings,
+                  maxResults: Number(value)
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.webSearch.contentMaxChars")}
+          description={translate("settings.webSearch.contentMaxCharsDescription")}
+          action={
+            <SettingsTextInput
+              label={translate("settings.webSearch.contentMaxChars")}
+              value={String(settings.contentMaxChars)}
+              onChange={(value) =>
+                onUpdateSettings({
+                  ...settings,
+                  contentMaxChars: Number(value)
+                })
+              }
+            />
+          }
+        />
       </SettingsSection>
     </>
   );

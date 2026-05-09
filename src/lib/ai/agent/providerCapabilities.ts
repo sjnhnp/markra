@@ -16,7 +16,7 @@ const defaultByApiStyle: Record<AiProviderApiStyle, ProviderCapabilities> = {
   mistral: { chat: true, modelList: true, streaming: true, toolCalling: true },
   ollama: { chat: true, modelList: true, streaming: true, toolCalling: false },
   openai: { chat: true, modelList: true, streaming: true, toolCalling: true },
-  "openai-compatible": { chat: true, modelList: false, streaming: true, toolCalling: false },
+  "openai-compatible": { chat: true, modelList: false, streaming: true, toolCalling: true },
   openrouter: { chat: true, modelList: true, streaming: true, toolCalling: true },
   together: { chat: true, modelList: true, streaming: true, toolCalling: true },
   xai: { chat: true, modelList: true, streaming: true, toolCalling: true }

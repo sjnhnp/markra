@@ -27,6 +27,7 @@ export type ChatCompletionStreamOptions = {
   streamTransport?: ChatCompletionStreamTransport;
   thinkingEnabled?: boolean;
   tools?: import("@mariozechner/pi-ai").Tool[];
+  webSearchEnabled?: boolean;
 };
 
 export async function chatCompletion(
@@ -60,11 +61,12 @@ export async function chatCompletionStream(
     onToolCallDelta,
     streamTransport = requestNativeChatStream,
     thinkingEnabled,
-    tools
+    tools,
+    webSearchEnabled
   }: ChatCompletionStreamOptions = {}
 ): Promise<ChatResponse> {
   const adapter = getChatAdapter(provider.type);
-  const request = adapter.buildRequest(provider, model, messages, { stream: true, thinkingEnabled, tools });
+  const request = adapter.buildRequest(provider, model, messages, { stream: true, thinkingEnabled, tools, webSearchEnabled });
   let content = "";
   let finishReason: string | undefined;
   const toolCalls = new Map<number, { argumentsText: string; id: string; name: string }>();

@@ -130,7 +130,8 @@ function formatReadOnlyToolContext(toolResults: Awaited<ReturnType<typeof runRea
 export function createNativeChatStreamFn(
   provider: AiProviderConfig,
   complete: InlineAiAgentComplete,
-  thinkingEnabled: boolean | undefined
+  thinkingEnabled: boolean | undefined,
+  webSearchEnabled = false
 ): StreamFn {
   return (model, context, options) => {
     const stream = createAssistantMessageEventStream();
@@ -141,7 +142,8 @@ export function createNativeChatStreamFn(
       options,
       provider,
       stream,
-      thinkingEnabled
+      thinkingEnabled,
+      webSearchEnabled
     }).catch((error) => {
       pushAssistantError(stream, model, error, options?.signal);
     });
@@ -156,7 +158,8 @@ async function streamNativeChatCompletion({
   options,
   provider,
   stream,
-  thinkingEnabled
+  thinkingEnabled,
+  webSearchEnabled
 }: {
   complete: InlineAiAgentComplete;
   context: Context;
@@ -165,6 +168,7 @@ async function streamNativeChatCompletion({
   provider: AiProviderConfig;
   stream: ReturnType<typeof createAssistantMessageEventStream>;
   thinkingEnabled: boolean | undefined;
+  webSearchEnabled: boolean;
 }) {
   if (options?.signal?.aborted) {
     pushAssistantError(stream, model, new Error("Request aborted by user."), options.signal);
@@ -313,7 +317,8 @@ async function streamNativeChatCompletion({
       });
     },
     thinkingEnabled,
-    tools: context.tools
+    tools: context.tools,
+    webSearchEnabled
   });
   if (options?.signal?.aborted) {
     pushAssistantError(stream, model, new Error("Request aborted by user."), options.signal);

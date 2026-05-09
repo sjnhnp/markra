@@ -2,6 +2,12 @@ import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult, AiDiffTarget, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "./inlineAi";
 import type { AgentWorkspaceFile } from "./agentTools";
+import {
+  formatWebSearchToolResult,
+  runCherryStyleWebSearch,
+  type WebSearchResponse,
+  type WebSearchSettings
+} from "../../web/webSearch";
 
 type DocumentAgentToolContext = {
   documentContent: string;
@@ -14,7 +20,13 @@ type DocumentAgentToolContext = {
   sectionAnchors?: AiDocumentAnchor[];
   selection: AiSelectionContext | null;
   tableAnchors?: AiDocumentAnchor[];
+  webSearch?: DocumentAgentWebSearch;
   workspaceFiles: AgentWorkspaceFile[];
+};
+
+type DocumentAgentWebSearch = {
+  runWebSearch?: (query: string, settings: WebSearchSettings) => Promise<WebSearchResponse>;
+  settings: WebSearchSettings;
 };
 
 type DocumentAgentImage = {
@@ -47,8 +59,10 @@ type RegionOperation = "delete" | "insert" | "replace";
 export function createDocumentAgentTools(context: DocumentAgentToolContext): AgentTool[] {
   let hasPreparedWrite = false;
   const imageTools = context.readDocumentImage ? createDocumentImageTools(context) : [];
+  const webTools = context.webSearch ? createDocumentWebSearchTools(context.webSearch) : [];
 
   return [
+    ...webTools,
     ...imageTools,
     {
       description: "Read the full current Markdown document.",
@@ -670,6 +684,45 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
           Type.Literal("before_heading"),
           Type.Literal("cursor")
         ]))
+      })
+    }
+  ];
+}
+
+function createDocumentWebSearchTools(webSearch: DocumentAgentWebSearch): AgentTool[] {
+  return [
+    {
+      description:
+        [
+          "Search the web with the configured Cherry-style search provider.",
+          "This tool searches first, fetches readable page content for the best results, and returns source URLs with citation numbers.",
+          "Use it only when the user's request needs current or external web information."
+        ].join(" "),
+      execute: async (_toolCallId, params) => {
+        const args = typedWebSearchArgs(params);
+        const search = webSearch.runWebSearch ?? runCherryStyleWebSearch;
+        const response = await search(args.query, webSearch.settings);
+
+        return {
+          content: [
+            {
+              text: formatWebSearchToolResult(response),
+              type: "text" as const
+            }
+          ],
+          details: {
+            count: response.results.length,
+            providerId: webSearch.settings.providerId,
+            query: response.query,
+            urls: response.results.map((result) => result.url)
+          },
+          terminate: false
+        };
+      },
+      label: "Web search",
+      name: "builtin_web_search",
+      parameters: Type.Object({
+        query: Type.String({ minLength: 1 })
       })
     }
   ];
@@ -1616,6 +1669,14 @@ function typedViewDocumentImageArgs(params: unknown) {
 
   return {
     src: args.src.trim()
+  };
+}
+
+function typedWebSearchArgs(params: unknown) {
+  const args = params as { query: string };
+
+  return {
+    query: args.query.trim()
   };
 }
 

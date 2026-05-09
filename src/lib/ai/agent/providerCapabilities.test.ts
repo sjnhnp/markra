@@ -6,7 +6,7 @@ describe("AI provider capabilities", () => {
       chat: true,
       modelList: false,
       streaming: true,
-      toolCalling: false
+      toolCalling: true
     });
     expect(getProviderCapabilities("aliyun-bailian", "openai-compatible")).toEqual({
       chat: true,

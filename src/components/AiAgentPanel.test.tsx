@@ -558,6 +558,7 @@ describe("AiAgentPanel", () => {
           selectedModelId="gpt-5.5"
           selectedProviderId="openai"
           thinkingEnabled={thinkingEnabled}
+          webSearchAvailable
           webSearchEnabled={webSearchEnabled}
           onClose={() => {}}
           onSelectModel={selectModel}

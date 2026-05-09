@@ -4,6 +4,7 @@ mod markdown_files;
 mod menu;
 mod menu_labels;
 mod watcher;
+mod web_http;
 mod windows;
 
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
@@ -20,6 +21,7 @@ use menu::{
 };
 use tauri::Emitter;
 use watcher::{unwatch_markdown_file, watch_markdown_file, MarkdownWatcherState};
+use web_http::request_web_resource;
 use windows::{
     apply_main_window_chrome, apply_webview_window_chrome, apply_window_event_chrome,
     open_blank_editor_window, open_settings_window, spawn_blank_editor_window,
@@ -84,6 +86,7 @@ pub fn run() {
             request_ai_provider_json,
             request_native_chat,
             request_native_chat_stream,
+            request_web_resource,
             write_markdown_file,
             watch_markdown_file,
             unwatch_markdown_file

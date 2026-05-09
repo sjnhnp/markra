@@ -5,20 +5,29 @@ import { t, type I18nKey } from "../lib/i18n";
 import {
   getStoredAiSettings,
   getStoredEditorPreferences,
+  getStoredWebSearchSettings,
   defaultEditorPreferences,
+  defaultWebSearchSettings,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
+  saveStoredWebSearchSettings,
+  normalizeWebSearchSettings,
   type AiProviderConfig,
   type AiProviderModel,
   type AiProviderSettings,
-  type EditorPreferences
+  type EditorPreferences,
+  type WebSearchSettings
 } from "../lib/settings/appSettings";
-import { notifyAppAiSettingsChanged, notifyAppEditorPreferencesChanged } from "../lib/settings/settingsEvents";
+import {
+  notifyAppAiSettingsChanged,
+  notifyAppEditorPreferencesChanged,
+  notifyAppWebSearchSettingsChanged
+} from "../lib/settings/settingsEvents";
 import { useAppLanguage } from "./useAppLanguage";
 import { useAppTheme } from "./useAppTheme";
 
-export type SettingsCategory = "general" | "ai" | "appearance" | "editor";
+export type SettingsCategory = "general" | "ai" | "web" | "appearance" | "editor";
 
 export function useSettingsWindowState() {
   const appTheme = useAppTheme();
@@ -27,6 +36,7 @@ export function useSettingsWindowState() {
   const [aiSettings, setAiSettings] = useState<AiProviderSettings>(() => createDefaultAiSettings());
   const [aiSettingsSaved, setAiSettingsSaved] = useState(false);
   const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
+  const [webSearchSettings, setWebSearchSettings] = useState<WebSearchSettings>(defaultWebSearchSettings);
   const [selectedAiProviderId, setSelectedAiProviderId] = useState<string | undefined>(
     () => createDefaultAiSettings().defaultProviderId
   );
@@ -56,6 +66,18 @@ export function useSettingsWindowState() {
       if (cancelled) return;
       setAiSettings(settings);
       setSelectedAiProviderId(settings.defaultProviderId ?? settings.providers[0]?.id);
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getStoredWebSearchSettings().then((settings) => {
+      if (!cancelled) setWebSearchSettings(settings);
     }).catch(() => {});
 
     return () => {
@@ -126,6 +148,14 @@ export function useSettingsWindowState() {
       .catch(() => {});
   }, []);
 
+  const handleUpdateWebSearchSettings = useCallback((settings: WebSearchSettings) => {
+    const normalizedSettings = normalizeWebSearchSettings(settings);
+    setWebSearchSettings(normalizedSettings);
+    saveStoredWebSearchSettings(normalizedSettings)
+      .then(() => notifyAppWebSearchSettingsChanged(normalizedSettings))
+      .catch(() => {});
+  }, []);
+
   return {
     activeCategory,
     aiSettings,
@@ -140,10 +170,12 @@ export function useSettingsWindowState() {
     handleTestAiProvider,
     handleUpdateAiSettings,
     handleUpdateEditorPreferences,
+    handleUpdateWebSearchSettings,
     selectedAiProvider,
     setActiveCategory,
     setSelectedAiProviderId,
     translate,
+    webSearchSettings,
     welcomeReset
   };
 }

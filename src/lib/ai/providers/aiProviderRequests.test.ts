@@ -309,7 +309,7 @@ describe("AI provider requests", () => {
       })
     ).toEqual([
       {
-        capabilities: ["text", "vision", "reasoning", "tools"],
+        capabilities: ["text", "vision", "reasoning", "tools", "web"],
         enabled: true,
         id: "gemini-3.1-flash-lite-preview",
         name: "Gemini 3.1 Flash-Lite Preview"

@@ -19,6 +19,7 @@ import { getProviderCapabilities } from "../lib/ai/agent/providerCapabilities";
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../lib/ai/agent/inlineAi";
 import type { AiProviderConfig } from "../lib/ai/providers/aiProviders";
 import type { I18nKey } from "../lib/i18n";
+import type { WebSearchSettings } from "../lib/web/webSearch";
 import {
   getStoredAiAgentPreferences,
   getStoredAiAgentSession,
@@ -49,6 +50,7 @@ type AiAgentSessionContext = {
   sessionId?: string | null;
   settingsLoading: boolean;
   translate?: (key: I18nKey) => string;
+  webSearchSettings?: WebSearchSettings | null;
   workspaceKey?: string | null;
   workspaceFiles?: AgentWorkspaceFile[];
 };
@@ -403,6 +405,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         tableAnchors: ctx.getTableAnchors?.(),
         thinkingEnabled,
         webSearchEnabled,
+        webSearchSettings: ctx.webSearchSettings ?? null,
         workspaceFiles: ctx.workspaceFiles ?? []
       });
 

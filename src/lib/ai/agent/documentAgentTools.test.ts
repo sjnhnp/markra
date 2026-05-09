@@ -93,6 +93,56 @@ describe("documentAgentTools", () => {
     expect(toolText(result)).toContain("Useful context.");
   });
 
+  it("adds a Cherry-style web search tool when web search is configured", async () => {
+    const runWebSearch = vi.fn(async () => ({
+      query: "current release",
+      results: [
+        {
+          content: "Release notes content.",
+          title: "Release notes",
+          url: "https://example.com/release"
+        }
+      ]
+    }));
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      selection: null,
+      webSearch: {
+        runWebSearch,
+        settings: {
+          contentMaxChars: 12000,
+          enabled: true,
+          maxResults: 5,
+          providerId: "local-bing",
+          searxngApiHost: ""
+        }
+      },
+      workspaceFiles: []
+    }).find((item) => item.name === "builtin_web_search");
+
+    const result = await tool?.execute("tool_web_search", {
+      query: "current release"
+    });
+
+    expect(runWebSearch).toHaveBeenCalledWith("current release", {
+      contentMaxChars: 12000,
+      enabled: true,
+      maxResults: 5,
+      providerId: "local-bing",
+      searxngApiHost: ""
+    });
+    expect(toolText(result)).toContain("[1] Release notes");
+    expect(toolText(result)).toContain("Release notes content.");
+    expect(result?.details).toEqual({
+      count: 1,
+      providerId: "local-bing",
+      query: "current release",
+      urls: ["https://example.com/release"]
+    });
+  });
+
   it("rejects workspace file reads outside the known Markdown tree", async () => {
     const readWorkspaceFile = vi.fn(async () => "secret");
     const context = {

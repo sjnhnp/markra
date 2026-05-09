@@ -96,8 +96,8 @@ const defaultProviderTemplates: AiProviderConfigSeed[] = [
     enabled: false,
     id: "anthropic",
     models: [
-      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "claude-opus-4-7", name: "Claude Opus 4.7" },
-      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
+      { capabilities: ["text", "vision", "reasoning", "tools", "web"], enabled: true, id: "claude-opus-4-7", name: "Claude Opus 4.7" },
+      { capabilities: ["text", "vision", "reasoning", "tools", "web"], enabled: true, id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
       { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "claude-haiku-4-5", name: "Claude Haiku 4.5" }
     ],
     name: "Anthropic",
@@ -113,7 +113,7 @@ const defaultProviderTemplates: AiProviderConfigSeed[] = [
       { capabilities: ["text", "vision", "reasoning", "tools", "web"], enabled: true, id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" },
       { capabilities: ["text", "vision", "reasoning", "tools", "web"], enabled: true, id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
       {
-        capabilities: ["text", "vision", "reasoning", "tools"],
+        capabilities: ["text", "vision", "reasoning", "tools", "web"],
         enabled: true,
         id: "gemini-3.1-flash-lite-preview",
         name: "Gemini 3.1 Flash-Lite Preview"

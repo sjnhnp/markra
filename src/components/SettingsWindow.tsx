@@ -3,7 +3,8 @@ import { AiProviderSettingsPanel } from "./AiProviderSettingsPanel";
 import {
   AppearanceSettings,
   EditorSettings,
-  GeneralSettings
+  GeneralSettings,
+  WebSearchSettings
 } from "./SettingsSections";
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
 import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
@@ -24,10 +25,12 @@ export function SettingsWindow() {
     handleTestAiProvider,
     handleUpdateAiSettings,
     handleUpdateEditorPreferences,
+    handleUpdateWebSearchSettings,
     selectedAiProvider,
     setActiveCategory,
     setSelectedAiProviderId,
     translate,
+    webSearchSettings,
     welcomeReset
   } = settingsState;
 
@@ -68,6 +71,13 @@ export function SettingsWindow() {
               onSelectProvider={setSelectedAiProviderId}
               onTestProvider={handleTestAiProvider}
               onUpdateSettings={handleUpdateAiSettings}
+            />
+          ) : null}
+          {activeCategory === "web" ? (
+            <WebSearchSettings
+              settings={webSearchSettings}
+              translate={translate}
+              onUpdateSettings={handleUpdateWebSearchSettings}
             />
           ) : null}
           {activeCategory === "appearance" ? (

@@ -43,6 +43,7 @@ type AiAgentPanelProps = {
   selectedProviderId?: string | null;
   status?: "error" | "idle" | "streaming" | "thinking";
   thinkingEnabled?: boolean;
+  webSearchAvailable?: boolean;
   webSearchEnabled?: boolean;
   maxWidth?: number;
   minWidth?: number;
@@ -84,6 +85,7 @@ export function AiAgentPanel({
   selectedProviderId = null,
   status = "idle",
   thinkingEnabled = false,
+  webSearchAvailable = false,
   webSearchEnabled = false,
   maxWidth = defaultMaxWidth,
   minWidth = defaultMinWidth,
@@ -123,7 +125,7 @@ export function AiAgentPanel({
     availableModels[0] ??
     null;
   const supportsThinking = selectedModel?.capabilities.includes("reasoning") ?? false;
-  const supportsWebSearch = selectedModel?.capabilities.includes("web") ?? false;
+  const supportsWebSearch = webSearchAvailable;
   const providerModelLabel =
     selectedModel
       ? `${selectedModel.providerName} · ${selectedModel.name}`

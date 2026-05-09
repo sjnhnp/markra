@@ -83,6 +83,35 @@ describe("agentProcessTrace", () => {
     }));
   });
 
+  it("labels web search tool calls with result counts", () => {
+    const initialProcesses = createInitialAgentProcesses(translate);
+    const nextProcesses = applyAgentEventToProcesses(
+      initialProcesses,
+      {
+        isError: false,
+        result: {
+          details: {
+            count: 3,
+            providerId: "local-bing",
+            query: "Markra web search"
+          }
+        },
+        toolCallId: "call_builtin_web_search",
+        toolName: "builtin_web_search",
+        type: "tool_execution_end"
+      } as AgentEvent,
+      translate
+    );
+
+    expect(nextProcesses).toContainEqual(expect.objectContaining({
+      detail: "3 sources",
+      id: "tool:call_builtin_web_search",
+      label: "app.aiAgentProcessWebSearch",
+      rawLabel: "builtin_web_search",
+      status: "completed"
+    }));
+  });
+
   it("shows the located section title and reason in the process detail", () => {
     const initialProcesses = createInitialAgentProcesses(translate);
     const nextProcesses = applyAgentEventToProcesses(

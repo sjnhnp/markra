@@ -3,9 +3,11 @@ import { normalizeAiSettings } from "../ai/providers/aiProviders";
 import {
   isAppTheme,
   normalizeEditorPreferences,
+  normalizeWebSearchSettings,
   type AiProviderSettings,
   type AppTheme,
-  type EditorPreferences
+  type EditorPreferences,
+  type WebSearchSettings
 } from "./appSettings";
 import { isAppLanguage, type AppLanguage } from "../i18n";
 import { hasTauriRuntime } from "../utils";
@@ -13,6 +15,7 @@ import { hasTauriRuntime } from "../utils";
 const themeChangedEvent = "markra://theme-changed";
 const languageChangedEvent = "markra://language-changed";
 const editorPreferencesChangedEvent = "markra://editor-preferences-changed";
+const webSearchSettingsChangedEvent = "markra://web-search-settings-changed";
 const aiSettingsChangedEvent = "markra://ai-settings-changed";
 
 type ThemeChangedPayload = {
@@ -25,6 +28,10 @@ type LanguageChangedPayload = {
 
 type EditorPreferencesChangedPayload = {
   preferences: EditorPreferences;
+};
+
+type WebSearchSettingsChangedPayload = {
+  settings: WebSearchSettings;
 };
 
 type AiSettingsChangedPayload = {
@@ -83,6 +90,22 @@ export async function listenAppEditorPreferencesChanged(
     ) {
       onPreferencesChanged(preferences);
     }
+  });
+}
+
+export async function notifyAppWebSearchSettingsChanged(settings: WebSearchSettings) {
+  if (!hasTauriRuntime()) return;
+
+  await emit(webSearchSettingsChangedEvent, { settings });
+}
+
+export async function listenAppWebSearchSettingsChanged(
+  onSettingsChanged: (settings: WebSearchSettings) => unknown
+) {
+  if (!hasTauriRuntime()) return () => {};
+
+  return listen<WebSearchSettingsChangedPayload>(webSearchSettingsChangedEvent, (event) => {
+    onSettingsChanged(normalizeWebSearchSettings(event.payload.settings));
   });
 }
 

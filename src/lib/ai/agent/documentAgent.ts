@@ -8,6 +8,8 @@ import type { ChatImageAttachment, ChatMessage } from "./chatAdapters";
 import type { AiDiffResult } from "./inlineAi";
 import { getProviderCapabilities } from "./providerCapabilities";
 import { createDocumentAgentTools } from "./documentAgentTools";
+import { webSearchSettingsAreUsable, type WebSearchSettings } from "../../web/webSearch";
+import { providerSupportsNativeWebSearch } from "./nativeWebSearch";
 
 export type DocumentAiHistoryMessage = {
   preview?: DocumentAiHistoryPreview;
@@ -45,6 +47,7 @@ export type RunDocumentAiAgentInput = {
   tableAnchors?: AiDocumentAnchor[];
   thinkingEnabled?: boolean;
   webSearchEnabled?: boolean;
+  webSearchSettings?: WebSearchSettings | null;
   workspaceFiles?: AgentWorkspaceFile[];
 };
 
@@ -81,6 +84,7 @@ export async function runDocumentAiAgent({
   tableAnchors,
   thinkingEnabled,
   webSearchEnabled = false,
+  webSearchSettings = null,
   workspaceFiles = []
 }: RunDocumentAiAgentInput): Promise<RunDocumentAiAgentResult> {
   const capabilities = getProviderCapabilities(provider.id, provider.type);
@@ -106,6 +110,7 @@ export async function runDocumentAiAgent({
       tableAnchors,
       thinkingEnabled,
       webSearchEnabled,
+      webSearchSettings,
       workspaceFiles
     });
   }
@@ -132,6 +137,7 @@ export async function runDocumentAiAgent({
     selection,
     thinkingEnabled,
     webSearchEnabled,
+    webSearchSettings,
     workspaceFiles
   });
 }
@@ -154,6 +160,7 @@ async function runDocumentChatOnlyAgent({
   selection = null,
   thinkingEnabled,
   webSearchEnabled = false,
+  webSearchSettings = null,
   workspaceFiles = []
 }: RunDocumentAiAgentRuntimeInput): Promise<RunDocumentAiAgentResult> {
   const toolResults = await runReadOnlyAgentTools({
@@ -161,7 +168,15 @@ async function runDocumentChatOnlyAgent({
     documentPath,
     workspaceFiles
   });
-  const messages = buildDocumentAgentMessages({ documentImages, history, prompt, selection, toolResults, webSearchEnabled });
+  const nativeWebSearchEnabled = webSearchEnabled && providerSupportsNativeWebSearch(provider, model);
+  const messages = buildDocumentAgentMessages({
+    documentImages,
+    history,
+    prompt,
+    selection,
+    toolResults,
+    webSearchEnabled: nativeWebSearchEnabled
+  });
   let streamedContent = "";
   let streamedThinking = "";
   const response = await complete(provider, model, messages, {
@@ -173,7 +188,8 @@ async function runDocumentChatOnlyAgent({
       streamedThinking += delta;
       onThinkingDelta?.(streamedThinking);
     },
-    thinkingEnabled
+    thinkingEnabled,
+    webSearchEnabled: nativeWebSearchEnabled
   });
 
   return {
@@ -220,10 +236,14 @@ async function runDocumentToolCallingAgent({
   tableAnchors,
   thinkingEnabled,
   webSearchEnabled = false,
+  webSearchSettings = null,
   workspaceFiles = []
 }: RunDocumentAiAgentRuntimeInput): Promise<RunDocumentAiAgentResult> {
   let preparedPreview = false;
   const piAgentModel = createPiAgentModel(provider, model);
+  const nativeWebSearchEnabled = webSearchEnabled && providerSupportsNativeWebSearch(provider, model);
+  const activeWebSearchSettings =
+    webSearchEnabled && !nativeWebSearchEnabled && webSearchSettingsAreUsable(webSearchSettings) ? webSearchSettings : null;
   const agent = new Agent({
     beforeToolCall: async ({ assistantMessage, toolCall }) => {
       if (!isDocumentWriteToolName(toolCall.name)) return undefined;
@@ -241,7 +261,9 @@ async function runDocumentToolCallingAgent({
     initialState: {
       messages: buildDocumentToolCallingHistoryMessages({ history, model, provider }),
       model: piAgentModel,
-      systemPrompt: buildDocumentToolCallingSystemPrompt(),
+      systemPrompt: buildDocumentToolCallingSystemPrompt(
+        nativeWebSearchEnabled ? "native" : activeWebSearchSettings ? "custom" : "none"
+      ),
       tools: createDocumentAgentTools({
         documentContent,
         documentEndPosition,
@@ -256,10 +278,11 @@ async function runDocumentToolCallingAgent({
         sectionAnchors,
         selection,
         tableAnchors,
+        webSearch: activeWebSearchSettings ? { settings: activeWebSearchSettings } : undefined,
         workspaceFiles
       })
     },
-    streamFn: createNativeChatStreamFn(provider, complete, thinkingEnabled)
+    streamFn: createNativeChatStreamFn(provider, complete, thinkingEnabled, nativeWebSearchEnabled)
   });
   let finalContent = "";
   let finishReason: string | undefined;
@@ -286,7 +309,12 @@ async function runDocumentToolCallingAgent({
     finishReason = event.message.stopReason;
   });
 
-  await agent.prompt(buildDocumentToolCallingTurnMessages({ documentImages: [], prompt, selection, webSearchEnabled }));
+  await agent.prompt(buildDocumentToolCallingTurnMessages({
+    documentImages: [],
+    prompt,
+    selection,
+    webSearchEnabled: activeWebSearchSettings !== null || nativeWebSearchEnabled
+  }));
 
   return {
     content: preparedPreview ? "" : (finalContent || latestAssistantText).trim(),
@@ -306,7 +334,9 @@ function buildDocumentAgentSystemPrompt() {
   ].join("\n");
 }
 
-function buildDocumentToolCallingSystemPrompt() {
+type DocumentToolCallingWebSearchMode = "custom" | "native" | "none";
+
+function buildDocumentToolCallingSystemPrompt(webSearchMode: DocumentToolCallingWebSearchMode) {
   return [
     "You are Markra AI, a local-first Markdown assistant.",
     "Use the available tools in three stages: inspect, locate, then execute.",
@@ -315,6 +345,7 @@ function buildDocumentToolCallingSystemPrompt() {
     "When the user asks about nearby notes, call list_workspace_files first, then read_workspace_file for the exact Markdown files you need.",
     "When the user asks about images in the document and image tools are available, call list_document_images first, then view_document_image for the exact src you need.",
     "Do not guess image contents from alt text or filenames when view_document_image is available.",
+    ...documentToolCallingWebSearchInstructions(webSearchMode),
     "Use locate_markdown_region or get_available_anchors before writing whenever the edit position is not trivially obvious.",
     "When the user asks to rewrite, compress, clean up, or keep only part of the whole document, use replace_document.",
     "Use get_document_sections and locate_section when the user asks to rewrite, delete, move, or regenerate an entire section.",
@@ -331,6 +362,21 @@ function buildDocumentToolCallingSystemPrompt() {
     "After a write tool succeeds, briefly tell the user what was prepared and what changed.",
     "Do not claim to have searched the web or read files that were not available through tools."
   ].join("\n");
+}
+
+function documentToolCallingWebSearchInstructions(webSearchMode: DocumentToolCallingWebSearchMode) {
+  if (webSearchMode === "custom") {
+    return [
+      "When the user asks for current or external web information and builtin_web_search is available, use builtin_web_search and cite sources with [1], [2], etc."
+    ];
+  }
+  if (webSearchMode === "native") {
+    return [
+      "When the user asks for current or external web information, use the provider's native web search capability and cite sources when the provider returns them."
+    ];
+  }
+
+  return [];
 }
 
 function isDocumentWriteToolName(toolName: string) {

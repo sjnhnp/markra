@@ -35,6 +35,7 @@ import {
   getStoredEditorPreferences,
   getStoredLanguage,
   getStoredTheme,
+  getStoredWebSearchSettings,
   getStoredWorkspaceState,
   initializeStoredAiAgentSession,
   listStoredAiAgentSessions,
@@ -53,10 +54,12 @@ import {
   listenAppEditorPreferencesChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
+  listenAppWebSearchSettingsChanged,
   notifyAppAiSettingsChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppLanguageChanged,
-  notifyAppThemeChanged
+  notifyAppThemeChanged,
+  notifyAppWebSearchSettingsChanged
 } from "./lib/settings/settingsEvents";
 import { fetchAiProviderModels, testAiProviderConnection } from "./lib/ai/providers/aiProviderRequests";
 import { chatCompletion } from "./lib/ai/agent/chatCompletion";
@@ -103,6 +106,13 @@ vi.mock("./lib/settings/appSettings", () => ({
     restoreWorkspaceOnStartup: true,
     showWordCount: true
   },
+  defaultWebSearchSettings: {
+    contentMaxChars: 12000,
+    enabled: true,
+    maxResults: 5,
+    providerId: "local-bing",
+    searxngApiHost: ""
+  },
   getStoredAiAgentSession: vi.fn(),
   getStoredAiAgentSessionSummary: vi.fn(),
   getStoredAiAgentPreferences: vi.fn(),
@@ -110,6 +120,7 @@ vi.mock("./lib/settings/appSettings", () => ({
   getStoredEditorPreferences: vi.fn(),
   getStoredLanguage: vi.fn(),
   getStoredTheme: vi.fn(),
+  getStoredWebSearchSettings: vi.fn(),
   getStoredWorkspaceState: vi.fn(),
   initializeStoredAiAgentSession: vi.fn(),
   listStoredAiAgentSessions: vi.fn(),
@@ -122,6 +133,14 @@ vi.mock("./lib/settings/appSettings", () => ({
     restoreWorkspaceOnStartup: true,
     showWordCount: true,
     ...preferences
+  })),
+  normalizeWebSearchSettings: vi.fn((settings) => ({
+    contentMaxChars: 12000,
+    enabled: true,
+    maxResults: 5,
+    providerId: "local-bing",
+    searxngApiHost: "",
+    ...settings
   })),
   resetWelcomeDocumentState: vi.fn(),
   saveStoredAiAgentPreferences: vi.fn(),
@@ -140,10 +159,12 @@ vi.mock("./lib/settings/settingsEvents", () => ({
   listenAppEditorPreferencesChanged: vi.fn(),
   listenAppLanguageChanged: vi.fn(),
   listenAppThemeChanged: vi.fn(),
+  listenAppWebSearchSettingsChanged: vi.fn(),
   notifyAppAiSettingsChanged: vi.fn(),
   notifyAppEditorPreferencesChanged: vi.fn(),
   notifyAppLanguageChanged: vi.fn(),
-  notifyAppThemeChanged: vi.fn()
+  notifyAppThemeChanged: vi.fn(),
+  notifyAppWebSearchSettingsChanged: vi.fn()
 }));
 
 vi.mock("./lib/ai/providers/aiProviderRequests", () => ({
@@ -192,6 +213,7 @@ const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
 const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPreferences);
 const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
 const mockedGetStoredTheme = vi.mocked(getStoredTheme);
+const mockedGetStoredWebSearchSettings = vi.mocked(getStoredWebSearchSettings);
 const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
 const mockedInitializeStoredAiAgentSession = vi.mocked(initializeStoredAiAgentSession);
 const mockedListStoredAiAgentSessions = vi.mocked(listStoredAiAgentSessions);
@@ -208,10 +230,12 @@ const mockedListenAppAiSettingsChanged = vi.mocked(listenAppAiSettingsChanged);
 const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
 const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
 const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
+const mockedListenAppWebSearchSettingsChanged = vi.mocked(listenAppWebSearchSettingsChanged);
 const mockedNotifyAppAiSettingsChanged = vi.mocked(notifyAppAiSettingsChanged);
 const mockedNotifyAppEditorPreferencesChanged = vi.mocked(notifyAppEditorPreferencesChanged);
 const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
 const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
+const mockedNotifyAppWebSearchSettingsChanged = vi.mocked(notifyAppWebSearchSettingsChanged);
 const mockedFetchAiProviderModels = vi.mocked(fetchAiProviderModels);
 const mockedTestAiProviderConnection = vi.mocked(testAiProviderConnection);
 const mockedChatCompletion = vi.mocked(chatCompletion);
@@ -339,6 +363,7 @@ describe("Markra workspace", () => {
     mockedSaveStoredEditorPreferences.mockResolvedValue(undefined);
     mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
+    mockedListenAppWebSearchSettingsChanged.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
     mockedCreateAiAgentSessionId.mockReturnValue("session-app");
     mockedConfirmNativeMarkdownFileDelete.mockResolvedValue(true);
@@ -364,6 +389,13 @@ describe("Markra workspace", () => {
     });
     mockedGetStoredAiAgentPreferences.mockResolvedValue({
       thinkingEnabled: false
+    });
+    mockedGetStoredWebSearchSettings.mockResolvedValue({
+      contentMaxChars: 12000,
+      enabled: true,
+      maxResults: 5,
+      providerId: "local-bing",
+      searxngApiHost: ""
     });
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredEditorPreferences.mockResolvedValue({
@@ -792,7 +824,7 @@ describe("Markra workspace", () => {
     expect(settingsGroups[0]).not.toHaveClass("divide-y");
     expect(settingsGroups.at(-1)).toHaveClass("divide-y");
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
-    expect(categoryButtons).toHaveLength(4);
+    expect(categoryButtons).toHaveLength(5);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
     expect(categoryButtons[1]).not.toHaveAttribute("aria-current");
     const languageSelect = container.querySelector("select");
@@ -807,8 +839,8 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedSaveStoredLanguage).toHaveBeenCalledWith("zh-CN"));
     await waitFor(() => expect(mockedNotifyAppLanguageChanged).toHaveBeenCalledWith("zh-CN"));
 
-    fireEvent.click(categoryButtons[2]);
-    expect(categoryButtons[2]).toHaveAttribute("aria-current", "page");
+    fireEvent.click(categoryButtons[3]);
+    expect(categoryButtons[3]).toHaveAttribute("aria-current", "page");
     const themeGroup = container.querySelector('[role="group"]');
     expect(themeGroup).toBeInTheDocument();
     const themeButtons = themeGroup?.querySelectorAll("button");
