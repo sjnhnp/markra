@@ -1,13 +1,27 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AiAgentPanel } from "./AiAgentPanel";
 import { confirmNativeAiAgentSessionDelete } from "../lib/tauri";
+import { agentSessionSummary, assistantMessage, processActivity } from "../test/ai-fixtures";
 
 vi.mock("../lib/tauri", () => ({
   confirmNativeAiAgentSessionDelete: vi.fn()
 }));
 
 const mockedConfirmNativeAiAgentSessionDelete = vi.mocked(confirmNativeAiAgentSessionDelete);
+
+type AiAgentPanelProps = ComponentProps<typeof AiAgentPanel>;
+
+function renderAgentPanel(props: Partial<AiAgentPanelProps> = {}) {
+  return render(
+    <AiAgentPanel
+      language="en"
+      open
+      onClose={() => {}}
+      {...props}
+    />
+  );
+}
 
 describe("AiAgentPanel", () => {
   beforeEach(() => {
@@ -17,15 +31,11 @@ describe("AiAgentPanel", () => {
 
   it("renders a focused right-side agent workspace", () => {
     const close = vi.fn();
-    const { container } = render(
-      <AiAgentPanel
-        language="en"
-        modelName="GPT-5.5"
-        open
-        providerName="OpenAI"
-        onClose={close}
-      />
-    );
+    const { container } = renderAgentPanel({
+      modelName: "GPT-5.5",
+      providerName: "OpenAI",
+      onClose: close
+    });
 
     expect(screen.getByRole("complementary", { name: "Markra AI" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Markra AI" })).toBeInTheDocument();
@@ -43,22 +53,17 @@ describe("AiAgentPanel", () => {
   });
 
   it("shows the current turn context in a collapsible panel", () => {
-    render(
-      <AiAgentPanel
-        context={{
-          documentName: "synthetic.md",
-          headingCount: 2,
-          messageCount: 4,
-          sectionCount: 2,
-          selectionChars: 12,
-          sessionId: "session-synthetic",
-          tableCount: 1
-        }}
-        language="en"
-        open
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      context: {
+        documentName: "synthetic.md",
+        headingCount: 2,
+        messageCount: 4,
+        sectionCount: 2,
+        selectionChars: 12,
+        sessionId: "session-synthetic",
+        tableCount: 1
+      }
+    });
 
     const contextButton = screen.getByRole("button", { name: "Current context" });
     expect(contextButton).toHaveAttribute("aria-expanded", "false");
@@ -76,15 +81,11 @@ describe("AiAgentPanel", () => {
 
   it("collapses the agent panel from the leading bot button", () => {
     const close = vi.fn();
-    const { container } = render(
-      <AiAgentPanel
-        language="en"
-        modelName="GPT-5.5"
-        open
-        providerName="OpenAI"
-        onClose={close}
-      />
-    );
+    const { container } = renderAgentPanel({
+      modelName: "GPT-5.5",
+      providerName: "OpenAI",
+      onClose: close
+    });
 
     const collapseButton = screen.getByRole("button", { name: "Collapse Markra AI" });
 
@@ -101,40 +102,28 @@ describe("AiAgentPanel", () => {
     const renameSession = vi.fn();
     const deleteSession = vi.fn();
 
-    render(
-      <AiAgentPanel
-        activeSessionId="session-b"
-        language="en"
-        open
-        sessions={[
-          {
-            archivedAt: null,
-            createdAt: 1,
-            id: "session-a",
-            messageCount: 3,
-            title: "Summarize API changes",
-            titleSource: "ai",
-            updatedAt: 10,
-            workspaceKey: "/vault"
-          },
-          {
-            archivedAt: null,
-            createdAt: 2,
-            id: "session-b",
-            messageCount: 1,
-            title: null,
-            titleSource: null,
-            updatedAt: 20,
-            workspaceKey: "/vault"
-          }
-        ]}
-        onClose={() => {}}
-        onCreateSession={createSession}
-        onDeleteSession={deleteSession}
-        onRenameSession={renameSession}
-        onSelectSession={selectSession}
-      />
-    );
+    renderAgentPanel({
+      activeSessionId: "session-b",
+      sessions: [
+        agentSessionSummary({
+          id: "session-a",
+          messageCount: 3,
+          title: "Summarize API changes",
+          titleSource: "ai"
+        }),
+        agentSessionSummary({
+          createdAt: 2,
+          id: "session-b",
+          title: null,
+          titleSource: null,
+          updatedAt: 20
+        })
+      ],
+      onCreateSession: createSession,
+      onDeleteSession: deleteSession,
+      onRenameSession: renameSession,
+      onSelectSession: selectSession
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
 
@@ -171,47 +160,31 @@ describe("AiAgentPanel", () => {
   it("filters and archives workspace sessions from the header menu", () => {
     const archiveSession = vi.fn();
 
-    render(
-      <AiAgentPanel
-        activeSessionId="session-a"
-        language="en"
-        open
-        sessions={[
-          {
-            archivedAt: null,
-            createdAt: 1,
-            id: "session-a",
-            messageCount: 3,
-            title: "Gold audit",
-            titleSource: "ai",
-            updatedAt: 30,
-            workspaceKey: "/vault"
-          },
-          {
-            archivedAt: null,
-            createdAt: 2,
-            id: "session-b",
-            messageCount: 1,
-            title: "API review",
-            titleSource: "fallback",
-            updatedAt: 20,
-            workspaceKey: "/vault"
-          },
-          {
-            archivedAt: 40,
-            createdAt: 3,
-            id: "session-c",
-            messageCount: 1,
-            title: "Archived note",
-            titleSource: "manual",
-            updatedAt: 10,
-            workspaceKey: "/vault"
-          }
-        ]}
-        onArchiveSession={archiveSession}
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      activeSessionId: "session-a",
+      sessions: [
+        agentSessionSummary({
+          messageCount: 3,
+          title: "Gold audit",
+          titleSource: "ai",
+          updatedAt: 30
+        }),
+        agentSessionSummary({
+          createdAt: 2,
+          id: "session-b",
+          title: "API review",
+          titleSource: "fallback",
+          updatedAt: 20
+        }),
+        agentSessionSummary({
+          archivedAt: 40,
+          createdAt: 3,
+          id: "session-c",
+          title: "Archived note"
+        })
+      ],
+      onArchiveSession: archiveSession
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
     expect(screen.getByRole("menuitemradio", { name: /Gold audit/i })).toBeInTheDocument();
@@ -242,27 +215,11 @@ describe("AiAgentPanel", () => {
     const deleteSession = vi.fn();
     mockedConfirmNativeAiAgentSessionDelete.mockResolvedValue(false);
 
-    render(
-      <AiAgentPanel
-        activeSessionId="session-a"
-        language="en"
-        open
-        sessions={[
-          {
-            archivedAt: null,
-            createdAt: 1,
-            id: "session-a",
-            messageCount: 1,
-            title: "Keep this",
-            titleSource: "manual",
-            updatedAt: 10,
-            workspaceKey: "/vault"
-          }
-        ]}
-        onClose={() => {}}
-        onDeleteSession={deleteSession}
-      />
-    );
+    renderAgentPanel({
+      activeSessionId: "session-a",
+      sessions: [agentSessionSummary({ title: "Keep this" })],
+      onDeleteSession: deleteSession
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Sessions" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete session Keep this" }));
@@ -357,15 +314,10 @@ describe("AiAgentPanel", () => {
       role: "assistant" as const,
       text: "First chunk"
     };
-    const { rerender } = render(
-      <AiAgentPanel
-        language="en"
-        messages={[initialMessage]}
-        open
-        status="streaming"
-        onClose={() => {}}
-      />
-    );
+    const { rerender } = renderAgentPanel({
+      messages: [initialMessage],
+      status: "streaming"
+    });
     const transcript = screen.getByRole("log", { name: "Markra AI" });
 
     Object.defineProperty(transcript, "scrollHeight", {
@@ -398,15 +350,10 @@ describe("AiAgentPanel", () => {
       role: "assistant" as const,
       text: "First chunk"
     };
-    const { rerender } = render(
-      <AiAgentPanel
-        language="en"
-        messages={[initialMessage]}
-        open
-        status="streaming"
-        onClose={() => {}}
-      />
-    );
+    const { rerender } = renderAgentPanel({
+      messages: [initialMessage],
+      status: "streaming"
+    });
     const transcript = screen.getByRole("log", { name: "Markra AI" });
 
     Object.defineProperty(transcript, "clientHeight", {
@@ -439,15 +386,10 @@ describe("AiAgentPanel", () => {
   });
 
   it("keeps the composer text aligned without a leading icon column", () => {
-    const { container } = render(
-      <AiAgentPanel
-        language="en"
-        modelName="GPT-5.5"
-        open
-        providerName="OpenAI"
-        onClose={() => {}}
-      />
-    );
+    const { container } = renderAgentPanel({
+      modelName: "GPT-5.5",
+      providerName: "OpenAI"
+    });
 
     const input = screen.getByRole("textbox", { name: "Markra AI message" });
     const sendButton = screen.getByRole("button", { name: "Send message" });
@@ -459,16 +401,11 @@ describe("AiAgentPanel", () => {
   });
 
   it("shows an animated composer border only while the agent is running", () => {
-    const { container, rerender } = render(
-      <AiAgentPanel
-        language="en"
-        modelName="GPT-5.5"
-        open
-        providerName="OpenAI"
-        status="idle"
-        onClose={() => {}}
-      />
-    );
+    const { container, rerender } = renderAgentPanel({
+      modelName: "GPT-5.5",
+      providerName: "OpenAI",
+      status: "idle"
+    });
 
     const composer = container.querySelector(".ai-agent-composer");
 
@@ -493,21 +430,16 @@ describe("AiAgentPanel", () => {
     const resize = vi.fn();
     const resizeEnd = vi.fn();
     const resizeStart = vi.fn();
-    render(
-      <AiAgentPanel
-        language="en"
-        maxWidth={640}
-        minWidth={320}
-        modelName="GPT-5.5"
-        open
-        providerName="OpenAI"
-        width={420}
-        onClose={() => {}}
-        onResize={resize}
-        onResizeEnd={resizeEnd}
-        onResizeStart={resizeStart}
-      />
-    );
+    renderAgentPanel({
+      maxWidth: 640,
+      minWidth: 320,
+      modelName: "GPT-5.5",
+      providerName: "OpenAI",
+      width: 420,
+      onResize: resize,
+      onResizeEnd: resizeEnd,
+      onResizeStart: resizeStart
+    });
 
     const handle = screen.getByRole("separator", { name: "Resize Markra AI" });
 
@@ -588,99 +520,67 @@ describe("AiAgentPanel", () => {
   });
 
   it("disables agent modes that the selected model does not support", () => {
-    render(
-      <AiAgentPanel
-        availableModels={[
-          {
-            capabilities: ["text"],
-            id: "llama3.3",
-            name: "Llama 3.3",
-            providerId: "ollama",
-            providerName: "Ollama",
-            providerType: "ollama"
-          }
-        ]}
-        language="en"
-        open
-        selectedModelId="llama3.3"
-        selectedProviderId="ollama"
-        onClose={() => {}}
-        onSelectModel={() => {}}
-      />
-    );
+    renderAgentPanel({
+      availableModels: [
+        {
+          capabilities: ["text"],
+          id: "llama3.3",
+          name: "Llama 3.3",
+          providerId: "ollama",
+          providerName: "Ollama",
+          providerType: "ollama"
+        }
+      ],
+      selectedModelId: "llama3.3",
+      selectedProviderId: "ollama",
+      onSelectModel: () => {}
+    });
 
     expect(screen.getByRole("button", { name: "Deep thinking" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Web search" })).toBeDisabled();
   });
 
   it("renders assistant chat bubbles as markdown", () => {
-    render(
-      <AiAgentPanel
-        language="en"
-        messages={[
-          {
-            id: 1,
-            role: "assistant",
-            text: "**Bold**\n\n- First item"
-          }
-        ]}
-        open
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      messages: [assistantMessage({ text: "**Bold**\n\n- First item" })]
+    });
 
     expect(screen.getByText("Bold").tagName).toBe("STRONG");
     expect(screen.getByText("First item").closest("ul")).toBeInTheDocument();
   });
 
   it("renders visible process steps for assistant messages", () => {
-    render(
-      <AiAgentPanel
-        language="en"
-        messages={[
-          {
-            activities: [
-              {
-                detail: "Requested tool calls",
-                id: "call:1",
-                kind: "ai_call",
-                label: "AI call 1",
-                status: "completed",
-                turn: 1
-              },
-              {
-                id: "assistant:1",
-                kind: "assistant_message",
-                label: "I'll inspect the current document first.",
-                status: "completed",
-                turn: 1
-              },
-              {
-                detail: "42 chars",
-                id: "tool:1",
-                kind: "tool_call",
-                label: "Read current document",
-                rawLabel: "get_document",
-                status: "running",
-                turn: 1
-              },
-              {
-                id: "call:2",
-                kind: "ai_call",
-                label: "AI call 2",
-                status: "running",
-                turn: 2
-              }
-            ],
-            id: 1,
-            role: "assistant",
-            text: "Ready."
-          }
-        ]}
-        open
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      messages: [
+        assistantMessage({
+          activities: [
+            processActivity({
+              detail: "Requested tool calls",
+              id: "call:1",
+              kind: "ai_call",
+              label: "AI call 1"
+            }),
+            processActivity({
+              id: "assistant:1",
+              kind: "assistant_message",
+              label: "I'll inspect the current document first."
+            }),
+            processActivity({
+              detail: "42 chars",
+              rawLabel: "get_document",
+              status: "running"
+            }),
+            processActivity({
+              id: "call:2",
+              kind: "ai_call",
+              label: "AI call 2",
+              status: "running",
+              turn: 2
+            })
+          ]
+        })
+      ]
+    });
 
     expect(screen.queryByText("AI call 1")).not.toBeInTheDocument();
     expect(screen.queryByText("AI call 2")).not.toBeInTheDocument();
@@ -699,50 +599,35 @@ describe("AiAgentPanel", () => {
   });
 
   it("shows a thinking bubble while the hidden AI call is still running", () => {
-    render(
-      <AiAgentPanel
-        language="en"
-        messages={[
-          {
-            activities: [
-              {
-                id: "call:1",
-                kind: "ai_call",
-                label: "AI call 1",
-                status: "running",
-                turn: 1
-              }
-            ],
-            id: 1,
-            role: "assistant",
-            text: ""
-          }
-        ]}
-        open
-        status="thinking"
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      messages: [
+        assistantMessage({
+          activities: [
+            processActivity({
+              id: "call:1",
+              kind: "ai_call",
+              label: "AI call 1",
+              status: "running"
+            })
+          ],
+          text: ""
+        })
+      ],
+      status: "thinking"
+    });
 
     expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
   it("shows a completed thinking section alongside the final assistant answer", () => {
-    render(
-      <AiAgentPanel
-        language="en"
-        messages={[
-          {
-            id: 1,
-            role: "assistant",
-            text: "Final answer.",
-            thinking: "Checking the document before answering."
-          }
-        ]}
-        open
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      messages: [
+        assistantMessage({
+          text: "Final answer.",
+          thinking: "Checking the document before answering."
+        })
+      ]
+    });
 
     expect(screen.getByText("Thinking")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thinking" })).toHaveAttribute("aria-expanded", "false");
@@ -755,25 +640,18 @@ describe("AiAgentPanel", () => {
   });
 
   it("shows multiple preserved thinking rounds in the same assistant reply", () => {
-    render(
-      <AiAgentPanel
-        language="en"
-        messages={[
-          {
-            id: 1,
-            role: "assistant",
-            text: "Final answer.",
-            thinking: "Preparing the insertion near the end of the document.",
-            thinkingTurns: [
-              "Inspecting the document structure.",
-              "Preparing the insertion near the end of the document."
-            ]
-          }
-        ]}
-        open
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      messages: [
+        assistantMessage({
+          text: "Final answer.",
+          thinking: "Preparing the insertion near the end of the document.",
+          thinkingTurns: [
+            "Inspecting the document structure.",
+            "Preparing the insertion near the end of the document."
+          ]
+        })
+      ]
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Thinking" }));
 
@@ -783,41 +661,27 @@ describe("AiAgentPanel", () => {
   });
 
   it("keeps assistant transcript rows shrinkable when thinking content is long", () => {
-    render(
-      <AiAgentPanel
-        language="en"
-        messages={[
-          {
-            id: 1,
-            role: "assistant",
-            text: "Final answer.",
-            thinking: "A long thinking block with inline code and links."
-          }
-        ]}
-        open
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      messages: [
+        assistantMessage({
+          text: "Final answer.",
+          thinking: "A long thinking block with inline code and links."
+        })
+      ]
+    });
 
     expect(screen.getByText("Final answer.").closest("li")).toHaveClass("min-w-0");
   });
 
   it("lets streamed thinking content collapse and expand", () => {
-    render(
-      <AiAgentPanel
-        language="en"
-        messages={[
-          {
-            id: 1,
-            role: "assistant",
-            text: "Final answer.",
-            thinking: "Checking the document before answering."
-          }
-        ]}
-        open
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      messages: [
+        assistantMessage({
+          text: "Final answer.",
+          thinking: "Checking the document before answering."
+        })
+      ]
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Thinking" }));
 
@@ -831,30 +695,23 @@ describe("AiAgentPanel", () => {
   });
 
   it("keeps thinking open while a turn is running and collapses it when the turn completes", async () => {
-    const runningMessage = {
-      activities: [
-        {
-          id: "tool:1",
-          kind: "tool_call" as const,
-          label: "Read current document",
-          status: "running" as const,
-          turn: 1
-        }
-      ],
-      id: 1,
-      role: "assistant" as const,
+    const runningActivities = [
+      processActivity({
+        id: "tool:1",
+        kind: "tool_call",
+        label: "Read current document",
+        status: "running"
+      })
+    ];
+    const runningMessage = assistantMessage({
+      activities: runningActivities,
       text: "",
       thinking: "Checking the document before answering."
-    };
-    const { rerender } = render(
-      <AiAgentPanel
-        language="en"
-        messages={[runningMessage]}
-        open
-        status="thinking"
-        onClose={() => {}}
-      />
-    );
+    });
+    const { rerender } = renderAgentPanel({
+      messages: [runningMessage],
+      status: "thinking"
+    });
 
     expect(screen.getByRole("button", { name: "Thinking" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Checking the document before answering.")).toBeInTheDocument();
@@ -865,7 +722,7 @@ describe("AiAgentPanel", () => {
         messages={[
           {
             ...runningMessage,
-            activities: runningMessage.activities.map((activity) => ({ ...activity, status: "completed" as const })),
+            activities: runningActivities.map((activity) => ({ ...activity, status: "completed" as const })),
             text: "Final answer."
           }
         ]}
@@ -881,20 +738,13 @@ describe("AiAgentPanel", () => {
   });
 
   it("does not force a completed thinking block closed again after the user re-expands it", async () => {
-    const completedMessage = {
-      id: 1,
-      role: "assistant" as const,
+    const completedMessage = assistantMessage({
       text: "Final answer.",
       thinking: "Checking the document before answering."
-    };
-    const { rerender } = render(
-      <AiAgentPanel
-        language="en"
-        messages={[completedMessage]}
-        open
-        onClose={() => {}}
-      />
-    );
+    });
+    const { rerender } = renderAgentPanel({
+      messages: [completedMessage]
+    });
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Thinking" })).toHaveAttribute("aria-expanded", "false"));
 
@@ -917,38 +767,23 @@ describe("AiAgentPanel", () => {
   });
 
   it("collapses completed process flow and allows expanding it later", () => {
-    render(
-      <AiAgentPanel
-        language="en"
-        messages={[
-          {
-            activities: [
-              {
-                id: "assistant:1",
-                kind: "assistant_message",
-                label: "I checked the document first.",
-                status: "completed",
-                turn: 1
-              },
-              {
-                detail: "42 chars",
-                id: "tool:1",
-                kind: "tool_call",
-                label: "Read current document",
-                rawLabel: "get_document",
-                status: "completed",
-                turn: 1
-              }
-            ],
-            id: 1,
-            role: "assistant",
-            text: "Ready."
-          }
-        ]}
-        open
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      messages: [
+        assistantMessage({
+          activities: [
+            processActivity({
+              id: "assistant:1",
+              kind: "assistant_message",
+              label: "I checked the document first."
+            }),
+            processActivity({
+              detail: "42 chars",
+              rawLabel: "get_document"
+            })
+          ]
+        })
+      ]
+    });
 
     expect(screen.getByRole("button", { name: /2 steps/i })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("I checked the document first.")).not.toBeInTheDocument();
@@ -962,39 +797,31 @@ describe("AiAgentPanel", () => {
   });
 
   it("keeps process flow open while running and collapses it when the run completes", async () => {
-    const runningMessage = {
-      activities: [
-        {
-          id: "assistant:1",
-          kind: "assistant_message" as const,
-          label: "I am checking the current document.",
-          status: "completed" as const,
-          turn: 1
-        },
-        {
-          id: "tool:1",
-          kind: "tool_call" as const,
-          label: "Read current document",
-          status: "running" as const,
-          turn: 1
-        }
-      ],
-      id: 1,
-      role: "assistant" as const,
+    const runningActivities = [
+      processActivity({
+        id: "assistant:1",
+        kind: "assistant_message",
+        label: "I am checking the current document.",
+        status: "completed"
+      }),
+      processActivity({
+        id: "tool:1",
+        kind: "tool_call",
+        label: "Read current document",
+        status: "running"
+      })
+    ];
+    const runningMessage = assistantMessage({
+      activities: runningActivities,
       text: "Ready."
-    };
+    });
     const completedMessage = {
       ...runningMessage,
-      activities: runningMessage.activities.map((activity) => ({ ...activity, status: "completed" as const }))
+      activities: runningActivities.map((activity) => ({ ...activity, status: "completed" as const }))
     };
-    const { rerender } = render(
-      <AiAgentPanel
-        language="en"
-        messages={[runningMessage]}
-        open
-        onClose={() => {}}
-      />
-    );
+    const { rerender } = renderAgentPanel({
+      messages: [runningMessage]
+    });
 
     expect(screen.queryByRole("button", { name: /2 steps/i })).not.toBeInTheDocument();
     expect(screen.getByText("I am checking the current document.")).toBeInTheDocument();
@@ -1015,51 +842,36 @@ describe("AiAgentPanel", () => {
   });
 
   it("keeps process flow open until every hidden AI call has completed", () => {
-    render(
-      <AiAgentPanel
-        language="en"
-        messages={[
-          {
-            activities: [
-              {
-                id: "call:1",
-                kind: "ai_call",
-                label: "AI call 1",
-                status: "completed",
-                turn: 1
-              },
-              {
-                id: "assistant:1",
-                kind: "assistant_message",
-                label: "I inspected the section.",
-                status: "completed",
-                turn: 1
-              },
-              {
-                detail: "section:2",
-                id: "tool:1",
-                kind: "tool_call",
-                label: "Locate section",
-                status: "completed",
-                turn: 1
-              },
-              {
-                id: "call:2",
-                kind: "ai_call",
-                label: "AI call 2",
-                status: "running",
-                turn: 2
-              }
-            ],
-            id: 1,
-            role: "assistant",
-            text: ""
-          }
-        ]}
-        open
-        onClose={() => {}}
-      />
-    );
+    renderAgentPanel({
+      messages: [
+        assistantMessage({
+          activities: [
+            processActivity({
+              id: "call:1",
+              kind: "ai_call",
+              label: "AI call 1"
+            }),
+            processActivity({
+              id: "assistant:1",
+              kind: "assistant_message",
+              label: "I inspected the section."
+            }),
+            processActivity({
+              detail: "section:2",
+              label: "Locate section"
+            }),
+            processActivity({
+              id: "call:2",
+              kind: "ai_call",
+              label: "AI call 2",
+              status: "running",
+              turn: 2
+            })
+          ],
+          text: ""
+        })
+      ]
+    });
 
     expect(screen.queryByRole("button", { name: /2 steps/i })).not.toBeInTheDocument();
     expect(screen.getByText("I inspected the section.")).toBeInTheDocument();

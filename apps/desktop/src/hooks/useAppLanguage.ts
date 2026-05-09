@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getStoredLanguage, saveStoredLanguage, type AppLanguage } from "../lib/settings/appSettings";
-import { listenAppLanguageChanged, notifyAppLanguageChanged } from "../lib/settings/settingsEvents";
+import { getStoredLanguage, saveStoredLanguage, type AppLanguage } from "../lib/settings/app-settings";
+import { listenAppLanguageChanged, notifyAppLanguageChanged } from "../lib/settings/settings-events";
 
 function applyAppLanguage(language: AppLanguage) {
   document.documentElement.lang = language;

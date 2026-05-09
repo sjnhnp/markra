@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getStoredTheme, saveStoredTheme, type AppTheme, type ResolvedAppTheme } from "../lib/settings/appSettings";
-import { listenAppThemeChanged, notifyAppThemeChanged } from "../lib/settings/settingsEvents";
+import { getStoredTheme, saveStoredTheme, type AppTheme, type ResolvedAppTheme } from "../lib/settings/app-settings";
+import { listenAppThemeChanged, notifyAppThemeChanged } from "../lib/settings/settings-events";
 
 const systemDarkThemeQuery = "(prefers-color-scheme: dark)";
 

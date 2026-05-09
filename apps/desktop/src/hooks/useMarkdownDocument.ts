@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { initialMarkdown } from "../constants/initialMarkdown";
+import { initialMarkdown } from "../constants/initial-markdown";
 import {
   consumeWelcomeDocumentState,
   createAiAgentSessionId,
   getStoredWorkspaceState,
   saveStoredWorkspaceState
-} from "../lib/settings/appSettings";
+} from "../lib/settings/app-settings";
 import { getMarkdownOutline, getWordCount } from "@markra/markdown";
 import {
   openNativeMarkdownFolderInNewWindow,

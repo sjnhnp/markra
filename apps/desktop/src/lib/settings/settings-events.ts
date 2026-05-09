@@ -8,7 +8,7 @@ import {
   type AppTheme,
   type EditorPreferences,
   type WebSearchSettings
-} from "./appSettings";
+} from "./app-settings";
 import { isAppLanguage, type AppLanguage } from "@markra/shared";
 import { hasTauriRuntime } from "@markra/shared";
 

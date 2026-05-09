@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { listStoredAiAgentSessions, type StoredAiAgentSessionSummary } from "../lib/settings/appSettings";
+import { listStoredAiAgentSessions, type StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
 
 export function useAiAgentSessionList(workspaceKey: string | null, refreshKey: string) {
   const [sessions, setSessions] = useState<StoredAiAgentSessionSummary[]>([]);

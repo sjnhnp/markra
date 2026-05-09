@@ -1,0 +1,380 @@
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  AI_EDITOR_PREVIEW_ACTION_EVENT,
+  AI_EDITOR_PREVIEW_RESTORE_EVENT,
+  installAppTestHarness,
+  mockFolderPath,
+  mockNativePath,
+  mockedCreateAiAgentSessionId,
+  mockedGetStoredAiAgentSession,
+  mockedGetStoredAiSettings,
+  mockedGetStoredWorkspaceState,
+  mockedListNativeMarkdownFilesForPath,
+  mockedListStoredAiAgentSessions,
+  mockedOpenNativeMarkdownPath,
+  mockedReadNativeMarkdownFile,
+  mockedSaveStoredAiSettings,
+  renderApp
+} from "./test/app-harness";
+import { agentSessionSummary, storedAgentSession } from "./test/ai-fixtures";
+
+installAppTestHarness();
+describe("Markra AI workspace", () => {
+  it("opens a right-side Markra AI workspace from the titlebar", async () => {
+    mockedGetStoredAiSettings.mockResolvedValue({
+      defaultModelId: "gpt-5.5",
+      defaultProviderId: "openai",
+      providers: [
+        {
+          apiKey: "sk-test",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [
+            {
+              capabilities: ["text", "reasoning", "tools"],
+              enabled: true,
+              id: "gpt-5.5",
+              name: "GPT-5.5"
+            }
+          ],
+          name: "OpenAI",
+          type: "openai"
+        }
+      ]
+    });
+    const { container } = renderApp();
+
+    await screen.findByText("Welcome to Markra");
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+
+    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "true");
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    expect(agentPanel).toBeInTheDocument();
+    expect(within(agentPanel).getAllByText("OpenAI · GPT-5.5")[0]).toBeInTheDocument();
+    expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveTextContent("OpenAI · GPT-5.5");
+    expect((container.querySelector(".editor-agent-layout") as HTMLElement).style.gridTemplateColumns).toBe(
+      "minmax(0,1fr) 384px"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Close Markra AI" }));
+
+    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "false");
+    expect((container.querySelector(".editor-agent-layout") as HTMLElement).style.gridTemplateColumns).toBe(
+      "minmax(0,1fr) 0px"
+    );
+  });
+
+  it("restores the pending AI suggestion without reopening the command input when an applied suggestion is undone", async () => {
+    const { container } = renderApp();
+
+    await screen.findByText("Welcome to Markra");
+
+    window.dispatchEvent(
+      new CustomEvent(AI_EDITOR_PREVIEW_RESTORE_EVENT, {
+        detail: {
+          result: {
+            from: 1,
+            original: "Original",
+            replacement: "Improved",
+            to: 9,
+            type: "replace"
+          }
+        }
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("textbox", { name: "AI command" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("applies an AI preview action event back into the editor document", async () => {
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
+      filePath: mockNativePath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "Original text",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    await screen.findByText("Original text");
+
+    window.dispatchEvent(
+      new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, {
+        detail: {
+          action: "apply",
+          result: {
+            from: 1,
+            original: "Original",
+            replacement: "Improved",
+            to: 9,
+            type: "replace"
+          }
+        }
+      })
+    );
+
+    await waitFor(() => expect(screen.getByText("Improved text")).toBeInTheDocument());
+  });
+
+  it("ignores repeated apply events for the same AI insert preview", async () => {
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
+      filePath: mockNativePath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "Original text",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    await screen.findByText("Original text");
+
+    const eventDetail = {
+      action: "apply",
+      result: {
+        from: 9,
+        original: "",
+        replacement: " improved",
+        to: 9,
+        type: "insert"
+      }
+    } as const;
+
+    window.dispatchEvent(new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
+    window.dispatchEvent(new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
+
+    await waitFor(() => expect(screen.getByText("Original improved text")).toBeInTheDocument());
+    expect(screen.queryByText("Original improved improved text")).not.toBeInTheDocument();
+  });
+
+  it("updates the Markra AI context when selecting a markdown file from a folder workspace", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOpened from the folder tree.",
+      name: "guide.md",
+      path: guidePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    fireEvent.click(within(agentPanel).getByRole("button", { name: "Current context" }));
+
+    expect(within(agentPanel).getByText("vault")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(within(agentPanel).getByText("guide.md")).toBeInTheDocument());
+    await waitFor(() => expect(within(agentPanel).getByText("1 headings · 1 sections · 0 tables")).toBeInTheDocument());
+    await waitFor(() => expect(mockedListStoredAiAgentSessions).toHaveBeenCalledWith(guidePath, { includeArchived: true }));
+    expect(within(agentPanel).queryByText("vault")).not.toBeInTheDocument();
+  });
+
+  it("selects the current file's existing Markra AI session when changing files inside a folder workspace", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOpened from the folder tree.",
+      name: "guide.md",
+      path: guidePath
+    });
+    mockedListStoredAiAgentSessions.mockImplementation(async (workspaceKey) =>
+      workspaceKey === guidePath
+        ? [
+            agentSessionSummary({
+              createdAt: 10,
+              id: "session-guide",
+              messageCount: 2,
+              title: "Guide session",
+              updatedAt: 20,
+              workspaceKey: guidePath
+            })
+          ]
+        : []
+    );
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    fireEvent.click(within(agentPanel).getByRole("button", { name: "Current context" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(within(agentPanel).getByText("session-guide")).toBeInTheDocument());
+    await waitFor(() => expect(mockedGetStoredAiAgentSession).toHaveBeenCalledWith("session-guide"));
+  });
+
+  it("restores a session's agent model and mode toggles when selecting it", async () => {
+    mockedGetStoredAiSettings.mockResolvedValue({
+      agentDefaultModelId: "gpt-5.5",
+      agentDefaultProviderId: "openai",
+      defaultModelId: "gpt-5.5",
+      defaultProviderId: "openai",
+      providers: [
+        {
+          apiKey: "openai-key",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [{ capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }],
+          name: "OpenAI",
+          type: "openai"
+        },
+        {
+          apiKey: "deepseek-key",
+          baseUrl: "https://api.deepseek.com",
+          defaultModelId: "deepseek-v4-flash",
+          enabled: true,
+          id: "deepseek",
+          models: [
+            { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" }
+          ],
+          name: "DeepSeek",
+          type: "deepseek"
+        }
+      ]
+    });
+    mockedListStoredAiAgentSessions.mockResolvedValue([
+      agentSessionSummary({
+        createdAt: 10,
+        id: "session-app",
+        title: "OpenAI session",
+        updatedAt: 20,
+        workspaceKey: "__untitled__"
+      }),
+      agentSessionSummary({
+        createdAt: 11,
+        id: "session-deepseek",
+        title: "DeepSeek session",
+        updatedAt: 21,
+        workspaceKey: "__untitled__"
+      })
+    ]);
+    mockedGetStoredAiAgentSession.mockImplementation(async (sessionId) => {
+      if (sessionId === "session-deepseek") {
+        return storedAgentSession({
+          agentModelId: "deepseek-v4-flash",
+          agentProviderId: "deepseek",
+          panelOpen: true,
+          thinkingEnabled: true,
+          webSearchEnabled: true
+        });
+      }
+
+      return storedAgentSession({
+        agentModelId: "gpt-5.5",
+        agentProviderId: "openai",
+        panelOpen: true,
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      });
+    });
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+
+    fireEvent.click(within(agentPanel).getByRole("button", { name: "Sessions" }));
+    fireEvent.click(await within(agentPanel).findByRole("menuitemradio", { name: /DeepSeek session/ }));
+
+    await waitFor(() =>
+      expect(mockedSaveStoredAiSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentDefaultModelId: "deepseek-v4-flash",
+          agentDefaultProviderId: "deepseek"
+        })
+      )
+    );
+    await waitFor(() => expect(within(agentPanel).getByRole("button", { name: "Deep thinking" })).toHaveAttribute("aria-pressed", "true"));
+    expect(within(agentPanel).getByRole("button", { name: "Web search" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("creates a separate Markra AI session when selecting a file without existing session history", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    mockedCreateAiAgentSessionId
+      .mockReturnValueOnce("session-startup")
+      .mockReturnValueOnce("session-folder")
+      .mockReturnValueOnce("session-guide");
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOpened from the folder tree.",
+      name: "guide.md",
+      path: guidePath
+    });
+    mockedListStoredAiAgentSessions.mockResolvedValue([]);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    fireEvent.click(within(agentPanel).getByRole("button", { name: "Current context" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(within(agentPanel).getByText("session-guide")).toBeInTheDocument());
+    expect(within(agentPanel).queryByText("session-folder")).not.toBeInTheDocument();
+  });
+});

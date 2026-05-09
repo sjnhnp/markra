@@ -199,10 +199,16 @@ export async function listStoredAiAgentSessions(
     .filter((entry) => options.includeArchived || entry.archivedAt === null);
 }
 
-export async function initializeStoredAiAgentSession(sessionId: string, workspaceKey: string | null) {
+export async function initializeStoredAiAgentSession(
+  sessionId: string,
+  workspaceKey: string | null,
+  options: Partial<Pick<StoredAiAgentSessionState, "agentModelId" | "agentProviderId">> = {}
+) {
   const preferences = await getStoredAiAgentPreferences();
 
   await saveStoredAiAgentSession(sessionId, createDefaultAiAgentSessionState({
+    agentModelId: options.agentModelId,
+    agentProviderId: options.agentProviderId,
     thinkingEnabled: preferences.thinkingEnabled,
     webSearchEnabled: preferences.webSearchEnabled
   }), { workspaceKey });

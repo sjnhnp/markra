@@ -24,6 +24,8 @@ export type AiAgentSessionPreview = {
 };
 
 export type StoredAiAgentSessionState = {
+  agentModelId: string | null;
+  agentProviderId: string | null;
   draft: string;
   messages: AiAgentSessionMessage[];
   panelOpen: boolean;
@@ -48,9 +50,13 @@ const storedPanelWidthMax = 760;
 const untitledWorkspaceKey = "__untitled__";
 
 export function createDefaultAiAgentSessionState(
-  overrides: Partial<Pick<StoredAiAgentSessionState, "thinkingEnabled" | "webSearchEnabled">> = {}
+  overrides: Partial<
+    Pick<StoredAiAgentSessionState, "agentModelId" | "agentProviderId" | "thinkingEnabled" | "webSearchEnabled">
+  > = {}
 ): StoredAiAgentSessionState {
   return {
+    agentModelId: normalizeSessionIdentifier(overrides.agentModelId),
+    agentProviderId: normalizeSessionIdentifier(overrides.agentProviderId),
     draft: "",
     messages: [],
     panelOpen: false,
@@ -64,6 +70,8 @@ export function normalizeStoredAiAgentSessionState(value: unknown): StoredAiAgen
   if (!isRecord(value)) return createDefaultAiAgentSessionState();
 
   return {
+    agentModelId: normalizeSessionIdentifier(value.agentModelId),
+    agentProviderId: normalizeSessionIdentifier(value.agentProviderId),
     draft: typeof value.draft === "string" ? value.draft : "",
     messages: Array.isArray(value.messages)
       ? value.messages.map(normalizeSessionMessage).filter((message): message is AiAgentSessionMessage => message !== null)
@@ -73,6 +81,10 @@ export function normalizeStoredAiAgentSessionState(value: unknown): StoredAiAgen
     thinkingEnabled: value.thinkingEnabled === true,
     webSearchEnabled: value.webSearchEnabled === true
   };
+}
+
+function normalizeSessionIdentifier(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
 export function createAiAgentSessionTitle(session: StoredAiAgentSessionState) {

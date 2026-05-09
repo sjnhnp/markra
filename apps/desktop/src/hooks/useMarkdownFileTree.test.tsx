@@ -7,7 +7,7 @@ import {
   openNativeMarkdownFolder,
   renameNativeMarkdownTreeFile
 } from "../lib/tauri";
-import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/appSettings";
+import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/app-settings";
 import { useMarkdownFileTree } from "./useMarkdownFileTree";
 
 vi.mock("../lib/tauri", () => ({
@@ -19,7 +19,7 @@ vi.mock("../lib/tauri", () => ({
   renameNativeMarkdownTreeFile: vi.fn()
 }));
 
-vi.mock("../lib/settings/appSettings", () => ({
+vi.mock("../lib/settings/app-settings", () => ({
   createAiAgentSessionId: vi.fn(),
   saveStoredWorkspaceState: vi.fn()
 }));

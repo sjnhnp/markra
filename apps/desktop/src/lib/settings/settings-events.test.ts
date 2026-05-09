@@ -6,7 +6,7 @@ import {
   notifyAppEditorPreferencesChanged,
   notifyAppLanguageChanged,
   notifyAppThemeChanged
-} from "./settingsEvents";
+} from "./settings-events";
 
 vi.mock("@tauri-apps/api/event", () => ({
   emit: vi.fn(),

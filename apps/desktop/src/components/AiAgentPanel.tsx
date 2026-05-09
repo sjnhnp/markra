@@ -13,7 +13,7 @@ import { AiMarkdownMessage } from "./AiMarkdownMessage";
 import { AiAgentProcessList } from "./AiAgentProcessList";
 import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
-import type { AiModelCapability, AiProviderApiStyle, StoredAiAgentSessionSummary } from "../lib/settings/appSettings";
+import type { AiModelCapability, AiProviderApiStyle, StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
 import type { AiAgentPanelMessage } from "../hooks/useAiAgentSession";
 import { clampNumber } from "@markra/shared";
 

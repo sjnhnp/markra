@@ -8,9 +8,10 @@ import {
   saveStoredAiAgentPreferences,
   saveStoredAiAgentSession,
   saveStoredAiAgentSessionTitle
-} from "../lib/settings/appSettings";
+} from "../lib/settings/app-settings";
 import type { I18nKey } from "@markra/shared";
 import { useAiAgentSession } from "./useAiAgentSession";
+import { storedAgentSession, testProvider } from "../test/ai-fixtures";
 
 vi.mock("@markra/ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@markra/ai")>();
@@ -22,7 +23,7 @@ vi.mock("@markra/ai", async (importOriginal) => {
   };
 });
 
-vi.mock("../lib/settings/appSettings", () => ({
+vi.mock("../lib/settings/app-settings", () => ({
   getStoredAiAgentSession: vi.fn(),
   getStoredAiAgentPreferences: vi.fn(),
   getStoredAiAgentSessionSummary: vi.fn(),
@@ -44,6 +45,24 @@ function testTranslate(translations: Partial<Record<I18nKey, string>> = {}) {
   return (key: I18nKey) => translations[key] ?? key;
 }
 
+type AiAgentSessionContext = Parameters<typeof useAiAgentSession>[0];
+
+function aiAgentSessionContext(overrides: Partial<AiAgentSessionContext> = {}): AiAgentSessionContext {
+  return {
+    getDocumentContent: () => "# Draft",
+    model: "gpt-5.5",
+    provider: testProvider(),
+    settingsLoading: false,
+    translate: (key) => key,
+    workspaceFiles: [],
+    ...overrides
+  };
+}
+
+function renderAiAgentSession(overrides: Partial<AiAgentSessionContext> = {}) {
+  return renderHook(() => useAiAgentSession(aiAgentSessionContext(overrides)));
+}
+
 describe("useAiAgentSession", () => {
   beforeEach(() => {
     mockedRunDocumentAiAgent.mockReset();
@@ -54,14 +73,7 @@ describe("useAiAgentSession", () => {
     mockedSaveStoredAiAgentPreferences.mockReset();
     mockedSaveStoredAiAgentSession.mockReset();
     mockedSaveStoredAiAgentSessionTitle.mockReset();
-    mockedGetStoredAiAgentSession.mockResolvedValue({
-      draft: "",
-      messages: [],
-      panelOpen: false,
-      panelWidth: null,
-      thinkingEnabled: false,
-      webSearchEnabled: false
-    });
+    mockedGetStoredAiAgentSession.mockResolvedValue(storedAgentSession());
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredAiAgentPreferences.mockResolvedValue({ thinkingEnabled: false, webSearchEnabled: false });
     mockedGenerateAiAgentSessionTitle.mockResolvedValue("Polish GOLD and XAU price notes");
@@ -77,27 +89,10 @@ describe("useAiAgentSession", () => {
       return { content: "Hello", finishReason: "stop" };
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/README.md",
-        getDocumentContent: () => "# Draft",
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        sessionId: "session-a",
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      sessionId: "session-a"
+    });
 
     await act(async () => {
       await result.current.submit("Summarize this");
@@ -152,27 +147,10 @@ describe("useAiAgentSession", () => {
       };
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/README.md",
-        getDocumentContent: () => "# Draft",
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        sessionId: "session-a",
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      sessionId: "session-a"
+    });
 
     await act(async () => {
       await result.current.submit("Insert something.");
@@ -191,15 +169,12 @@ describe("useAiAgentSession", () => {
   });
 
   it("surfaces provider configuration errors without calling the runtime", async () => {
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        getDocumentContent: () => "",
-        model: null,
-        provider: null,
-        settingsLoading: false,
-        translate: (key) => (key === "app.aiMissingProvider" ? "Missing provider" : key)
-      })
-    );
+    const { result } = renderAiAgentSession({
+      getDocumentContent: () => "",
+      model: null,
+      provider: null,
+      translate: (key) => (key === "app.aiMissingProvider" ? "Missing provider" : key)
+    });
 
     await act(async () => {
       await result.current.submit("Hello");
@@ -232,33 +207,16 @@ describe("useAiAgentSession", () => {
       };
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/README.md",
-        getDocumentContent: () => "# Draft",
-        getSelection: () => ({
-          from: 4,
-          source: "selection",
-          text: "Draft",
-          to: 9
-        }),
-        model: "gpt-5.5",
-        onAiResult,
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      getSelection: () => ({
+        from: 4,
+        source: "selection",
+        text: "Draft",
+        to: 9
+      }),
+      onAiResult
+    });
 
     await act(async () => {
       await result.current.submit("Polish this");
@@ -298,27 +256,10 @@ describe("useAiAgentSession", () => {
       };
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/README.md",
-        getDocumentContent: () => "# Draft",
-        model: "gpt-5.5",
-        onAiResult,
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      onAiResult
+    });
 
     await act(async () => {
       await result.current.submit("Add an intro and summary");
@@ -357,27 +298,11 @@ describe("useAiAgentSession", () => {
       finishReason: "stop"
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/example.md",
-        getDocumentContent: () => "# Section Alpha",
-        getTableAnchors: () => tableAnchors,
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/example.md",
+      getDocumentContent: () => "# Section Alpha",
+      getTableAnchors: () => tableAnchors
+    });
 
     await act(async () => {
       await result.current.submit("Update the synthetic table");
@@ -405,27 +330,11 @@ describe("useAiAgentSession", () => {
       finishReason: "stop"
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/example.md",
-        getDocumentContent: () => "# Section Alpha\n\nSynthetic body",
-        getSectionAnchors: () => sectionAnchors,
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/example.md",
+      getDocumentContent: () => "# Section Alpha\n\nSynthetic body",
+      getSectionAnchors: () => sectionAnchors
+    });
 
     await act(async () => {
       await result.current.submit("Rewrite the synthetic section");
@@ -453,30 +362,15 @@ describe("useAiAgentSession", () => {
       };
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/example.md",
-        getDocumentContent: () => "",
-        model: "gpt-5.5",
-        onAiResult,
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        settingsLoading: false,
-        translate: testTranslate({
-          "app.aiAgentPreviewReady": "The editor change is ready.",
-          "app.aiEmptyResponse": "AI returned no usable text."
-        }),
-        workspaceFiles: []
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/example.md",
+      getDocumentContent: () => "",
+      onAiResult,
+      translate: testTranslate({
+        "app.aiAgentPreviewReady": "The editor change is ready.",
+        "app.aiEmptyResponse": "AI returned no usable text."
       })
-    );
+    });
 
     await act(async () => {
       await result.current.submit("Write a comparison");
@@ -527,28 +421,13 @@ describe("useAiAgentSession", () => {
         finishReason: "stop"
       });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/example.md",
-        getDocumentContent: () => "# Section Alpha",
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        settingsLoading: false,
-        translate: testTranslate({
-          "app.aiAgentPreviewReady": "The editor change is ready."
-        }),
-        workspaceFiles: []
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/example.md",
+      getDocumentContent: () => "# Section Alpha",
+      translate: testTranslate({
+        "app.aiAgentPreviewReady": "The editor change is ready."
       })
-    );
+    });
 
     await act(async () => {
       await result.current.submit("Prepare synthetic edit");
@@ -603,28 +482,13 @@ describe("useAiAgentSession", () => {
         finishReason: "stop"
       });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/example.md",
-        getDocumentContent: () => "# Section Alpha",
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        settingsLoading: false,
-        translate: testTranslate({
-          "app.aiAgentPreviewReady": "The editor change is ready."
-        }),
-        workspaceFiles: []
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/example.md",
+      getDocumentContent: () => "# Section Alpha",
+      translate: testTranslate({
+        "app.aiAgentPreviewReady": "The editor change is ready."
       })
-    );
+    });
 
     await act(async () => {
       await result.current.submit("Prepare synthetic edits");
@@ -655,34 +519,18 @@ describe("useAiAgentSession", () => {
       finishReason: "stop"
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/README.md",
-        getDocumentContent: () => "# Draft",
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        readWorkspaceFile,
-        sessionId: "session-a",
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceFiles: [
-          {
-            name: "nearby.md",
-            path: "/vault/nearby.md",
-            relativePath: "nearby.md"
-          }
-        ]
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      readWorkspaceFile,
+      sessionId: "session-a",
+      workspaceFiles: [
+        {
+          name: "nearby.md",
+          path: "/vault/nearby.md",
+          relativePath: "nearby.md"
+        }
+      ]
+    });
 
     await act(async () => {
       await result.current.submit("Compare nearby notes");
@@ -712,35 +560,22 @@ describe("useAiAgentSession", () => {
       finishReason: "stop"
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/README.md",
-        getDocumentContent: () => "![Architecture](assets/arch.png)",
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [
-            {
-              capabilities: ["text", "vision"],
-              enabled: true,
-              id: "gpt-5.5",
-              name: "GPT-5.5"
-            }
-          ],
-          name: "OpenAI",
-          type: "openai"
-        },
-        readDocumentImage,
-        sessionId: "session-a",
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      getDocumentContent: () => "![Architecture](assets/arch.png)",
+      provider: testProvider({
+        models: [
+          {
+            capabilities: ["text", "vision"],
+            enabled: true,
+            id: "gpt-5.5",
+            name: "GPT-5.5"
+          }
+        ]
+      }),
+      readDocumentImage,
+      sessionId: "session-a"
+    });
 
     await act(async () => {
       await result.current.submit("这张截图里有什么？");
@@ -798,31 +633,15 @@ describe("useAiAgentSession", () => {
       };
     });
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/README.md",
-        getDocumentContent: () => "# Draft",
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        sessionId: "session-a",
-        settingsLoading: false,
-        translate: testTranslate({
-          "app.aiAgentTraceCall": "AI call",
-          "app.aiAgentTraceRequestedTools": "Requested tool calls",
-          "app.aiAgentProcessReadDocument": "Read current document"
-        }),
-        workspaceFiles: []
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      sessionId: "session-a",
+      translate: testTranslate({
+        "app.aiAgentTraceCall": "AI call",
+        "app.aiAgentTraceRequestedTools": "Requested tool calls",
+        "app.aiAgentProcessReadDocument": "Read current document"
       })
-    );
+    });
 
     await act(async () => {
       await result.current.submit("Check this");
@@ -865,49 +684,40 @@ describe("useAiAgentSession", () => {
 
   it("restores and persists a stored session for the active document", async () => {
     mockedGetStoredAiAgentPreferences.mockResolvedValue({ thinkingEnabled: true, webSearchEnabled: true });
-    mockedGetStoredAiAgentSession.mockResolvedValue({
+    mockedGetStoredAiAgentSession.mockResolvedValue(storedAgentSession({
+      agentModelId: "deepseek-v4-flash",
+      agentProviderId: "deepseek",
       draft: "Continue this",
       messages: [{ id: 1, role: "user", text: "Earlier question" }],
       panelOpen: true,
       panelWidth: 456,
       thinkingEnabled: false,
       webSearchEnabled: true
-    });
+    }));
     const onSessionRestore = vi.fn();
+    const onSessionModelRestore = vi.fn();
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/README.md",
-        getDocumentContent: () => "# Draft",
-        model: "gpt-5.5",
-        onSessionRestore,
-        panelOpen: true,
-        panelWidth: 456,
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        settingsLoading: false,
-        sessionId: "session-a",
-        translate: (key) => key,
-        workspaceKey: "/vault",
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      onSessionModelRestore,
+      onSessionRestore,
+      panelOpen: true,
+      panelWidth: 456,
+      sessionId: "session-a",
+      workspaceKey: "/vault"
+    });
 
     await waitFor(() => expect(result.current.draft).toBe("Continue this"));
     expect(result.current.messages).toEqual([{ id: 1, role: "user", text: "Earlier question" }]);
-    expect(result.current.thinkingEnabled).toBe(true);
+    expect(result.current.thinkingEnabled).toBe(false);
     expect(result.current.webSearchEnabled).toBe(true);
     expect(onSessionRestore).toHaveBeenCalledWith({
       panelOpen: true,
       panelWidth: 456
+    });
+    expect(onSessionModelRestore).toHaveBeenCalledWith({
+      agentModelId: "deepseek-v4-flash",
+      agentProviderId: "deepseek"
     });
 
     await act(async () => {
@@ -916,11 +726,13 @@ describe("useAiAgentSession", () => {
 
     await waitFor(() =>
       expect(mockedSaveStoredAiAgentSession).toHaveBeenCalledWith("session-a", {
+        agentModelId: "gpt-5.5",
+        agentProviderId: "openai",
         draft: "Next prompt",
         messages: [{ id: 1, role: "user", text: "Earlier question" }],
         panelOpen: true,
         panelWidth: 456,
-        thinkingEnabled: true,
+        thinkingEnabled: false,
         webSearchEnabled: true
       }, {
         workspaceKey: "/vault"
@@ -929,27 +741,10 @@ describe("useAiAgentSession", () => {
   });
 
   it("remembers explicit deep thinking toggles for future sessions", async () => {
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        getDocumentContent: () => "# Draft",
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        sessionId: "session-a",
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceKey: "/vault",
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      sessionId: "session-a",
+      workspaceKey: "/vault"
+    });
 
     await waitFor(() => expect(mockedGetStoredAiAgentSession).toHaveBeenCalledWith("session-a"));
 
@@ -962,27 +757,10 @@ describe("useAiAgentSession", () => {
   });
 
   it("remembers explicit web search toggles for future sessions", async () => {
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        getDocumentContent: () => "# Draft",
-        model: "gpt-5.5",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [],
-          name: "OpenAI",
-          type: "openai"
-        },
-        sessionId: "session-a",
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceKey: "/vault",
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      sessionId: "session-a",
+      workspaceKey: "/vault"
+    });
 
     await waitFor(() => expect(mockedGetStoredAiAgentSession).toHaveBeenCalledWith("session-a"));
 
@@ -994,46 +772,29 @@ describe("useAiAgentSession", () => {
     expect(mockedSaveStoredAiAgentPreferences).toHaveBeenCalledWith({ webSearchEnabled: true });
   });
 
-  it("keeps the deep thinking preference enabled when switching stored sessions", async () => {
+  it("restores the deep thinking setting when switching stored sessions", async () => {
     mockedGetStoredAiAgentSession
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(storedAgentSession({
+        agentModelId: "gpt-5.5",
+        agentProviderId: "openai",
         draft: "Session A",
-        messages: [],
-        panelOpen: false,
-        panelWidth: null,
         thinkingEnabled: false,
         webSearchEnabled: false
-      })
-      .mockResolvedValueOnce({
+      }))
+      .mockResolvedValueOnce(storedAgentSession({
+        agentModelId: "deepseek-v4-flash",
+        agentProviderId: "deepseek",
         draft: "Session B",
-        messages: [],
-        panelOpen: false,
-        panelWidth: null,
         thinkingEnabled: false,
         webSearchEnabled: false
-      });
+      }));
 
     const { result, rerender } = renderHook(
       ({ sessionId }) =>
-        useAiAgentSession({
-          getDocumentContent: () => "# Draft",
-          model: "gpt-5.5",
-          provider: {
-            apiKey: "secret",
-            baseUrl: "https://api.openai.com/v1",
-            defaultModelId: "gpt-5.5",
-            enabled: true,
-            id: "openai",
-            models: [],
-            name: "OpenAI",
-            type: "openai"
-          },
+        useAiAgentSession(aiAgentSessionContext({
           sessionId,
-          settingsLoading: false,
-          translate: (key) => key,
           workspaceKey: "/vault",
-          workspaceFiles: []
-        }),
+        })),
       {
         initialProps: {
           sessionId: "session-a"
@@ -1054,49 +815,32 @@ describe("useAiAgentSession", () => {
     });
 
     await waitFor(() => expect(result.current.draft).toBe("Session B"));
-    expect(result.current.thinkingEnabled).toBe(true);
+    expect(result.current.thinkingEnabled).toBe(false);
   });
 
-  it("keeps the web search preference enabled when switching stored sessions", async () => {
+  it("restores the web search setting when switching stored sessions", async () => {
     mockedGetStoredAiAgentSession
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(storedAgentSession({
+        agentModelId: "gpt-5.5",
+        agentProviderId: "openai",
         draft: "Session A",
-        messages: [],
-        panelOpen: false,
-        panelWidth: null,
         thinkingEnabled: false,
         webSearchEnabled: false
-      })
-      .mockResolvedValueOnce({
+      }))
+      .mockResolvedValueOnce(storedAgentSession({
+        agentModelId: "deepseek-v4-flash",
+        agentProviderId: "deepseek",
         draft: "Session B",
-        messages: [],
-        panelOpen: false,
-        panelWidth: null,
         thinkingEnabled: false,
         webSearchEnabled: false
-      });
+      }));
 
     const { result, rerender } = renderHook(
       ({ sessionId }) =>
-        useAiAgentSession({
-          getDocumentContent: () => "# Draft",
-          model: "gpt-5.5",
-          provider: {
-            apiKey: "secret",
-            baseUrl: "https://api.openai.com/v1",
-            defaultModelId: "gpt-5.5",
-            enabled: true,
-            id: "openai",
-            models: [],
-            name: "OpenAI",
-            type: "openai"
-          },
+        useAiAgentSession(aiAgentSessionContext({
           sessionId,
-          settingsLoading: false,
-          translate: (key) => key,
           workspaceKey: "/vault",
-          workspaceFiles: []
-        }),
+        })),
       {
         initialProps: {
           sessionId: "session-a"
@@ -1117,52 +861,92 @@ describe("useAiAgentSession", () => {
     });
 
     await waitFor(() => expect(result.current.draft).toBe("Session B"));
-    expect(result.current.webSearchEnabled).toBe(true);
+    expect(result.current.webSearchEnabled).toBe(false);
+  });
+
+  it("restores the agent model selection when switching stored sessions", async () => {
+    mockedGetStoredAiAgentSession
+      .mockResolvedValueOnce(storedAgentSession({
+        agentModelId: "gpt-5.5",
+        agentProviderId: "openai",
+        draft: "Session A",
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      }))
+      .mockResolvedValueOnce(storedAgentSession({
+        agentModelId: "deepseek-v4-flash",
+        agentProviderId: "deepseek",
+        draft: "Session B",
+        thinkingEnabled: true,
+        webSearchEnabled: true
+      }));
+    const onSessionModelRestore = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ sessionId }) =>
+        useAiAgentSession(aiAgentSessionContext({
+          onSessionModelRestore,
+          sessionId,
+          workspaceKey: "/vault",
+        })),
+      {
+        initialProps: {
+          sessionId: "session-a"
+        }
+      }
+    );
+
+    await waitFor(() =>
+      expect(onSessionModelRestore).toHaveBeenCalledWith({
+        agentModelId: "gpt-5.5",
+        agentProviderId: "openai"
+      })
+    );
+
+    rerender({
+      sessionId: "session-b"
+    });
+
+    await waitFor(() =>
+      expect(onSessionModelRestore).toHaveBeenCalledWith({
+        agentModelId: "deepseek-v4-flash",
+        agentProviderId: "deepseek"
+      })
+    );
   });
 
   it("keeps the panel open while switching to another stored session", async () => {
     mockedGetStoredAiAgentSession
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(storedAgentSession({
+        agentModelId: "gpt-5.5",
+        agentProviderId: "openai",
         draft: "Session A",
         messages: [{ id: 1, role: "user", text: "First" }],
         panelOpen: true,
         panelWidth: 456,
         thinkingEnabled: false,
         webSearchEnabled: false
-      })
-      .mockResolvedValueOnce({
+      }))
+      .mockResolvedValueOnce(storedAgentSession({
+        agentModelId: "deepseek-v4-flash",
+        agentProviderId: "deepseek",
         draft: "Session B",
         messages: [{ id: 2, role: "user", text: "Second" }],
         panelOpen: false,
         panelWidth: null,
         thinkingEnabled: true,
         webSearchEnabled: true
-      });
+      }));
     const onSessionRestore = vi.fn();
     const { result, rerender } = renderHook(
       ({ sessionId }) =>
-        useAiAgentSession({
-          getDocumentContent: () => "# Draft",
-          model: "gpt-5.5",
+        useAiAgentSession(aiAgentSessionContext({
           onSessionRestore,
           panelOpen: true,
           panelWidth: 456,
-          provider: {
-            apiKey: "secret",
-            baseUrl: "https://api.openai.com/v1",
-            defaultModelId: "gpt-5.5",
-            enabled: true,
-            id: "openai",
-            models: [],
-            name: "OpenAI",
-            type: "openai"
-          },
           sessionId,
-          settingsLoading: false,
-          translate: (key) => key,
           workspaceKey: "/vault",
-          workspaceFiles: []
-        }),
+        })),
       {
         initialProps: {
           sessionId: "session-a"
@@ -1190,30 +974,14 @@ describe("useAiAgentSession", () => {
       finishReason: "stop"
     });
 
-    const provider = {
-      apiKey: "secret",
-      baseUrl: "https://api.openai.com/v1",
-      defaultModelId: "gpt-5.5",
-      enabled: true,
-      id: "openai",
-      models: [],
-      name: "OpenAI",
-      type: "openai" as const
-    };
+    const provider = testProvider();
 
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/README.md",
-        getDocumentContent: () => "# Draft",
-        model: "gpt-5.5",
-        provider,
-        sessionId: "session-a",
-        settingsLoading: false,
-        translate: (key) => key,
-        workspaceKey: "/vault",
-        workspaceFiles: []
-      })
-    );
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      provider,
+      sessionId: "session-a",
+      workspaceKey: "/vault"
+    });
 
     await act(async () => {
       await result.current.submit("看看这组数据，黄金和白银价格是不是获取的有问题");

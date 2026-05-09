@@ -26,7 +26,7 @@ import {
   useNativeMenus
 } from "./hooks/useNativeBindings";
 import { aiTranslationLanguageName, t, type I18nKey } from "@markra/shared";
-import { showAppToast } from "./lib/appToast";
+import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { openSettingsWindow } from "./lib/tauri";
 import type { AiDiffResult, AiSelectionContext } from "@markra/ai";
@@ -44,7 +44,7 @@ import {
   initializeStoredAiAgentSession,
   saveStoredAiAgentSessionTitle,
   setStoredAiAgentSessionArchived
-} from "./lib/settings/appSettings";
+} from "./lib/settings/app-settings";
 import {
   confirmNativeMarkdownFileDelete,
   confirmNativeUnsavedMarkdownDocumentDiscard,
@@ -246,10 +246,20 @@ export default function App() {
     },
     [editor, translate, updateAiResults]
   );
+  const createAiAgentInitialSessionOptions = useCallback(() => ({
+    agentModelId: aiSettings.agentModelId,
+    agentProviderId: aiSettings.agentProviderId
+  }), [aiSettings.agentModelId, aiSettings.agentProviderId]);
   const handleAiAgentSessionRestore = useCallback((session: { panelOpen: boolean; panelWidth: number | null }) => {
     setAiAgentOpen(session.panelOpen);
     setAiAgentPanelWidth(clampNumber(session.panelWidth, aiAgentPanelMinWidth, aiAgentPanelMaxWidth) ?? aiAgentPanelDefaultWidth);
   }, []);
+  const handleAiAgentSessionModelRestore = useCallback((selection: { agentModelId: string | null; agentProviderId: string | null }) => {
+    if (!selection.agentProviderId || !selection.agentModelId) return;
+    if (selection.agentProviderId === aiSettings.agentProviderId && selection.agentModelId === aiSettings.agentModelId) return;
+
+    aiSettings.selectAgentModel(selection.agentProviderId, selection.agentModelId).catch(() => {});
+  }, [aiSettings.agentModelId, aiSettings.agentProviderId, aiSettings.selectAgentModel]);
   const aiCommand = useAiCommandUi({
     documentPath: document.path,
     getDocumentContent: getAiDocumentContent,
@@ -273,6 +283,7 @@ export default function App() {
     getTableAnchors: editor.getTableAnchors,
     model: aiSettings.agentModelId,
     onAiResult: handleAiResult,
+    onSessionModelRestore: handleAiAgentSessionModelRestore,
     onSessionRestore: handleAiAgentSessionRestore,
     panelOpen: aiAgentOpen,
     panelWidth: aiAgentPanelWidth,
@@ -316,17 +327,17 @@ export default function App() {
     }
 
     if (previousWorkspaceKey === undefined) {
-      initializeStoredAiAgentSession(activeAiAgentSessionId, workspaceKey).then(() => {
+      initializeStoredAiAgentSession(activeAiAgentSessionId, workspaceKey, createAiAgentInitialSessionOptions()).then(() => {
         aiAgentSessions.refresh().catch(() => {});
       }).catch(() => {});
       return;
     }
 
     const nextSessionId = createWorkspaceSession();
-    initializeStoredAiAgentSession(nextSessionId, workspaceKey).then(() => {
+    initializeStoredAiAgentSession(nextSessionId, workspaceKey, createAiAgentInitialSessionOptions()).then(() => {
       aiAgentSessions.refresh().catch(() => {});
     }).catch(() => {});
-  }, [activeAiAgentSessionId, aiAgentSessions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
+  }, [activeAiAgentSessionId, aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
   const restoreAiCommand = aiCommand.restoreAiCommand;
   const handleAiCommandClose = useCallback(() => {
     aiCommand.closeAiCommand();
@@ -336,10 +347,10 @@ export default function App() {
     const sessionId = createWorkspaceSession();
 
     setAiAgentOpen(true);
-    initializeStoredAiAgentSession(sessionId, workspaceKey).then(() => {
+    initializeStoredAiAgentSession(sessionId, workspaceKey, createAiAgentInitialSessionOptions()).then(() => {
       aiAgentSessions.refresh().catch(() => {});
     }).catch(() => {});
-  }, [aiAgentSessions, createWorkspaceSession, workspaceKey]);
+  }, [aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, workspaceKey]);
   const handleSelectAiAgentSession = useCallback((sessionId: string) => {
     selectWorkspaceSession(sessionId);
     setAiAgentOpen(true);
@@ -363,13 +374,13 @@ export default function App() {
         selectWorkspaceSession(remainingSessions[0].id);
       } else {
         const nextSessionId = createWorkspaceSession();
-        await initializeStoredAiAgentSession(nextSessionId, workspaceKey);
+        await initializeStoredAiAgentSession(nextSessionId, workspaceKey, createAiAgentInitialSessionOptions());
       }
     }
 
     await aiAgentSessions.refresh();
     setAiAgentOpen(true);
-  }, [activeAiAgentSessionId, aiAgentSessions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
+  }, [activeAiAgentSessionId, aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
   const handleArchiveAiAgentSession = useCallback(async (sessionId: string, archived: boolean) => {
     const remainingSessions = aiAgentSessions.sessions.filter(
       (session) => session.id !== sessionId && session.archivedAt === null
@@ -382,13 +393,13 @@ export default function App() {
         selectWorkspaceSession(remainingSessions[0].id);
       } else {
         const nextSessionId = createWorkspaceSession();
-        await initializeStoredAiAgentSession(nextSessionId, workspaceKey);
+        await initializeStoredAiAgentSession(nextSessionId, workspaceKey, createAiAgentInitialSessionOptions());
       }
     }
 
     await aiAgentSessions.refresh();
     setAiAgentOpen(true);
-  }, [activeAiAgentSessionId, aiAgentSessions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
+  }, [activeAiAgentSessionId, aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
   const handleTextSelectionChange = useCallback((selection: AiSelectionContext | null) => {
     updateActiveAiSelection(selection);
 

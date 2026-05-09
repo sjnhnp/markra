@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { AiProviderBadge } from "./AiProviderBadge";
-import type { AiProviderApiStyle, AiProviderConfig } from "../lib/settings/appSettings";
+import type { AiProviderApiStyle, AiProviderConfig } from "../lib/settings/app-settings";
 import type { I18nKey } from "@markra/shared";
 
 const menuExitDurationMs = 140;

@@ -1,14 +1,14 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { getStoredAiSettings, saveStoredAiSettings } from "../lib/settings/appSettings";
-import { listenAppAiSettingsChanged, notifyAppAiSettingsChanged } from "../lib/settings/settingsEvents";
+import { getStoredAiSettings, saveStoredAiSettings } from "../lib/settings/app-settings";
+import { listenAppAiSettingsChanged, notifyAppAiSettingsChanged } from "../lib/settings/settings-events";
 import { useAiSettings } from "./useAiSettings";
 
-vi.mock("../lib/settings/appSettings", () => ({
+vi.mock("../lib/settings/app-settings", () => ({
   getStoredAiSettings: vi.fn(),
   saveStoredAiSettings: vi.fn()
 }));
 
-vi.mock("../lib/settings/settingsEvents", () => ({
+vi.mock("../lib/settings/settings-events", () => ({
   listenAppAiSettingsChanged: vi.fn(),
   notifyAppAiSettingsChanged: vi.fn()
 }));

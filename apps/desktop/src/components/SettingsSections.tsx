@@ -14,7 +14,7 @@ import type {
   EditorPreferences,
   WebSearchProviderId,
   WebSearchSettings
-} from "../lib/settings/appSettings";
+} from "../lib/settings/app-settings";
 import { supportedLanguages, type AppLanguage, type I18nKey } from "@markra/shared";
 
 type Translate = (key: I18nKey) => string;

@@ -3,8 +3,8 @@ import {
   defaultEditorPreferences,
   getStoredEditorPreferences,
   type EditorPreferences
-} from "../lib/settings/appSettings";
-import { listenAppEditorPreferencesChanged } from "../lib/settings/settingsEvents";
+} from "../lib/settings/app-settings";
+import { listenAppEditorPreferencesChanged } from "../lib/settings/settings-events";
 
 export function useEditorPreferences() {
   const [preferences, setPreferences] = useState<EditorPreferences>(defaultEditorPreferences);

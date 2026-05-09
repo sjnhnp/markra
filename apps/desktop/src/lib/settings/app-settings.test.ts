@@ -26,7 +26,7 @@ import {
   saveStoredWorkspaceState,
   setStoredAiAgentSessionArchived,
   type AiProviderSettings
-} from "./appSettings";
+} from "./app-settings";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn()
@@ -703,6 +703,8 @@ describe("app settings", () => {
     indexStore.get.mockResolvedValue([]);
 
     await saveStoredAiAgentSession("session-a", {
+      agentModelId: null,
+      agentProviderId: null,
       draft: "follow up",
       messages: [{ id: 1, role: "assistant", text: "hi", thinking: "..." }],
       panelOpen: true,
@@ -722,8 +724,10 @@ describe("app settings", () => {
       defaults: {}
     });
     expect(sessionStore.set).toHaveBeenCalledWith("session", {
+      agentModelId: null,
+      agentProviderId: null,
       draft: "follow up",
-      messages: [{ id: 1, role: "assistant", text: "hi", thinking: "...", isError: false }],
+      messages: [expect.objectContaining({ id: 1, isError: false, role: "assistant", text: "hi", thinking: "..." })],
       panelOpen: true,
       panelWidth: 480,
       thinkingEnabled: true,
@@ -779,6 +783,8 @@ describe("app settings", () => {
     indexStore.get.mockResolvedValue([]);
 
     await saveStoredAiAgentSession("session-a", {
+      agentModelId: null,
+      agentProviderId: null,
       draft: "",
       messages: [{ id: 1, role: "user", text: "hello" }],
       panelOpen: true,
@@ -979,9 +985,14 @@ describe("app settings", () => {
     sessionStore.get.mockResolvedValue(undefined);
     indexStore.get.mockResolvedValue([]);
 
-    await initializeStoredAiAgentSession("session-new", "/mock-files/vault");
+    await initializeStoredAiAgentSession("session-new", "/mock-files/vault", {
+      agentModelId: "gpt-5.5",
+      agentProviderId: "openai"
+    });
 
     expect(sessionStore.set).toHaveBeenCalledWith("session", {
+      agentModelId: "gpt-5.5",
+      agentProviderId: "openai",
       draft: "",
       messages: [],
       panelOpen: false,
@@ -1023,9 +1034,14 @@ describe("app settings", () => {
     sessionStore.get.mockResolvedValue(undefined);
     indexStore.get.mockResolvedValue([]);
 
-    await initializeStoredAiAgentSession("session-new", "/mock-files/vault");
+    await initializeStoredAiAgentSession("session-new", "/mock-files/vault", {
+      agentModelId: "deepseek-v4-flash",
+      agentProviderId: "deepseek"
+    });
 
     expect(sessionStore.set).toHaveBeenCalledWith("session", expect.objectContaining({
+      agentModelId: "deepseek-v4-flash",
+      agentProviderId: "deepseek",
       thinkingEnabled: true,
       webSearchEnabled: true
     }));
@@ -1152,6 +1168,8 @@ describe("app settings", () => {
     indexStore.get.mockResolvedValue([]);
 
     await saveStoredAiAgentSession("session-a", {
+      agentModelId: null,
+      agentProviderId: null,
       draft: "",
       messages: [
         { id: 1, role: "user", text: "hello" },
@@ -1232,6 +1250,8 @@ describe("app settings", () => {
     });
 
     await saveStoredAiAgentSession("session-a", {
+      agentModelId: null,
+      agentProviderId: null,
       draft: "",
       messages: [
         { id: 1, role: "user", text: "hello" },

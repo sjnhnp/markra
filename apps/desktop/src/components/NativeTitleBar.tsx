@@ -1,5 +1,5 @@
 import { Bot, FileText, FolderOpen, ImageIcon, Moon, PanelLeft, Save, SquarePen, Sun } from "lucide-react";
-import type { ResolvedAppTheme } from "../lib/settings/appSettings";
+import type { ResolvedAppTheme } from "../lib/settings/app-settings";
 import { t, type AppLanguage } from "@markra/shared";
 
 type NativeTitleBarProps = {

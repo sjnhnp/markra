@@ -7,8 +7,8 @@ import {
   type AiProviderConfig,
   type AiProviderModel,
   type AiProviderSettings
-} from "../lib/settings/appSettings";
-import { listenAppAiSettingsChanged, notifyAppAiSettingsChanged } from "../lib/settings/settingsEvents";
+} from "../lib/settings/app-settings";
+import { listenAppAiSettingsChanged, notifyAppAiSettingsChanged } from "../lib/settings/settings-events";
 
 export type AvailableAiTextModel = {
   capabilities: AiModelCapability[];
@@ -66,6 +66,7 @@ export function useAiSettings() {
       const selectedModel = selectedProvider?.models.find((model) => isEnabledTextModel(model) && model.id === modelId);
 
       if (!selectedProvider || !selectedModel) return;
+      if (settings.agentDefaultProviderId === providerId && settings.agentDefaultModelId === modelId) return;
 
       const nextSettings: AiProviderSettings = {
         ...settings,

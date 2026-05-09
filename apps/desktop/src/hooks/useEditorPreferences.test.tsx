@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { getStoredEditorPreferences } from "../lib/settings/appSettings";
-import { listenAppEditorPreferencesChanged } from "../lib/settings/settingsEvents";
+import { getStoredEditorPreferences } from "../lib/settings/app-settings";
+import { listenAppEditorPreferencesChanged } from "../lib/settings/settings-events";
 import { useEditorPreferences } from "./useEditorPreferences";
 
-vi.mock("../lib/settings/appSettings", () => ({
+vi.mock("../lib/settings/app-settings", () => ({
   defaultEditorPreferences: {
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
@@ -16,7 +16,7 @@ vi.mock("../lib/settings/appSettings", () => ({
   getStoredEditorPreferences: vi.fn()
 }));
 
-vi.mock("../lib/settings/settingsEvents", () => ({
+vi.mock("../lib/settings/settings-events", () => ({
   listenAppEditorPreferencesChanged: vi.fn()
 }));
 

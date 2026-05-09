@@ -18,12 +18,12 @@ import {
   type AiProviderSettings,
   type EditorPreferences,
   type WebSearchSettings
-} from "../lib/settings/appSettings";
+} from "../lib/settings/app-settings";
 import {
   notifyAppAiSettingsChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppWebSearchSettingsChanged
-} from "../lib/settings/settingsEvents";
+} from "../lib/settings/settings-events";
 import { requestNativeAiJson } from "../lib/tauri";
 import { useAppLanguage } from "./useAppLanguage";
 import { useAppTheme } from "./useAppTheme";

@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { dismissAppToast, showAppToast } from "./appToast";
+import { dismissAppToast, showAppToast } from "./app-toast";
 
 vi.mock("sonner", () => ({
   toast: {

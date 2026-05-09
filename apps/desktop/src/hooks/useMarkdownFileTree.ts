@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/appSettings";
+import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/app-settings";
 import {
   createNativeMarkdownTreeFile,
   createNativeMarkdownTreeFolder,

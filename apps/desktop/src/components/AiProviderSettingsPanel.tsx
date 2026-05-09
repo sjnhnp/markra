@@ -10,7 +10,7 @@ import {
   type AiProviderSettings
 } from "@markra/ai";
 import { useAiProviderSettingsPanelState } from "../hooks/useAiProviderSettingsPanelState";
-import { dismissAppToast, showAppToast } from "../lib/appToast";
+import { dismissAppToast, showAppToast } from "../lib/app-toast";
 import type { I18nKey } from "@markra/shared";
 
 type Translate = (key: I18nKey) => string;

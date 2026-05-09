@@ -28,7 +28,7 @@ import { markraAiEditorPreviewPlugin } from "@markra/editor";
 import { markraAiSelectionHoldPlugin } from "@markra/editor";
 import type { AiSelectionContext } from "@markra/ai";
 import { t, type AppLanguage } from "@markra/shared";
-import type { EditorContentWidth } from "../lib/settings/appSettings";
+import type { EditorContentWidth } from "../lib/settings/app-settings";
 import { readAiSelectionContextFromView } from "../hooks/useEditorController";
 
 const markraCommonmark = [

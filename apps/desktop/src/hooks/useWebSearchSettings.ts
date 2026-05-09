@@ -3,8 +3,8 @@ import {
   defaultWebSearchSettings,
   getStoredWebSearchSettings,
   type WebSearchSettings
-} from "../lib/settings/appSettings";
-import { listenAppWebSearchSettingsChanged } from "../lib/settings/settingsEvents";
+} from "../lib/settings/app-settings";
+import { listenAppWebSearchSettingsChanged } from "../lib/settings/settings-events";
 
 export function useWebSearchSettings() {
   const [settings, setSettings] = useState<WebSearchSettings>(defaultWebSearchSettings);

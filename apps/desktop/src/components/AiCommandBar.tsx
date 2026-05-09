@@ -22,7 +22,7 @@ import {
 import { AiModelPicker, type AiModelPickerOption } from "./AiModelPicker";
 import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import type { AiDiffResult, AiEditIntent } from "@markra/ai";
-import type { AiProviderApiStyle } from "../lib/settings/appSettings";
+import type { AiProviderApiStyle } from "../lib/settings/app-settings";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 
 type AiCommandAction = {

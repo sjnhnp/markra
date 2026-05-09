@@ -1,486 +1,49 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import App from "./App";
-import {
-  confirmNativeMarkdownFileDelete,
-  confirmNativeUnsavedMarkdownDocumentDiscard,
-  createNativeMarkdownTreeFile,
-  deleteNativeMarkdownTreeFile,
-  openNativeMarkdownFolder,
-  openNativeMarkdownFolderInNewWindow,
-  openNativeMarkdownFileInNewWindow,
-  openNativeMarkdownPath,
-  readNativeMarkdownImageFile,
-  readNativeMarkdownFile,
-  saveNativeClipboardImage,
-  saveNativeMarkdownFile,
-  installNativeMarkdownFileDrop,
-  listNativeMarkdownFilesForPath,
-  renameNativeMarkdownTreeFile,
-  watchNativeMarkdownFile
-} from "./lib/tauri";
-import {
-  installNativeApplicationMenu,
-  installNativeEditorContextMenu,
-  type NativeMenuHandlers
-} from "./lib/tauri";
-import { openSettingsWindow } from "./lib/tauri";
-import {
-  createAiAgentSessionId,
-  consumeWelcomeDocumentState,
-  deleteStoredAiAgentSession,
-  getStoredAiAgentPreferences,
-  getStoredAiAgentSession,
-  getStoredAiAgentSessionSummary,
-  getStoredAiSettings,
-  getStoredEditorPreferences,
-  getStoredLanguage,
-  getStoredTheme,
-  getStoredWebSearchSettings,
-  getStoredWorkspaceState,
-  initializeStoredAiAgentSession,
-  listStoredAiAgentSessions,
-  resetWelcomeDocumentState,
-  saveStoredAiAgentSession,
-  saveStoredAiAgentSessionTitle,
-  saveStoredAiSettings,
-  saveStoredEditorPreferences,
-  saveStoredLanguage,
-  saveStoredTheme,
-  saveStoredWorkspaceState,
-  setStoredAiAgentSessionArchived
-} from "./lib/settings/appSettings";
-import {
-  listenAppAiSettingsChanged,
-  listenAppEditorPreferencesChanged,
-  listenAppLanguageChanged,
-  listenAppThemeChanged,
-  listenAppWebSearchSettingsChanged,
-  notifyAppAiSettingsChanged,
-  notifyAppEditorPreferencesChanged,
-  notifyAppLanguageChanged,
-  notifyAppThemeChanged,
-  notifyAppWebSearchSettingsChanged
-} from "./lib/settings/settingsEvents";
-import { fetchAiProviderModels, testAiProviderConnection } from "@markra/ai";
-import { chatCompletion } from "@markra/ai";
-import { generateAiAgentSessionTitle } from "@markra/ai";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import {
   AI_EDITOR_PREVIEW_ACTION_EVENT,
-  AI_EDITOR_PREVIEW_RESTORE_EVENT
-} from "@markra/editor";
+  installAppTestHarness,
+  mockDroppedPath,
+  mockFolderPath,
+  mockNativePath,
+  mockOpenMarkdownFile,
+  mockSystemColorScheme,
+  mockUntitledPath,
+  mockedConfirmNativeUnsavedMarkdownDocumentDiscard,
+  mockedConsumeWelcomeDocumentState,
+  mockedCreateAiAgentSessionId,
+  mockedCreateNativeMarkdownTreeFile,
+  mockedFetchAiProviderModels,
+  mockedGetStoredLanguage,
+  mockedGetStoredTheme,
+  mockedGetStoredWorkspaceState,
+  mockedInstallNativeApplicationMenu,
+  mockedInstallNativeMarkdownFileDrop,
+  mockedListNativeMarkdownFilesForPath,
+  mockedListenAppLanguageChanged,
+  mockedListenAppThemeChanged,
+  mockedNotifyAppLanguageChanged,
+  mockedNotifyAppThemeChanged,
+  mockedOpenNativeMarkdownFileInNewWindow,
+  mockedOpenNativeMarkdownFolder,
+  mockedOpenNativeMarkdownFolderInNewWindow,
+  mockedOpenNativeMarkdownPath,
+  mockedOpenSettingsWindow,
+  mockedReadNativeMarkdownFile,
+  mockedResetWelcomeDocumentState,
+  mockedSaveNativeMarkdownFile,
+  mockedSaveStoredAiSettings,
+  mockedSaveStoredLanguage,
+  mockedSaveStoredTheme,
+  mockedTestAiProviderConnection,
+  mockedWatchNativeMarkdownFile,
+  renderApp
+} from "./test/app-harness";
+import type { NativeMenuHandlers } from "./test/app-harness";
 
-vi.mock("./lib/tauri", () => ({
-  confirmNativeMarkdownFileDelete: vi.fn(),
-  confirmNativeUnsavedMarkdownDocumentDiscard: vi.fn(),
-  createNativeMarkdownTreeFile: vi.fn(),
-  deleteNativeMarkdownTreeFile: vi.fn(),
-  installNativeMarkdownFileDrop: vi.fn(),
-  openNativeMarkdownFolder: vi.fn(),
-  openNativeMarkdownFolderInNewWindow: vi.fn(),
-  openNativeMarkdownFileInNewWindow: vi.fn(),
-  openNativeMarkdownPath: vi.fn(),
-  readNativeMarkdownImageFile: vi.fn(),
-  readNativeMarkdownFile: vi.fn(),
-  requestNativeAiJson: vi.fn(),
-  requestNativeChat: vi.fn(),
-  requestNativeChatStream: vi.fn(),
-  requestNativeWebResource: vi.fn(),
-  renameNativeMarkdownTreeFile: vi.fn(),
-  saveNativeClipboardImage: vi.fn(),
-  saveNativeMarkdownFile: vi.fn(),
-  watchNativeMarkdownFile: vi.fn(),
-  listNativeMarkdownFilesForPath: vi.fn(),
-  installNativeApplicationMenu: vi.fn(),
-  installNativeEditorContextMenu: vi.fn(),
-  openSettingsWindow: vi.fn(),
-  setNativeWindowTitle: vi.fn()
-}));
-
-vi.mock("./lib/settings/appSettings", () => ({
-  createAiAgentSessionId: vi.fn(),
-  consumeWelcomeDocumentState: vi.fn(),
-  deleteStoredAiAgentSession: vi.fn(),
-  defaultEditorPreferences: {
-    autoOpenAiOnSelection: true,
-    bodyFontSize: 16,
-    clipboardImageFolder: "assets",
-    contentWidth: "default",
-    lineHeight: 1.65,
-    restoreWorkspaceOnStartup: true,
-    showWordCount: true
-  },
-  defaultWebSearchSettings: {
-    contentMaxChars: 12000,
-    enabled: true,
-    maxResults: 5,
-    providerId: "local-bing",
-    searxngApiHost: ""
-  },
-  getStoredAiAgentSession: vi.fn(),
-  getStoredAiAgentSessionSummary: vi.fn(),
-  getStoredAiAgentPreferences: vi.fn(),
-  getStoredAiSettings: vi.fn(),
-  getStoredEditorPreferences: vi.fn(),
-  getStoredLanguage: vi.fn(),
-  getStoredTheme: vi.fn(),
-  getStoredWebSearchSettings: vi.fn(),
-  getStoredWorkspaceState: vi.fn(),
-  initializeStoredAiAgentSession: vi.fn(),
-  listStoredAiAgentSessions: vi.fn(),
-  normalizeEditorPreferences: vi.fn((preferences) => ({
-    autoOpenAiOnSelection: true,
-    bodyFontSize: 16,
-    clipboardImageFolder: "assets",
-    contentWidth: "default",
-    lineHeight: 1.65,
-    restoreWorkspaceOnStartup: true,
-    showWordCount: true,
-    ...preferences
-  })),
-  normalizeWebSearchSettings: vi.fn((settings) => ({
-    contentMaxChars: 12000,
-    enabled: true,
-    maxResults: 5,
-    providerId: "local-bing",
-    searxngApiHost: "",
-    ...settings
-  })),
-  resetWelcomeDocumentState: vi.fn(),
-  saveStoredAiAgentPreferences: vi.fn(),
-  saveStoredAiAgentSession: vi.fn(),
-  saveStoredAiAgentSessionTitle: vi.fn(),
-  saveStoredAiSettings: vi.fn(),
-  saveStoredEditorPreferences: vi.fn(),
-  saveStoredLanguage: vi.fn(),
-  saveStoredTheme: vi.fn(),
-  saveStoredWorkspaceState: vi.fn(),
-  setStoredAiAgentSessionArchived: vi.fn()
-}));
-
-vi.mock("./lib/settings/settingsEvents", () => ({
-  listenAppAiSettingsChanged: vi.fn(),
-  listenAppEditorPreferencesChanged: vi.fn(),
-  listenAppLanguageChanged: vi.fn(),
-  listenAppThemeChanged: vi.fn(),
-  listenAppWebSearchSettingsChanged: vi.fn(),
-  notifyAppAiSettingsChanged: vi.fn(),
-  notifyAppEditorPreferencesChanged: vi.fn(),
-  notifyAppLanguageChanged: vi.fn(),
-  notifyAppThemeChanged: vi.fn(),
-  notifyAppWebSearchSettingsChanged: vi.fn()
-}));
-
-vi.mock("@markra/ai", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@markra/ai")>();
-
-  return {
-    ...actual,
-    chatCompletion: vi.fn(),
-    fetchAiProviderModels: vi.fn(),
-    generateAiAgentSessionTitle: vi.fn(),
-    testAiProviderConnection: vi.fn()
-  };
-});
-
-const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
-const mockedOpenNativeMarkdownFolderInNewWindow = vi.mocked(openNativeMarkdownFolderInNewWindow);
-const mockedConfirmNativeMarkdownFileDelete = vi.mocked(confirmNativeMarkdownFileDelete);
-const mockedConfirmNativeUnsavedMarkdownDocumentDiscard = vi.mocked(confirmNativeUnsavedMarkdownDocumentDiscard);
-const mockedCreateNativeMarkdownTreeFile = vi.mocked(createNativeMarkdownTreeFile);
-const mockedDeleteNativeMarkdownTreeFile = vi.mocked(deleteNativeMarkdownTreeFile);
-const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFileInNewWindow);
-const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
-const mockedReadNativeMarkdownImageFile = vi.mocked(readNativeMarkdownImageFile);
-const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
-const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
-const mockedInstallNativeMarkdownFileDrop = vi.mocked(installNativeMarkdownFileDrop);
-const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
-const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
-const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
-const mockedInstallNativeApplicationMenu = vi.mocked(installNativeApplicationMenu);
-const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEditorContextMenu);
-const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
-const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
-const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
-const mockedDeleteStoredAiAgentSession = vi.mocked(deleteStoredAiAgentSession);
-const mockedGetStoredAiAgentPreferences = vi.mocked(getStoredAiAgentPreferences);
-const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
-const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
-const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
-const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPreferences);
-const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
-const mockedGetStoredTheme = vi.mocked(getStoredTheme);
-const mockedGetStoredWebSearchSettings = vi.mocked(getStoredWebSearchSettings);
-const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
-const mockedInitializeStoredAiAgentSession = vi.mocked(initializeStoredAiAgentSession);
-const mockedListStoredAiAgentSessions = vi.mocked(listStoredAiAgentSessions);
-const mockedResetWelcomeDocumentState = vi.mocked(resetWelcomeDocumentState);
-const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession);
-const mockedSaveStoredAiAgentSessionTitle = vi.mocked(saveStoredAiAgentSessionTitle);
-const mockedSaveStoredAiSettings = vi.mocked(saveStoredAiSettings);
-const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences);
-const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
-const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
-const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
-const mockedSetStoredAiAgentSessionArchived = vi.mocked(setStoredAiAgentSessionArchived);
-const mockedListenAppAiSettingsChanged = vi.mocked(listenAppAiSettingsChanged);
-const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
-const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
-const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
-const mockedListenAppWebSearchSettingsChanged = vi.mocked(listenAppWebSearchSettingsChanged);
-const mockedNotifyAppAiSettingsChanged = vi.mocked(notifyAppAiSettingsChanged);
-const mockedNotifyAppEditorPreferencesChanged = vi.mocked(notifyAppEditorPreferencesChanged);
-const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
-const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
-const mockedNotifyAppWebSearchSettingsChanged = vi.mocked(notifyAppWebSearchSettingsChanged);
-const mockedFetchAiProviderModels = vi.mocked(fetchAiProviderModels);
-const mockedTestAiProviderConnection = vi.mocked(testAiProviderConnection);
-const mockedChatCompletion = vi.mocked(chatCompletion);
-const mockedGenerateAiAgentSessionTitle = vi.mocked(generateAiAgentSessionTitle);
-
-const mockNativePath = "/mock-files/native.md";
-const mockDroppedPath = "/mock-files/dropped.md";
-const mockFolderPath = "/mock-files/vault";
-const mockUntitledPath = "/mock-files/Untitled.md";
-
-function mockSystemColorScheme(initiallyDark: boolean) {
-  let matches = initiallyDark;
-  const listeners = new Set<(event: MediaQueryListEvent) => unknown>();
-  const mediaQueryList = {
-    get matches() {
-      return matches;
-    },
-    media: "(prefers-color-scheme: dark)",
-    onchange: null,
-    addEventListener: vi.fn((_event: "change", listener: (event: MediaQueryListEvent) => unknown) => {
-      listeners.add(listener);
-    }),
-    removeEventListener: vi.fn((_event: "change", listener: (event: MediaQueryListEvent) => unknown) => {
-      listeners.delete(listener);
-    }),
-    addListener: vi.fn((listener: (event: MediaQueryListEvent) => unknown) => {
-      listeners.add(listener);
-    }),
-    removeListener: vi.fn((listener: (event: MediaQueryListEvent) => unknown) => {
-      listeners.delete(listener);
-    }),
-    dispatchEvent: vi.fn()
-  } as unknown as MediaQueryList;
-
-  Object.defineProperty(window, "matchMedia", {
-    configurable: true,
-    value: vi.fn(() => mediaQueryList)
-  });
-
-  return {
-    setSystemDark(nextMatches: boolean) {
-      matches = nextMatches;
-      const event = { matches: nextMatches, media: "(prefers-color-scheme: dark)" } as MediaQueryListEvent;
-      listeners.forEach((listener) => listener(event));
-    }
-  };
-}
-
-function mockOpenMarkdownFile(file: { content: string; name: string; path: string }) {
-  mockedOpenNativeMarkdownPath.mockResolvedValue({
-    kind: "file",
-    file
-  });
-}
-
+installAppTestHarness();
 describe("Markra workspace", () => {
-  beforeEach(() => {
-    window.history.pushState({}, "", "/");
-    mockedConsumeWelcomeDocumentState.mockReset();
-    mockedCreateAiAgentSessionId.mockReset();
-    mockedDeleteStoredAiAgentSession.mockReset();
-    mockedConfirmNativeMarkdownFileDelete.mockReset();
-    mockedConfirmNativeUnsavedMarkdownDocumentDiscard.mockReset();
-    mockedCreateNativeMarkdownTreeFile.mockReset();
-    mockedDeleteNativeMarkdownTreeFile.mockReset();
-    mockedInstallNativeMarkdownFileDrop.mockReset();
-    mockedOpenNativeMarkdownFolder.mockReset();
-    mockedOpenNativeMarkdownFolderInNewWindow.mockReset();
-    mockedOpenNativeMarkdownFileInNewWindow.mockReset();
-    mockedOpenNativeMarkdownPath.mockReset();
-    mockedReadNativeMarkdownImageFile.mockReset();
-    mockedReadNativeMarkdownFile.mockReset();
-    mockedRenameNativeMarkdownTreeFile.mockReset();
-    mockedSaveNativeMarkdownFile.mockReset();
-    mockedListNativeMarkdownFilesForPath.mockReset();
-    mockedWatchNativeMarkdownFile.mockReset();
-    mockedInstallNativeApplicationMenu.mockReset();
-    mockedInstallNativeEditorContextMenu.mockReset();
-    mockedOpenSettingsWindow.mockReset();
-    mockedGetStoredLanguage.mockReset();
-    mockedGetStoredAiSettings.mockReset();
-    mockedGetStoredAiAgentPreferences.mockReset();
-    mockedGetStoredAiAgentSession.mockReset();
-    mockedGetStoredAiAgentSessionSummary.mockReset();
-    mockedGetStoredEditorPreferences.mockReset();
-    mockedGetStoredTheme.mockReset();
-    mockedGetStoredWorkspaceState.mockReset();
-    mockedInitializeStoredAiAgentSession.mockReset();
-    mockedListStoredAiAgentSessions.mockReset();
-    mockedResetWelcomeDocumentState.mockReset();
-    mockedSaveStoredAiAgentSession.mockReset();
-    mockedSaveStoredAiAgentSessionTitle.mockReset();
-    mockedSaveStoredAiSettings.mockReset();
-    mockedSaveStoredEditorPreferences.mockReset();
-    mockedSaveStoredLanguage.mockReset();
-    mockedSaveStoredTheme.mockReset();
-    mockedSaveStoredWorkspaceState.mockReset();
-    mockedSetStoredAiAgentSessionArchived.mockReset();
-    mockedListenAppAiSettingsChanged.mockReset();
-    mockedListenAppEditorPreferencesChanged.mockReset();
-    mockedListenAppLanguageChanged.mockReset();
-    mockedListenAppThemeChanged.mockReset();
-    mockedNotifyAppAiSettingsChanged.mockReset();
-    mockedNotifyAppEditorPreferencesChanged.mockReset();
-    mockedNotifyAppLanguageChanged.mockReset();
-    mockedNotifyAppThemeChanged.mockReset();
-    mockedFetchAiProviderModels.mockReset();
-    mockedTestAiProviderConnection.mockReset();
-    mockedChatCompletion.mockReset();
-    mockedGenerateAiAgentSessionTitle.mockReset();
-    document.documentElement.removeAttribute("data-theme");
-    document.documentElement.removeAttribute("data-window");
-    mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
-    mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
-    mockedInstallNativeMarkdownFileDrop.mockResolvedValue(() => {});
-    mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
-    mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
-    mockedOpenSettingsWindow.mockResolvedValue(undefined);
-    mockedReadNativeMarkdownImageFile.mockResolvedValue({
-      dataUrl: "data:image/png;base64,aGVsbG8=",
-      mimeType: "image/png",
-      path: "/mock-files/assets/image.png",
-      src: "assets/image.png"
-    });
-    mockedSaveStoredEditorPreferences.mockResolvedValue(undefined);
-    mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
-    mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
-    mockedListenAppWebSearchSettingsChanged.mockResolvedValue(() => {});
-    mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
-    mockedCreateAiAgentSessionId.mockReturnValue("session-app");
-    mockedConfirmNativeMarkdownFileDelete.mockResolvedValue(true);
-    mockedConfirmNativeUnsavedMarkdownDocumentDiscard.mockResolvedValue(true);
-    mockedCreateNativeMarkdownTreeFile.mockResolvedValue({
-      name: "Daily note.md",
-      path: "/mock-files/vault/Daily note.md",
-      relativePath: "Daily note.md"
-    });
-    mockedDeleteNativeMarkdownTreeFile.mockResolvedValue(undefined);
-    mockedRenameNativeMarkdownTreeFile.mockResolvedValue({
-      name: "Renamed.md",
-      path: "/mock-files/vault/Renamed.md",
-      relativePath: "Renamed.md"
-    });
-    mockedGetStoredAiAgentSession.mockResolvedValue({
-      draft: "",
-      messages: [],
-      panelOpen: false,
-      panelWidth: null,
-      thinkingEnabled: false,
-      webSearchEnabled: false
-    });
-    mockedGetStoredAiAgentPreferences.mockResolvedValue({
-      thinkingEnabled: false,
-      webSearchEnabled: false
-    });
-    mockedGetStoredWebSearchSettings.mockResolvedValue({
-      contentMaxChars: 12000,
-      enabled: true,
-      maxResults: 5,
-      providerId: "local-bing",
-      searxngApiHost: ""
-    });
-    mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
-    mockedGetStoredEditorPreferences.mockResolvedValue({
-      autoOpenAiOnSelection: true,
-      bodyFontSize: 16,
-      clipboardImageFolder: "assets",
-      contentWidth: "default",
-      lineHeight: 1.65,
-      restoreWorkspaceOnStartup: true,
-      showWordCount: true
-    });
-    mockedGetStoredAiSettings.mockResolvedValue({
-      defaultModelId: "gpt-5.5",
-      defaultProviderId: "openai",
-      providers: [
-        {
-          apiKey: "",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: false,
-          id: "openai",
-          models: [
-            {
-              capabilities: ["text", "reasoning", "tools"],
-              enabled: true,
-              id: "gpt-5.5",
-              name: "GPT-5.5"
-            }
-          ],
-          name: "OpenAI",
-          type: "openai"
-        },
-        {
-          apiKey: "",
-          baseUrl: "https://api.anthropic.com/v1",
-          defaultModelId: "claude-opus-4-7",
-          enabled: false,
-          id: "anthropic",
-          models: [
-            {
-              capabilities: ["text", "vision"],
-              enabled: true,
-              id: "claude-opus-4-7",
-              name: "Claude Opus 4.7"
-            }
-          ],
-          name: "Anthropic",
-          type: "anthropic"
-        }
-      ]
-    });
-    mockedGetStoredLanguage.mockResolvedValue("en");
-    mockedGetStoredTheme.mockResolvedValue("light");
-    mockedGetStoredWorkspaceState.mockResolvedValue({
-      aiAgentSessionId: "session-app",
-      filePath: null,
-      fileTreeOpen: false,
-      folderName: null,
-      folderPath: null
-    });
-    mockedResetWelcomeDocumentState.mockResolvedValue(undefined);
-    mockedInitializeStoredAiAgentSession.mockResolvedValue(undefined);
-    mockedListStoredAiAgentSessions.mockResolvedValue([]);
-    mockedDeleteStoredAiAgentSession.mockResolvedValue(undefined);
-    mockedSaveStoredAiAgentSession.mockResolvedValue(undefined);
-    mockedSaveStoredAiAgentSessionTitle.mockResolvedValue(undefined);
-    mockedSaveStoredAiSettings.mockResolvedValue(undefined);
-    mockedSaveStoredLanguage.mockResolvedValue(undefined);
-    mockedSaveStoredTheme.mockResolvedValue(undefined);
-    mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
-    mockedSetStoredAiAgentSessionArchived.mockResolvedValue(undefined);
-    mockedListenAppLanguageChanged.mockResolvedValue(() => {});
-    mockedListenAppThemeChanged.mockResolvedValue(() => {});
-    mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);
-    mockedNotifyAppThemeChanged.mockResolvedValue(undefined);
-    mockedFetchAiProviderModels.mockResolvedValue([
-      { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "gpt-5", name: "GPT-5" },
-      { capabilities: ["image"], enabled: true, id: "gpt-image-1", name: "GPT Image 1" }
-    ]);
-    mockedTestAiProviderConnection.mockResolvedValue({ message: "Connected", ok: true });
-    mockedChatCompletion.mockResolvedValue({ content: "Improved AI draft", finishReason: "stop" });
-    mockedGenerateAiAgentSessionTitle.mockResolvedValue(null);
-    mockSystemColorScheme(false);
-  });
-
   it("renders a Typora-like minimal writing surface", async () => {
-    const { container } = render(<App />);
+    const { container } = renderApp();
     const shell = container.querySelector(".app-shell");
 
     expect(screen.getByRole("heading", { name: "Untitled.md" })).toBeInTheDocument();
@@ -504,156 +67,13 @@ describe("Markra workspace", () => {
   });
 
   it("opens settings from the lower-left settings launcher", async () => {
-    const { container } = render(<App />);
+    const { container } = renderApp();
 
     await screen.findByText("Welcome to Markra");
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 
     expect(mockedOpenSettingsWindow).toHaveBeenCalledTimes(1);
-  });
-
-  it("opens a right-side Markra AI workspace from the titlebar", async () => {
-    mockedGetStoredAiSettings.mockResolvedValue({
-      defaultModelId: "gpt-5.5",
-      defaultProviderId: "openai",
-      providers: [
-        {
-          apiKey: "sk-test",
-          baseUrl: "https://api.openai.com/v1",
-          defaultModelId: "gpt-5.5",
-          enabled: true,
-          id: "openai",
-          models: [
-            {
-              capabilities: ["text", "reasoning", "tools"],
-              enabled: true,
-              id: "gpt-5.5",
-              name: "GPT-5.5"
-            }
-          ],
-          name: "OpenAI",
-          type: "openai"
-        }
-      ]
-    });
-    const { container } = render(<App />);
-
-    await screen.findByText("Welcome to Markra");
-
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
-
-    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "true");
-    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
-    expect(agentPanel).toBeInTheDocument();
-    expect(within(agentPanel).getAllByText("OpenAI · GPT-5.5")[0]).toBeInTheDocument();
-    expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveTextContent("OpenAI · GPT-5.5");
-    expect((container.querySelector(".editor-agent-layout") as HTMLElement).style.gridTemplateColumns).toBe(
-      "minmax(0,1fr) 384px"
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Close Markra AI" }));
-
-    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "false");
-    expect((container.querySelector(".editor-agent-layout") as HTMLElement).style.gridTemplateColumns).toBe(
-      "minmax(0,1fr) 0px"
-    );
-  });
-
-  it("restores the pending AI suggestion without reopening the command input when an applied suggestion is undone", async () => {
-    const { container } = render(<App />);
-
-    await screen.findByText("Welcome to Markra");
-
-    window.dispatchEvent(
-      new CustomEvent(AI_EDITOR_PREVIEW_RESTORE_EVENT, {
-        detail: {
-          result: {
-            from: 1,
-            original: "Original",
-            replacement: "Improved",
-            to: 9,
-            type: "replace"
-          }
-        }
-      })
-    );
-
-    await waitFor(() => {
-      expect(screen.queryByRole("textbox", { name: "AI command" })).not.toBeInTheDocument();
-    });
-  });
-
-  it("applies an AI preview action event back into the editor document", async () => {
-    mockedGetStoredWorkspaceState.mockResolvedValue({
-      aiAgentSessionId: "session-app",
-      filePath: mockNativePath,
-      fileTreeOpen: false,
-      folderName: null,
-      folderPath: null
-    });
-    mockedReadNativeMarkdownFile.mockResolvedValue({
-      content: "Original text",
-      name: "native.md",
-      path: mockNativePath
-    });
-
-    render(<App />);
-
-    await screen.findByText("Original text");
-
-    window.dispatchEvent(
-      new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, {
-        detail: {
-          action: "apply",
-          result: {
-            from: 1,
-            original: "Original",
-            replacement: "Improved",
-            to: 9,
-            type: "replace"
-          }
-        }
-      })
-    );
-
-    await waitFor(() => expect(screen.getByText("Improved text")).toBeInTheDocument());
-  });
-
-  it("ignores repeated apply events for the same AI insert preview", async () => {
-    mockedGetStoredWorkspaceState.mockResolvedValue({
-      aiAgentSessionId: "session-app",
-      filePath: mockNativePath,
-      fileTreeOpen: false,
-      folderName: null,
-      folderPath: null
-    });
-    mockedReadNativeMarkdownFile.mockResolvedValue({
-      content: "Original text",
-      name: "native.md",
-      path: mockNativePath
-    });
-
-    render(<App />);
-
-    await screen.findByText("Original text");
-
-    const eventDetail = {
-      action: "apply",
-      result: {
-        from: 9,
-        original: "",
-        replacement: " improved",
-        to: 9,
-        type: "insert"
-      }
-    } as const;
-
-    window.dispatchEvent(new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
-    window.dispatchEvent(new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
-
-    await waitFor(() => expect(screen.getByText("Original improved text")).toBeInTheDocument());
-    expect(screen.queryByText("Original improved improved text")).not.toBeInTheDocument();
   });
 
   it("restores the last opened markdown file on app launch", async () => {
@@ -670,7 +90,7 @@ describe("Markra workspace", () => {
       path: mockNativePath
     });
 
-    render(<App />);
+    renderApp();
 
     expect(await screen.findByText("Restored file")).toBeInTheDocument();
     expect(screen.getByText("Back from last launch.")).toBeInTheDocument();
@@ -692,7 +112,7 @@ describe("Markra workspace", () => {
       { name: "note.md", path: "/mock-files/vault/docs/note.md", relativePath: "docs/note.md" }
     ]);
 
-    render(<App />);
+    renderApp();
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
     await waitFor(() =>
@@ -712,7 +132,7 @@ describe("Markra workspace", () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockedGetStoredTheme.mockResolvedValue("dark");
 
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "dark"));
 
@@ -731,7 +151,7 @@ describe("Markra workspace", () => {
       return () => {};
     });
 
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(mockedListenAppThemeChanged).toHaveBeenCalledTimes(1));
     act(() => {
@@ -747,7 +167,7 @@ describe("Markra workspace", () => {
     mockedGetStoredTheme.mockResolvedValue("system");
     const systemColorScheme = mockSystemColorScheme(true);
 
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "dark"));
 
@@ -767,7 +187,7 @@ describe("Markra workspace", () => {
       return () => {};
     });
 
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "en"));
 
@@ -787,7 +207,7 @@ describe("Markra workspace", () => {
       })
     );
 
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(mockedGetStoredLanguage).toHaveBeenCalledTimes(1));
     expect(mockedInstallNativeApplicationMenu).not.toHaveBeenCalled();
@@ -803,7 +223,7 @@ describe("Markra workspace", () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     window.history.pushState({}, "", "/?settings=1");
 
-    const { container } = render(<App />);
+    const { container } = renderApp();
 
     await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
     expect(container.querySelector(".settings-drag-region")).toHaveAttribute("data-tauri-drag-region");
@@ -854,7 +274,7 @@ describe("Markra workspace", () => {
   it("edits and stores AI provider settings from the settings window", async () => {
     window.history.pushState({}, "", "/?settings=1");
 
-    const { container } = render(<App />);
+    const { container } = renderApp();
 
     await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "AI" }));
@@ -992,7 +412,7 @@ describe("Markra workspace", () => {
   it("resets the welcome document from settings", async () => {
     window.history.pushState({}, "", "/?settings=1");
 
-    const { container } = render(<App />);
+    const { container } = renderApp();
 
     await waitFor(() => expect(container.querySelector(".settings-sidebar nav button")).toHaveAttribute("aria-current", "page"));
     expect(container.querySelector('[role="group"]')).not.toBeInTheDocument();
@@ -1014,7 +434,7 @@ describe("Markra workspace", () => {
       { name: "guide.md", path: "/mock-files/docs/guide.md", relativePath: "docs/guide.md" }
     ]);
 
-    const { container } = render(<App />);
+    const { container } = renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1048,7 +468,7 @@ describe("Markra workspace", () => {
       { name: "native.md", path: mockNativePath, relativePath: "native.md" }
     ]);
 
-    const { container } = render(<App />);
+    const { container } = renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1081,7 +501,7 @@ describe("Markra workspace", () => {
       { name: "native.md", path: mockNativePath, relativePath: "native.md" }
     ]);
 
-    const { container } = render(<App />);
+    const { container } = renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1110,7 +530,7 @@ describe("Markra workspace", () => {
       { name: "note.md", path: "/mock-files/vault/docs/note.md", relativePath: "docs/note.md" }
     ]);
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 
@@ -1135,7 +555,7 @@ describe("Markra workspace", () => {
       { name: "note.md", path: "/mock-files/vault/docs/note.md", relativePath: "docs/note.md" }
     ]);
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
 
@@ -1171,7 +591,7 @@ describe("Markra workspace", () => {
       path: guidePath
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1210,7 +630,7 @@ describe("Markra workspace", () => {
       path: guidePath
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1263,7 +683,7 @@ describe("Markra workspace", () => {
       };
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
@@ -1278,136 +698,6 @@ describe("Markra workspace", () => {
     expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
   });
 
-  it("updates the Markra AI context when selecting a markdown file from a folder workspace", async () => {
-    const guidePath = "/mock-files/vault/docs/guide.md";
-    mockedOpenNativeMarkdownPath.mockResolvedValue({
-      kind: "folder",
-      folder: {
-        path: mockFolderPath,
-        name: "vault"
-      }
-    });
-    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
-      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
-    ]);
-    mockedReadNativeMarkdownFile.mockResolvedValue({
-      content: "# Guide\n\nOpened from the folder tree.",
-      name: "guide.md",
-      path: guidePath
-    });
-
-    render(<App />);
-
-    fireEvent.keyDown(window, { key: "o", metaKey: true });
-    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
-    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
-    fireEvent.click(within(agentPanel).getByRole("button", { name: "Current context" }));
-
-    expect(within(agentPanel).getByText("vault")).toBeInTheDocument();
-
-    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
-    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
-
-    expect(await screen.findByText("Guide")).toBeInTheDocument();
-    await waitFor(() => expect(within(agentPanel).getByText("guide.md")).toBeInTheDocument());
-    await waitFor(() => expect(within(agentPanel).getByText("1 headings · 1 sections · 0 tables")).toBeInTheDocument());
-    await waitFor(() => expect(mockedListStoredAiAgentSessions).toHaveBeenCalledWith(guidePath, { includeArchived: true }));
-    expect(within(agentPanel).queryByText("vault")).not.toBeInTheDocument();
-  });
-
-  it("selects the current file's existing Markra AI session when changing files inside a folder workspace", async () => {
-    const guidePath = "/mock-files/vault/docs/guide.md";
-    mockedOpenNativeMarkdownPath.mockResolvedValue({
-      kind: "folder",
-      folder: {
-        path: mockFolderPath,
-        name: "vault"
-      }
-    });
-    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
-      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
-    ]);
-    mockedReadNativeMarkdownFile.mockResolvedValue({
-      content: "# Guide\n\nOpened from the folder tree.",
-      name: "guide.md",
-      path: guidePath
-    });
-    mockedListStoredAiAgentSessions.mockImplementation(async (workspaceKey) =>
-      workspaceKey === guidePath
-        ? [
-            {
-              archivedAt: null,
-              createdAt: 10,
-              id: "session-guide",
-              messageCount: 2,
-              title: "Guide session",
-              titleSource: "manual",
-              updatedAt: 20,
-              workspaceKey: guidePath
-            }
-          ]
-        : []
-    );
-
-    render(<App />);
-
-    fireEvent.keyDown(window, { key: "o", metaKey: true });
-    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
-    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
-    fireEvent.click(within(agentPanel).getByRole("button", { name: "Current context" }));
-
-    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
-    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
-
-    expect(await screen.findByText("Guide")).toBeInTheDocument();
-    await waitFor(() => expect(within(agentPanel).getByText("session-guide")).toBeInTheDocument());
-    await waitFor(() => expect(mockedGetStoredAiAgentSession).toHaveBeenCalledWith("session-guide"));
-  });
-
-  it("creates a separate Markra AI session when selecting a file without existing session history", async () => {
-    const guidePath = "/mock-files/vault/docs/guide.md";
-    mockedCreateAiAgentSessionId
-      .mockReturnValueOnce("session-startup")
-      .mockReturnValueOnce("session-folder")
-      .mockReturnValueOnce("session-guide");
-    mockedOpenNativeMarkdownPath.mockResolvedValue({
-      kind: "folder",
-      folder: {
-        path: mockFolderPath,
-        name: "vault"
-      }
-    });
-    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
-      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
-    ]);
-    mockedReadNativeMarkdownFile.mockResolvedValue({
-      content: "# Guide\n\nOpened from the folder tree.",
-      name: "guide.md",
-      path: guidePath
-    });
-    mockedListStoredAiAgentSessions.mockResolvedValue([]);
-
-    render(<App />);
-
-    fireEvent.keyDown(window, { key: "o", metaKey: true });
-    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
-    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
-    fireEvent.click(within(agentPanel).getByRole("button", { name: "Current context" }));
-
-    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
-    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
-
-    expect(await screen.findByText("Guide")).toBeInTheDocument();
-    await waitFor(() => expect(within(agentPanel).getByText("session-guide")).toBeInTheDocument());
-    expect(within(agentPanel).queryByText("session-folder")).not.toBeInTheDocument();
-  });
-
   it("quick opens an unsaved blank markdown document from the titlebar while the file tree is collapsed", async () => {
     mockOpenMarkdownFile({
       content: "# Native file\n\nOpened from disk.",
@@ -1419,7 +709,7 @@ describe("Markra workspace", () => {
       path: mockUntitledPath
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1464,7 +754,7 @@ describe("Markra workspace", () => {
         }
       });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1483,7 +773,7 @@ describe("Markra workspace", () => {
       path: mockNativePath
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Original synthetic text")).toBeInTheDocument();
@@ -1534,7 +824,7 @@ describe("Markra workspace", () => {
       path: mockNativePath
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1554,7 +844,7 @@ describe("Markra workspace", () => {
       path: mockNativePath
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1572,7 +862,7 @@ describe("Markra workspace", () => {
       path: mockNativePath
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
@@ -1630,7 +920,7 @@ describe("Markra workspace", () => {
       path: mockNativePath
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("A body")).toBeInTheDocument();
@@ -1698,12 +988,12 @@ describe("Markra workspace", () => {
 
   it("shows the welcome document only on the first nonblank app launch", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    const firstLaunch = render(<App />);
+    const firstLaunch = renderApp();
 
     expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
 
     firstLaunch.unmount();
-    render(<App />);
+    renderApp();
 
     expect(screen.getByRole("heading", { name: "Untitled.md" })).toBeInTheDocument();
     expect(await screen.findByLabelText("Markdown editor")).toHaveTextContent(/^$/);
@@ -1714,7 +1004,7 @@ describe("Markra workspace", () => {
   it("starts a native new-document window with an empty untitled document", async () => {
     window.history.pushState({}, "", "/?blank=1");
 
-    render(<App />);
+    renderApp();
 
     expect(screen.getByRole("heading", { name: "Untitled.md" })).toBeInTheDocument();
     expect(await screen.findByLabelText("Markdown editor")).toHaveTextContent(/^$/);
@@ -1725,7 +1015,7 @@ describe("Markra workspace", () => {
   it("focuses the editor when the default launch opens an empty document", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
 
-    render(<App />);
+    renderApp();
 
     const editor = await screen.findByRole("textbox", { name: "Markdown document" });
 
@@ -1735,7 +1025,7 @@ describe("Markra workspace", () => {
   it("focuses the editor when a native new-document window opens", async () => {
     window.history.pushState({}, "", "/?blank=1");
 
-    render(<App />);
+    renderApp();
 
     const editor = await screen.findByRole("textbox", { name: "Markdown document" });
 
@@ -1750,7 +1040,7 @@ describe("Markra workspace", () => {
       path: mockDroppedPath
     });
 
-    render(<App />);
+    renderApp();
 
     expect(await screen.findByText("Dropped file")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "dropped.md" })).toBeInTheDocument();
@@ -1764,7 +1054,7 @@ describe("Markra workspace", () => {
       { name: "index.md", path: "/mock-files/vault/index.md", relativePath: "index.md" }
     ]);
 
-    render(<App />);
+    renderApp();
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
     expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
@@ -1785,7 +1075,7 @@ describe("Markra workspace", () => {
       path: mockDroppedPath
     });
 
-    render(<App />);
+    renderApp();
     await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
     const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
 
@@ -1800,7 +1090,7 @@ describe("Markra workspace", () => {
   });
 
   it("opens a dropped markdown file in a new window when the current editor has content", async () => {
-    render(<App />);
+    renderApp();
     await screen.findByText("Welcome to Markra");
     await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
     const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
@@ -1822,7 +1112,7 @@ describe("Markra workspace", () => {
       { name: "note.md", path: "/mock-files/vault/docs/note.md", relativePath: "docs/note.md" }
     ]);
 
-    render(<App />);
+    renderApp();
     await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
     const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
 
@@ -1846,7 +1136,7 @@ describe("Markra workspace", () => {
   });
 
   it("opens a dropped markdown folder in a new window when the current editor has content", async () => {
-    render(<App />);
+    renderApp();
     await screen.findByText("Welcome to Markra");
     await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
     const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
@@ -1867,7 +1157,7 @@ describe("Markra workspace", () => {
       path: mockUntitledPath
     });
 
-    render(<App />);
+    renderApp();
     await screen.findByText("Welcome to Markra");
 
     fireEvent.keyDown(window, { key: "s", metaKey: true });
@@ -1893,7 +1183,7 @@ describe("Markra workspace", () => {
       path: mockNativePath
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 
@@ -1923,7 +1213,7 @@ describe("Markra workspace", () => {
       path: mockNativePath
     });
 
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
     const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
@@ -1982,7 +1272,7 @@ describe("Markra workspace", () => {
       return () => {};
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 
@@ -2018,7 +1308,7 @@ describe("Markra workspace", () => {
       return () => {};
     });
 
-    render(<App />);
+    renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 

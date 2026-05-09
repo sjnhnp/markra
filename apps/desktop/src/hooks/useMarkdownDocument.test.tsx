@@ -5,7 +5,7 @@ import {
   watchNativeMarkdownFile
 } from "../lib/tauri";
 
-vi.mock("../lib/settings/appSettings", () => ({
+vi.mock("../lib/settings/app-settings", () => ({
   consumeWelcomeDocumentState: vi.fn(),
   createAiAgentSessionId: vi.fn(() => "session-test"),
   getStoredWorkspaceState: vi.fn(),

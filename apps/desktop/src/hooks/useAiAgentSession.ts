@@ -28,7 +28,7 @@ import {
   saveStoredAiAgentPreferences,
   saveStoredAiAgentSession,
   saveStoredAiAgentSessionTitle
-} from "../lib/settings/appSettings";
+} from "../lib/settings/app-settings";
 
 export type AiAgentPanelMessage = AiAgentSessionMessage;
 
@@ -42,6 +42,9 @@ type AiAgentSessionContext = {
   getTableAnchors?: () => AiDocumentAnchor[];
   model: string | null;
   onAiResult?: (result: AiDiffResult, previewId?: string) => unknown;
+  onSessionModelRestore?: (
+    selection: Pick<StoredAiAgentSessionState, "agentModelId" | "agentProviderId">
+  ) => unknown;
   onSessionRestore?: (session: Pick<StoredAiAgentSessionState, "panelOpen" | "panelWidth">) => unknown;
   panelOpen?: boolean;
   panelWidth?: number | null;
@@ -74,6 +77,8 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const sessionTitleSourceRef = useRef<"ai" | "fallback" | "manual" | null>(null);
   const titleGenerationSignatureRef = useRef<string | null>(null);
   const sessionKey = ctx.sessionId?.trim() ? ctx.sessionId : null;
+  const agentModelId = ctx.model ?? null;
+  const agentProviderId = ctx.provider?.id ?? null;
 
   const setThinkingEnabled = useCallback((action: SetStateAction<boolean>) => {
     setThinkingEnabledState((currentValue) => {
@@ -96,6 +101,8 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   }, []);
 
   useEffect(() => {
+    if (sessionKey) return;
+
     let active = true;
 
     getStoredAiAgentPreferences()
@@ -114,7 +121,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [sessionKey]);
 
   const updateAssistantMessage = useCallback((updater: (message: AiAgentPanelMessage) => AiAgentPanelMessage) => {
     const assistantId = assistantMessageIdRef.current;
@@ -152,6 +159,8 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
       const defaultSession = createDefaultAiAgentSessionState();
       setDraft(defaultSession.draft);
       setMessages(defaultSession.messages);
+      setThinkingEnabledState(defaultSession.thinkingEnabled);
+      setWebSearchEnabledState(defaultSession.webSearchEnabled);
       hydratedSessionKeyRef.current = null;
       skipNextPersistRef.current = true;
       return () => {
@@ -169,6 +178,12 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
 
         setDraft(storedSession.draft);
         setMessages(storedSession.messages);
+        setThinkingEnabledState(storedSession.thinkingEnabled);
+        setWebSearchEnabledState(storedSession.webSearchEnabled);
+        ctx.onSessionModelRestore?.({
+          agentModelId: storedSession.agentModelId,
+          agentProviderId: storedSession.agentProviderId
+        });
         sessionTitleSourceRef.current = storedSummary?.titleSource ?? null;
         if (shouldRestorePanelState) {
           ctx.onSessionRestore?.({
@@ -190,6 +205,12 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         const defaultSession = createDefaultAiAgentSessionState();
         setDraft(defaultSession.draft);
         setMessages(defaultSession.messages);
+        setThinkingEnabledState(defaultSession.thinkingEnabled);
+        setWebSearchEnabledState(defaultSession.webSearchEnabled);
+        ctx.onSessionModelRestore?.({
+          agentModelId: defaultSession.agentModelId,
+          agentProviderId: defaultSession.agentProviderId
+        });
         sessionTitleSourceRef.current = null;
         if (shouldRestorePanelState) {
           ctx.onSessionRestore?.({
@@ -205,7 +226,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     return () => {
       active = false;
     };
-  }, [ctx.onSessionRestore, sessionKey]);
+  }, [ctx.onSessionModelRestore, ctx.onSessionRestore, sessionKey]);
 
   useEffect(() => {
     if (hydratedSessionKeyRef.current !== sessionKey) return;
@@ -221,6 +242,8 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     persistTimerRef.current = window.setTimeout(() => {
       persistTimerRef.current = null;
       saveStoredAiAgentSession(sessionKey, {
+        agentModelId,
+        agentProviderId,
         draft,
         messages,
         panelOpen: ctx.panelOpen === true,
@@ -237,7 +260,18 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
       window.clearTimeout(persistTimerRef.current);
       persistTimerRef.current = null;
     };
-  }, [ctx.panelOpen, ctx.panelWidth, ctx.workspaceKey, draft, messages, sessionKey, thinkingEnabled, webSearchEnabled]);
+  }, [
+    agentModelId,
+    agentProviderId,
+    ctx.panelOpen,
+    ctx.panelWidth,
+    ctx.workspaceKey,
+    draft,
+    messages,
+    sessionKey,
+    thinkingEnabled,
+    webSearchEnabled
+  ]);
 
   useEffect(() => {
     if (!sessionKey) return;
