@@ -1,5 +1,6 @@
 import { Pencil, Plus } from "lucide-react";
 import { CapabilityPicker, CapabilityPills } from "./AiModelCapabilities";
+import { IconButton } from "@markra/ui";
 import {
   AiProviderSwitch,
   AiSettingsActionButton,
@@ -174,14 +175,13 @@ export function AiProviderModelsSection({
                       {model.name}
                     </span>
                     <CapabilityPills capabilities={model.capabilities} translate={translate} />
-                    <button
-                      className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md border border-transparent text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-                      type="button"
-                      aria-label={`${translate("settings.ai.editModel")} ${model.name}`}
+                    <IconButton
+                      label={`${translate("settings.ai.editModel")} ${model.name}`}
+                      size="icon-md"
                       onClick={() => onStartEditModel(model)}
                     >
                       <Pencil aria-hidden="true" size={14} />
-                    </button>
+                    </IconButton>
                   </div>
                 )}
               </div>

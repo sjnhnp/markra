@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { AiProviderBadge } from "./AiProviderBadge";
+import { PopoverSurface } from "@markra/ui";
 import type { AiProviderApiStyle, AiProviderConfig } from "../lib/settings/app-settings";
 import type { I18nKey } from "@markra/shared";
 
@@ -104,8 +105,8 @@ export function AiModelPicker({
       : "min-w-0 truncate text-[12px] leading-5 font-[560]";
   const menuClassName =
     variant === "subtitle"
-      ? `absolute top-[calc(100%+6px)] left-1/2 z-40 max-h-72 w-62 -translate-x-1/2 overflow-auto rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 shadow-[var(--ai-command-popover-shadow)] transition-[opacity,transform] duration-140 ease-out motion-reduce:transition-none ${open ? "pointer-events-auto scale-100 opacity-100" : "pointer-events-none scale-[0.98] opacity-0"}`
-      : `absolute right-0 bottom-[calc(100%+8px)] z-40 max-h-72 w-68 overflow-auto rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 shadow-[var(--ai-command-popover-shadow)] transition-[opacity,transform] duration-140 ease-out motion-reduce:transition-none ${open ? "pointer-events-auto scale-100 opacity-100" : "pointer-events-none scale-[0.98] opacity-0"}`;
+      ? "absolute top-[calc(100%+6px)] left-1/2 z-40 max-h-72 w-62 -translate-x-1/2 overflow-auto rounded-lg p-1"
+      : "absolute right-0 bottom-[calc(100%+8px)] z-40 max-h-72 w-68 overflow-auto rounded-lg p-1";
 
   const handleSelect = (providerId: string, modelId: string) => {
     setOpen(false);
@@ -135,7 +136,14 @@ export function AiModelPicker({
         />
       </button>
       {menuVisible ? (
-        <div className={menuClassName} role="listbox" aria-label={ariaLabel}>
+        <PopoverSurface
+          className={menuClassName}
+          open={open}
+          openClassName="pointer-events-auto scale-100 opacity-100"
+          closedClassName="pointer-events-none scale-[0.98] opacity-0"
+          role="listbox"
+          aria-label={ariaLabel}
+        >
           {models.map((model) => {
             const modelValue = getAiModelOptionValue(model.providerId, model.id);
             const active = modelValue === selectedValue;
@@ -169,7 +177,7 @@ export function AiModelPicker({
               </button>
             );
           })}
-        </div>
+        </PopoverSurface>
       ) : null}
     </div>
   );

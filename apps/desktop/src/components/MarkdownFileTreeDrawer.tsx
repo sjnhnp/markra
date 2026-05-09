@@ -20,6 +20,7 @@ import {
   TableOfContents
 } from "lucide-react";
 import { t, type AppLanguage } from "@markra/shared";
+import { IconButton } from "@markra/ui";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
 import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
@@ -456,14 +457,13 @@ export function MarkdownFileTreeDrawer({
 
   return (
     <>
-      <button
-        className="fixed bottom-3 left-3 z-30 inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) opacity-40 transition-[background-color,color,opacity] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100 focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:opacity-100 focus-visible:outline-none"
-        type="button"
-        aria-label={label("settings.title")}
+      <IconButton
+        className="fixed bottom-3 left-3 z-30 opacity-40 hover:opacity-100 focus-visible:opacity-100"
+        label={label("settings.title")}
         onClick={onOpenSettings}
       >
         <Settings aria-hidden="true" size={15} />
-      </button>
+      </IconButton>
 
       <aside
         className={`markdown-file-tree relative flex h-full min-h-0 w-full flex-col border-r border-(--border-default) bg-(--bg-secondary) pt-10 will-change-transform transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}
@@ -489,10 +489,10 @@ export function MarkdownFileTreeDrawer({
           </div>
         ) : null}
         <div className="grid h-10 grid-cols-[40px_minmax(0,1fr)_40px] items-center border-b border-(--border-default)">
-          <button
-            className="inline-flex size-10 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-            type="button"
-            aria-label={showingOutline ? label("app.showFiles") : label("app.showOutline")}
+          <IconButton
+            className="rounded-none"
+            label={showingOutline ? label("app.showFiles") : label("app.showOutline")}
+            size="icon-lg"
             onClick={() => setViewMode((mode) => (mode === "files" ? "outline" : "files"))}
           >
             {showingOutline ? (
@@ -500,23 +500,23 @@ export function MarkdownFileTreeDrawer({
             ) : (
               <TableOfContents aria-hidden="true" size={16} />
             )}
-          </button>
+          </IconButton>
           <h2 className="m-0 truncate text-center text-[14px] font-[560] tracking-normal text-(--text-heading)">
             {showingOutline ? label("app.outline") : label("app.files")}
           </h2>
-          <button
-            className="inline-flex size-10 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-            type="button"
-            aria-label={label("app.searchMarkdownFiles")}
-            aria-pressed={searchOpen}
+          <IconButton
+            className="rounded-none"
             disabled={showingOutline}
+            label={label("app.searchMarkdownFiles")}
+            pressed={searchOpen}
+            size="icon-lg"
             onClick={() => {
               if (searchOpen) setSearchQuery("");
               setSearchOpen((open) => !open);
             }}
           >
             <Search aria-hidden="true" size={16} />
-          </button>
+          </IconButton>
         </div>
 
         {!showingOutline && searchOpen ? (
@@ -567,14 +567,13 @@ export function MarkdownFileTreeDrawer({
                 <Folder aria-hidden="true" size={16} />
                 <span className="min-w-0 truncate">{rootName}</span>
               </div>
-              <button
-                aria-label={label("app.newMarkdownFile")}
-                className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                type="button"
+              <IconButton
+                className="rounded-md"
+                label={label("app.newMarkdownFile")}
                 onClick={startCreatingFile}
               >
                 <Plus aria-hidden="true" size={14} />
-              </button>
+              </IconButton>
             </div>
 
             <div

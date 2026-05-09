@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Archive, ArchiveRestore, Check, History, MessageSquarePlus, PencilLine, Search, Trash2 } from "lucide-react";
+import { Button, IconButton, PopoverSurface, SearchInput } from "@markra/ui";
 import type { AppLanguage, I18nKey } from "@markra/shared";
 import type { StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
 import { t } from "@markra/shared";
@@ -151,17 +152,18 @@ export function AiAgentSessionMenu({
         <History aria-hidden="true" size={15} />
       </button>
       {menuVisible ? (
-        <div
-          className={`absolute top-[calc(100%+8px)] right-0 z-40 w-72 overflow-hidden rounded-xl border border-(--border-default) bg-(--bg-primary) shadow-(--ai-command-popover-shadow) transition-[opacity,transform] duration-140 ease-out motion-reduce:transition-none ${
-            open ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"
-          }`}
+        <PopoverSurface
+          className="absolute top-[calc(100%+8px)] right-0 z-40 w-72 overflow-hidden rounded-xl"
+          open={open}
+          openClassName="pointer-events-auto translate-y-0 opacity-100"
+          closedClassName="pointer-events-none -translate-y-1 opacity-0"
           role="menu"
           aria-label={label("app.aiAgentSessions")}
         >
           <div className="border-b border-(--border-default) p-1.5">
-            <button
-              className="inline-flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg border border-(--border-default) bg-(--bg-secondary) px-3 text-left text-[12px] leading-5 font-semibold text-(--text-primary) transition-[background-color,border-color,color] duration-150 ease-out hover:border-(--border-strong) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:border-(--accent) focus-visible:outline-none"
-              type="button"
+            <Button
+              className="w-full justify-start rounded-lg bg-(--bg-secondary) text-left font-semibold text-(--text-primary) hover:border-(--border-strong)"
+              size="md"
               role="menuitem"
               onClick={() => {
                 setOpen(false);
@@ -170,37 +172,31 @@ export function AiAgentSessionMenu({
             >
               <MessageSquarePlus aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
               <span className="truncate">{label("app.aiAgentNewSession")}</span>
-            </button>
+            </Button>
             <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-              <label className="relative min-w-0">
-                <span className="sr-only">{label("app.aiAgentSearchSessions")}</span>
-                <Search
-                  aria-hidden="true"
-                  className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-(--text-secondary)"
-                  size={13}
-                />
-                <input
-                  aria-label={label("app.aiAgentSearchSessions")}
-                  className="h-8 w-full rounded-lg border border-(--border-default) bg-(--bg-primary) pr-2 pl-7 text-[12px] leading-5 font-[520] text-(--text-primary) outline-none transition-[border-color,background-color] duration-150 ease-out placeholder:text-(--text-secondary) focus:border-(--accent)"
-                  type="search"
-                  value={query}
-                  placeholder={label("app.aiAgentSearchSessions")}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-              <button
-                className={`inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border p-0 transition-[background-color,border-color,color] duration-150 ease-out focus-visible:outline-none ${
+              <SearchInput
+                aria-label={label("app.aiAgentSearchSessions")}
+                className="rounded-lg text-(--text-primary) focus:ring-0"
+                icon={<Search size={13} />}
+                size="sm"
+                value={query}
+                placeholder={label("app.aiAgentSearchSessions")}
+                onChange={(event) => setQuery(event.currentTarget.value)}
+              />
+              <IconButton
+                className={`rounded-lg ${
                   showArchived
                     ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
                     : "border-(--border-default) bg-(--bg-primary) text-(--text-secondary) hover:border-(--border-strong) hover:text-(--text-heading)"
                 }`}
-                type="button"
-                aria-label={showArchived ? label("app.aiAgentHideArchivedSessions") : label("app.aiAgentShowArchivedSessions")}
-                aria-pressed={showArchived}
+                label={showArchived ? label("app.aiAgentHideArchivedSessions") : label("app.aiAgentShowArchivedSessions")}
+                pressed={showArchived}
+                size="icon-md"
+                variant="secondary"
                 onClick={() => setShowArchived((current) => !current)}
               >
                 <Archive aria-hidden="true" size={13} />
-              </button>
+              </IconButton>
             </div>
           </div>
           <div className="max-h-80 overflow-auto p-1.5">
@@ -273,10 +269,10 @@ export function AiAgentSessionMenu({
                             </span>
                           </button>
                           <div className="absolute top-2 right-2 flex items-center gap-1">
-                            <button
-                              aria-label={`${label("app.aiAgentRenameSession")} ${sessionTitle}`}
-                              className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-active) hover:text-(--text-heading) focus-visible:bg-(--bg-active) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                              type="button"
+                            <IconButton
+                              className="hover:bg-(--bg-active) focus-visible:bg-(--bg-active)"
+                              label={`${label("app.aiAgentRenameSession")} ${sessionTitle}`}
+                              size="icon-xs"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 setEditingSessionId(session.id);
@@ -284,29 +280,29 @@ export function AiAgentSessionMenu({
                               }}
                             >
                               <PencilLine aria-hidden="true" size={12} />
-                            </button>
-                            <button
-                              aria-label={`${archived ? label("app.aiAgentRestoreSession") : label("app.aiAgentArchiveSession")} ${sessionTitle}`}
-                              className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-active) hover:text-(--text-heading) focus-visible:bg-(--bg-active) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                              type="button"
+                            </IconButton>
+                            <IconButton
+                              className="hover:bg-(--bg-active) focus-visible:bg-(--bg-active)"
+                              label={`${archived ? label("app.aiAgentRestoreSession") : label("app.aiAgentArchiveSession")} ${sessionTitle}`}
+                              size="icon-xs"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 onArchiveSession?.(session.id, !archived);
                               }}
                             >
                               {archived ? <ArchiveRestore aria-hidden="true" size={12} /> : <Archive aria-hidden="true" size={12} />}
-                            </button>
-                            <button
-                              aria-label={`${label("app.aiAgentDeleteSession")} ${sessionTitle}`}
-                              className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-active) hover:text-(--text-heading) focus-visible:bg-(--bg-active) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                              type="button"
+                            </IconButton>
+                            <IconButton
+                              className="hover:bg-(--bg-active) focus-visible:bg-(--bg-active)"
+                              label={`${label("app.aiAgentDeleteSession")} ${sessionTitle}`}
+                              size="icon-xs"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 requestDeleteSession(session.id, sessionTitle).catch(() => {});
                               }}
                             >
                               <Trash2 aria-hidden="true" size={12} />
-                            </button>
+                            </IconButton>
                           </div>
                         </>
                       )}
@@ -320,7 +316,7 @@ export function AiAgentSessionMenu({
               </p>
             )}
           </div>
-        </div>
+        </PopoverSurface>
       ) : null}
     </div>
   );

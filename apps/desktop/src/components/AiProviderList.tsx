@@ -1,5 +1,6 @@
 import { Plus, Search } from "lucide-react";
 import { AiProviderBadge } from "./AiProviderBadge";
+import { Button, SearchInput, StatusDot } from "@markra/ui";
 import type { AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 
@@ -25,21 +26,14 @@ export function AiProviderList({
   return (
     <section className="flex h-full min-h-0 flex-col border-r border-(--border-default) bg-(--bg-primary) max-[860px]:border-r-0 max-[860px]:border-b">
       <div className="border-b border-(--border-default) p-3">
-        <label className="relative block">
-          <span className="sr-only">{translate("settings.ai.searchProviders")}</span>
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-(--text-secondary)"
-            size={14}
-          />
-          <input
-            className="h-9 w-full rounded-md border border-(--border-default) bg-(--bg-secondary) pr-3 pl-8 text-[13px] leading-5 font-[520] text-(--text-heading) outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-(--text-secondary) focus:border-(--accent) focus:ring-2 focus:ring-(--accent)/20"
-            aria-label={translate("settings.ai.searchProviders")}
-            value={providerSearch}
-            placeholder={translate("settings.ai.searchProviders")}
-            onChange={(event) => onSearchChange(event.currentTarget.value)}
-          />
-        </label>
+        <SearchInput
+          aria-label={translate("settings.ai.searchProviders")}
+          className="bg-(--bg-secondary)"
+          icon={<Search size={14} />}
+          value={providerSearch}
+          placeholder={translate("settings.ai.searchProviders")}
+          onChange={(event) => onSearchChange(event.currentTarget.value)}
+        />
       </div>
 
       <div className="ai-provider-list-scroll grid min-h-0 flex-1 content-start gap-1 overflow-auto overscroll-contain p-3">
@@ -56,21 +50,20 @@ export function AiProviderList({
             <span className="min-w-0 truncate text-[13px] leading-5 font-[620] text-(--text-heading)">
               {provider.name}
             </span>
-            <span className={`size-2 rounded-full ${provider.enabled ? "bg-(--accent)" : "bg-(--border-strong)"}`} />
+            <StatusDot tone={provider.enabled ? "active" : "inactive"} />
           </button>
         ))}
       </div>
 
       <div className="border-t border-(--border-default) p-3">
-        <button
-          className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[13px] leading-5 font-[650] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-          type="button"
+        <Button
+          className="w-full text-[13px]"
           aria-label={translate("settings.ai.addProvider")}
           onClick={onAddProvider}
         >
           <Plus aria-hidden="true" size={15} />
           {translate("settings.ai.addProvider")}
-        </button>
+        </Button>
       </div>
     </section>
   );

@@ -16,7 +16,7 @@ import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import type { AiModelCapability, AiProviderApiStyle, StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
 import type { AiAgentPanelMessage } from "../hooks/useAiAgentSession";
 import { clampNumber } from "@markra/shared";
-import { RoundIconButton, ToggleButton } from "@markra/ui";
+import { IconButton, RoundIconButton, ToggleButton } from "@markra/ui";
 
 type AiAgentModelOption = AiModelPickerOption & { capabilities: AiModelCapability[] };
 
@@ -349,14 +349,14 @@ export function AiAgentPanel({
         <span className="pointer-events-none absolute top-2 bottom-2 left-0 w-px rounded-full bg-transparent transition-colors duration-150 ease-out" />
       </div>
       <header className="relative z-20 min-h-12 shrink-0 border-b border-(--border-default) px-2 py-1.5">
-        <button
-          className="absolute top-1.5 left-2 inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-          type="button"
-          aria-label={label("app.collapseAiAgent")}
+        <IconButton
+          className="absolute top-1.5 left-2"
+          label={label("app.collapseAiAgent")}
+          size="icon-md"
           onClick={onClose}
         >
           <Bot aria-hidden="true" size={15} />
-        </button>
+        </IconButton>
         <div className="absolute top-1.5 right-10 z-30">
           <AiAgentSessionMenu
             activeSessionId={activeSessionId}
@@ -389,14 +389,14 @@ export function AiAgentPanel({
             <p className="m-0 truncate text-[10px] leading-3 font-[520] text-(--text-secondary)">{providerModelLabel}</p>
           )}
         </div>
-        <button
-          className="absolute top-1.5 right-2 z-30 inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-          type="button"
-          aria-label={label("app.closeAiAgent")}
+        <IconButton
+          className="absolute top-1.5 right-2 z-30"
+          label={label("app.closeAiAgent")}
+          size="icon-md"
           onClick={onClose}
         >
           <X aria-hidden="true" size={15} />
-        </button>
+        </IconButton>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

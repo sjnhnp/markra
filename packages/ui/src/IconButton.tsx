@@ -7,7 +7,7 @@ export type IconButtonProps = Omit<ComponentPropsWithoutRef<"button">, "aria-lab
   children: ReactNode;
   label: string;
   pressed?: boolean;
-  size?: Extract<ButtonSize, "icon-md" | "icon-sm">;
+  size?: Extract<ButtonSize, `icon-${string}`>;
   variant?: ButtonVariant;
 };
 

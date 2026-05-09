@@ -3,7 +3,7 @@ import type { ComponentPropsWithoutRef } from "react";
 import { mergeClassNames } from "./classes";
 
 export type ButtonVariant = "ghost" | "primary" | "secondary";
-export type ButtonSize = "icon-md" | "icon-sm" | "md" | "sm";
+export type ButtonSize = "icon-lg" | "icon-md" | "icon-sm" | "icon-xs" | "md" | "sm";
 
 export type ButtonProps = ComponentPropsWithoutRef<"button"> & {
   size?: ButtonSize;
@@ -17,8 +17,10 @@ const variantClassNames: Record<ButtonVariant, string> = {
 };
 
 const sizeClassNames: Record<ButtonSize, string> = {
+  "icon-lg": "size-10 p-0",
   "icon-md": "size-8 p-0",
   "icon-sm": "size-7 p-0",
+  "icon-xs": "size-6 p-0",
   md: "h-9 px-3 text-[12px] leading-5 font-[650]",
   sm: "h-8 px-3 text-[12px] leading-5 font-[560]"
 };

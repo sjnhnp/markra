@@ -1,4 +1,5 @@
 import { Bot, FileText, FolderOpen, ImageIcon, Moon, PanelLeft, Save, SquarePen, Sun } from "lucide-react";
+import { IconButton } from "@markra/ui";
 import type { ResolvedAppTheme } from "../lib/settings/app-settings";
 import { t, type AppLanguage } from "@markra/shared";
 
@@ -23,6 +24,9 @@ type NativeTitleBarProps = {
   onToggleMarkdownFiles: () => unknown;
   onToggleTheme: () => unknown;
 };
+
+const dimTitlebarIconButtonClassName =
+  "opacity-55 hover:opacity-100 focus-visible:opacity-100";
 
 export function NativeTitleBar({
   aiAgentOpen,
@@ -62,24 +66,22 @@ export function NativeTitleBar({
       data-tauri-drag-region
     >
       <div className="titlebar-spacer relative z-20 flex h-10 items-center gap-1 pl-22" data-tauri-drag-region>
-        <button
-          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) opacity-55 transition-[background-color,color,opacity] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100 focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:opacity-100 focus-visible:outline-none"
-          type="button"
-          aria-label={label("app.toggleMarkdownFiles")}
-          aria-pressed={markdownFilesOpen}
+        <IconButton
+          className={dimTitlebarIconButtonClassName}
+          label={label("app.toggleMarkdownFiles")}
+          pressed={markdownFilesOpen}
           onClick={onToggleMarkdownFiles}
         >
           <PanelLeft aria-hidden="true" size={15} />
-        </button>
+        </IconButton>
         {showQuickCreateMarkdownFile ? (
-          <button
-            className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) opacity-55 transition-[background-color,color,opacity] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) hover:opacity-100 focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:opacity-100 focus-visible:outline-none"
-            type="button"
-            aria-label={label("app.newMarkdownFile")}
+          <IconButton
+            className={dimTitlebarIconButtonClassName}
+            label={label("app.newMarkdownFile")}
             onClick={onCreateMarkdownFile}
           >
             <SquarePen aria-hidden="true" size={15} />
-          </button>
+          </IconButton>
         ) : null}
       </div>
       <h1
@@ -106,44 +108,38 @@ export function NativeTitleBar({
         aria-label={label("app.fileActions")}
         style={{ transform: aiAgentOpen ? `translateX(-${aiAgentWidth}px)` : undefined }}
       >
-        <button
-          className={`inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 p-0 transition-[background-color,color,opacity] duration-150 ease-out focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none ${
+        <IconButton
+          className={
             aiAgentOpen
               ? "bg-(--bg-active) text-(--text-heading) opacity-100"
               : "bg-transparent text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading)"
-          }`}
-          type="button"
+          }
+          label={label("app.toggleAiAgent")}
+          pressed={aiAgentOpen}
           onClick={onToggleAiAgent}
-          aria-label={label("app.toggleAiAgent")}
-          aria-pressed={aiAgentOpen}
         >
           <Bot aria-hidden="true" size={15} />
-        </button>
-        <button
-          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-          type="button"
+        </IconButton>
+        <IconButton
+          label={label("app.openMarkdownOrFolder")}
           onClick={onOpenMarkdown}
-          aria-label={label("app.openMarkdownOrFolder")}
         >
           <FolderOpen aria-hidden="true" size={15} />
-        </button>
-        <button
-          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-(--text-secondary)"
-          type="button"
+        </IconButton>
+        <IconButton
+          className="disabled:opacity-35"
           disabled={saveDisabled}
+          label={label("app.saveMarkdown")}
           onClick={onSaveMarkdown}
-          aria-label={label("app.saveMarkdown")}
         >
           <Save aria-hidden="true" size={15} />
-        </button>
-        <button
-          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-          type="button"
+        </IconButton>
+        <IconButton
+          label={themeActionLabel}
           onClick={onToggleTheme}
-          aria-label={themeActionLabel}
         >
           {theme === "dark" ? <Sun aria-hidden="true" size={15} /> : <Moon aria-hidden="true" size={15} />}
-        </button>
+        </IconButton>
       </div>
     </header>
   );
