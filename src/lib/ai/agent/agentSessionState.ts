@@ -7,6 +7,7 @@ export type AiAgentSessionMessage = {
   id: number;
   isError?: boolean;
   preview?: AiAgentSessionPreview;
+  previews?: AiAgentSessionPreview[];
   role: "assistant" | "user";
   text: string;
   thinking?: string;
@@ -146,11 +147,14 @@ function normalizeSessionMessage(value: unknown): AiAgentSessionMessage | null {
     ? value.activities.map(normalizeProcessItem).filter((item): item is AiAgentProcessItem => item !== null)
     : undefined;
 
+  const previews = normalizeSessionPreviews(value.previews, value.preview);
+
   return {
     activities: activities && activities.length > 0 ? cancelAgentProcesses(activities) : undefined,
     id: value.id,
     isError: value.isError === true,
-    preview: normalizeSessionPreview(value.preview),
+    preview: normalizeSessionPreview(value.preview) ?? previews?.at(-1),
+    previews,
     role: value.role,
     text: value.text,
     thinking: typeof value.thinking === "string" ? value.thinking : undefined,
@@ -163,6 +167,19 @@ function normalizeThinkingTurns(value: unknown) {
 
   const turns = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
   return turns.length > 0 ? turns : undefined;
+}
+
+function normalizeSessionPreviews(previewsValue: unknown, previewValue: unknown) {
+  if (Array.isArray(previewsValue)) {
+    const previews = previewsValue
+      .map(normalizeSessionPreview)
+      .filter((preview): preview is AiAgentSessionPreview => preview !== undefined);
+
+    if (previews.length > 0) return previews;
+  }
+
+  const preview = normalizeSessionPreview(previewValue);
+  return preview ? [preview] : undefined;
 }
 
 function normalizeSessionPreview(value: unknown): AiAgentSessionPreview | undefined {

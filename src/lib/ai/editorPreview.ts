@@ -3,6 +3,7 @@ import { Plugin, PluginKey, TextSelection, type Transaction } from "@milkdown/ki
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 import type { AiDiffResult } from "./agent/inlineAi";
+import { debug } from "../debug";
 import { clampNumber } from "../utils";
 
 export const AI_EDITOR_PREVIEW_ACTION_EVENT = "markra-ai-preview-action";
@@ -10,13 +11,18 @@ export const AI_EDITOR_PREVIEW_APPLIED_EVENT = "markra-ai-preview-applied";
 export const AI_EDITOR_PREVIEW_RESTORE_EVENT = "markra-ai-preview-restore";
 export type AiEditorPreviewAction = "apply" | "copy" | "reject";
 export type AiEditorPreviewAppliedDetail = {
+  previewId?: string;
+  previews: AiTextDiffResult[];
   result: AiTextDiffResult;
 };
 export type AiEditorPreviewActionDetail = {
   action: AiEditorPreviewAction;
+  previewId?: string;
   result: AiTextDiffResult;
 };
 export type AiEditorPreviewRestoreDetail = {
+  previewId?: string;
+  previews: AiTextDiffResult[];
   result: AiTextDiffResult;
 };
 
@@ -35,15 +41,19 @@ export type AiEditorPreviewLabels = {
 type AiEditorPreviewMeta =
   | {
       kind: "apply";
-      labels?: AiEditorPreviewLabels;
+      previewId?: string;
+      previews: AiEditorPreviewSnapshot[];
       result: AiDiffResult;
     }
   | {
       kind: "confirm_apply";
+      previewId?: string;
       result: AiDiffResult;
     }
   | {
       kind: "clear";
+      previewId?: string;
+      result?: AiDiffResult;
     }
   | {
       kind: "restore";
@@ -51,6 +61,7 @@ type AiEditorPreviewMeta =
   | {
       kind: "show";
       labels?: AiEditorPreviewLabels;
+      previewId?: string;
       renderedReplacementHtml?: string;
       result: AiDiffResult;
     };
@@ -59,19 +70,24 @@ type AiTextDiffResult = Extract<AiDiffResult, { type: "insert" | "replace" }>;
 
 type ApplyAiEditorResultOptions = {
   parseMarkdown?: (markdown: string) => ProseNode;
+  previewId?: string;
 };
 
 type ShowAiEditorPreviewOptions = {
   parseMarkdown?: (markdown: string) => ProseNode;
+  previewId?: string;
 };
 
 type AppliedTransactionResult = {
+  appliedResult: AiTextDiffResult;
   cursor: number;
   transaction: Transaction;
 };
 
 type AiEditorPreviewSnapshot = {
+  id: string;
   labels?: AiEditorPreviewLabels;
+  sequence: number;
   renderedReplacementHtml?: string;
   result: AiTextDiffResult;
 };
@@ -79,13 +95,16 @@ type AiEditorPreviewSnapshot = {
 type AiEditorPreviewState = {
   applied?: AiEditorPreviewSnapshot;
   decorations: DecorationSet;
-  dismissed?: AiEditorPreviewSnapshot;
-  pending?: AiEditorPreviewSnapshot;
+  dismissed?: AiEditorPreviewSnapshot[];
+  nextSequence: number;
+  pending: AiEditorPreviewSnapshot[];
 };
 
 const aiEditorPreviewKey = new PluginKey<AiEditorPreviewState>("markra-ai-editor-preview");
 const emptyPreviewState: AiEditorPreviewState = {
-  decorations: DecorationSet.empty
+  decorations: DecorationSet.empty,
+  nextSequence: 0,
+  pending: []
 };
 
 export function showAiEditorPreview(
@@ -107,6 +126,7 @@ export function showAiEditorPreview(
   const transaction = view.state.tr.setMeta(aiEditorPreviewKey, {
     kind: "show",
     labels,
+    previewId: options.previewId,
     renderedReplacementHtml,
     result
   } satisfies AiEditorPreviewMeta);
@@ -119,17 +139,30 @@ export function showAiEditorPreview(
   view.dispatch(transaction);
 }
 
-export function clearAiEditorPreview(view: EditorView) {
-  view.dispatch(view.state.tr.setMeta(aiEditorPreviewKey, { kind: "clear" } satisfies AiEditorPreviewMeta));
+export function clearAiEditorPreview(view: EditorView, result?: AiDiffResult, options: { previewId?: string } = {}) {
+  view.dispatch(view.state.tr.setMeta(aiEditorPreviewKey, {
+    kind: "clear",
+    previewId: options.previewId ?? (result && isTextDiffResult(result) ? previewSlotSignature(result) : undefined),
+    result
+  } satisfies AiEditorPreviewMeta));
 }
 
-export function confirmAiEditorResultApplied(view: EditorView, result: AiDiffResult) {
+export function confirmAiEditorResultApplied(
+  view: EditorView,
+  result: AiDiffResult,
+  options: { previewId?: string } = {}
+) {
   if (!isTextDiffResult(result)) return;
 
   view.dispatch(view.state.tr.setMeta(aiEditorPreviewKey, {
     kind: "confirm_apply",
+    previewId: options.previewId,
     result
   } satisfies AiEditorPreviewMeta));
+}
+
+export function listAiEditorPreviewResults(view: EditorView) {
+  return (aiEditorPreviewKey.getState(view.state)?.pending ?? []).map((snapshot) => snapshot.result);
 }
 
 export function applyAiEditorResult(view: EditorView, result: AiDiffResult, options: ApplyAiEditorResultOptions = {}) {
@@ -156,7 +189,7 @@ export function applyAiEditorResult(view: EditorView, result: AiDiffResult, opti
     return false;
   }
 
-  console.debug("[markra-ai-preview] apply start", {
+  debug(() => ["[markra-ai-preview] apply start", {
     docSize,
     from,
     hasParseMarkdown: typeof options.parseMarkdown === "function",
@@ -164,27 +197,34 @@ export function applyAiEditorResult(view: EditorView, result: AiDiffResult, opti
     to,
     treatAsBlockMarkdown: shouldTreatReplacementAsBlockMarkdown(result.replacement),
     type: result.type
-  });
+  }]);
 
   const appliedResult = shouldTreatReplacementAsBlockMarkdown(result.replacement) && options.parseMarkdown
     ? applyParsedMarkdownReplacement(view, result, from, to, options.parseMarkdown)
     : applyPlainTextReplacement(view, result, from, to);
-  const { cursor, transaction } = appliedResult;
+  const { appliedResult: nextAppliedResult, cursor, transaction } = appliedResult;
+  const previewState = aiEditorPreviewKey.getState(view.state) ?? emptyPreviewState;
+  const appliedPreviewId =
+    options.previewId ??
+    previewState.pending.find((snapshot) => samePreviewResult(snapshot.result, result))?.id;
+  const remainingPreviews = rebaseRemainingPreviews(previewState.pending, nextAppliedResult, transaction, appliedPreviewId);
 
   transaction
     .setMeta(aiEditorPreviewKey, {
       kind: "apply",
-      result
+      previewId: appliedPreviewId,
+      previews: remainingPreviews,
+      result: nextAppliedResult
     } satisfies AiEditorPreviewMeta)
     .setSelection(TextSelection.near(transaction.doc.resolve(cursor), -1))
     .scrollIntoView();
   view.dispatch(transaction);
   view.focus();
 
-  console.debug("[markra-ai-preview] apply success", {
+  debug(() => ["[markra-ai-preview] apply success", {
     cursor,
     nextDocSize: transaction.doc.content.size
-  });
+  }]);
 
   return true;
 }
@@ -197,22 +237,15 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
         update(view, previousState) {
           const previousPreviewState = aiEditorPreviewKey.getState(previousState);
           const nextPreviewState = aiEditorPreviewKey.getState(view.state);
-          const previousAppliedSignature = previousPreviewState?.applied
-            ? previewSnapshotSignature(previousPreviewState.applied)
-            : null;
-          const nextAppliedSignature = nextPreviewState?.applied
-            ? previewSnapshotSignature(nextPreviewState.applied)
-            : null;
+          const previousAppliedSignature = previousPreviewState?.applied ? previewSnapshotSignature(previousPreviewState.applied) : null;
+          const nextAppliedSignature = nextPreviewState?.applied ? previewSnapshotSignature(nextPreviewState.applied) : null;
 
-          if (
-            nextPreviewState?.applied &&
-            nextAppliedSignature &&
-            nextAppliedSignature !== previousAppliedSignature &&
-            !nextPreviewState.pending
-          ) {
+          if (nextPreviewState?.applied && nextAppliedSignature && nextAppliedSignature !== previousAppliedSignature) {
             window.dispatchEvent(
               new CustomEvent<AiEditorPreviewAppliedDetail>(AI_EDITOR_PREVIEW_APPLIED_EVENT, {
                 detail: {
+                  previewId: nextPreviewState.applied.id,
+                  previews: nextPreviewState.pending.map((snapshot) => snapshot.result),
                   result: nextPreviewState.applied.result
                 }
               })
@@ -220,14 +253,17 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
           }
 
           if (
-            !previousPreviewState?.pending &&
-            nextPreviewState?.pending &&
-            (previousPreviewState?.applied || previousPreviewState?.dismissed)
+            previousPreviewState &&
+            previousPreviewState.pending.length === 0 &&
+            nextPreviewState?.pending.length &&
+            (previousPreviewState.applied || previousPreviewState.dismissed?.length)
           ) {
             window.dispatchEvent(
               new CustomEvent<AiEditorPreviewRestoreDetail>(AI_EDITOR_PREVIEW_RESTORE_EVENT, {
                 detail: {
-                  result: nextPreviewState.pending.result
+                  previewId: nextPreviewState.pending[0]?.id,
+                  previews: nextPreviewState.pending.map((snapshot) => snapshot.result),
+                  result: nextPreviewState.pending[0]!.result
                 }
               })
             );
@@ -255,69 +291,151 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
         const meta = transaction.getMeta(aiEditorPreviewKey) as AiEditorPreviewMeta | undefined;
 
         if (meta?.kind === "clear") {
-          return previewState.pending
+          const textResult = meta.result && isTextDiffResult(meta.result) ? meta.result : null;
+          const nextPending = meta.previewId
+            ? previewState.pending.filter((snapshot) => snapshot.id !== meta.previewId)
+            : textResult
+              ? previewState.pending.filter((snapshot) => !samePreviewResult(snapshot.result, textResult))
+              : [];
+          const dismissed = meta.previewId
+            ? previewState.pending.filter((snapshot) => snapshot.id === meta.previewId)
+            : textResult
+              ? previewState.pending.filter((snapshot) => samePreviewResult(snapshot.result, textResult))
+              : previewState.pending;
+
+          debug(() => ["[markra-ai-preview] plugin clear meta", {
+            clearedPreviewId: meta.previewId,
+            clearedResult: textResult ? previewDebugSummary(textResult) : null,
+            dismissedCount: dismissed.length,
+            nextPendingCount: nextPending.length,
+            previousState: previewStateDebugSummary(previewState)
+          }]);
+
+          return nextPending.length > 0
             ? {
-                decorations: DecorationSet.empty,
-                dismissed: previewState.pending
+                decorations: buildAiPreviewDecorations(transaction.doc, nextPending),
+                dismissed,
+                nextSequence: previewState.nextSequence,
+                pending: nextPending
               }
-            : emptyPreviewState;
+            : {
+                ...emptyPreviewState,
+                dismissed,
+                nextSequence: previewState.nextSequence
+              };
         }
         if (meta?.kind === "restore") {
-          return previewState.dismissed
-            ? {
-                decorations: buildAiPreviewDecorations(
-                  transaction.doc,
-                  previewState.dismissed.result,
-                  previewState.dismissed.labels,
-                  previewState.dismissed.renderedReplacementHtml
-                ),
-                pending: previewState.dismissed
-              }
-            : previewState;
+          if (!previewState.dismissed?.length) return previewState;
+
+          const restoredPending = sortPreviewSnapshots([...previewState.pending, ...previewState.dismissed]);
+          debug(() => ["[markra-ai-preview] plugin restore meta", {
+            previousState: previewStateDebugSummary(previewState),
+            restoredPendingCount: restoredPending.length,
+            restoredPreviews: restoredPending.map(previewDebugSnapshotSummary)
+          }]);
+          return {
+            decorations: buildAiPreviewDecorations(transaction.doc, restoredPending),
+            nextSequence: previewState.nextSequence,
+            pending: restoredPending
+          };
         }
         if (meta?.result.type === "error") return emptyPreviewState;
         if (meta?.kind === "show" && isTextDiffResult(meta.result)) {
+          const previewId = meta.previewId ?? previewSlotSignature(meta.result);
+          const existingPreview = previewState.pending.find((snapshot) => snapshot.id === previewId);
+          const nextPreview: AiEditorPreviewSnapshot = {
+            id: previewId,
+            labels: meta.labels,
+            renderedReplacementHtml: meta.renderedReplacementHtml,
+            result: meta.result,
+            sequence: existingPreview?.sequence ?? previewState.nextSequence
+          };
+          const nextPending = sortPreviewSnapshots(existingPreview
+            ? previewState.pending.map((snapshot) => (snapshot.id === previewId ? nextPreview : snapshot))
+            : [...previewState.pending, nextPreview]);
+
+          debug(() => ["[markra-ai-preview] plugin show meta", {
+            nextPendingCount: nextPending.length,
+            preview: previewDebugSnapshotSummary(nextPreview),
+            previousState: previewStateDebugSummary(previewState),
+            replacedExisting: Boolean(existingPreview)
+          }]);
+
           return {
-            decorations: buildAiPreviewDecorations(
-              transaction.doc,
-              meta.result,
-              meta.labels,
-              meta.renderedReplacementHtml
-            ),
-            pending: {
-              labels: meta.labels,
-              renderedReplacementHtml: meta.renderedReplacementHtml,
-              result: meta.result
-            }
+            decorations: buildAiPreviewDecorations(transaction.doc, nextPending),
+            nextSequence: existingPreview ? previewState.nextSequence : previewState.nextSequence + 1,
+            pending: nextPending
           };
         }
         if (meta?.kind === "apply" && isTextDiffResult(meta.result)) {
+          const nextPending = sortPreviewSnapshots(meta.previews);
+          const textResult = meta.result;
+          const appliedPreview =
+            (meta.previewId ? previewState.pending.find((snapshot) => snapshot.id === meta.previewId) : undefined) ??
+            previewState.pending.find((snapshot) => samePreviewResult(snapshot.result, textResult));
+          debug(() => ["[markra-ai-preview] plugin apply meta", {
+            appliedPreview: appliedPreview ? previewDebugSnapshotSummary(appliedPreview) : null,
+            appliedPreviewId: meta.previewId,
+            appliedResult: previewDebugSummary(textResult),
+            nextPendingCount: nextPending.length,
+            nextPendingPreviews: nextPending.map(previewDebugSnapshotSummary),
+            pendingCount: nextPending.length,
+            previousState: previewStateDebugSummary(previewState)
+          }]);
           return {
-            applied: {
-              labels: meta.labels ?? previewState.pending?.labels,
-              renderedReplacementHtml: previewState.pending?.renderedReplacementHtml,
-              result: meta.result
-            },
-            decorations: DecorationSet.empty
+            applied: appliedPreview
+              ? {
+                  id: appliedPreview.id,
+                  labels: appliedPreview.labels,
+                  renderedReplacementHtml: appliedPreview.renderedReplacementHtml,
+                  result: textResult,
+                  sequence: appliedPreview.sequence
+                }
+              : previewState.applied,
+            decorations: buildAiPreviewDecorations(transaction.doc, nextPending),
+            nextSequence: previewState.nextSequence,
+            pending: nextPending
           };
         }
         if (meta?.kind === "confirm_apply" && isTextDiffResult(meta.result)) {
-          const snapshot = previewState.applied ?? previewState.pending;
+          const textResult = meta.result;
+          const snapshot =
+            previewState.applied ??
+            (meta.previewId ? previewState.pending.find((item) => item.id === meta.previewId) : undefined) ??
+            previewState.pending.find((item) => samePreviewResult(item.result, textResult));
+          const remainingPending = meta.previewId
+            ? previewState.pending.filter((item) => item.id !== meta.previewId)
+            : previewState.pending.filter((item) => !samePreviewResult(item.result, textResult));
+
+          debug(() => ["[markra-ai-preview] plugin confirm apply meta", {
+            confirmedPreview: snapshot ? previewDebugSnapshotSummary(snapshot) : null,
+            confirmedPreviewId: meta.previewId,
+            confirmedResult: previewDebugSummary(textResult),
+            previousState: previewStateDebugSummary(previewState),
+            remainingPendingCount: remainingPending.length,
+            remainingPreviews: remainingPending.map(previewDebugSnapshotSummary)
+          }]);
 
           return {
-            applied: {
-              labels: snapshot?.labels,
-              renderedReplacementHtml: snapshot?.renderedReplacementHtml,
-              result: meta.result
-            },
-            decorations: DecorationSet.empty
+            applied: snapshot
+              ? {
+                  id: snapshot.id,
+                  labels: snapshot.labels,
+                  renderedReplacementHtml: snapshot.renderedReplacementHtml,
+                  result: textResult,
+                  sequence: snapshot.sequence
+                }
+              : previewState.applied,
+            decorations: buildAiPreviewDecorations(
+              transaction.doc,
+              remainingPending
+            ),
+            nextSequence: previewState.nextSequence,
+            pending: remainingPending
           };
         }
         if (transaction.docChanged) {
-          if (
-            previewState.dismissed &&
-            resultMatchesOriginal(transaction.doc, previewState.dismissed.result)
-          ) {
+          if (previewState.dismissed?.length) {
             return {
               ...previewState,
               decorations: previewState.decorations.map(transaction.mapping, transaction.doc)
@@ -325,34 +443,75 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
           }
 
           if (previewState.applied && resultMatchesOriginal(transaction.doc, previewState.applied.result)) {
+            const appliedPreview = previewState.applied;
             if (!resultStillLooksApplied(transaction.doc, previewState.applied.result)) {
+              const restoredPending = sortPreviewSnapshots([
+                appliedPreview,
+                ...rebasePreviewSnapshots(previewState.pending, transaction)
+              ]);
+
+              debug(() => ["[markra-ai-preview] plugin doc change restored applied preview", {
+                appliedPreview: previewDebugSnapshotSummary(appliedPreview),
+                docSize: transaction.doc.content.size,
+                previousState: previewStateDebugSummary(previewState),
+                restoredPendingCount: restoredPending.length,
+                restoredPreviews: restoredPending.map(previewDebugSnapshotSummary)
+              }]);
+
               return {
-                decorations: buildAiPreviewDecorations(
-                  transaction.doc,
-                  previewState.applied.result,
-                  previewState.applied.labels,
-                  previewState.applied.renderedReplacementHtml
-                ),
-                pending: previewState.applied
+                decorations: buildAiPreviewDecorations(transaction.doc, restoredPending),
+                nextSequence: previewState.nextSequence,
+                pending: restoredPending
               };
             }
 
+            const rebasedPending = rebasePreviewSnapshots(previewState.pending, transaction);
+            debug(() => ["[markra-ai-preview] plugin doc change kept applied preview", {
+              appliedPreview: previewDebugSnapshotSummary(appliedPreview),
+              docSize: transaction.doc.content.size,
+              previousState: previewStateDebugSummary(previewState),
+              rebasedPendingCount: rebasedPending.length,
+              rebasedPreviews: rebasedPending.map(previewDebugSnapshotSummary)
+            }]);
             return {
               ...previewState,
-              decorations: previewState.decorations.map(transaction.mapping, transaction.doc)
+              decorations: buildAiPreviewDecorations(transaction.doc, rebasedPending),
+              pending: rebasedPending
             };
           }
 
-          if (previewState.pending && resultMatchesReplacement(transaction.doc, previewState.pending.result)) {
+          const appliedPending = previewState.pending.find((snapshot) => resultMatchesReplacement(transaction.doc, snapshot.result));
+          if (appliedPending) {
+            const remainingPending = previewState.pending.filter((snapshot) => !samePreviewResult(snapshot.result, appliedPending.result));
+            debug(() => ["[markra-ai-preview] plugin doc change detected applied pending preview", {
+              appliedPreview: previewDebugSnapshotSummary(appliedPending),
+              docSize: transaction.doc.content.size,
+              previousState: previewStateDebugSummary(previewState),
+              remainingPendingCount: remainingPending.length,
+              remainingPreviews: remainingPending.map(previewDebugSnapshotSummary)
+            }]);
             return {
-              applied: previewState.pending,
-              decorations: DecorationSet.empty
+              applied: appliedPending,
+              decorations: buildAiPreviewDecorations(
+                transaction.doc,
+                remainingPending
+              ),
+              nextSequence: previewState.nextSequence,
+              pending: remainingPending
             };
           }
 
+          const rebasedPending = rebasePreviewSnapshots(previewState.pending, transaction);
+          debug(() => ["[markra-ai-preview] plugin doc change rebased pending previews", {
+            docSize: transaction.doc.content.size,
+            previousState: previewStateDebugSummary(previewState),
+            rebasedPendingCount: rebasedPending.length,
+            rebasedPreviews: rebasedPending.map(previewDebugSnapshotSummary)
+          }]);
           return {
             ...previewState,
-            decorations: previewState.decorations.map(transaction.mapping, transaction.doc)
+            decorations: buildAiPreviewDecorations(transaction.doc, rebasedPending),
+            pending: rebasedPending
           };
         }
 
@@ -367,31 +526,43 @@ export const markraAiEditorPreviewPlugin = $prose(() => {
 
 function buildAiPreviewDecorations(
   doc: ProseNode,
-  result: AiTextDiffResult,
-  labels: AiEditorPreviewLabels = defaultLabels,
-  renderedReplacementHtml?: string
+  previews: AiEditorPreviewSnapshot[]
 ) {
   const docSize = doc.content.size;
-  const from = clampNumber(result.from, 0, docSize);
-  const to = clampNumber(result.to, 0, docSize);
-  if (from === null || to === null) return DecorationSet.empty;
-  const appendPosition = findPreviewAppendPosition(doc, result, from, to);
+  const decorations = previews.flatMap((preview) => {
+    const from = clampNumber(preview.result.from, 0, docSize);
+    const to = clampNumber(preview.result.to, 0, docSize);
+    if (from === null || to === null) return [];
+    const appendPosition = findPreviewAppendPosition(doc, preview.result, from, to);
 
-  const decorations = [
-    Decoration.widget(appendPosition, () => createPreviewWidget(result, labels, { docSize, from, to }, renderedReplacementHtml), {
-      key: `markra-ai-preview-insert-${from}-${to}-${previewKeySegment(result.replacement)}`,
-      stopEvent: (event) => event.target instanceof Node && isPreviewWidgetEventTarget(event.target),
-      side: -1
-    })
-  ];
+    const nextDecorations = [
+      Decoration.widget(
+        appendPosition,
+        () => createPreviewWidget(
+          preview.id,
+          preview.result,
+          preview.labels ?? defaultLabels,
+          { docSize, from, to },
+          preview.renderedReplacementHtml
+        ),
+        {
+          key: `markra-ai-preview-insert-${preview.sequence}-${from}-${to}-${previewKeySegment(preview.result.replacement)}`,
+          stopEvent: (event) => event.target instanceof Node && isPreviewWidgetEventTarget(event.target),
+          side: -1
+        }
+      )
+    ];
 
-  if (result.type === "replace" && from < to) {
-    decorations.unshift(
-      Decoration.inline(from, to, {
-        class: "markra-ai-preview-delete"
-      })
-    );
-  }
+    if (preview.result.type === "replace" && from < to) {
+      nextDecorations.unshift(
+        Decoration.inline(from, to, {
+          class: "markra-ai-preview-delete"
+        })
+      );
+    }
+
+    return nextDecorations;
+  });
 
   return DecorationSet.create(doc, decorations);
 }
@@ -408,12 +579,168 @@ function previewKeySegment(text: string) {
 
 function previewSnapshotSignature(snapshot: AiEditorPreviewSnapshot) {
   return [
+    snapshot.id,
+    snapshot.sequence,
     snapshot.result.type,
     snapshot.result.from,
     snapshot.result.to,
     snapshot.result.original,
     snapshot.result.replacement
   ].join("\u001f");
+}
+
+function previewSlotSignature(result: AiTextDiffResult) {
+  return [
+    result.type,
+    result.from,
+    result.to,
+    result.original,
+    formatPreviewTarget(result.target)
+  ].join("\u001f");
+}
+
+function previewDebugSummary(result: AiTextDiffResult) {
+  return {
+    fingerprint: previewKeySegment(result.replacement),
+    from: result.from ?? null,
+    originalLength: result.original.length,
+    replacementLength: result.replacement.length,
+    to: result.to ?? null,
+    type: result.type
+  };
+}
+
+function previewDebugSnapshotSummary(snapshot: AiEditorPreviewSnapshot) {
+  return {
+    previewId: snapshot.id,
+    sequence: snapshot.sequence,
+    ...previewDebugSummary(snapshot.result)
+  };
+}
+
+function previewStateDebugSummary(state: AiEditorPreviewState) {
+  return {
+    appliedPreviewId: state.applied?.id ?? null,
+    dismissedCount: state.dismissed?.length ?? 0,
+    nextSequence: state.nextSequence,
+    pendingCount: state.pending.length,
+    pendingPreviewIds: state.pending.map((snapshot) => snapshot.id)
+  };
+}
+
+function samePreviewResult(left: AiTextDiffResult, right: AiTextDiffResult) {
+  return (
+    left.type === right.type &&
+    left.from === right.from &&
+    left.to === right.to &&
+    left.original === right.original &&
+    left.replacement === right.replacement
+  );
+}
+
+function sortPreviewSnapshots(previews: AiEditorPreviewSnapshot[]) {
+  return [...previews].sort((left, right) => {
+    const leftFrom = left.result.from ?? 0;
+    const rightFrom = right.result.from ?? 0;
+    if (leftFrom !== rightFrom) return leftFrom - rightFrom;
+    const leftTo = left.result.to ?? leftFrom;
+    const rightTo = right.result.to ?? rightFrom;
+    if (leftTo !== rightTo) return leftTo - rightTo;
+    return left.sequence - right.sequence;
+  });
+}
+
+function rebaseRemainingPreviews(
+  previews: AiEditorPreviewSnapshot[],
+  appliedResult: AiTextDiffResult,
+  transaction: Transaction,
+  appliedPreviewId?: string
+) {
+  return sortPreviewSnapshots(
+    previews.flatMap((snapshot) => {
+      if (appliedPreviewId ? snapshot.id === appliedPreviewId : samePreviewResult(snapshot.result, appliedResult)) return [];
+      if (previewResultsConflict(snapshot.result, appliedResult)) return [];
+
+      const rebased = rebasePreviewSnapshot(snapshot, transaction, appliedResult);
+      return rebased ? [rebased] : [];
+    })
+  );
+}
+
+function rebasePreviewSnapshots(previews: AiEditorPreviewSnapshot[], transaction: Transaction) {
+  return sortPreviewSnapshots(
+    previews.flatMap((snapshot) => {
+      const rebased = rebasePreviewSnapshot(snapshot, transaction);
+      return rebased ? [rebased] : [];
+    })
+  );
+}
+
+function rebasePreviewSnapshot(
+  snapshot: AiEditorPreviewSnapshot,
+  transaction: Transaction,
+  appliedResult?: AiTextDiffResult
+) {
+  const assoc = previewMappingAssoc(snapshot, appliedResult);
+  const currentFrom = snapshot.result.from ?? 0;
+  const currentTo = snapshot.result.to ?? currentFrom;
+  const mappedFrom = transaction.mapping.map(currentFrom, assoc);
+  const mappedTo = transaction.mapping.map(currentTo, assoc);
+  if (mappedFrom < 0 || mappedTo < mappedFrom) return null;
+
+  const target = snapshot.result.target
+    ? {
+        ...snapshot.result.target,
+        from:
+          snapshot.result.target.from === undefined ? undefined : transaction.mapping.map(snapshot.result.target.from, assoc),
+        to: snapshot.result.target.to === undefined ? undefined : transaction.mapping.map(snapshot.result.target.to, assoc)
+      }
+    : undefined;
+
+  return {
+    ...snapshot,
+    result: {
+      ...snapshot.result,
+      from: mappedFrom,
+      original: snapshot.result.type === "insert" ? "" : transaction.doc.textBetween(mappedFrom, mappedTo, "\n"),
+      replacement: snapshot.result.replacement,
+      ...(target ? { target } : {}),
+      to: mappedTo
+    }
+  };
+}
+
+function previewMappingAssoc(snapshot: AiEditorPreviewSnapshot, appliedResult?: AiTextDiffResult) {
+  if (!appliedResult) return 1;
+  if (snapshot.result.type !== "insert") return 1;
+  const snapshotFrom = snapshot.result.from ?? 0;
+  const appliedFrom = appliedResult.from ?? 0;
+  const appliedTo = appliedResult.to ?? appliedFrom;
+  const snapshotTo = snapshot.result.to ?? snapshotFrom;
+  if (appliedResult.type !== "insert") return snapshotFrom >= appliedFrom ? 1 : -1;
+  if (snapshotFrom !== appliedFrom || snapshotTo !== appliedTo) {
+    return snapshotFrom >= appliedFrom ? 1 : -1;
+  }
+
+  return 1;
+}
+
+function previewResultsConflict(left: AiTextDiffResult, right: AiTextDiffResult) {
+  if (left.type === "insert" && right.type === "insert") return false;
+
+  const leftStart = left.from ?? 0;
+  const leftEnd = left.type === "insert" ? leftStart : (left.to ?? leftStart);
+  const rightStart = right.from ?? 0;
+  const rightEnd = right.type === "insert" ? rightStart : (right.to ?? rightStart);
+
+  if (left.type === "insert") {
+    return leftStart >= rightStart && leftStart <= rightEnd;
+  }
+  if (right.type === "insert") {
+    return rightStart >= leftStart && rightStart <= leftEnd;
+  }
+
+  return Math.max(leftStart, rightStart) < Math.min(leftEnd, rightEnd);
 }
 
 const defaultLabels: AiEditorPreviewLabels = {
@@ -435,6 +762,7 @@ type PreviewScopeContext = {
 };
 
 function createPreviewWidget(
+  previewId: string,
   result: AiTextDiffResult,
   labels: AiEditorPreviewLabels,
   scopeContext: PreviewScopeContext,
@@ -465,9 +793,9 @@ function createPreviewWidget(
   toolbar.contentEditable = "false";
   toolbar.append(
     scope,
-    createActionButton("copy", labels.copy, result, labels.copied),
-    createActionButton("reject", labels.reject, result),
-    createActionButton("apply", labels.apply, result)
+    createActionButton("copy", labels.copy, previewId, result, labels.copied),
+    createActionButton("reject", labels.reject, previewId, result),
+    createActionButton("apply", labels.apply, previewId, result)
   );
 
   preview.append(inserted, toolbar);
@@ -528,6 +856,7 @@ function withPreviewTarget(scope: string, targetText: string | null) {
 function createActionButton(
   action: AiEditorPreviewAction,
   label: string,
+  previewId: string,
   result: AiTextDiffResult,
   copiedLabel?: string
 ) {
@@ -543,16 +872,16 @@ function createActionButton(
     if (button.dataset.applying === "true") return;
     if (action === "apply") markApplyButtonBusy(button);
 
-    console.debug("[markra-ai-preview] dispatch action", {
+    debug(() => ["[markra-ai-preview] dispatch action", {
       action,
       from: result.from,
       replacementLength: result.replacement.length,
       to: result.to,
       type: result.type
-    });
+    }]);
     window.dispatchEvent(
       new CustomEvent<AiEditorPreviewActionDetail>(AI_EDITOR_PREVIEW_ACTION_EVENT, {
-        detail: { action, result }
+        detail: { action, previewId, result }
       })
     );
     if (action === "copy" && copiedLabel) {
@@ -717,11 +1046,18 @@ function applyParsedMarkdownReplacement(
   const range = result.type === "replace"
     ? findBlockReplacementRange(view.state.doc, from, to)
     : findBlockInsertRange(view.state.doc, from);
+  const original = result.type === "replace" ? view.state.doc.textBetween(range.from, range.to, "\n") : "";
   const slice = new Slice(parsedDocument.content, 0, 0);
   const transaction = view.state.tr.replace(range.from, range.to, slice);
   const cursor = Math.min(transaction.doc.content.size, range.from + slice.content.size);
 
   return {
+    appliedResult: {
+      ...result,
+      from: range.from,
+      original,
+      to: range.to
+    },
     cursor,
     transaction
   };
@@ -737,6 +1073,12 @@ function applyPlainTextReplacement(
   const cursor = Math.min(transaction.doc.content.size, from + result.replacement.length);
 
   return {
+    appliedResult: {
+      ...result,
+      from,
+      original: result.type === "replace" ? view.state.doc.textBetween(from, to, "\n") : "",
+      to
+    },
     cursor,
     transaction
   };

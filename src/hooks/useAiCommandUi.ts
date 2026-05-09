@@ -16,7 +16,7 @@ type AiCommandContext = {
   getPendingResult?: () => AiDiffResult | null;
   getSelection: () => AiSelectionContext | null;
   model: string | null;
-  onAiResult: (result: AiDiffResult) => unknown;
+  onAiResult: (result: AiDiffResult, previewId?: string) => unknown;
   provider: AiProviderConfig | null;
   settingsLoading: boolean;
   translate?: (key: I18nKey) => string;

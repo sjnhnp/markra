@@ -727,7 +727,7 @@ describe("AiAgentPanel", () => {
     expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
-  it("shows streamed thinking content alongside the final assistant answer", () => {
+  it("shows a completed thinking section alongside the final assistant answer", () => {
     render(
       <AiAgentPanel
         language="en"
@@ -745,8 +745,13 @@ describe("AiAgentPanel", () => {
     );
 
     expect(screen.getByText("Thinking")).toBeInTheDocument();
-    expect(screen.getByText("Checking the document before answering.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thinking" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Checking the document before answering.")).not.toBeInTheDocument();
     expect(screen.getByText("Final answer.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Thinking" }));
+
+    expect(screen.getByText("Checking the document before answering.")).toBeInTheDocument();
   });
 
   it("shows multiple preserved thinking rounds in the same assistant reply", () => {
@@ -769,6 +774,8 @@ describe("AiAgentPanel", () => {
         onClose={() => {}}
       />
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Thinking" }));
 
     expect(screen.getByText("Inspecting the document structure.")).toBeInTheDocument();
     expect(screen.getByText("Preparing the insertion near the end of the document.")).toBeInTheDocument();
@@ -814,11 +821,98 @@ describe("AiAgentPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Thinking" }));
 
-    expect(screen.queryByText("Checking the document before answering.")).not.toBeInTheDocument();
+    expect(screen.getByText("Checking the document before answering.")).toBeInTheDocument();
     expect(screen.getByText("Final answer.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Thinking" }));
 
+    expect(screen.queryByText("Checking the document before answering.")).not.toBeInTheDocument();
+    expect(screen.getByText("Final answer.")).toBeInTheDocument();
+  });
+
+  it("keeps thinking open while a turn is running and collapses it when the turn completes", async () => {
+    const runningMessage = {
+      activities: [
+        {
+          id: "tool:1",
+          kind: "tool_call" as const,
+          label: "Read current document",
+          status: "running" as const,
+          turn: 1
+        }
+      ],
+      id: 1,
+      role: "assistant" as const,
+      text: "",
+      thinking: "Checking the document before answering."
+    };
+    const { rerender } = render(
+      <AiAgentPanel
+        language="en"
+        messages={[runningMessage]}
+        open
+        status="thinking"
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Thinking" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Checking the document before answering.")).toBeInTheDocument();
+
+    rerender(
+      <AiAgentPanel
+        language="en"
+        messages={[
+          {
+            ...runningMessage,
+            activities: runningMessage.activities.map((activity) => ({ ...activity, status: "completed" as const })),
+            text: "Final answer."
+          }
+        ]}
+        open
+        status="idle"
+        onClose={() => {}}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Thinking" })).toHaveAttribute("aria-expanded", "false"));
+    expect(screen.queryByText("Checking the document before answering.")).not.toBeInTheDocument();
+    expect(screen.getByText("Final answer.")).toBeInTheDocument();
+  });
+
+  it("does not force a completed thinking block closed again after the user re-expands it", async () => {
+    const completedMessage = {
+      id: 1,
+      role: "assistant" as const,
+      text: "Final answer.",
+      thinking: "Checking the document before answering."
+    };
+    const { rerender } = render(
+      <AiAgentPanel
+        language="en"
+        messages={[completedMessage]}
+        open
+        onClose={() => {}}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Thinking" })).toHaveAttribute("aria-expanded", "false"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Thinking" }));
+
+    expect(screen.getByRole("button", { name: "Thinking" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Checking the document before answering.")).toBeInTheDocument();
+
+    rerender(
+      <AiAgentPanel
+        language="en"
+        messages={[completedMessage]}
+        open
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Thinking" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Checking the document before answering.")).toBeInTheDocument();
   });
 

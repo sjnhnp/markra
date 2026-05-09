@@ -24,7 +24,7 @@ export abstract class DocumentAgentToolFactory<TParams = unknown> {
   }
 
   protected markPreparedWrite() {
-    this.state.hasPreparedWrite = true;
+    this.state.preparedWriteCount += 1;
   }
 
   protected parseParams(params: unknown): TParams {

@@ -52,13 +52,16 @@ export function buildResponsesRequestBody({
   stream,
   tools
 }: ResponsesRequestBodyParams) {
+  const responseTools = buildResponsesStyleTools(nativeWebSearchToolType, tools);
+
   return mergeRequestBody(
     {
       input: buildResponsesInputMessages(messages),
       ...(buildResponsesInstructions(messages) ? { instructions: buildResponsesInstructions(messages) } : {}),
       model,
+      ...(responseTools.length ? { parallel_tool_calls: false } : {}),
       ...(stream ? { stream: true } : {}),
-      tools: buildResponsesStyleTools(nativeWebSearchToolType, tools)
+      tools: responseTools
     },
     extraBody
   );

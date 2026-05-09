@@ -804,7 +804,7 @@ describe("document AI agent", () => {
       replacement: "Polished draft",
       to: 8,
       type: "replace"
-    });
+    }, expect.any(String));
     expect(result).toEqual({
       content: "",
       finishReason: "toolUse",
@@ -813,130 +813,41 @@ describe("document AI agent", () => {
     expect(complete).toHaveBeenCalledTimes(1);
   });
 
-  it("blocks multiple write tool calls in the same assistant turn", async () => {
+  it("allows multiple write previews in the same assistant turn", async () => {
     const onPreviewResult = vi.fn();
-    const complete = vi
-      .fn()
-      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
-        options?.onToolCallDelta?.({
-          id: "call_replace_document",
-          index: 0,
-          nameDelta: "replace_document"
-        });
-        options?.onToolCallDelta?.({
-          argumentsDelta: JSON.stringify({
-            replacement: "# Focused note"
-          }),
-          index: 0
-        });
-        options?.onToolCallDelta?.({
-          id: "call_insert_markdown",
-          index: 1,
-          nameDelta: "insert_markdown"
-        });
-        options?.onToolCallDelta?.({
-          argumentsDelta: JSON.stringify({
-            content: "Extra note",
-            placement: "after_anchor"
-          }),
-          index: 1
-        });
-
-        return {
-          content: "",
-          finishReason: "toolUse"
-        };
-      })
-      .mockImplementationOnce(async () => ({
-        content: "I need to choose one editor edit before preparing a preview.",
-        finishReason: "stop"
-      }));
-
-    const result = await runDocumentAiAgent({
-      complete,
-      documentContent: "# Old note\n\nBody",
-      documentEndPosition: 16,
-      documentPath: "/vault/README.md",
-      model: "gpt-5.5",
-      onPreviewResult,
-      prompt: "Rewrite this and add a note",
-      provider: provider(),
-      workspaceFiles: []
-    });
-
-    expect(onPreviewResult).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      content: "I need to choose one editor edit before preparing a preview.",
-      finishReason: "stop",
-      preparedPreview: false
-    });
-    expect(complete).toHaveBeenCalledTimes(2);
-  });
-
-  it("stops after repeated multi-write blocked turns instead of looping indefinitely", async () => {
-    const complete = vi
-      .fn()
-      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
-        options?.onToolCallDelta?.({
-          id: "call_replace_document",
-          index: 0,
-          nameDelta: "replace_document"
-        });
-        options?.onToolCallDelta?.({
-          argumentsDelta: JSON.stringify({
-            replacement: "# Focused note"
-          }),
-          index: 0
-        });
-        options?.onToolCallDelta?.({
-          id: "call_insert_markdown",
-          index: 1,
-          nameDelta: "insert_markdown"
-        });
-        options?.onToolCallDelta?.({
-          argumentsDelta: JSON.stringify({
-            content: "Extra note",
-            placement: "after_anchor"
-          }),
-          index: 1
-        });
-
-        return {
-          content: "",
-          finishReason: "toolUse"
-        };
-      })
-      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
-        options?.onToolCallDelta?.({
-          id: "call_insert_markdown_a",
-          index: 0,
-          nameDelta: "insert_markdown"
-        });
-        options?.onToolCallDelta?.({
-          argumentsDelta: JSON.stringify({
-            content: "Synthetic summary A",
-            placement: "after_anchor"
-          }),
-          index: 0
-        });
-        options?.onToolCallDelta?.({
-          id: "call_insert_markdown_b",
-          index: 1,
-          nameDelta: "insert_markdown"
-        });
-        options?.onToolCallDelta?.({
-          argumentsDelta: JSON.stringify({
-            content: "Synthetic summary B",
-            placement: "after_anchor"
-          }),
-          index: 1
-        });
-
-        return {
-          content: "",
-          finishReason: "toolUse"
-        };
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, _messages, options) => {
+      options?.onToolCallDelta?.({
+        id: "call_insert_markdown_intro",
+        index: 0,
+        nameDelta: "insert_markdown"
       });
+      options?.onToolCallDelta?.({
+        argumentsDelta: JSON.stringify({
+          anchorId: "document-end",
+          content: "## Synthetic intro",
+          placement: "before_anchor"
+        }),
+        index: 0
+      });
+      options?.onToolCallDelta?.({
+        id: "call_insert_markdown_summary",
+        index: 1,
+        nameDelta: "insert_markdown"
+      });
+      options?.onToolCallDelta?.({
+        argumentsDelta: JSON.stringify({
+          anchorId: "document-end",
+          content: "## Synthetic summary",
+          placement: "before_anchor"
+        }),
+        index: 1
+      });
+
+      return {
+        content: "",
+        finishReason: "toolUse"
+      };
+    });
 
     const result = await runDocumentAiAgent({
       complete,
@@ -944,7 +855,8 @@ describe("document AI agent", () => {
       documentEndPosition: 16,
       documentPath: "/vault/README.md",
       model: "qwen3.6-plus",
-      prompt: "看看这个文档里说了什么，并且加一段总结",
+      onPreviewResult,
+      prompt: "Add an intro and a summary",
       provider: provider({
         baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
         id: "aliyun-bailian",
@@ -955,13 +867,76 @@ describe("document AI agent", () => {
       workspaceFiles: []
     });
 
+    expect(onPreviewResult).toHaveBeenCalledTimes(2);
     expect(result).toEqual({
       content: "",
-      finishReason: "stop",
-      preparedPreview: false,
-      stopReasonCode: "repeated_multi_write"
+      finishReason: "toolUse",
+      preparedPreview: true
     });
-    expect(complete).toHaveBeenCalledTimes(2);
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses duplicate insert_markdown retries with identical content in the same assistant turn", async () => {
+    const onPreviewResult = vi.fn();
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, _messages, options) => {
+      options?.onToolCallDelta?.({
+        id: "call_insert_markdown_first",
+        index: 0,
+        nameDelta: "insert_markdown"
+      });
+      options?.onToolCallDelta?.({
+        argumentsDelta: JSON.stringify({
+          anchorId: "document-end",
+          content: "## Synthetic summary\n\nSame generated report.",
+          placement: "before_anchor"
+        }),
+        index: 0
+      });
+      options?.onToolCallDelta?.({
+        id: "call_insert_markdown_second",
+        index: 1,
+        nameDelta: "insert_markdown"
+      });
+      options?.onToolCallDelta?.({
+        argumentsDelta: JSON.stringify({
+          anchorId: "heading:0",
+          content: "## Synthetic summary\n\nSame generated report.",
+          placement: "after_anchor"
+        }),
+        index: 1
+      });
+
+      return {
+        content: "",
+        finishReason: "toolUse"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Old note\n\nBody",
+      documentEndPosition: 16,
+      documentPath: "/vault/README.md",
+      model: "qwen3.6-plus",
+      onPreviewResult,
+      prompt: "Insert the synthetic summary",
+      provider: provider({
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        id: "aliyun-bailian",
+        models: [{ capabilities: ["text", "tools"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+        name: "Qwen",
+        type: "openai-compatible"
+      }),
+      workspaceFiles: []
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      content: "",
+      finishReason: "toolUse",
+      preparedPreview: true
+    });
+    expect(complete).toHaveBeenCalledTimes(1);
   });
 
   it("lets the agent choose where to insert markdown around the current context", async () => {
@@ -1016,7 +991,7 @@ describe("document AI agent", () => {
       replacement: "## Follow-up\n\nMore detail.",
       to: 8,
       type: "insert"
-    });
+    }, expect.any(String));
   });
 
   it("stops after preparing an editor write preview", async () => {
@@ -1065,7 +1040,7 @@ describe("document AI agent", () => {
       replacement: "# Synthetic comparison title",
       to: 0,
       type: "insert"
-    });
+    }, expect.any(String));
     expect(complete).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
       content: "",
@@ -1213,7 +1188,7 @@ describe("document AI agent", () => {
       replacement: "",
       to: 7,
       type: "replace"
-    });
+    }, expect.any(String));
     expect(result).toEqual({
       content: "",
       finishReason: "toolUse",
@@ -1268,7 +1243,7 @@ describe("document AI agent", () => {
       replacement: "# Synthetic focus note\n\nFocused comparison.",
       to: documentContent.length,
       type: "replace"
-    });
+    }, expect.any(String));
     expect(result).toEqual({
       content: "",
       finishReason: "toolUse",
@@ -1346,7 +1321,7 @@ describe("document AI agent", () => {
       },
       to: tableStart + table.length,
       type: "replace"
-    });
+    }, expect.any(String));
     expect(result).toEqual({
       content: "",
       finishReason: "toolUse",
@@ -1411,7 +1386,7 @@ describe("document AI agent", () => {
       replacement: "",
       to: 61,
       type: "replace"
-    }));
+    }), expect.any(String));
     expect(result).toEqual({
       content: "",
       finishReason: "toolUse",

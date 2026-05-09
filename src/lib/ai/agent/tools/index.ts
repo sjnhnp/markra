@@ -25,7 +25,8 @@ import { ViewDocumentImageToolFactory } from "./viewDocumentImage";
 
 export function createDocumentAgentTools(context: DocumentAgentToolContext): AgentTool[] {
   const state: DocumentAgentToolState = {
-    hasPreparedWrite: false
+    preparedInsertions: [],
+    preparedWriteCount: 0
   };
   const tools = [
     ...(context.webSearch ? [new BuiltinWebSearchToolFactory(context, state)] : []),

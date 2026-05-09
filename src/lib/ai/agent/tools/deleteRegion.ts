@@ -20,8 +20,8 @@ export class DeleteRegionToolFactory extends DocumentAgentToolFactory<ReturnType
     return typedDeleteRegionArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedDeleteRegionArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "delete");
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedDeleteRegionArgs>) {
+    const writeCheck = beginPreparedWrite(this.context, "delete");
     if ("error" in writeCheck) return writeCheck.error;
 
     const region = resolveWriteRegion(this.context, params.anchorId, "delete");
@@ -35,7 +35,7 @@ export class DeleteRegionToolFactory extends DocumentAgentToolFactory<ReturnType
       to: region.region.to,
       type: "replace"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
 
     return previewPreparedResult(result, "Prepared a deletion preview for the resolved region.");
   }

@@ -40,7 +40,7 @@ type AiAgentSessionContext = {
   getSelection?: () => AiSelectionContext | null;
   getTableAnchors?: () => AiDocumentAnchor[];
   model: string | null;
-  onAiResult?: (result: AiDiffResult) => unknown;
+  onAiResult?: (result: AiDiffResult, previewId?: string) => unknown;
   onSessionRestore?: (session: Pick<StoredAiAgentSessionState, "panelOpen" | "panelWidth">) => unknown;
   panelOpen?: boolean;
   panelWidth?: number | null;
@@ -331,6 +331,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
       .filter((item) => !item.isError)
       .map((item) => ({
         preview: item.preview,
+        previews: item.previews,
         role: item.role,
         text: item.text
       }));
@@ -357,7 +358,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         documentPath: ctx.documentPath ?? null,
         history,
         model: ctx.model,
-        onPreviewResult: (result) => {
+        onPreviewResult: (result, previewId) => {
           if (requestIdRef.current !== requestId) return;
 
           const preview = sessionPreviewFromAiResult(result);
@@ -365,10 +366,11 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
             preparedEditorPreview = true;
             updateAssistantMessage((currentMessage) => ({
               ...currentMessage,
+              previews: [...(currentMessage.previews ?? []), preview],
               preview
             }));
           }
-          ctx.onAiResult?.(result);
+          ctx.onAiResult?.(result, previewId);
         },
         onEvent: (event) => {
           if (requestIdRef.current !== requestId) return;

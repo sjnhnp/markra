@@ -206,6 +206,7 @@ describe("AI chat adapters", () => {
         input: [{ content: [{ text: "Rewrite this.", type: "input_text" }], role: "user" }],
         instructions: "You edit Markdown.",
         model: "qwen3.6-plus",
+        parallel_tool_calls: false,
         stream: true,
         tools: [{ type: "web_search" }]
       },
@@ -244,6 +245,7 @@ describe("AI chat adapters", () => {
         input: [{ content: [{ text: "Rewrite this.", type: "input_text" }], role: "user" }],
         instructions: "You edit Markdown.",
         model: "gpt-5.5",
+        parallel_tool_calls: false,
         stream: true,
         tools: [
           { type: "web_search" },

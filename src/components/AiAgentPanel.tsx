@@ -112,7 +112,12 @@ export function AiAgentPanel({
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
   const transcriptShouldFollowRef = useRef(true);
   const [contextOpen, setContextOpen] = useState(false);
-  const [collapsedThinkingMessageIds, setCollapsedThinkingMessageIds] = useState<Set<number>>(() => new Set());
+  const [collapsedThinkingMessageIds, setCollapsedThinkingMessageIds] = useState<Set<string>>(() =>
+    collectCompletedThinkingMessageKeys(messages, status, activeSessionId)
+  );
+  const previousCompletedThinkingMessageKeysRef = useRef(
+    collectCompletedThinkingMessageKeys(messages, status, activeSessionId)
+  );
   const { handleCompositionEnd, handleCompositionStart, isComposingEnter } = useImeInputGuard();
   const label = (key: I18nKey) => t(language, key);
   const resolvedMinWidth = Math.max(240, minWidth);
@@ -181,6 +186,28 @@ export function AiAgentPanel({
 
     transcript.scrollTop = transcript.scrollHeight;
   }, [messages, open, status]);
+
+  useEffect(() => {
+    const visibleThinkingMessageKeys = collectThinkingMessageKeys(messages, activeSessionId);
+    const completedThinkingMessageKeys = collectCompletedThinkingMessageKeys(messages, status, activeSessionId);
+    const previousCompletedThinkingMessageKeys = previousCompletedThinkingMessageKeysRef.current;
+    previousCompletedThinkingMessageKeysRef.current = completedThinkingMessageKeys;
+
+    setCollapsedThinkingMessageIds((currentIds) => {
+      const nextIds = new Set<string>();
+
+      for (const id of currentIds) {
+        if (visibleThinkingMessageKeys.has(id)) nextIds.add(id);
+      }
+
+      for (const id of completedThinkingMessageKeys) {
+        if (!previousCompletedThinkingMessageKeys.has(id)) nextIds.add(id);
+      }
+
+      if (setsAreEqual(currentIds, nextIds)) return currentIds;
+      return nextIds;
+    });
+  }, [activeSessionId, messages, status]);
 
   const resizePanel = (nextWidth: number | null) => {
     if (nextWidth === null) return;
@@ -275,13 +302,13 @@ export function AiAgentPanel({
     onSubmit?.(suggestion);
   };
 
-  const toggleThinkingMessage = (messageId: number) => {
+  const toggleThinkingMessage = (messageKey: string) => {
     setCollapsedThinkingMessageIds((currentIds) => {
       const nextIds = new Set(currentIds);
-      if (nextIds.has(messageId)) {
-        nextIds.delete(messageId);
+      if (nextIds.has(messageKey)) {
+        nextIds.delete(messageKey);
       } else {
-        nextIds.add(messageId);
+        nextIds.add(messageKey);
       }
 
       return nextIds;
@@ -453,6 +480,7 @@ export function AiAgentPanel({
             <ol className="m-0 grid list-none gap-3 p-0">
               {messages.map((message) => {
                 const thinkingSections = messageThinkingSections(message);
+                const thinkingMessageKey = createThinkingMessageKey(message.id, activeSessionId);
 
                 if (message.role === "user") {
                   return (
@@ -474,7 +502,7 @@ export function AiAgentPanel({
                 const hasRunningActivity = message.activities?.some((activity) => activity.status === "running") ?? false;
                 const showFallbackThinking =
                   !message.text && thinkingSections.length === 0 && !message.isError && hasRunningActivity && !hasVisibleActivities;
-                const thinkingCollapsed = collapsedThinkingMessageIds.has(message.id);
+                const thinkingCollapsed = collapsedThinkingMessageIds.has(thinkingMessageKey);
 
                 return (
                   <li className="mr-auto min-w-0 max-w-[86%]" key={message.id}>
@@ -489,7 +517,7 @@ export function AiAgentPanel({
                                 type="button"
                                 aria-expanded={!thinkingCollapsed}
                                 aria-label={label("app.aiAgentThinking")}
-                                onClick={() => toggleThinkingMessage(message.id)}
+                                onClick={() => toggleThinkingMessage(thinkingMessageKey)}
                               >
                                 <ChevronDown
                                   aria-hidden="true"
@@ -606,4 +634,65 @@ function messageThinkingSections(message: AiAgentPanelMessage) {
   if (completedTurns.at(-1) === currentThinking) return completedTurns;
 
   return [...completedTurns, currentThinking];
+}
+
+function collectThinkingMessageKeys(messages: AiAgentPanelMessage[], activeSessionId?: string | null) {
+  const keys = new Set<string>();
+
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
+    if (messageThinkingSections(message).length === 0) continue;
+
+    keys.add(createThinkingMessageKey(message.id, activeSessionId));
+  }
+
+  return keys;
+}
+
+function collectCompletedThinkingMessageKeys(
+  messages: AiAgentPanelMessage[],
+  status: AiAgentPanelProps["status"],
+  activeSessionId?: string | null
+) {
+  const keys = new Set<string>();
+
+  for (const [index, message] of messages.entries()) {
+    if (!isCompletedThinkingMessage(message, index, messages, status)) continue;
+
+    keys.add(createThinkingMessageKey(message.id, activeSessionId));
+  }
+
+  return keys;
+}
+
+function isCompletedThinkingMessage(
+  message: AiAgentPanelMessage,
+  index: number,
+  messages: AiAgentPanelMessage[],
+  status: AiAgentPanelProps["status"]
+) {
+  if (message.role !== "assistant") return false;
+  if (messageThinkingSections(message).length === 0) return false;
+
+  const hasRunningActivity = message.activities?.some((activity) => activity.status === "running") ?? false;
+  if (hasRunningActivity) return false;
+
+  const isLatestMessage = index === messages.length - 1;
+  if (isLatestMessage && (status === "thinking" || status === "streaming")) return false;
+
+  return true;
+}
+
+function createThinkingMessageKey(messageId: number, activeSessionId?: string | null) {
+  return `${activeSessionId ?? "__active__"}:${messageId}`;
+}
+
+function setsAreEqual(left: Set<string>, right: Set<string>) {
+  if (left.size !== right.size) return false;
+
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+
+  return true;
 }

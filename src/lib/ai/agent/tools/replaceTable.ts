@@ -28,8 +28,8 @@ export class ReplaceTableToolFactory extends DocumentAgentToolFactory<ReturnType
     return typedReplaceTableArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedReplaceTableArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "replace");
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedReplaceTableArgs>) {
+    const writeCheck = beginPreparedWrite(this.context, "replace");
     if ("error" in writeCheck) return writeCheck.error;
 
     const table = resolveTableAnchor(this.context, params.anchorId);
@@ -46,7 +46,7 @@ export class ReplaceTableToolFactory extends DocumentAgentToolFactory<ReturnType
       to: table.anchor.to,
       type: "replace"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
 
     return previewPreparedResult(
       result,

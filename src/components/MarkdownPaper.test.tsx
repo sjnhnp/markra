@@ -779,9 +779,9 @@ describe("MarkdownPaper editing", () => {
 
     expect(onRestore).toHaveBeenCalledWith(
       expect.objectContaining({
-        detail: {
+        detail: expect.objectContaining({
           result
-        }
+        })
       })
     );
 
@@ -824,7 +824,7 @@ describe("MarkdownPaper editing", () => {
     };
     const onPreviewAction = vi.fn((event: Event) => {
       const detail = (event as CustomEvent<AiEditorPreviewActionDetail>).detail;
-      if (detail.action === "apply") applyAiEditorResult(view, detail.result);
+      if (detail.action === "apply") applyAiEditorResult(view, detail.result, { previewId: detail.previewId });
     });
 
     window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
@@ -837,10 +837,10 @@ describe("MarkdownPaper editing", () => {
 
     expect(onPreviewAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        detail: {
+        detail: expect.objectContaining({
           action: "apply",
           result
-        }
+        })
       })
     );
     expect(container.querySelector(".ProseMirror")?.textContent).toBe("Improved text");
@@ -904,12 +904,42 @@ describe("MarkdownPaper editing", () => {
     expect(applyAiEditorResult(view, result)).toBe(true);
 
     expect(onApplied).toHaveBeenCalledWith(expect.objectContaining({
-      detail: {
+      detail: expect.objectContaining({
         result
-      }
+      })
     }));
 
     window.removeEventListener(AI_EDITOR_PREVIEW_APPLIED_EVENT, onApplied);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("logs preview queue details when a block insert preview is applied", async () => {
+    const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+    const { view } = await renderEditor("# Alpha\n\nBody");
+    const afterAlpha = findTextPosition(view, "Alpha") + "Alpha".length;
+    const result = {
+      from: afterAlpha,
+      original: "",
+      replacement: "\n\n## Follow-up\n\nGenerated block.",
+      to: afterAlpha,
+      type: "insert" as const
+    };
+
+    showAiEditorPreview(view, result, undefined, { previewId: "follow-up-preview" });
+    expect(applyAiEditorResult(view, result, { previewId: "follow-up-preview" })).toBe(true);
+
+    expect(debugSpy.mock.calls).toEqual(expect.arrayContaining([
+      [
+        "[markra-ai-preview] plugin apply meta",
+        expect.objectContaining({
+          appliedPreviewId: "follow-up-preview",
+          pendingCount: 0
+        })
+      ]
+    ]));
+
+    debugSpy.mockRestore();
     clearAiEditorPreview(view);
     await settleMarkdownListener();
   });
@@ -926,7 +956,7 @@ describe("MarkdownPaper editing", () => {
     };
     const onPreviewAction = vi.fn((event: Event) => {
       const detail = (event as CustomEvent<AiEditorPreviewActionDetail>).detail;
-      if (detail.action === "apply") applyAiEditorResult(view, detail.result);
+      if (detail.action === "apply") applyAiEditorResult(view, detail.result, { previewId: detail.previewId });
     });
 
     window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
@@ -940,10 +970,10 @@ describe("MarkdownPaper editing", () => {
 
     expect(onPreviewAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        detail: {
+        detail: expect.objectContaining({
           action: "apply",
           result
-        }
+        })
       })
     );
     expect(container.querySelector(".ProseMirror")?.textContent).toBe("Improved text");
@@ -965,7 +995,7 @@ describe("MarkdownPaper editing", () => {
     };
     const onPreviewAction = vi.fn((event: Event) => {
       const detail = (event as CustomEvent<AiEditorPreviewActionDetail>).detail;
-      if (detail.action === "apply") applyAiEditorResult(view, detail.result);
+      if (detail.action === "apply") applyAiEditorResult(view, detail.result, { previewId: detail.previewId });
     });
 
     window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
@@ -978,10 +1008,10 @@ describe("MarkdownPaper editing", () => {
 
     expect(onPreviewAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        detail: {
+        detail: expect.objectContaining({
           action: "apply",
           result
-        }
+        })
       })
     );
     expect(container.querySelector(".ProseMirror")?.textContent).toBe("Improved text");
@@ -1019,6 +1049,148 @@ describe("MarkdownPaper editing", () => {
     expect(applyButton?.querySelector(".markra-ai-preview-spinner")).toBeInTheDocument();
 
     window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("keeps remaining AI previews visible after applying one of multiple insertions", async () => {
+    const { container, view } = await renderEditor("# Alpha\n\nBeta");
+    const afterAlpha = findTextPosition(view, "Alpha") + "Alpha".length;
+    const beforeBeta = findTextPosition(view, "Beta");
+    const firstResult = {
+      from: afterAlpha,
+      original: "",
+      replacement: "\n\n## Intro",
+      to: afterAlpha,
+      type: "insert" as const
+    };
+    const secondResult = {
+      from: beforeBeta,
+      original: "",
+      replacement: "## Summary\n\n",
+      to: beforeBeta,
+      type: "insert" as const
+    };
+    const onPreviewAction = vi.fn((event: Event) => {
+      const detail = (event as CustomEvent<AiEditorPreviewActionDetail>).detail;
+      if (detail.action === "apply") applyAiEditorResult(view, detail.result, { previewId: detail.previewId });
+    });
+
+    window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    showAiEditorPreview(view, firstResult);
+    showAiEditorPreview(view, secondResult);
+
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(2);
+
+    const applyButtons = container.querySelectorAll<HTMLButtonElement>(".ProseMirror .markra-ai-preview-apply");
+    expect(applyButtons).toHaveLength(2);
+
+    applyButtons[0]?.click();
+
+    expect(onPreviewAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: expect.objectContaining({
+          action: "apply",
+          result: firstResult
+        })
+      })
+    );
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(1);
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("## Summary");
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("Intro");
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("keeps separate AI insert previews at the same position when preview ids differ", async () => {
+    const { container, view } = await renderEditor("# Alpha");
+    const documentEnd = view.state.doc.content.size;
+    const firstResult = {
+      from: documentEnd,
+      original: "",
+      replacement: "\n\n## Intro",
+      to: documentEnd,
+      type: "insert" as const
+    };
+    const secondResult = {
+      from: documentEnd,
+      original: "",
+      replacement: "\n\n## Summary",
+      to: documentEnd,
+      type: "insert" as const
+    };
+
+    showAiEditorPreview(view, firstResult, undefined, { previewId: "intro-preview" });
+    showAiEditorPreview(view, secondResult, undefined, { previewId: "summary-preview" });
+
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(2);
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("Intro");
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("Summary");
+
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("applies identical insert previews independently when their preview ids differ", async () => {
+    const { container, view } = await renderEditor("# Alpha");
+    const documentEnd = view.state.doc.content.size;
+    const sharedResult = {
+      from: documentEnd,
+      original: "",
+      replacement: "\n\n## Follow-up",
+      to: documentEnd,
+      type: "insert" as const
+    };
+    const onPreviewAction = vi.fn((event: Event) => {
+      const detail = (event as CustomEvent<AiEditorPreviewActionDetail>).detail;
+      if (detail.action === "apply") applyAiEditorResult(view, detail.result, { previewId: detail.previewId });
+    });
+
+    window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    showAiEditorPreview(view, sharedResult, undefined, { previewId: "follow-up-a" });
+    showAiEditorPreview(view, sharedResult, undefined, { previewId: "follow-up-b" });
+
+    const applyButtons = container.querySelectorAll<HTMLButtonElement>(".ProseMirror .markra-ai-preview-apply");
+    expect(applyButtons).toHaveLength(2);
+
+    applyButtons[0]?.click();
+
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(1);
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("Follow-up");
+
+    applyButtons[1]?.click();
+
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(0);
+    expect((container.querySelector(".ProseMirror")?.textContent?.match(/Follow-up/g) ?? []).length).toBe(2);
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("does not restore a block insert preview after later document changes", async () => {
+    const { container, view } = await renderEditor("# Alpha\n\nBody");
+    const afterAlpha = findTextPosition(view, "Alpha") + "Alpha".length;
+    const result = {
+      from: afterAlpha,
+      original: "",
+      replacement: "\n\n## Follow-up\n\nGenerated block.",
+      to: afterAlpha,
+      type: "insert" as const
+    };
+
+    showAiEditorPreview(view, result, undefined, { previewId: "follow-up-preview" });
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(1);
+
+    expect(applyAiEditorResult(view, result, { previewId: "follow-up-preview" })).toBe(true);
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(0);
+
+    view.dispatch(view.state.tr.insertText(" ", view.state.doc.content.size, view.state.doc.content.size));
+
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(0);
+
     clearAiEditorPreview(view);
     await settleMarkdownListener();
   });

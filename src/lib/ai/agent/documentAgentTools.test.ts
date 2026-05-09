@@ -231,7 +231,7 @@ describe("documentAgentTools", () => {
       replacement: "",
       to: 7,
       type: "replace"
-    });
+    }, expect.any(String));
     expect(toolText(result)).toContain("Prepared a deletion preview");
   });
 
@@ -256,8 +256,68 @@ describe("documentAgentTools", () => {
       replacement: "# Focused note\n\nOnly the important part.",
       to: 17,
       type: "replace"
-    });
+    }, expect.any(String));
     expect(toolText(result)).toContain("Prepared a full-document replacement preview");
+  });
+
+  it("suppresses duplicate insert previews with identical content in the same turn", async () => {
+    const onPreviewResult = vi.fn();
+    const tool = createDocumentAgentTools({
+      documentContent: "# Title\n\nBody",
+      documentEndPosition: 13,
+      documentPath: "/vault/README.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "insert_markdown");
+
+    const firstResult = await tool?.execute("tool_insert_markdown_first", {
+      anchorId: "document-end",
+      content: "## Repeated summary\n\nSame generated report.",
+      placement: "before_anchor"
+    });
+    const secondResult = await tool?.execute("tool_insert_markdown_second", {
+      anchorId: "heading:0",
+      content: "## Repeated summary\n\nSame generated report.",
+      placement: "after_anchor"
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledTimes(1);
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 13,
+      original: "",
+      replacement: "## Repeated summary\n\nSame generated report.",
+      to: 13,
+      type: "insert"
+    }, "tool_insert_markdown_first");
+    expect(toolText(firstResult)).toContain("Prepared an insertion preview");
+    expect(toolText(secondResult)).toContain("An identical insertion preview was already prepared earlier in this turn");
+  });
+
+  it("suppresses duplicate insert previews when only trailing whitespace and blank lines differ", async () => {
+    const onPreviewResult = vi.fn();
+    const tool = createDocumentAgentTools({
+      documentContent: "# Title\n\nBody",
+      documentEndPosition: 13,
+      documentPath: "/vault/README.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "insert_markdown");
+
+    await tool?.execute("tool_insert_markdown_first", {
+      anchorId: "document-end",
+      content: "## Repeated summary\n\nSame generated report.\n",
+      placement: "before_anchor"
+    });
+    const secondResult = await tool?.execute("tool_insert_markdown_second", {
+      anchorId: "document-end",
+      content: "## Repeated summary  \n\nSame generated report.\n\n\n",
+      placement: "before_anchor"
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledTimes(1);
+    expect(toolText(secondResult)).toContain("An identical insertion preview was already prepared earlier in this turn");
   });
 
   it("returns available anchors for the current editing context", async () => {
@@ -458,7 +518,7 @@ describe("documentAgentTools", () => {
       replacement: "\n\n### Follow-up\n\nMore details.",
       to: 21,
       type: "insert"
-    });
+    }, expect.any(String));
     expect(toolText(result)).toContain("Prepared an insertion preview at after_anchor (heading:1).");
   });
 
@@ -510,7 +570,7 @@ describe("documentAgentTools", () => {
       replacement: "## Better Section",
       to: 21,
       type: "replace"
-    });
+    }, expect.any(String));
   });
 
   it("prepares a block replacement preview for the current editor block", async () => {
@@ -548,7 +608,7 @@ describe("documentAgentTools", () => {
       },
       to: 32,
       type: "replace"
-    });
+    }, expect.any(String));
     expect(toolText(result)).toContain("Prepared a block replacement preview");
   });
 
@@ -639,7 +699,7 @@ describe("documentAgentTools", () => {
       },
       to: tableStart + table.length,
       type: "replace"
-    });
+    }, expect.any(String));
   });
 
   it("prepares a table replacement preview with the dedicated table tool", async () => {
@@ -688,7 +748,7 @@ describe("documentAgentTools", () => {
       },
       to: tableStart + table.length,
       type: "replace"
-    });
+    }, expect.any(String));
     expect(toolText(result)).toContain("Prepared a table replacement preview");
   });
 
@@ -736,7 +796,7 @@ describe("documentAgentTools", () => {
       }),
       to: tableStart + table.length,
       type: "replace"
-    }));
+    }), expect.any(String));
     expect(toolText(result)).toContain("Prepared a table replacement preview for Section Alpha table");
   });
 
@@ -773,7 +833,7 @@ describe("documentAgentTools", () => {
       },
       to: from + original.length,
       type: "replace"
-    });
+    }, expect.any(String));
     expect(toolText(result)).toContain("Prepared a block replacement preview for matched text.");
   });
 
@@ -817,7 +877,7 @@ describe("documentAgentTools", () => {
       },
       to: table.length,
       type: "replace"
-    });
+    }, expect.any(String));
   });
 
   it("uses provided editor table anchor positions for table replacement previews", async () => {
@@ -872,7 +932,7 @@ describe("documentAgentTools", () => {
       },
       to: 91,
       type: "replace"
-    });
+    }, expect.any(String));
   });
 
   it("rejects Markdown table replacements through replace_region unless the target is a complete table anchor", async () => {
@@ -999,7 +1059,7 @@ describe("documentAgentTools", () => {
       replacement: "",
       to: 61,
       type: "replace"
-    }));
+    }), expect.any(String));
   });
 
   it("uses provided editor section anchor text and positions for section replacement previews", async () => {
@@ -1038,7 +1098,7 @@ describe("documentAgentTools", () => {
       replacement,
       to: 91,
       type: "replace"
-    });
+    }, expect.any(String));
   });
 
   it("does not expose legacy selection-only write tools", () => {

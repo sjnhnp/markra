@@ -26,8 +26,8 @@ export class ReplaceBlockToolFactory extends DocumentAgentToolFactory<ReturnType
     return typedReplaceBlockArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedReplaceBlockArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "replace");
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedReplaceBlockArgs>) {
+    const writeCheck = beginPreparedWrite(this.context, "replace");
     if ("error" in writeCheck) return writeCheck.error;
 
     const block = resolveBlockRegion(this.context, params.anchorId);
@@ -44,7 +44,7 @@ export class ReplaceBlockToolFactory extends DocumentAgentToolFactory<ReturnType
       to: block.region.to,
       type: "replace"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
 
     return previewPreparedResult(result, "Prepared a block replacement preview for the resolved block.");
   }

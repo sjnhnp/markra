@@ -20,8 +20,8 @@ export class DeleteSectionToolFactory extends DocumentAgentToolFactory<ReturnTyp
     return typedDeleteSectionArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedDeleteSectionArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "delete");
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedDeleteSectionArgs>) {
+    const writeCheck = beginPreparedWrite(this.context, "delete");
     if ("error" in writeCheck) return writeCheck.error;
 
     const section = resolveSectionAnchor(this.context, params.anchorId);
@@ -35,7 +35,7 @@ export class DeleteSectionToolFactory extends DocumentAgentToolFactory<ReturnTyp
       to: section.anchor.to,
       type: "replace"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
 
     return previewPreparedResult(
       result,

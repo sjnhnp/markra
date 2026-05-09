@@ -30,6 +30,7 @@ describe("request builders", () => {
       enable_search: true,
       messages,
       model: "qwen3-max",
+      parallel_tool_calls: false,
       stream: true,
       temperature: 0.7,
       tool_choice: "auto",
@@ -59,6 +60,7 @@ describe("request builders", () => {
       input: [{ content: [{ text: "Rewrite this.", type: "input_text" }], role: "user" }],
       instructions: "You edit Markdown.",
       model: "qwen3.6-plus",
+      parallel_tool_calls: false,
       stream: true,
       tools: [
         { type: "web_search" },
@@ -116,6 +118,7 @@ describe("request builders", () => {
         }
       ],
       model: "qwen3.6-plus",
+      parallel_tool_calls: false,
       tools: [{ type: "web_search" }]
     });
   });

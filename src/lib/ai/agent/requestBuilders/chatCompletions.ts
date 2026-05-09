@@ -24,6 +24,7 @@ export function buildChatCompletionsRequestBody({
       ...(stream ? { stream: true } : {}),
       ...(tools?.length
         ? {
+            parallel_tool_calls: false,
             tool_choice: "auto",
             tools: buildOpenAiCompatibleFunctionTools(tools)
           }

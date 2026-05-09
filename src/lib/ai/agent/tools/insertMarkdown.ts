@@ -1,8 +1,13 @@
 import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inlineAi";
+import { debug } from "../../../debug";
 import { DocumentAgentToolFactory } from "./base";
 import {
   beginPreparedWrite,
+  duplicatePreparedInsertionResult,
+  findDuplicatePreparedInsertion,
+  normalizePreparedInsertionContent,
+  rememberPreparedInsertion,
   previewPreparedResult,
   resolveInsertionPosition,
   typedInsertMarkdownArgs
@@ -35,8 +40,19 @@ export class InsertMarkdownToolFactory extends DocumentAgentToolFactory<ReturnTy
     return typedInsertMarkdownArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedInsertMarkdownArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "insert");
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedInsertMarkdownArgs>) {
+    const duplicatePreparedInsertion = findDuplicatePreparedInsertion(this.state, params.content);
+    if (duplicatePreparedInsertion) {
+      debug(() => ["[markra-ai-preview] duplicate insert preview suppressed", {
+        duplicateOfPreviewId: duplicatePreparedInsertion.previewId,
+        duplicatePosition: duplicatePreparedInsertion.position,
+        previewId: toolCallId,
+        replacementLength: params.content.length
+      }]);
+      return duplicatePreparedInsertionResult(duplicatePreparedInsertion);
+    }
+
+    const writeCheck = beginPreparedWrite(this.context, "insert");
     if ("error" in writeCheck) return writeCheck.error;
 
     const position = resolveInsertionPosition(this.context, params);
@@ -50,7 +66,13 @@ export class InsertMarkdownToolFactory extends DocumentAgentToolFactory<ReturnTy
       to: position.position,
       type: "insert"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
+    rememberPreparedInsertion(this.state, {
+      content: params.content,
+      normalizedContent: normalizePreparedInsertionContent(params.content),
+      position: position.position,
+      previewId: toolCallId
+    });
 
     return previewPreparedResult(
       result,

@@ -8,7 +8,7 @@ export type DocumentAgentToolContext = {
   documentEndPosition: number;
   documentPath: string | null;
   headingAnchors?: AiHeadingAnchor[];
-  onPreviewResult?: (result: AiDiffResult) => unknown;
+  onPreviewResult?: (result: AiDiffResult, previewId?: string) => unknown;
   readDocumentImage?: (src: string) => Promise<DocumentAgentImage | null>;
   readWorkspaceFile?: (path: string) => Promise<string>;
   sectionAnchors?: AiDocumentAnchor[];
@@ -49,8 +49,15 @@ export type DocumentAnchorPlacement =
   | "cursor";
 
 export type RegionOperation = "delete" | "insert" | "replace";
+export type PreparedInsertionPreview = {
+  content: string;
+  normalizedContent: string;
+  position: number;
+  previewId: string;
+};
 export type DocumentAgentToolState = {
-  hasPreparedWrite: boolean;
+  preparedInsertions: PreparedInsertionPreview[];
+  preparedWriteCount: number;
 };
 
 function buildDocumentAnchors(context: DocumentAgentToolContext): AiDocumentAnchor[] {
@@ -399,22 +406,33 @@ function previewPreparedResult(result: AiDiffResult, message: string) {
   };
 }
 
+function duplicatePreparedInsertionResult(preparedInsertion: PreparedInsertionPreview) {
+  return {
+    content: [
+      {
+        text: [
+          `An identical insertion preview was already prepared earlier in this turn at position ${preparedInsertion.position}.`,
+          "Reuse that pending change instead of inserting the same Markdown again.",
+          "The user still needs to confirm the change in the editor."
+        ].join(" "),
+        type: "text" as const
+      }
+    ],
+    details: {
+      duplicateOfPreviewId: preparedInsertion.previewId,
+      position: preparedInsertion.position
+    },
+    terminate: true
+  };
+}
+
 function beginPreparedWrite(
   context: DocumentAgentToolContext,
-  hasPreparedWrite: boolean,
   mode: RegionOperation,
   options: {
     requireEditableContext?: boolean;
   } = {}
 ): { error: AgentToolResult<{ message: string }> } | { ok: true } {
-  if (hasPreparedWrite) {
-    return {
-      error: toolErrorResult(
-        "A pending editor change was already prepared in this turn. Explain that preview to the user instead of creating another one."
-      )
-    };
-  }
-
   const requireEditableContext = options.requireEditableContext !== false;
   const hasStructuralAnchor =
     (context.headingAnchors ?? []).length > 0 ||
@@ -430,6 +448,31 @@ function beginPreparedWrite(
   }
 
   return { ok: true };
+}
+
+function findDuplicatePreparedInsertion(
+  state: DocumentAgentToolState,
+  content: string
+) {
+  const normalizedContent = normalizePreparedInsertionContent(content);
+  return state.preparedInsertions.find((preparedInsertion) => preparedInsertion.normalizedContent === normalizedContent) ?? null;
+}
+
+function rememberPreparedInsertion(
+  state: DocumentAgentToolState,
+  preparedInsertion: PreparedInsertionPreview
+) {
+  state.preparedInsertions.push(preparedInsertion);
+}
+
+function normalizePreparedInsertionContent(content: string) {
+  return content
+    .replace(/\r\n/gu, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trim();
 }
 
 function resolveWriteRegion(
@@ -1195,11 +1238,13 @@ export {
   beginPreparedWrite,
   buildDocumentAnchors,
   buildSectionAnchors,
+  duplicatePreparedInsertionResult,
   diffTargetFromAnchor,
   documentTableAnchors,
   ensureCompleteTableReplacement,
   ensureReplacementFitsRegion,
   extractMarkdownImageReferences,
+  findDuplicatePreparedInsertion,
   formatDocumentAnchorsText,
   formatDocumentImageReferencesText,
   formatHeadingOutlineText,
@@ -1211,7 +1256,9 @@ export {
   formatWorkspaceFilesText,
   locateMarkdownRegion,
   locateSection,
+  normalizePreparedInsertionContent,
   previewPreparedResult,
+  rememberPreparedInsertion,
   resolveBlockByText,
   resolveBlockRegion,
   resolveInsertionPosition,

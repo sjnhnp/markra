@@ -28,8 +28,8 @@ export class ReplaceTableByHeadingToolFactory extends DocumentAgentToolFactory<R
     return typedReplaceTableByHeadingArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedReplaceTableByHeadingArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "replace");
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedReplaceTableByHeadingArgs>) {
+    const writeCheck = beginPreparedWrite(this.context, "replace");
     if ("error" in writeCheck) return writeCheck.error;
 
     const table = resolveTableByHeading(this.context, params.headingTitle);
@@ -46,7 +46,7 @@ export class ReplaceTableByHeadingToolFactory extends DocumentAgentToolFactory<R
       to: table.anchor.to,
       type: "replace"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
 
     return previewPreparedResult(
       result,

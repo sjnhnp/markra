@@ -21,8 +21,8 @@ export class ReplaceSectionToolFactory extends DocumentAgentToolFactory<ReturnTy
     return typedReplaceSectionArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedReplaceSectionArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "replace");
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedReplaceSectionArgs>) {
+    const writeCheck = beginPreparedWrite(this.context, "replace");
     if ("error" in writeCheck) return writeCheck.error;
 
     const section = resolveSectionAnchor(this.context, params.anchorId);
@@ -36,7 +36,7 @@ export class ReplaceSectionToolFactory extends DocumentAgentToolFactory<ReturnTy
       to: section.anchor.to,
       type: "replace"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
 
     return previewPreparedResult(
       result,

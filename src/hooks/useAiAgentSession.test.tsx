@@ -268,7 +268,74 @@ describe("useAiAgentSession", () => {
       replacement: "Polished draft",
       to: 9,
       type: "replace"
+    }, undefined);
+  });
+
+  it("forwards preview ids for multiple prepared editor previews", async () => {
+    const onAiResult = vi.fn();
+    mockedRunDocumentAiAgent.mockImplementation(async ({ onPreviewResult }) => {
+      onPreviewResult?.({
+        from: 4,
+        original: "",
+        replacement: "## Intro",
+        to: 4,
+        type: "insert"
+      }, "tool-intro");
+      onPreviewResult?.({
+        from: 4,
+        original: "",
+        replacement: "## Summary",
+        to: 4,
+        type: "insert"
+      }, "tool-summary");
+
+      return {
+        content: "",
+        finishReason: "stop",
+        preparedPreview: true
+      };
     });
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/README.md",
+        getDocumentContent: () => "# Draft",
+        model: "gpt-5.5",
+        onAiResult,
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        settingsLoading: false,
+        translate: (key) => key,
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("Add an intro and summary");
+    });
+
+    expect(onAiResult).toHaveBeenNthCalledWith(1, {
+      from: 4,
+      original: "",
+      replacement: "## Intro",
+      to: 4,
+      type: "insert"
+    }, "tool-intro");
+    expect(onAiResult).toHaveBeenNthCalledWith(2, {
+      from: 4,
+      original: "",
+      replacement: "## Summary",
+      to: 4,
+      type: "insert"
+    }, "tool-summary");
   });
 
   it("passes editor table anchors to the document agent runtime", async () => {
@@ -419,56 +486,13 @@ describe("useAiAgentSession", () => {
       replacement: "# Synthetic comparison title",
       to: 0,
       type: "insert"
-    });
+    }, undefined);
     expect(result.current.status).toBe("idle");
     expect(result.current.messages.at(-1)).toMatchObject({
       role: "assistant",
       text: "The editor change is ready."
     });
     expect(result.current.messages.at(-1)?.isError).not.toBe(true);
-  });
-
-  it("shows a localized repeated-multi-write message instead of the generic empty response", async () => {
-    mockedRunDocumentAiAgent.mockResolvedValue({
-      content: "",
-      finishReason: "stop",
-      stopReasonCode: "repeated_multi_write"
-    } as unknown as Awaited<ReturnType<typeof runDocumentAiAgent>>);
-
-    const { result } = renderHook(() =>
-      useAiAgentSession({
-        documentPath: "/vault/example.md",
-        getDocumentContent: () => "# Draft",
-        model: "qwen3.6-plus",
-        provider: {
-          apiKey: "secret",
-          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-          defaultModelId: "qwen3.6-plus",
-          enabled: true,
-          id: "aliyun-bailian",
-          models: [],
-          name: "Qwen",
-          type: "openai-compatible"
-        },
-        settingsLoading: false,
-        translate: testTranslate({
-          "app.aiAgentRepeatedMultiWrite": "Please ask for one document edit at a time.",
-          "app.aiEmptyResponse": "AI returned no usable text."
-        }),
-        workspaceFiles: []
-      })
-    );
-
-    await act(async () => {
-      await result.current.submit("Rewrite this and add a summary");
-    });
-
-    expect(result.current.status).toBe("error");
-    expect(result.current.messages.at(-1)).toMatchObject({
-      isError: true,
-      role: "assistant",
-      text: "Please ask for one document edit at a time."
-    });
   });
 
   it("carries prepared editor preview details into the next agent turn history", async () => {
@@ -536,9 +560,86 @@ describe("useAiAgentSession", () => {
 
     expect(mockedRunDocumentAiAgent).toHaveBeenCalledTimes(2);
     expect(mockedRunDocumentAiAgent.mock.calls[1]?.[0].history).toEqual([
-      { preview: undefined, role: "user", text: "Prepare synthetic edit" },
+      { preview: undefined, previews: undefined, role: "user", text: "Prepare synthetic edit" },
       {
         preview,
+        previews: [preview],
+        role: "assistant",
+        text: "The editor change is ready."
+      }
+    ]);
+  });
+
+  it("carries multiple prepared editor previews into the next agent turn history", async () => {
+    const introPreview = {
+      from: 10,
+      original: "",
+      replacement: "## Synthetic intro",
+      to: 10,
+      type: "insert" as const
+    };
+    const summaryPreview = {
+      from: 28,
+      original: "",
+      replacement: "## Synthetic summary",
+      to: 28,
+      type: "insert" as const
+    };
+    mockedRunDocumentAiAgent
+      .mockImplementationOnce(async ({ onPreviewResult }) => {
+        onPreviewResult?.(introPreview);
+        onPreviewResult?.(summaryPreview);
+
+        return {
+          content: "",
+          finishReason: "stop",
+          preparedPreview: true
+        };
+      })
+      .mockResolvedValueOnce({
+        content: "Follow-up synthetic answer",
+        finishReason: "stop"
+      });
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/example.md",
+        getDocumentContent: () => "# Section Alpha",
+        model: "gpt-5.5",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        settingsLoading: false,
+        translate: testTranslate({
+          "app.aiAgentPreviewReady": "The editor change is ready."
+        }),
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("Prepare synthetic edits");
+    });
+
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toBe("The editor change is ready."));
+
+    await act(async () => {
+      await result.current.submit("Follow-up synthetic request");
+    });
+
+    expect(mockedRunDocumentAiAgent).toHaveBeenCalledTimes(2);
+    expect(mockedRunDocumentAiAgent.mock.calls[1]?.[0].history).toEqual([
+      { preview: undefined, previews: undefined, role: "user", text: "Prepare synthetic edits" },
+      {
+        preview: summaryPreview,
+        previews: [introPreview, summaryPreview],
         role: "assistant",
         text: "The editor change is ready."
       }

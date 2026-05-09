@@ -9,6 +9,7 @@ import {
   applyAiEditorResult,
   clearAiEditorPreview,
   confirmAiEditorResultApplied,
+  listAiEditorPreviewResults,
   showAiEditorPreview,
   type AiEditorPreviewLabels
 } from "../lib/ai/editorPreview";
@@ -348,7 +349,7 @@ export function useEditorController() {
     view.focus();
   }, []);
 
-  const applyAiResult = useCallback((result: AiDiffResult) => {
+  const applyAiResult = useCallback((result: AiDiffResult, options: { previewId?: string } = {}) => {
     if (result.type === "error") return false;
 
     try {
@@ -357,33 +358,42 @@ export function useEditorController() {
 
       const view = editor.action((ctx) => ctx.get(editorViewCtx));
       const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
-      return applyAiEditorResult(view, result, { parseMarkdown });
+      return applyAiEditorResult(view, result, {
+        parseMarkdown,
+        previewId: options.previewId
+      });
     } catch {
       return false;
     }
   }, []);
 
-  const previewAiResult = useCallback((result: AiDiffResult, labels?: AiEditorPreviewLabels) => {
+  const previewAiResult = useCallback((
+    result: AiDiffResult,
+    labels?: AiEditorPreviewLabels,
+    options: { previewId?: string } = {}
+  ) => {
     try {
       const editor = editorRef.current;
       if (!editor) return;
 
       const view = editor.action((ctx) => ctx.get(editorViewCtx));
       const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
-      showAiEditorPreview(view, result, labels, { parseMarkdown });
+      showAiEditorPreview(view, result, labels, { parseMarkdown, previewId: options.previewId });
     } catch {
       // AI preview is a visual affordance. Failing to draw it should not block the command flow.
     }
   }, []);
 
-  const confirmAiResultApplied = useCallback((result: AiDiffResult) => {
+  const confirmAiResultApplied = useCallback((result: AiDiffResult, options: { previewId?: string } = {}) => {
     if (result.type === "error") return;
 
     try {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
       if (!view) return;
 
-      confirmAiEditorResultApplied(view, result);
+      confirmAiEditorResultApplied(view, result, {
+        previewId: options.previewId
+      });
     } catch {
       // The editor may already have been torn down; the document edit itself has still been applied.
     }
@@ -400,14 +410,25 @@ export function useEditorController() {
     }
   }, []);
 
-  const clearAiPreview = useCallback(() => {
+  const clearAiPreview = useCallback((result?: AiDiffResult, options: { previewId?: string } = {}) => {
     try {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
       if (!view) return;
 
-      clearAiEditorPreview(view);
+      clearAiEditorPreview(view, result, options);
     } catch {
       // The editor may be unavailable while windows are changing.
+    }
+  }, []);
+
+  const listAiPreviews = useCallback(() => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return [];
+
+      return listAiEditorPreviewResults(view);
+    } catch {
+      return [];
     }
   }, []);
 
@@ -489,6 +510,7 @@ export function useEditorController() {
     handleEditorReady,
     holdAiSelection,
     insertMarkdownSnippet,
+    listAiPreviews,
     previewAiResult,
     runEditorShortcut,
     selectOutlineItem

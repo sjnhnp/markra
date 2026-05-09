@@ -19,8 +19,8 @@ export class ReplaceDocumentToolFactory extends DocumentAgentToolFactory<ReturnT
     return typedReplaceDocumentArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedReplaceDocumentArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "replace", {
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedReplaceDocumentArgs>) {
+    const writeCheck = beginPreparedWrite(this.context, "replace", {
       requireEditableContext: false
     });
     if ("error" in writeCheck) return writeCheck.error;
@@ -33,7 +33,7 @@ export class ReplaceDocumentToolFactory extends DocumentAgentToolFactory<ReturnT
       to: this.context.documentEndPosition,
       type: "replace"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
 
     return previewPreparedResult(result, "Prepared a full-document replacement preview.");
   }

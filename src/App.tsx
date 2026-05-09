@@ -53,6 +53,7 @@ import {
   saveNativeClipboardImage,
   type NativeMarkdownFolderFile
 } from "./lib/tauri/file";
+import { debug } from "./lib/debug";
 import { clampNumber } from "./lib/utils";
 
 const aiAgentPanelDefaultWidth = 384;
@@ -76,6 +77,10 @@ function aiResultSignature(result: AiDiffResult) {
   ].join(aiResultSignatureSeparator);
 }
 
+function aiPreviewActionKey(result: AiDiffResult, previewId?: string) {
+  return previewId ? `preview${aiResultSignatureSeparator}${previewId}` : `result${aiResultSignatureSeparator}${aiResultSignature(result)}`;
+}
+
 export default function App() {
   if (isSettingsWindowRoute()) {
     return <SettingsWindow />;
@@ -90,11 +95,11 @@ export default function App() {
   const [aiAgentOpen, setAiAgentOpen] = useState(false);
   const [aiAgentPanelWidth, setAiAgentPanelWidth] = useState(aiAgentPanelDefaultWidth);
   const [aiAgentPanelResizing, setAiAgentPanelResizing] = useState(false);
-  const [aiResult, setAiResult] = useState<AiDiffResult | null>(null);
+  const [aiResults, setAiResults] = useState<AiDiffResult[]>([]);
   const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
-  const aiResultRef = useRef<AiDiffResult | null>(null);
-  const appliedAiResultSignaturesRef = useRef(new Set<string>());
+  const aiResultsRef = useRef<AiDiffResult[]>([]);
+  const appliedAiPreviewKeysRef = useRef(new Set<string>());
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
   const reconciledAiWorkspaceKeyRef = useRef<string | null | undefined>(undefined);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
@@ -163,6 +168,7 @@ export default function App() {
   } = markdownDocument;
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
   const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
+  const aiResult = aiResults.at(-1) ?? null;
   const resolveImageSrc = useMemo(() => createMarkdownImageSrcResolver(document.path), [document.path]);
   const imagePreviewSrc = useMemo(() => {
     if (!activeImageFile) return "";
@@ -191,11 +197,11 @@ export default function App() {
     activeAiSelectionRef.current = selection;
     setActiveAiSelection(selection);
   }, []);
-  const updateAiResult = useCallback((result: AiDiffResult | null) => {
-    aiResultRef.current = result;
-    setAiResult(result);
+  const updateAiResults = useCallback((results: AiDiffResult[]) => {
+    aiResultsRef.current = results;
+    setAiResults(results);
   }, []);
-  const getPendingAiResult = useCallback(() => aiResultRef.current, []);
+  const getPendingAiResult = useCallback(() => aiResultsRef.current.at(-1) ?? null, []);
   const hasActiveAiSelection = activeAiSelection?.source === "selection" && Boolean(activeAiSelection.text.trim());
   const selectedInlineAiModel =
     aiSettings.availableTextModels.find(
@@ -220,10 +226,9 @@ export default function App() {
       : "transition-[grid-template-columns] duration-220 ease-out motion-reduce:transition-none"
   }`;
   const handleAiResult = useCallback(
-    (result: AiDiffResult) => {
+    (result: AiDiffResult, previewId?: string) => {
       editor.clearAiSelection();
-      appliedAiResultSignaturesRef.current.clear();
-      updateAiResult(result);
+      appliedAiPreviewKeysRef.current.clear();
       editor.previewAiResult(result, {
         apply: translate("app.aiApply"),
         chars: translate("app.aiPreviewChars"),
@@ -234,9 +239,12 @@ export default function App() {
         replaceDocumentScope: translate("app.aiPreviewReplaceDocument"),
         replaceRegionScope: translate("app.aiPreviewReplaceRegion"),
         replaceSelectionScope: translate("app.aiPreviewReplaceSelection")
+      }, {
+        previewId
       });
+      updateAiResults(editor.listAiPreviews());
     },
-    [editor, translate, updateAiResult]
+    [editor, translate, updateAiResults]
   );
   const handleAiAgentSessionRestore = useCallback((session: { panelOpen: boolean; panelWidth: number | null }) => {
     setAiAgentOpen(session.panelOpen);
@@ -386,13 +394,13 @@ export default function App() {
 
     if (!selection?.text.trim()) {
       editor.clearAiSelection();
-      if (!aiResultRef.current) aiCommand.closeAiCommand();
+      if (aiResultsRef.current.length === 0) aiCommand.closeAiCommand();
       return;
     }
 
     if (selection.source !== "selection") {
       editor.clearAiSelection();
-      if (!aiResultRef.current) aiCommand.closeAiCommand();
+      if (aiResultsRef.current.length === 0) aiCommand.closeAiCommand();
       return;
     }
 
@@ -403,50 +411,62 @@ export default function App() {
     aiCommand.openAiCommand(selection);
   }, [aiCommand, editor, editorPreferences.preferences.autoOpenAiOnSelection, updateActiveAiSelection]);
   const saveDocumentAs = useCallback(() => saveCurrentDocument(true), [saveCurrentDocument]);
-  const handleApplyAiResult = useCallback((restoredResult?: AiDiffResult | null) => {
-    const result = restoredResult ?? aiResult;
+  const handleApplyAiResult = useCallback((restoredResult?: AiDiffResult | null, previewId?: string) => {
+    const result = restoredResult ?? aiResults.at(-1) ?? null;
     if (!result) {
       console.warn("[markra-ai-preview] apply ignored: no pending result", {
-        aiResult,
+        aiResults,
+        previewId,
         restoredResult
       });
       return;
     }
 
-    console.debug("[markra-ai-preview] app handle apply", {
+    debug(() => ["[markra-ai-preview] app handle apply", {
       from: result.type === "error" ? null : result.from,
       replacementLength: result.type === "error" ? null : result.replacement.length,
       to: result.type === "error" ? null : result.to,
       type: result.type
-    });
+    }]);
 
-    const signature = aiResultSignature(result);
-    if (appliedAiResultSignaturesRef.current.has(signature)) {
-      console.debug("[markra-ai-preview] apply ignored: duplicate result", {
+    const actionKey = aiPreviewActionKey(result, previewId);
+    if (appliedAiPreviewKeysRef.current.has(actionKey)) {
+      debug(() => ["[markra-ai-preview] apply ignored: duplicate result", {
+        previewId,
         type: result.type
-      });
-      editor.confirmAiResultApplied(result);
+      }]);
+      editor.confirmAiResultApplied(result, { previewId });
       return;
     }
 
-    appliedAiResultSignaturesRef.current.add(signature);
-    const applied = editor.applyAiResult(result);
-    console.debug("[markra-ai-preview] app apply result", { applied });
+    appliedAiPreviewKeysRef.current.add(actionKey);
+    const applied = editor.applyAiResult(result, { previewId });
+    debug(() => ["[markra-ai-preview] app apply result", { applied }]);
 
     if (!applied) {
-      appliedAiResultSignaturesRef.current.delete(signature);
+      appliedAiPreviewKeysRef.current.delete(actionKey);
+      return;
     }
-  }, [aiResult, editor, handleAiCommandClose, updateAiResult]);
-  const handleRejectAiResult = useCallback(() => {
+
+    const remainingPreviews = editor.listAiPreviews();
+    updateAiResults(remainingPreviews);
+    if (remainingPreviews.length === 0) {
+      editor.clearAiSelection();
+      handleAiCommandClose();
+    }
+  }, [aiResults, editor, handleAiCommandClose, updateAiResults]);
+  const handleRejectAiResult = useCallback((result?: AiDiffResult | null, previewId?: string) => {
     editor.clearAiSelection();
-    updateAiResult(null);
-    editor.clearAiPreview();
-  }, [editor, updateAiResult]);
+    editor.clearAiPreview(result ?? undefined, { previewId });
+    const remainingPreviews = editor.listAiPreviews();
+    updateAiResults(remainingPreviews);
+    if (remainingPreviews.length === 0) handleAiCommandClose();
+  }, [editor, handleAiCommandClose, updateAiResults]);
   const handleCopyAiResult = useCallback((restoredResult?: AiDiffResult | null) => {
-    const result = restoredResult ?? aiResult;
+    const result = restoredResult ?? aiResults.at(-1) ?? null;
     if (!result || result.type === "error") return;
     navigator.clipboard?.writeText(result.replacement);
-  }, [aiResult]);
+  }, [aiResults]);
   const handleSaveClipboardImage = useCallback(async (image: File) => {
     if (!document.path) {
       showAppToast({
@@ -597,10 +617,10 @@ export default function App() {
     const handlePreviewAction = (event: Event) => {
       const detail = (event as CustomEvent<Partial<AiEditorPreviewActionDetail>>).detail;
       const action = detail?.action;
-      console.debug("[markra-ai-preview] app received action event", detail);
+      debug(() => ["[markra-ai-preview] app received action event", detail]);
 
       if (action === "apply") {
-        handleApplyAiResult(detail.result);
+        handleApplyAiResult(detail.result, detail.previewId);
         return;
       }
 
@@ -610,7 +630,7 @@ export default function App() {
       }
 
       if (action === "reject") {
-        handleRejectAiResult();
+        handleRejectAiResult(detail.result, detail.previewId);
       }
     };
 
@@ -622,31 +642,47 @@ export default function App() {
 
   useEffect(() => {
     const handlePreviewApplied = (event: Event) => {
-      const result = (event as CustomEvent<Partial<AiEditorPreviewAppliedDetail>>).detail?.result;
+      const detail = (event as CustomEvent<Partial<AiEditorPreviewAppliedDetail>>).detail;
+      const result = detail?.result;
       if (!result || (result.type !== "insert" && result.type !== "replace")) return;
 
-      const signature = aiResultSignature(result);
-      if (!appliedAiResultSignaturesRef.current.has(signature)) return;
+      const actionKey = aiPreviewActionKey(result, detail?.previewId);
+      if (!appliedAiPreviewKeysRef.current.has(actionKey)) return;
 
-      editor.confirmAiResultApplied(result);
-      editor.clearAiSelection();
-      updateAiResult(null);
-      handleAiCommandClose();
+      debug(() => ["[markra-ai-preview] app observed preview applied", {
+        actionKey,
+        pendingPreviewCount: detail?.previews?.length ?? 0,
+        previewId: detail?.previewId,
+        resultSignature: aiResultSignature(result)
+      }]);
+      editor.confirmAiResultApplied(result, { previewId: detail?.previewId });
+      const remainingPreviews = editor.listAiPreviews();
+      updateAiResults(remainingPreviews);
+      if (remainingPreviews.length === 0) {
+        editor.clearAiSelection();
+        handleAiCommandClose();
+      }
     };
 
     window.addEventListener(AI_EDITOR_PREVIEW_APPLIED_EVENT, handlePreviewApplied);
     return () => {
       window.removeEventListener(AI_EDITOR_PREVIEW_APPLIED_EVENT, handlePreviewApplied);
     };
-  }, [editor, handleAiCommandClose, updateAiResult]);
+  }, [editor, handleAiCommandClose, updateAiResults]);
 
   useEffect(() => {
     const handlePreviewRestore = (event: Event) => {
-      const result = (event as CustomEvent<Partial<AiEditorPreviewRestoreDetail>>).detail?.result;
+      const detail = (event as CustomEvent<Partial<AiEditorPreviewRestoreDetail>>).detail;
+      const result = detail?.result;
       if (!result || (result.type !== "insert" && result.type !== "replace")) return;
 
-      appliedAiResultSignaturesRef.current.delete(aiResultSignature(result));
-      updateAiResult(result);
+      debug(() => ["[markra-ai-preview] app observed preview restore", {
+        pendingPreviewCount: detail?.previews?.length ?? 0,
+        previewId: detail?.previewId,
+        resultSignature: aiResultSignature(result)
+      }]);
+      appliedAiPreviewKeysRef.current.delete(aiPreviewActionKey(result, detail?.previewId));
+      updateAiResults(editor.listAiPreviews());
       restoreAiCommand({ reopen: false });
     };
 
@@ -654,7 +690,7 @@ export default function App() {
     return () => {
       window.removeEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, handlePreviewRestore);
     };
-  }, [restoreAiCommand, updateAiResult]);
+  }, [editor, restoreAiCommand, updateAiResults]);
 
   return (
     <>

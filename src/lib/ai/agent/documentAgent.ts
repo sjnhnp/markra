@@ -13,6 +13,7 @@ import { providerSupportsNativeWebSearch } from "./nativeWebSearch";
 
 export type DocumentAiHistoryMessage = {
   preview?: DocumentAiHistoryPreview;
+  previews?: DocumentAiHistoryPreview[];
   role: "assistant" | "user";
   text: string;
 };
@@ -35,7 +36,7 @@ export type RunDocumentAiAgentInput = {
   headingAnchors?: AiHeadingAnchor[];
   model: string;
   onEvent?: (event: AgentEvent) => unknown;
-  onPreviewResult?: (result: AiDiffResult) => unknown;
+  onPreviewResult?: (result: AiDiffResult, previewId?: string) => unknown;
   onTextDelta?: (content: string) => unknown;
   onThinkingDelta?: (thinking: string) => unknown;
   prompt: string;
@@ -241,28 +242,11 @@ async function runDocumentToolCallingAgent({
   workspaceFiles = []
 }: RunDocumentAiAgentRuntimeInput): Promise<RunDocumentAiAgentResult> {
   let preparedPreview = false;
-  let consecutiveBlockedMultiWriteTurns = 0;
-  let shouldStopForRepeatedMultiWrite = false;
   const piAgentModel = createPiAgentModel(provider, model);
   const nativeWebSearchEnabled = webSearchEnabled && providerSupportsNativeWebSearch(provider, model);
   const activeWebSearchSettings =
     webSearchEnabled && !nativeWebSearchEnabled && webSearchSettingsAreUsable(webSearchSettings) ? webSearchSettings : null;
-  const blockedMultiWriteReason =
-    "Only one editor write tool can run in a single assistant turn. Choose exactly one edit operation, then call that write tool again.";
   const agent = new Agent({
-    beforeToolCall: async ({ assistantMessage, toolCall }) => {
-      if (!isDocumentWriteToolName(toolCall.name)) return undefined;
-
-      const writeToolCallCount = assistantMessage.content.filter(
-        (content) => content.type === "toolCall" && isDocumentWriteToolName(content.name)
-      ).length;
-      if (writeToolCallCount <= 1) return undefined;
-
-      return {
-        block: true,
-        reason: blockedMultiWriteReason
-      };
-    },
     initialState: {
       messages: buildDocumentToolCallingHistoryMessages({ history, model, provider }),
       model: piAgentModel,
@@ -274,9 +258,9 @@ async function runDocumentToolCallingAgent({
         documentEndPosition,
         documentPath,
         headingAnchors,
-        onPreviewResult: (result) => {
+        onPreviewResult: (result, previewId) => {
           preparedPreview = true;
-          onPreviewResult?.(result);
+          onPreviewResult?.(result, previewId);
         },
         readDocumentImage,
         readWorkspaceFile,
@@ -295,18 +279,6 @@ async function runDocumentToolCallingAgent({
 
   agent.subscribe((event) => {
     onEvent?.(event);
-
-    if (event.type === "turn_end") {
-      if (!isBlockedMultiWriteTurn(event.toolResults, blockedMultiWriteReason)) {
-        consecutiveBlockedMultiWriteTurns = 0;
-      } else {
-        consecutiveBlockedMultiWriteTurns += 1;
-        if (consecutiveBlockedMultiWriteTurns >= 2) {
-          shouldStopForRepeatedMultiWrite = true;
-          agent.abort();
-        }
-      }
-    }
 
     if (event.type === "message_update" && event.message.role === "assistant") {
       const nextText = assistantTextFromAgentMessage(event.message.content);
@@ -332,15 +304,6 @@ async function runDocumentToolCallingAgent({
     selection,
     webSearchMode: nativeWebSearchEnabled ? "native" : activeWebSearchSettings ? "custom" : "none"
   }));
-
-  if (!preparedPreview && !finalContent.trim() && !latestAssistantText.trim() && shouldStopForRepeatedMultiWrite) {
-    return {
-      content: "",
-      finishReason: "stop",
-      preparedPreview: false,
-      stopReasonCode: "repeated_multi_write"
-    };
-  }
 
   return {
     content: preparedPreview ? "" : (finalContent || latestAssistantText).trim(),
@@ -384,7 +347,6 @@ function buildDocumentToolCallingSystemPrompt(webSearchMode: DocumentToolCalling
     "When the target location is ambiguous, inspect the document structure, choose the most semantically appropriate anchor or section, and then execute the edit there.",
     "When there is no active selection, do not stop at that limitation. Inspect the document structure and decide an appropriate location yourself.",
     "When preparing block-level Markdown such as headings, lists, tables, or multi-paragraph sections, pass clean Markdown to the write tool and choose an insertion/replacement location that preserves document structure.",
-    "At most one write tool should be used in a single assistant turn.",
     "After a write tool succeeds, briefly tell the user what was prepared and what changed.",
     "Do not claim to have searched the web or read files that were not available through tools."
   ].join("\n");
@@ -403,39 +365,6 @@ function documentToolCallingWebSearchInstructions(webSearchMode: DocumentToolCal
   }
 
   return [];
-}
-
-function isDocumentWriteToolName(toolName: string) {
-  return [
-    "delete_region",
-    "delete_section",
-    "insert_markdown",
-    "replace_document",
-    "replace_block",
-    "replace_region",
-    "replace_table",
-    "replace_section"
-  ].includes(toolName);
-}
-
-function isBlockedMultiWriteTurn(
-  toolResults: Array<{
-    content: Array<{ text?: string; type: string }>;
-    isError: boolean;
-  }>,
-  blockedMultiWriteReason: string
-) {
-  return (
-    toolResults.length > 0 &&
-    toolResults.every((toolResult) => {
-      if (!toolResult.isError) return false;
-
-      return toolResult.content
-        .map((part) => (part.type === "text" ? part.text ?? "" : ""))
-        .join("\n")
-        .includes(blockedMultiWriteReason);
-    })
-  );
 }
 
 async function readPromptedDocumentImages({
@@ -763,8 +692,11 @@ function createAgentUserMessage(content: string, images: ChatImageAttachment[] =
 
 function formatHistoryMessageText(message: DocumentAiHistoryMessage) {
   const parts = [message.text.trim()];
-  const previewSummary = message.preview ? formatHistoryPreviewSummary(message.preview) : null;
-  if (previewSummary) parts.push(previewSummary);
+  const previews = message.previews?.length ? message.previews : (message.preview ? [message.preview] : []);
+  previews.forEach((preview) => {
+    const previewSummary = formatHistoryPreviewSummary(preview);
+    if (previewSummary) parts.push(previewSummary);
+  });
 
   return parts.filter((part) => part.length > 0).join("\n\n");
 }

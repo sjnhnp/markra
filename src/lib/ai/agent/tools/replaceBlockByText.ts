@@ -25,8 +25,8 @@ export class ReplaceBlockByTextToolFactory extends DocumentAgentToolFactory<Retu
     return typedReplaceBlockByTextArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedReplaceBlockByTextArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "replace", {
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedReplaceBlockByTextArgs>) {
+    const writeCheck = beginPreparedWrite(this.context, "replace", {
       requireEditableContext: false
     });
     if ("error" in writeCheck) return writeCheck.error;
@@ -43,7 +43,7 @@ export class ReplaceBlockByTextToolFactory extends DocumentAgentToolFactory<Retu
       to: block.region.to,
       type: "replace"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
 
     return previewPreparedResult(result, "Prepared a block replacement preview for matched text.");
   }

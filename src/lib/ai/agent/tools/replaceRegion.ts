@@ -27,8 +27,8 @@ export class ReplaceRegionToolFactory extends DocumentAgentToolFactory<ReturnTyp
     return typedReplaceRegionArgs(params);
   }
 
-  protected executeTool(_toolCallId: string, params: ReturnType<typeof typedReplaceRegionArgs>) {
-    const writeCheck = beginPreparedWrite(this.context, this.state.hasPreparedWrite, "replace");
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedReplaceRegionArgs>) {
+    const writeCheck = beginPreparedWrite(this.context, "replace");
     if ("error" in writeCheck) return writeCheck.error;
 
     const region = resolveWriteRegion(this.context, params.anchorId, "replace");
@@ -45,7 +45,7 @@ export class ReplaceRegionToolFactory extends DocumentAgentToolFactory<ReturnTyp
       to: region.region.to,
       type: "replace"
     };
-    this.context.onPreviewResult?.(result);
+    this.context.onPreviewResult?.(result, toolCallId);
 
     return previewPreparedResult(result, "Prepared a replacement preview for the resolved region.");
   }

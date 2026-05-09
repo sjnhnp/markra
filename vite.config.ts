@@ -1,6 +1,7 @@
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
+import { stripDebugPlugin } from "./scripts/vite/stripDebug";
 
 const chunkSizeLimit = 450 * 1024;
 const imageAssetPattern = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i;
@@ -62,8 +63,11 @@ function vendorChunkName(id: string) {
   return null;
 }
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ mode }) => ({
+  define: {
+    __MARKRA_DEBUG__: JSON.stringify(mode !== "production")
+  },
+  plugins: [react(), tailwindcss(), ...(mode === "production" ? [stripDebugPlugin()] : [])],
   build: {
     assetsInlineLimit: (filePath) => {
       // Keep provider SVG logos as standalone assets instead of embedding them into JS chunks.
@@ -90,4 +94,4 @@ export default defineConfig({
     globals: true,
     setupFiles: "./src/test/setup.ts"
   }
-});
+}));
