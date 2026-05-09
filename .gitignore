@@ -11,7 +11,7 @@ coverage/
 *.tsbuildinfo
 
 # Tauri and Rust
-src-tauri/target/
+apps/*/src-tauri/target/
 target/
 **/*.rs.bk
 

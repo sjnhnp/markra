@@ -7,6 +7,12 @@ settings:
 importers:
 
   .:
+    devDependencies:
+      bumpp:
+        specifier: ^11.1.0
+        version: 11.1.0
+
+  apps/desktop:
     dependencies:
       '@codemirror/lang-json':
         specifier: 6.0.2
@@ -23,18 +29,24 @@ importers:
       '@mariozechner/pi-agent-core':
         specifier: 0.73.0
         version: 0.73.0(ws@8.20.0)(zod@4.4.3)
-      '@mariozechner/pi-ai':
-        specifier: 0.73.0
-        version: 0.73.0(ws@8.20.0)(zod@4.4.3)
+      '@markra/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@markra/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
+      '@markra/markdown':
+        specifier: workspace:*
+        version: link:../../packages/markdown
+      '@markra/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@milkdown/kit':
         specifier: ^7.20.0
         version: 7.20.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1)(typescript@6.0.3)
       '@milkdown/react':
         specifier: ^7.20.0
         version: 7.20.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1)(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
-      '@mozilla/readability':
-        specifier: ^0.6.0
-        version: 0.6.0
       '@tauri-apps/api':
         specifier: 2.11.0
         version: 2.11.0
@@ -65,9 +77,6 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      turndown:
-        specifier: ^7.2.4
-        version: 7.2.4
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.2.4
@@ -90,15 +99,9 @@ importers:
       '@types/react-dom':
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.7)
-      '@types/turndown':
-        specifier: ^5.0.6
-        version: 5.0.6
       '@vitejs/plugin-react':
         specifier: 6.0.1
         version: 6.0.1(vite@8.0.10(@types/node@24.10.0)(jiti@2.6.1)(yaml@2.8.4))
-      bumpp:
-        specifier: ^11.1.0
-        version: 11.1.0
       jsdom:
         specifier: 29.1.1
         version: 29.1.1
@@ -111,6 +114,102 @@ importers:
       vite:
         specifier: 8.0.10
         version: 8.0.10(@types/node@24.10.0)(jiti@2.6.1)(yaml@2.8.4)
+      vitest:
+        specifier: 4.1.5
+        version: 4.1.5(@types/node@24.10.0)(jsdom@29.1.1)(vite@8.0.10(@types/node@24.10.0)(jiti@2.6.1)(yaml@2.8.4))
+
+  packages/ai:
+    dependencies:
+      '@mariozechner/pi-agent-core':
+        specifier: 0.73.0
+        version: 0.73.0(ws@8.20.0)(zod@4.4.3)
+      '@mariozechner/pi-ai':
+        specifier: 0.73.0
+        version: 0.73.0(ws@8.20.0)(zod@4.4.3)
+      '@markra/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@mozilla/readability':
+        specifier: ^0.6.0
+        version: 0.6.0
+      turndown:
+        specifier: ^7.2.4
+        version: 7.2.4
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.0
+        version: 24.10.0
+      '@types/turndown':
+        specifier: ^5.0.6
+        version: 5.0.6
+      jsdom:
+        specifier: 29.1.1
+        version: 29.1.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.5
+        version: 4.1.5(@types/node@24.10.0)(jsdom@29.1.1)(vite@8.0.10(@types/node@24.10.0)(jiti@2.6.1)(yaml@2.8.4))
+
+  packages/editor:
+    dependencies:
+      '@markra/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@markra/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@milkdown/kit':
+        specifier: ^7.20.0
+        version: 7.20.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1)(typescript@6.0.3)
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.0
+        version: 24.10.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.5
+        version: 4.1.5(@types/node@24.10.0)(jsdom@29.1.1)(vite@8.0.10(@types/node@24.10.0)(jiti@2.6.1)(yaml@2.8.4))
+
+  packages/markdown:
+    dependencies:
+      '@markra/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@tauri-apps/api':
+        specifier: 2.11.0
+        version: 2.11.0
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.0
+        version: 24.10.0
+      jsdom:
+        specifier: 29.1.1
+        version: 29.1.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.5
+        version: 4.1.5(@types/node@24.10.0)(jsdom@29.1.1)(vite@8.0.10(@types/node@24.10.0)(jiti@2.6.1)(yaml@2.8.4))
+
+  packages/shared:
+    devDependencies:
+      '@testing-library/jest-dom':
+        specifier: 6.9.1
+        version: 6.9.1
+      '@types/node':
+        specifier: 24.10.0
+        version: 24.10.0
+      jsdom:
+        specifier: 29.1.1
+        version: 29.1.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
       vitest:
         specifier: 4.1.5
         version: 4.1.5(@types/node@24.10.0)(jsdom@29.1.1)(vite@8.0.10(@types/node@24.10.0)(jiti@2.6.1)(yaml@2.8.4))
@@ -564,6 +663,7 @@ packages:
   '@mariozechner/pi-ai@0.73.0':
     resolution: {integrity: sha512-phKOpcde/ssz6UYszkmaGJ9LF9mgt/AP8LrtSwsfap+kMSeFfSQ2/mCSBT1mLJ2BqVuff9uXs1/+op1aQeaafQ==}
     engines: {node: '>=20.0.0'}
+    deprecated: please use @earendil-works/pi-ai instead going forward
     hasBin: true
 
   '@milkdown/components@7.20.0':
