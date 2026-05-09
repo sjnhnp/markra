@@ -385,7 +385,8 @@ describe("Markra workspace", () => {
       webSearchEnabled: false
     });
     mockedGetStoredAiAgentPreferences.mockResolvedValue({
-      thinkingEnabled: false
+      thinkingEnabled: false,
+      webSearchEnabled: false
     });
     mockedGetStoredWebSearchSettings.mockResolvedValue({
       contentMaxChars: 12000,

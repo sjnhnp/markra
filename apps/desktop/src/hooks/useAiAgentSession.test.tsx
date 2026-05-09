@@ -63,7 +63,7 @@ describe("useAiAgentSession", () => {
       webSearchEnabled: false
     });
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
-    mockedGetStoredAiAgentPreferences.mockResolvedValue({ thinkingEnabled: false });
+    mockedGetStoredAiAgentPreferences.mockResolvedValue({ thinkingEnabled: false, webSearchEnabled: false });
     mockedGenerateAiAgentSessionTitle.mockResolvedValue("Polish GOLD and XAU price notes");
     mockedSaveStoredAiAgentPreferences.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentSession.mockResolvedValue(undefined);
@@ -864,7 +864,7 @@ describe("useAiAgentSession", () => {
   });
 
   it("restores and persists a stored session for the active document", async () => {
-    mockedGetStoredAiAgentPreferences.mockResolvedValue({ thinkingEnabled: true });
+    mockedGetStoredAiAgentPreferences.mockResolvedValue({ thinkingEnabled: true, webSearchEnabled: true });
     mockedGetStoredAiAgentSession.mockResolvedValue({
       draft: "Continue this",
       messages: [{ id: 1, role: "user", text: "Earlier question" }],
@@ -961,6 +961,39 @@ describe("useAiAgentSession", () => {
     expect(mockedSaveStoredAiAgentPreferences).toHaveBeenCalledWith({ thinkingEnabled: true });
   });
 
+  it("remembers explicit web search toggles for future sessions", async () => {
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        getDocumentContent: () => "# Draft",
+        model: "gpt-5.5",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        sessionId: "session-a",
+        settingsLoading: false,
+        translate: (key) => key,
+        workspaceKey: "/vault",
+        workspaceFiles: []
+      })
+    );
+
+    await waitFor(() => expect(mockedGetStoredAiAgentSession).toHaveBeenCalledWith("session-a"));
+
+    await act(async () => {
+      result.current.setWebSearchEnabled((enabled) => !enabled);
+    });
+
+    expect(result.current.webSearchEnabled).toBe(true);
+    expect(mockedSaveStoredAiAgentPreferences).toHaveBeenCalledWith({ webSearchEnabled: true });
+  });
+
   it("keeps the deep thinking preference enabled when switching stored sessions", async () => {
     mockedGetStoredAiAgentSession
       .mockResolvedValueOnce({
@@ -1022,6 +1055,69 @@ describe("useAiAgentSession", () => {
 
     await waitFor(() => expect(result.current.draft).toBe("Session B"));
     expect(result.current.thinkingEnabled).toBe(true);
+  });
+
+  it("keeps the web search preference enabled when switching stored sessions", async () => {
+    mockedGetStoredAiAgentSession
+      .mockResolvedValueOnce({
+        draft: "Session A",
+        messages: [],
+        panelOpen: false,
+        panelWidth: null,
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      })
+      .mockResolvedValueOnce({
+        draft: "Session B",
+        messages: [],
+        panelOpen: false,
+        panelWidth: null,
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      });
+
+    const { result, rerender } = renderHook(
+      ({ sessionId }) =>
+        useAiAgentSession({
+          getDocumentContent: () => "# Draft",
+          model: "gpt-5.5",
+          provider: {
+            apiKey: "secret",
+            baseUrl: "https://api.openai.com/v1",
+            defaultModelId: "gpt-5.5",
+            enabled: true,
+            id: "openai",
+            models: [],
+            name: "OpenAI",
+            type: "openai"
+          },
+          sessionId,
+          settingsLoading: false,
+          translate: (key) => key,
+          workspaceKey: "/vault",
+          workspaceFiles: []
+        }),
+      {
+        initialProps: {
+          sessionId: "session-a"
+        }
+      }
+    );
+
+    await waitFor(() => expect(result.current.draft).toBe("Session A"));
+
+    await act(async () => {
+      result.current.setWebSearchEnabled(true);
+    });
+
+    expect(result.current.webSearchEnabled).toBe(true);
+
+    rerender({
+      sessionId: "session-b"
+    });
+
+    await waitFor(() => expect(result.current.draft).toBe("Session B"));
+    expect(result.current.webSearchEnabled).toBe(true);
   });
 
   it("keeps the panel open while switching to another stored session", async () => {

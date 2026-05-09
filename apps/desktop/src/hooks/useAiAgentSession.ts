@@ -60,7 +60,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<AiAgentPanelMessage[]>([]);
   const [thinkingEnabled, setThinkingEnabledState] = useState(false);
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [webSearchEnabled, setWebSearchEnabledState] = useState(false);
   const [status, setStatus] = useState<"idle" | "thinking" | "streaming" | "error">("idle");
   const [titleVersion, setTitleVersion] = useState(0);
   const requestIdRef = useRef(0);
@@ -70,6 +70,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const persistTimerRef = useRef<number | null>(null);
   const skipNextPersistRef = useRef(false);
   const userChangedThinkingPreferenceRef = useRef(false);
+  const userChangedWebSearchPreferenceRef = useRef(false);
   const sessionTitleSourceRef = useRef<"ai" | "fallback" | "manual" | null>(null);
   const titleGenerationSignatureRef = useRef<string | null>(null);
   const sessionKey = ctx.sessionId?.trim() ? ctx.sessionId : null;
@@ -84,14 +85,29 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     });
   }, []);
 
+  const setWebSearchEnabled = useCallback((action: SetStateAction<boolean>) => {
+    setWebSearchEnabledState((currentValue) => {
+      const nextValue = typeof action === "function" ? action(currentValue) : action;
+
+      userChangedWebSearchPreferenceRef.current = true;
+      saveStoredAiAgentPreferences({ webSearchEnabled: nextValue }).catch(() => {});
+      return nextValue;
+    });
+  }, []);
+
   useEffect(() => {
     let active = true;
 
     getStoredAiAgentPreferences()
       .then((preferences) => {
-        if (!active || userChangedThinkingPreferenceRef.current) return;
+        if (!active) return;
 
-        setThinkingEnabledState(preferences.thinkingEnabled);
+        if (!userChangedThinkingPreferenceRef.current) {
+          setThinkingEnabledState(preferences.thinkingEnabled);
+        }
+        if (!userChangedWebSearchPreferenceRef.current) {
+          setWebSearchEnabledState(preferences.webSearchEnabled);
+        }
       })
       .catch(() => {});
 
@@ -136,7 +152,6 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
       const defaultSession = createDefaultAiAgentSessionState();
       setDraft(defaultSession.draft);
       setMessages(defaultSession.messages);
-      setWebSearchEnabled(defaultSession.webSearchEnabled);
       hydratedSessionKeyRef.current = null;
       skipNextPersistRef.current = true;
       return () => {
@@ -154,7 +169,6 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
 
         setDraft(storedSession.draft);
         setMessages(storedSession.messages);
-        setWebSearchEnabled(storedSession.webSearchEnabled);
         sessionTitleSourceRef.current = storedSummary?.titleSource ?? null;
         if (shouldRestorePanelState) {
           ctx.onSessionRestore?.({
@@ -176,7 +190,6 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         const defaultSession = createDefaultAiAgentSessionState();
         setDraft(defaultSession.draft);
         setMessages(defaultSession.messages);
-        setWebSearchEnabled(defaultSession.webSearchEnabled);
         sessionTitleSourceRef.current = null;
         if (shouldRestorePanelState) {
           ctx.onSessionRestore?.({

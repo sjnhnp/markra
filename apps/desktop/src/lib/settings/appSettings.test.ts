@@ -1017,24 +1017,36 @@ describe("app settings", () => {
 
       return store as unknown as Awaited<ReturnType<typeof load>>;
     });
-    store.get.mockImplementation(async (key) => (key === "aiAgentPreferences" ? { thinkingEnabled: true } : undefined));
+    store.get.mockImplementation(async (key) =>
+      key === "aiAgentPreferences" ? { thinkingEnabled: true, webSearchEnabled: true } : undefined
+    );
     sessionStore.get.mockResolvedValue(undefined);
     indexStore.get.mockResolvedValue([]);
 
     await initializeStoredAiAgentSession("session-new", "/mock-files/vault");
 
     expect(sessionStore.set).toHaveBeenCalledWith("session", expect.objectContaining({
-      thinkingEnabled: true
+      thinkingEnabled: true,
+      webSearchEnabled: true
     }));
   });
 
   it("loads and persists AI agent preferences", async () => {
-    store.get.mockResolvedValue({ thinkingEnabled: true });
+    store.get.mockResolvedValue({ thinkingEnabled: true, webSearchEnabled: true });
 
-    await expect(getStoredAiAgentPreferences()).resolves.toEqual({ thinkingEnabled: true });
+    await expect(getStoredAiAgentPreferences()).resolves.toEqual({ thinkingEnabled: true, webSearchEnabled: true });
     await saveStoredAiAgentPreferences({ thinkingEnabled: false });
 
-    expect(store.set).toHaveBeenCalledWith("aiAgentPreferences", { thinkingEnabled: false });
+    expect(store.set).toHaveBeenCalledWith("aiAgentPreferences", { thinkingEnabled: false, webSearchEnabled: true });
+    expect(store.save).toHaveBeenCalledTimes(1);
+
+    store.set.mockClear();
+    store.save.mockClear();
+    store.get.mockResolvedValue({ thinkingEnabled: true, webSearchEnabled: false });
+
+    await saveStoredAiAgentPreferences({ webSearchEnabled: true });
+
+    expect(store.set).toHaveBeenCalledWith("aiAgentPreferences", { thinkingEnabled: true, webSearchEnabled: true });
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 

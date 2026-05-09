@@ -34,6 +34,7 @@ export type ResolvedAppTheme = "light" | "dark";
 export type EditorContentWidth = "narrow" | "default" | "wide";
 export type AiAgentPreferences = {
   thinkingEnabled: boolean;
+  webSearchEnabled: boolean;
 };
 export type EditorPreferences = {
   autoOpenAiOnSelection: boolean;
@@ -65,7 +66,8 @@ export const defaultEditorPreferences: EditorPreferences = {
 };
 
 export const defaultAiAgentPreferences: AiAgentPreferences = {
-  thinkingEnabled: false
+  thinkingEnabled: false,
+  webSearchEnabled: false
 };
 
 export const defaultWebSearchSettings: WebSearchSettings = {
@@ -201,7 +203,8 @@ export async function initializeStoredAiAgentSession(sessionId: string, workspac
   const preferences = await getStoredAiAgentPreferences();
 
   await saveStoredAiAgentSession(sessionId, createDefaultAiAgentSessionState({
-    thinkingEnabled: preferences.thinkingEnabled
+    thinkingEnabled: preferences.thinkingEnabled,
+    webSearchEnabled: preferences.webSearchEnabled
   }), { workspaceKey });
 }
 
@@ -335,10 +338,11 @@ export async function saveStoredAiSettings(settings: AiProviderSettings) {
   await store.save();
 }
 
-export async function saveStoredAiAgentPreferences(preferences: AiAgentPreferences) {
+export async function saveStoredAiAgentPreferences(preferences: Partial<AiAgentPreferences>) {
   const store = await loadSettingsStore();
+  const currentPreferences = normalizeAiAgentPreferences(await store.get<Partial<AiAgentPreferences>>(aiAgentPreferencesKey));
 
-  await store.set(aiAgentPreferencesKey, normalizeAiAgentPreferences(preferences));
+  await store.set(aiAgentPreferencesKey, normalizeAiAgentPreferences({ ...currentPreferences, ...preferences }));
   await store.save();
 }
 
@@ -411,7 +415,11 @@ export function normalizeAiAgentPreferences(value: unknown): AiAgentPreferences 
     thinkingEnabled:
       typeof preferences.thinkingEnabled === "boolean"
         ? preferences.thinkingEnabled
-        : defaultAiAgentPreferences.thinkingEnabled
+        : defaultAiAgentPreferences.thinkingEnabled,
+    webSearchEnabled:
+      typeof preferences.webSearchEnabled === "boolean"
+        ? preferences.webSearchEnabled
+        : defaultAiAgentPreferences.webSearchEnabled
   };
 }
 
