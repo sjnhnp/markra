@@ -213,6 +213,23 @@ describe("AI provider requests", () => {
     });
   });
 
+  it("adds custom provider headers to model list requests", () => {
+    expect(
+      buildAiProviderModelsRequest(
+        provider({
+          baseUrl: "https://proxy.example.test/v1",
+          customHeaders: '{"HTTP-Referer":"https://markra.app","X-Title":"Markra"}',
+          type: "openai-compatible"
+        } as Partial<AiProviderConfig>)
+      )
+    ).toMatchObject({
+      headers: expect.objectContaining({
+        "HTTP-Referer": "https://markra.app",
+        "X-Title": "Markra"
+      })
+    });
+  });
+
   it("parses common model list response shapes", () => {
     expect(
       parseAiProviderModels(provider({ type: "openai" }), {

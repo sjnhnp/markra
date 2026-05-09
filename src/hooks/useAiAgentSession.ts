@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
 import { runDocumentAiAgent, type DocumentAiHistoryMessage, type DocumentAiImage } from "../lib/ai/agent/documentAgent";
 import { generateAiAgentSessionTitle } from "../lib/ai/agent/sessionTitle";
 import {
@@ -20,8 +20,10 @@ import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContex
 import type { AiProviderConfig } from "../lib/ai/providers/aiProviders";
 import type { I18nKey } from "../lib/i18n";
 import {
+  getStoredAiAgentPreferences,
   getStoredAiAgentSession,
   getStoredAiAgentSessionSummary,
+  saveStoredAiAgentPreferences,
   saveStoredAiAgentSession,
   saveStoredAiAgentSessionTitle
 } from "../lib/settings/appSettings";
@@ -54,7 +56,7 @@ type AiAgentSessionContext = {
 export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<AiAgentPanelMessage[]>([]);
-  const [thinkingEnabled, setThinkingEnabled] = useState(false);
+  const [thinkingEnabled, setThinkingEnabledState] = useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [status, setStatus] = useState<"idle" | "thinking" | "streaming" | "error">("idle");
   const [titleVersion, setTitleVersion] = useState(0);
@@ -64,9 +66,36 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const didRestorePanelStateRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
   const skipNextPersistRef = useRef(false);
+  const userChangedThinkingPreferenceRef = useRef(false);
   const sessionTitleSourceRef = useRef<"ai" | "fallback" | "manual" | null>(null);
   const titleGenerationSignatureRef = useRef<string | null>(null);
   const sessionKey = ctx.sessionId?.trim() ? ctx.sessionId : null;
+
+  const setThinkingEnabled = useCallback((action: SetStateAction<boolean>) => {
+    setThinkingEnabledState((currentValue) => {
+      const nextValue = typeof action === "function" ? action(currentValue) : action;
+
+      userChangedThinkingPreferenceRef.current = true;
+      saveStoredAiAgentPreferences({ thinkingEnabled: nextValue }).catch(() => {});
+      return nextValue;
+    });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    getStoredAiAgentPreferences()
+      .then((preferences) => {
+        if (!active || userChangedThinkingPreferenceRef.current) return;
+
+        setThinkingEnabledState(preferences.thinkingEnabled);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const updateAssistantMessage = useCallback((updater: (message: AiAgentPanelMessage) => AiAgentPanelMessage) => {
     const assistantId = assistantMessageIdRef.current;
@@ -104,7 +133,6 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
       const defaultSession = createDefaultAiAgentSessionState();
       setDraft(defaultSession.draft);
       setMessages(defaultSession.messages);
-      setThinkingEnabled(defaultSession.thinkingEnabled);
       setWebSearchEnabled(defaultSession.webSearchEnabled);
       hydratedSessionKeyRef.current = null;
       skipNextPersistRef.current = true;
@@ -123,7 +151,6 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
 
         setDraft(storedSession.draft);
         setMessages(storedSession.messages);
-        setThinkingEnabled(storedSession.thinkingEnabled);
         setWebSearchEnabled(storedSession.webSearchEnabled);
         sessionTitleSourceRef.current = storedSummary?.titleSource ?? null;
         if (shouldRestorePanelState) {
@@ -146,7 +173,6 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         const defaultSession = createDefaultAiAgentSessionState();
         setDraft(defaultSession.draft);
         setMessages(defaultSession.messages);
-        setThinkingEnabled(defaultSession.thinkingEnabled);
         setWebSearchEnabled(defaultSession.webSearchEnabled);
         sessionTitleSourceRef.current = null;
         if (shouldRestorePanelState) {
@@ -430,6 +456,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     messages,
     setDraft,
     setThinkingEnabled,
+    setSessionThinkingEnabled: setThinkingEnabledState,
     setWebSearchEnabled,
     status,
     submit,

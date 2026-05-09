@@ -1,5 +1,5 @@
 import type { AiModelCapability, AiProviderApiStyle, AiProviderConfig, AiProviderModel } from "./aiProviders";
-import { enrichAiProviderModelCapabilities, normalizeAiModelCapabilities } from "./aiProviders";
+import { enrichAiProviderModelCapabilities, normalizeAiModelCapabilities, readAiProviderCustomHeaders } from "./aiProviders";
 import { requestNativeAiJson, type NativeAiHttpRequest, type NativeAiHttpResponse } from "../../tauri/nativeAi";
 import { isRecord, joinApiUrl } from "../../utils";
 
@@ -84,7 +84,10 @@ export function buildAiProviderModelsRequest(provider: AiProviderConfig): AiProv
   if (!baseUrl) throw new Error("API URL is required.");
 
   return {
-    headers: buildAuthHeaders(endpoint.auth, provider.apiKey?.trim() ?? ""),
+    headers: {
+      ...buildAuthHeaders(endpoint.auth, provider.apiKey?.trim() ?? ""),
+      ...readAiProviderCustomHeaders(provider)
+    },
     method: "GET",
     url: joinApiUrl(baseUrl, endpoint.path)
   };

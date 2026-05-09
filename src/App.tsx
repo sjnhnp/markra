@@ -763,6 +763,7 @@ export default function App() {
                 onDeleteSession={(sessionId) => {
                   handleDeleteAiAgentSession(sessionId).catch(() => {});
                 }}
+                onDisableThinking={() => aiAgent.setSessionThinkingEnabled(false)}
                 onDraftChange={aiAgent.setDraft}
                 onInterrupt={aiAgent.interrupt}
                 onRenameSession={(sessionId, title) => {

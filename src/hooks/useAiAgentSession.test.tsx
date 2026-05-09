@@ -3,7 +3,9 @@ import { runDocumentAiAgent } from "../lib/ai/agent/documentAgent";
 import { generateAiAgentSessionTitle } from "../lib/ai/agent/sessionTitle";
 import {
   getStoredAiAgentSession,
+  getStoredAiAgentPreferences,
   getStoredAiAgentSessionSummary,
+  saveStoredAiAgentPreferences,
   saveStoredAiAgentSession,
   saveStoredAiAgentSessionTitle
 } from "../lib/settings/appSettings";
@@ -20,7 +22,9 @@ vi.mock("../lib/ai/agent/sessionTitle", () => ({
 
 vi.mock("../lib/settings/appSettings", () => ({
   getStoredAiAgentSession: vi.fn(),
+  getStoredAiAgentPreferences: vi.fn(),
   getStoredAiAgentSessionSummary: vi.fn(),
+  saveStoredAiAgentPreferences: vi.fn(),
   saveStoredAiAgentSession: vi.fn(),
   saveStoredAiAgentSessionTitle: vi.fn()
 }));
@@ -28,7 +32,9 @@ vi.mock("../lib/settings/appSettings", () => ({
 const mockedRunDocumentAiAgent = vi.mocked(runDocumentAiAgent);
 const mockedGenerateAiAgentSessionTitle = vi.mocked(generateAiAgentSessionTitle);
 const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
+const mockedGetStoredAiAgentPreferences = vi.mocked(getStoredAiAgentPreferences);
 const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
+const mockedSaveStoredAiAgentPreferences = vi.mocked(saveStoredAiAgentPreferences);
 const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession);
 const mockedSaveStoredAiAgentSessionTitle = vi.mocked(saveStoredAiAgentSessionTitle);
 
@@ -41,7 +47,9 @@ describe("useAiAgentSession", () => {
     mockedRunDocumentAiAgent.mockReset();
     mockedGenerateAiAgentSessionTitle.mockReset();
     mockedGetStoredAiAgentSession.mockReset();
+    mockedGetStoredAiAgentPreferences.mockReset();
     mockedGetStoredAiAgentSessionSummary.mockReset();
+    mockedSaveStoredAiAgentPreferences.mockReset();
     mockedSaveStoredAiAgentSession.mockReset();
     mockedSaveStoredAiAgentSessionTitle.mockReset();
     mockedGetStoredAiAgentSession.mockResolvedValue({
@@ -53,7 +61,9 @@ describe("useAiAgentSession", () => {
       webSearchEnabled: false
     });
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
+    mockedGetStoredAiAgentPreferences.mockResolvedValue({ thinkingEnabled: false });
     mockedGenerateAiAgentSessionTitle.mockResolvedValue("Polish GOLD and XAU price notes");
+    mockedSaveStoredAiAgentPreferences.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentSession.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentSessionTitle.mockResolvedValue(undefined);
   });
@@ -642,12 +652,13 @@ describe("useAiAgentSession", () => {
   });
 
   it("restores and persists a stored session for the active document", async () => {
+    mockedGetStoredAiAgentPreferences.mockResolvedValue({ thinkingEnabled: true });
     mockedGetStoredAiAgentSession.mockResolvedValue({
       draft: "Continue this",
       messages: [{ id: 1, role: "user", text: "Earlier question" }],
       panelOpen: true,
       panelWidth: 456,
-      thinkingEnabled: true,
+      thinkingEnabled: false,
       webSearchEnabled: true
     });
     const onSessionRestore = vi.fn();
@@ -703,6 +714,102 @@ describe("useAiAgentSession", () => {
         workspaceKey: "/vault"
       })
     );
+  });
+
+  it("remembers explicit deep thinking toggles for future sessions", async () => {
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        getDocumentContent: () => "# Draft",
+        model: "gpt-5.5",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        sessionId: "session-a",
+        settingsLoading: false,
+        translate: (key) => key,
+        workspaceKey: "/vault",
+        workspaceFiles: []
+      })
+    );
+
+    await waitFor(() => expect(mockedGetStoredAiAgentSession).toHaveBeenCalledWith("session-a"));
+
+    await act(async () => {
+      result.current.setThinkingEnabled((enabled) => !enabled);
+    });
+
+    expect(result.current.thinkingEnabled).toBe(true);
+    expect(mockedSaveStoredAiAgentPreferences).toHaveBeenCalledWith({ thinkingEnabled: true });
+  });
+
+  it("keeps the deep thinking preference enabled when switching stored sessions", async () => {
+    mockedGetStoredAiAgentSession
+      .mockResolvedValueOnce({
+        draft: "Session A",
+        messages: [],
+        panelOpen: false,
+        panelWidth: null,
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      })
+      .mockResolvedValueOnce({
+        draft: "Session B",
+        messages: [],
+        panelOpen: false,
+        panelWidth: null,
+        thinkingEnabled: false,
+        webSearchEnabled: false
+      });
+
+    const { result, rerender } = renderHook(
+      ({ sessionId }) =>
+        useAiAgentSession({
+          getDocumentContent: () => "# Draft",
+          model: "gpt-5.5",
+          provider: {
+            apiKey: "secret",
+            baseUrl: "https://api.openai.com/v1",
+            defaultModelId: "gpt-5.5",
+            enabled: true,
+            id: "openai",
+            models: [],
+            name: "OpenAI",
+            type: "openai"
+          },
+          sessionId,
+          settingsLoading: false,
+          translate: (key) => key,
+          workspaceKey: "/vault",
+          workspaceFiles: []
+        }),
+      {
+        initialProps: {
+          sessionId: "session-a"
+        }
+      }
+    );
+
+    await waitFor(() => expect(result.current.draft).toBe("Session A"));
+
+    await act(async () => {
+      result.current.setThinkingEnabled(true);
+    });
+
+    expect(result.current.thinkingEnabled).toBe(true);
+
+    rerender({
+      sessionId: "session-b"
+    });
+
+    await waitFor(() => expect(result.current.draft).toBe("Session B"));
+    expect(result.current.thinkingEnabled).toBe(true);
   });
 
   it("keeps the panel open while switching to another stored session", async () => {

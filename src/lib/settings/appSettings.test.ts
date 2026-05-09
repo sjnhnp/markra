@@ -4,6 +4,7 @@ import {
   consumeWelcomeDocumentState,
   deleteStoredAiAgentSession,
   getStoredAiAgentSession,
+  getStoredAiAgentPreferences,
   initializeStoredAiAgentSession,
   getStoredAiSettings,
   listStoredAiAgentSessions,
@@ -13,6 +14,7 @@ import {
   getStoredWorkspaceState,
   resetWelcomeDocumentState,
   saveStoredAiAgentSession,
+  saveStoredAiAgentPreferences,
   saveStoredAiAgentSessionTitle,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
@@ -336,6 +338,7 @@ describe("app settings", () => {
         {
           apiKey: "",
           baseUrl: "https://proxy.example.test/v1",
+          customHeaders: '{"HTTP-Referer":"https://markra.app"}',
           defaultModelId: "writer-model",
           enabled: true,
           id: "custom-provider-1",
@@ -430,6 +433,32 @@ describe("app settings", () => {
     expect(settings.providers.find((provider) => provider.id === "custom-provider-1")?.models.map((model) => model.id)).toEqual([
       "writer-model"
     ]);
+  });
+
+  it("preserves custom headers for AI providers", async () => {
+    store.get.mockResolvedValue({
+      defaultModelId: "writer-model",
+      defaultProviderId: "custom-provider-1",
+      providers: [
+        {
+          apiKey: "",
+          baseUrl: "https://proxy.example.test/v1",
+          customHeaders: '{"HTTP-Referer":"https://markra.app"}',
+          defaultModelId: "writer-model",
+          enabled: true,
+          id: "custom-provider-1",
+          models: [{ capability: "reasoning", enabled: true, id: "writer-model", name: "Writer Model" }],
+          name: "Custom Provider",
+          type: "openai-compatible"
+        }
+      ]
+    });
+
+    const settings = await getStoredAiSettings();
+
+    expect(settings.providers[0]).toMatchObject({
+      customHeaders: '{"HTTP-Referer":"https://markra.app"}'
+    });
   });
 
   it("enriches stored built-in AI models with current built-in capabilities", async () => {
@@ -879,6 +908,44 @@ describe("app settings", () => {
         workspaceKey: "/mock-files/vault"
       })
     ]);
+  });
+
+  it("uses remembered AI agent thinking preference when initializing a new session", async () => {
+    const sessionStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    const indexStore = {
+      get: vi.fn(),
+      save: vi.fn(),
+      set: vi.fn()
+    };
+    mockedLoad.mockImplementation(async (path) => {
+      if (path === "ai-agent-sessions/session-new.json") return sessionStore as unknown as Awaited<ReturnType<typeof load>>;
+      if (path === "ai-agent-sessions/index.json") return indexStore as unknown as Awaited<ReturnType<typeof load>>;
+
+      return store as unknown as Awaited<ReturnType<typeof load>>;
+    });
+    store.get.mockImplementation(async (key) => (key === "aiAgentPreferences" ? { thinkingEnabled: true } : undefined));
+    sessionStore.get.mockResolvedValue(undefined);
+    indexStore.get.mockResolvedValue([]);
+
+    await initializeStoredAiAgentSession("session-new", "/mock-files/vault");
+
+    expect(sessionStore.set).toHaveBeenCalledWith("session", expect.objectContaining({
+      thinkingEnabled: true
+    }));
+  });
+
+  it("loads and persists AI agent preferences", async () => {
+    store.get.mockResolvedValue({ thinkingEnabled: true });
+
+    await expect(getStoredAiAgentPreferences()).resolves.toEqual({ thinkingEnabled: true });
+    await saveStoredAiAgentPreferences({ thinkingEnabled: false });
+
+    expect(store.set).toHaveBeenCalledWith("aiAgentPreferences", { thinkingEnabled: false });
+    expect(store.save).toHaveBeenCalledTimes(1);
   });
 
   it("persists an AI-generated session title without losing workspace metadata", async () => {

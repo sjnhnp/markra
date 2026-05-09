@@ -25,6 +25,31 @@ export function AiSettingsTextField({
   );
 }
 
+export function AiSettingsTextAreaField({
+  description,
+  label,
+  onChange,
+  value
+}: {
+  description?: string;
+  label: string;
+  onChange: (value: string) => unknown;
+  value: string;
+}) {
+  return (
+    <label className="grid gap-1.5">
+      <span className="text-[12px] leading-5 font-[650] text-(--text-secondary)">{label}</span>
+      <textarea
+        className="min-h-23 w-full resize-y rounded-md border border-(--border-default) bg-(--bg-primary) px-3 py-2 text-[12px] leading-5 font-[520] text-(--text-heading) outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-(--text-secondary) focus:border-(--accent) focus:ring-2 focus:ring-(--accent)/20"
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
+      {description ? <span className="text-[11px] leading-4 text-(--text-secondary)">{description}</span> : null}
+    </label>
+  );
+}
+
 export function AiSettingsSelectField<TValue extends string>({
   children,
   label,

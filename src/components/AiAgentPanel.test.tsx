@@ -726,6 +726,55 @@ describe("AiAgentPanel", () => {
     expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
+  it("shows streamed thinking content alongside the final assistant answer", () => {
+    render(
+      <AiAgentPanel
+        language="en"
+        messages={[
+          {
+            id: 1,
+            role: "assistant",
+            text: "Final answer.",
+            thinking: "Checking the document before answering."
+          }
+        ]}
+        open
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
+    expect(screen.getByText("Checking the document before answering.")).toBeInTheDocument();
+    expect(screen.getByText("Final answer.")).toBeInTheDocument();
+  });
+
+  it("lets streamed thinking content collapse and expand", () => {
+    render(
+      <AiAgentPanel
+        language="en"
+        messages={[
+          {
+            id: 1,
+            role: "assistant",
+            text: "Final answer.",
+            thinking: "Checking the document before answering."
+          }
+        ]}
+        open
+        onClose={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Thinking" }));
+
+    expect(screen.queryByText("Checking the document before answering.")).not.toBeInTheDocument();
+    expect(screen.getByText("Final answer.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Thinking" }));
+
+    expect(screen.getByText("Checking the document before answering.")).toBeInTheDocument();
+  });
+
   it("collapses completed process flow and allows expanding it later", () => {
     render(
       <AiAgentPanel

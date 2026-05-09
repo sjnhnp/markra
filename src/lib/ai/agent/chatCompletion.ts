@@ -69,16 +69,33 @@ export async function chatCompletionStream(
   let finishReason: string | undefined;
   const toolCalls = new Map<number, { argumentsText: string; id: string; name: string }>();
   const parser = createServerSentEventParser();
+  const inlineThinkingExtractor = thinkingEnabled ? createInlineThinkingExtractor() : null;
+  const emitContentDelta = (delta: string) => {
+    content += delta;
+    onDelta?.(delta);
+  };
+  const emitThinkingDelta = (delta: string) => {
+    onThinkingDelta?.(delta);
+  };
+  const processContentDelta = (delta: string) => {
+    if (!inlineThinkingExtractor) {
+      emitContentDelta(delta);
+      return;
+    }
+
+    const extracted = inlineThinkingExtractor.push(delta);
+    if (extracted.thinkingDelta) emitThinkingDelta(extracted.thinkingDelta);
+    if (extracted.contentDelta) emitContentDelta(extracted.contentDelta);
+  };
   const processStreamEvent = (event: unknown) => {
     const parsed = adapter.parseStreamEvent(event);
     if (parsed.done) return;
 
     if (parsed.contentDelta) {
-      content += parsed.contentDelta;
-      onDelta?.(parsed.contentDelta);
+      processContentDelta(parsed.contentDelta);
     }
 
-    if (parsed.thinkingDelta) onThinkingDelta?.(parsed.thinkingDelta);
+    if (parsed.thinkingDelta) emitThinkingDelta(parsed.thinkingDelta);
     if (parsed.toolCallDeltas?.length) {
       for (const delta of parsed.toolCallDeltas) {
         const currentToolCall = toolCalls.get(delta.index) ?? { argumentsText: "", id: "", name: "" };
@@ -104,6 +121,9 @@ export async function chatCompletionStream(
   );
 
   parser.finish().forEach(processStreamEvent);
+  const finalInlineThinkingDelta = inlineThinkingExtractor?.finish();
+  if (finalInlineThinkingDelta?.thinkingDelta) emitThinkingDelta(finalInlineThinkingDelta.thinkingDelta);
+  if (finalInlineThinkingDelta?.contentDelta) emitContentDelta(finalInlineThinkingDelta.contentDelta);
 
   if (response.status < 200 || response.status >= 300) {
     throw new Error(readResponseError({ body: response.body ?? null, status: response.status }));
@@ -178,4 +198,92 @@ function parseToolArguments(rawArguments: string) {
   } catch {
     return {};
   }
+}
+
+type InlineThinkingExtraction = {
+  contentDelta?: string;
+  thinkingDelta?: string;
+};
+
+const inlineThinkingTagNames = new Set(["reasoning", "seed:think", "think", "thinking", "thought"]);
+
+function createInlineThinkingExtractor() {
+  let activeThinkingTag: string | null = null;
+  let pending = "";
+
+  const append = (result: { contentDelta: string; thinkingDelta: string }, text: string) => {
+    if (!text) return;
+    if (activeThinkingTag) {
+      result.thinkingDelta += text;
+    } else {
+      result.contentDelta += text;
+    }
+  };
+
+  const readTag = (tag: string) => {
+    const match = tag.trim().match(/^(\/)?([a-z][\w:-]*)\b[^>]*$/iu);
+    if (!match) return null;
+
+    const name = match[2]?.toLowerCase();
+    if (!name || !inlineThinkingTagNames.has(name)) return null;
+
+    return {
+      closing: match[1] === "/",
+      name
+    };
+  };
+
+  const consume = (text: string, flushPending: boolean): InlineThinkingExtraction => {
+    const result = { contentDelta: "", thinkingDelta: "" };
+    let buffer = pending + text;
+    let index = 0;
+    pending = "";
+
+    while (index < buffer.length) {
+      const tagStart = buffer.indexOf("<", index);
+      if (tagStart < 0) {
+        append(result, buffer.slice(index));
+        break;
+      }
+
+      append(result, buffer.slice(index, tagStart));
+      const tagEnd = buffer.indexOf(">", tagStart + 1);
+      if (tagEnd < 0) {
+        pending = buffer.slice(tagStart);
+        break;
+      }
+
+      const rawTag = buffer.slice(tagStart + 1, tagEnd);
+      const tag = readTag(rawTag);
+      if (tag?.closing && activeThinkingTag && tag.name === activeThinkingTag) {
+        activeThinkingTag = null;
+      } else if (tag && !tag.closing && !activeThinkingTag) {
+        activeThinkingTag = tag.name;
+      } else {
+        append(result, buffer.slice(tagStart, tagEnd + 1));
+      }
+
+      index = tagEnd + 1;
+    }
+
+    if (flushPending && pending) {
+      buffer = pending;
+      pending = "";
+      append(result, buffer);
+    }
+
+    return {
+      ...(result.contentDelta ? { contentDelta: result.contentDelta } : {}),
+      ...(result.thinkingDelta ? { thinkingDelta: result.thinkingDelta } : {})
+    };
+  };
+
+  return {
+    finish() {
+      return consume("", true);
+    },
+    push(text: string) {
+      return consume(text, false);
+    }
+  };
 }

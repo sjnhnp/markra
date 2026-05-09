@@ -60,6 +60,23 @@ describe("AI chat adapters", () => {
     });
   });
 
+  it("adds custom provider headers to chat requests", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://proxy.example.test/v1",
+        customHeaders: '{"HTTP-Referer":"https://markra.app","X-Title":"Markra"}',
+        type: "openai-compatible"
+      } as Partial<AiProviderConfig>),
+      "writer-model",
+      messages
+    );
+
+    expect(request.headers).toMatchObject({
+      "HTTP-Referer": "https://markra.app",
+      "X-Title": "Markra"
+    });
+  });
+
   it("disables DeepSeek thinking by default so inline edits stream final content quickly", () => {
     const request = getChatAdapter("deepseek").buildRequest(
       provider({ baseUrl: "https://api.deepseek.com", type: "deepseek" }),
@@ -90,6 +107,157 @@ describe("AI chat adapters", () => {
     });
   });
 
+  it("passes Qwen thinking mode through DashScope OpenAI-compatible requests", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        id: "aliyun-bailian",
+        type: "openai-compatible"
+      }),
+      "qwen3.6-plus",
+      messages,
+      { stream: true, thinkingEnabled: true }
+    );
+
+    expect(request.body).toMatchObject({
+      enable_thinking: true,
+      model: "qwen3.6-plus",
+      stream: true
+    });
+  });
+
+  it("uses Cherry-style reasoning effort for OpenRouter requests", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://openrouter.ai/api/v1",
+        id: "openrouter",
+        type: "openai-compatible"
+      } as Partial<AiProviderConfig>),
+      "anthropic/claude-sonnet-4.6",
+      messages,
+      { stream: true, thinkingEnabled: true }
+    );
+
+    expect(request.body).toMatchObject({
+      reasoning: { effort: "high" }
+    });
+  });
+
+  it("infers Cherry-style thinking parameters for custom compatible reasoning models", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://proxy.example.test/v1",
+        type: "openai-compatible"
+      } as Partial<AiProviderConfig>),
+      "qwen3.6-plus",
+      messages,
+      { stream: true, thinkingEnabled: true }
+    );
+
+    expect(request.body).toMatchObject({
+      chat_template_kwargs: {
+        enable_thinking: true
+      }
+    });
+  });
+
+  it("infers Cherry-style disable parameters for custom compatible Qwen models", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://proxy.example.test/v1",
+        type: "openai-compatible"
+      } as Partial<AiProviderConfig>),
+      "qwen3.6-plus",
+      messages,
+      { stream: true, thinkingEnabled: false }
+    );
+
+    expect(request.body).toMatchObject({
+      chat_template_kwargs: {
+        enable_thinking: false
+      }
+    });
+  });
+
+  it("infers OpenAI-compatible Gemini thinking parameters without custom JSON", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://proxy.example.test/v1",
+        type: "openai-compatible"
+      } as Partial<AiProviderConfig>),
+      "google/gemini-3.1-pro-preview",
+      messages,
+      { stream: true, thinkingEnabled: true }
+    );
+
+    expect(request.body).toMatchObject({
+      extra_body: {
+        google: {
+          thinking_config: {
+            include_thoughts: true,
+            thinking_budget: -1
+          }
+        }
+      }
+    });
+  });
+
+  it("enables visible thinking for providers with provider-specific request parameters", () => {
+    expect(
+      getChatAdapter("anthropic").buildRequest(
+        provider({ type: "anthropic" }),
+        "claude-opus-4-7",
+        messages,
+        { stream: true, thinkingEnabled: true }
+      ).body
+    ).toMatchObject({
+      thinking: { display: "summarized", type: "adaptive" }
+    });
+    expect(
+      getChatAdapter("google").buildRequest(
+        provider({ baseUrl: "https://generativelanguage.googleapis.com/v1beta", type: "google" }),
+        "gemini-3.1-pro-preview",
+        messages,
+        { stream: true, thinkingEnabled: true }
+      ).body
+    ).toMatchObject({
+      generationConfig: {
+        temperature: 0.7,
+        thinkingConfig: { includeThoughts: true }
+      }
+    });
+    expect(
+      getChatAdapter("openrouter").buildRequest(
+        provider({ baseUrl: "https://openrouter.ai/api/v1", type: "openrouter" }),
+        "anthropic/claude-sonnet-4.6",
+        messages,
+        { stream: true, thinkingEnabled: true }
+      ).body
+    ).toMatchObject({
+      reasoning: { effort: "high" }
+    });
+    expect(
+      getChatAdapter("groq").buildRequest(
+        provider({ baseUrl: "https://api.groq.com/openai/v1", type: "groq" }),
+        "openai/gpt-oss-120b",
+        messages,
+        { stream: true, thinkingEnabled: true }
+      ).body
+    ).toMatchObject({
+      reasoning_format: "parsed"
+    });
+    expect(
+      getChatAdapter("mistral").buildRequest(
+        provider({ baseUrl: "https://api.mistral.ai/v1", type: "mistral" }),
+        "mistral-small-latest",
+        messages,
+        { stream: true, thinkingEnabled: true }
+      ).body
+    ).toMatchObject({
+      reasoning_effort: "high"
+    });
+  });
+
   it("parses DeepSeek reasoning stream fields separately from final text", () => {
     const adapter = getChatAdapter("deepseek");
 
@@ -113,6 +281,51 @@ describe("AI chat adapters", () => {
         choices: [{ delta: { content: "Final answer" }, finish_reason: "stop" }]
       })
     ).toEqual({ contentDelta: "Final answer", finishReason: "stop" });
+  });
+
+  it("parses provider-specific visible thinking stream events separately from final text", () => {
+    expect(
+      getChatAdapter("anthropic").parseStreamEvent({
+        delta: { thinking: "checking documents", type: "thinking_delta" },
+        type: "content_block_delta"
+      })
+    ).toEqual({ thinkingDelta: "checking documents" });
+    expect(
+      getChatAdapter("google").parseStreamEvent({
+        candidates: [
+          {
+            content: {
+              parts: [
+                { text: "checking context", thought: true },
+                { text: "Final answer." }
+              ]
+            },
+            finishReason: "STOP"
+          }
+        ]
+      })
+    ).toEqual({
+      contentDelta: "Final answer.",
+      finishReason: "STOP",
+      thinkingDelta: "checking context"
+    });
+    expect(
+      getChatAdapter("mistral").parseStreamEvent({
+        choices: [
+          {
+            delta: {
+              content: [
+                { thinking: [{ text: "checking Mistral chunks", type: "text" }], type: "thinking" },
+                { text: "Final answer.", type: "text" }
+              ]
+            }
+          }
+        ]
+      })
+    ).toEqual({
+      contentDelta: "Final answer.",
+      thinkingDelta: "checking Mistral chunks"
+    });
   });
 
   it("builds provider-specific chat requests for Anthropic, Google, and Azure", () => {
@@ -230,6 +443,26 @@ describe("AI chat adapters", () => {
         candidates: [{ content: { parts: [{ text: "Gemini " }, { text: "response" }] } }]
       })
     ).toEqual({ content: "Gemini response" });
+    expect(
+      getChatAdapter("google").parseResponse({
+        candidates: [{ content: { parts: [{ text: "Gemini thought", thought: true }, { text: "Gemini response" }] } }]
+      })
+    ).toEqual({ content: "Gemini response" });
+    expect(
+      getChatAdapter("mistral").parseResponse({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: [
+                { thinking: [{ text: "Mistral thought", type: "text" }], type: "thinking" },
+                { text: "Mistral response", type: "text" }
+              ]
+            }
+          }
+        ]
+      })
+    ).toEqual({ content: "Mistral response", finishReason: "stop" });
   });
 
   it("builds inline AI messages from selection and document context", () => {

@@ -52,6 +52,7 @@ type AiAgentPanelProps = {
   onClose: () => unknown;
   onCreateSession?: () => unknown;
   onDeleteSession?: (sessionId: string) => unknown;
+  onDisableThinking?: () => unknown;
   onDraftChange?: (value: string) => unknown;
   onInterrupt?: () => unknown;
   onRenameSession?: (sessionId: string, title: string) => unknown;
@@ -92,6 +93,7 @@ export function AiAgentPanel({
   onClose,
   onCreateSession,
   onDeleteSession,
+  onDisableThinking,
   onDraftChange,
   onInterrupt,
   onRenameSession,
@@ -108,6 +110,7 @@ export function AiAgentPanel({
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
   const transcriptShouldFollowRef = useRef(true);
   const [contextOpen, setContextOpen] = useState(false);
+  const [collapsedThinkingMessageIds, setCollapsedThinkingMessageIds] = useState<Set<number>>(() => new Set());
   const { handleCompositionEnd, handleCompositionStart, isComposingEnter } = useImeInputGuard();
   const label = (key: I18nKey) => t(language, key);
   const resolvedMinWidth = Math.max(240, minWidth);
@@ -156,9 +159,9 @@ export function AiAgentPanel({
   ].join(" · ");
 
   useEffect(() => {
-    if (!supportsThinking && thinkingEnabled) onToggleThinking?.();
+    if (!supportsThinking && thinkingEnabled) onDisableThinking?.();
     if (!supportsWebSearch && webSearchEnabled) onToggleWebSearch?.();
-  }, [onToggleThinking, onToggleWebSearch, supportsThinking, supportsWebSearch, thinkingEnabled, webSearchEnabled]);
+  }, [onDisableThinking, onToggleWebSearch, supportsThinking, supportsWebSearch, thinkingEnabled, webSearchEnabled]);
 
   useEffect(() => {
     return () => {
@@ -268,6 +271,19 @@ export function AiAgentPanel({
   const handleSuggestion = (suggestion: string) => {
     onDraftChange?.(suggestion);
     onSubmit?.(suggestion);
+  };
+
+  const toggleThinkingMessage = (messageId: number) => {
+    setCollapsedThinkingMessageIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+      if (nextIds.has(messageId)) {
+        nextIds.delete(messageId);
+      } else {
+        nextIds.add(messageId);
+      }
+
+      return nextIds;
+    });
   };
 
   const handleTranscriptScroll = () => {
@@ -454,6 +470,7 @@ export function AiAgentPanel({
                 const hasRunningActivity = message.activities?.some((activity) => activity.status === "running") ?? false;
                 const showFallbackThinking =
                   !message.text && !message.thinking && !message.isError && hasRunningActivity && !hasVisibleActivities;
+                const thinkingCollapsed = collapsedThinkingMessageIds.has(message.id);
 
                 return (
                   <li className="mr-auto max-w-[86%]" key={message.id}>
@@ -461,7 +478,29 @@ export function AiAgentPanel({
                       {message.activities?.length ? <AiAgentProcessList activities={message.activities} translate={label} /> : null}
                       {message.text || message.thinking || message.isError || showFallbackThinking || !message.activities?.length ? (
                         <div className={assistantBubbleClassName}>
-                          {(message.thinking || showFallbackThinking) && !message.text ? (
+                          {message.thinking ? (
+                            <div className={message.text ? "mb-2 border-b border-(--border-default) pb-2" : ""}>
+                              <button
+                                className="mb-1 inline-flex h-6 max-w-full cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-0 text-[11px] leading-4 font-[560] text-(--text-tertiary) transition-colors duration-150 ease-out hover:text-(--text-heading) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                                type="button"
+                                aria-expanded={!thinkingCollapsed}
+                                aria-label={label("app.aiAgentThinking")}
+                                onClick={() => toggleThinkingMessage(message.id)}
+                              >
+                                <ChevronDown
+                                  aria-hidden="true"
+                                  className={`shrink-0 transition-transform duration-150 ease-out ${thinkingCollapsed ? "-rotate-90" : ""}`}
+                                  size={13}
+                                />
+                                <span className="min-w-0 truncate">{label("app.aiAgentThinking")}</span>
+                              </button>
+                              {thinkingCollapsed ? null : (
+                                <div className="text-[12px] leading-5 text-(--text-secondary)">
+                                  <AiMarkdownMessage content={message.thinking} />
+                                </div>
+                              )}
+                            </div>
+                          ) : showFallbackThinking && !message.text ? (
                             <p className="m-0 text-[12px] leading-5 text-(--text-secondary)">{label("app.aiAgentThinking")}</p>
                           ) : null}
                           <AiMarkdownMessage content={message.text} />

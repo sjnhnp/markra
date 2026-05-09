@@ -45,14 +45,16 @@ const storedPanelWidthMin = 320;
 const storedPanelWidthMax = 760;
 const untitledWorkspaceKey = "__untitled__";
 
-export function createDefaultAiAgentSessionState(): StoredAiAgentSessionState {
+export function createDefaultAiAgentSessionState(
+  overrides: Partial<Pick<StoredAiAgentSessionState, "thinkingEnabled" | "webSearchEnabled">> = {}
+): StoredAiAgentSessionState {
   return {
     draft: "",
     messages: [],
     panelOpen: false,
     panelWidth: null,
-    thinkingEnabled: false,
-    webSearchEnabled: false
+    thinkingEnabled: overrides.thinkingEnabled ?? false,
+    webSearchEnabled: overrides.webSearchEnabled ?? false
   };
 }
 

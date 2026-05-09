@@ -1,5 +1,6 @@
 import type { Tool } from "@mariozechner/pi-ai";
 import type { AiProviderApiStyle, AiProviderConfig } from "../providers/aiProviders";
+import { readAiProviderCustomHeaders } from "../providers/aiProviders";
 import { isRecord, joinApiUrl } from "../../utils";
 
 export type ChatMessage = {
@@ -72,9 +73,8 @@ const openAiCompatibleAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle[config.type] || "";
     if (!baseUrl) throw new Error("API URL is required.");
-
-    return {
-      body: {
+    const body = mergeChatRequestBody(
+      {
         messages: messages.map(openAiCompatibleMessage),
         model,
         ...(options.stream ? { stream: true } : {}),
@@ -93,9 +93,15 @@ const openAiCompatibleAdapter: ChatAdapter = {
           : {}),
         temperature: 0.7
       },
+      openAiCompatibleThinkingOptions(config, model, options)
+    );
+
+    return {
+      body,
       headers: {
         ...(config.apiKey?.trim() ? { Authorization: `Bearer ${config.apiKey.trim()}` } : {}),
-        "content-type": "application/json"
+        "content-type": "application/json",
+        ...readAiProviderCustomHeaders(config)
       },
       url: joinApiUrl(baseUrl, "/chat/completions")
     };
@@ -105,7 +111,7 @@ const openAiCompatibleAdapter: ChatAdapter = {
     const choices = Array.isArray(record.choices) ? record.choices : [];
     const firstChoice = isRecord(choices[0]) ? choices[0] : {};
     const message = isRecord(firstChoice.message) ? firstChoice.message : {};
-    const content = typeof message.content === "string" ? message.content : "";
+    const content = readOpenAiCompatibleContentDeltas(message.content).contentDelta ?? "";
     const toolCalls = readOpenAiCompatibleToolCalls(message);
 
     return {
@@ -117,30 +123,118 @@ const openAiCompatibleAdapter: ChatAdapter = {
   parseStreamEvent: parseOpenAiCompatibleStreamEvent
 };
 
+function openAiCompatibleThinkingOptions(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
+  const thinkingEnabled = options.thinkingEnabled === true;
+  const thinkingExplicitlyDisabled = options.thinkingEnabled === false;
+  const normalizedModel = model.toLowerCase();
+
+  if (isDashScopeQwenRequest(config, normalizedModel) && (thinkingEnabled || thinkingExplicitlyDisabled)) {
+    return { enable_thinking: thinkingEnabled };
+  }
+
+  if (config.type === "ollama" && (thinkingEnabled || thinkingExplicitlyDisabled)) {
+    return { think: thinkingEnabled };
+  }
+
+  if (thinkingExplicitlyDisabled && isQwenCompatibleModel(normalizedModel)) {
+    return { chat_template_kwargs: { enable_thinking: false } };
+  }
+
+  if (thinkingExplicitlyDisabled && (isDeepSeekCompatibleModel(normalizedModel) || isThinkingTypeCompatibleModel(normalizedModel))) {
+    return { thinking: { type: "disabled" } };
+  }
+
+  if (!thinkingEnabled) return {};
+
+  if (config.type === "openrouter" || config.id === "openrouter") return { reasoning: { effort: "high" } };
+  if (config.type === "groq") return { reasoning_format: "parsed" };
+  if (config.type === "mistral" || config.type === "openai" || config.type === "azure-openai" || config.type === "xai") {
+    return { reasoning_effort: "high" };
+  }
+  if (config.type === "together") return { reasoning: { enabled: true }, reasoning_effort: "high" };
+  if (isGeminiCompatibleModel(normalizedModel)) {
+    return {
+      extra_body: {
+        google: {
+          thinking_config: {
+            include_thoughts: true,
+            thinking_budget: -1
+          }
+        }
+      }
+    };
+  }
+  if (isQwenCompatibleModel(normalizedModel)) return { chat_template_kwargs: { enable_thinking: true } };
+  if (isDeepSeekCompatibleModel(normalizedModel) || isThinkingTypeCompatibleModel(normalizedModel)) {
+    return { thinking: { type: "enabled" } };
+  }
+  if (isClaudeCompatibleModel(normalizedModel)) {
+    return { thinking: { budget_tokens: 1024, type: "enabled" } };
+  }
+
+  return {};
+}
+
+function isDashScopeQwenRequest(config: AiProviderConfig, normalizedModel: string) {
+  const baseUrl = config.baseUrl?.toLowerCase() ?? "";
+
+  return (config.id === "aliyun-bailian" || baseUrl.includes("dashscope.aliyuncs.com")) && isQwenCompatibleModel(normalizedModel);
+}
+
+function isQwenCompatibleModel(normalizedModel: string) {
+  return normalizedModel.includes("qwen");
+}
+
+function isGeminiCompatibleModel(normalizedModel: string) {
+  return normalizedModel.includes("gemini");
+}
+
+function isDeepSeekCompatibleModel(normalizedModel: string) {
+  return normalizedModel.includes("deepseek");
+}
+
+function isClaudeCompatibleModel(normalizedModel: string) {
+  return normalizedModel.includes("claude");
+}
+
+function isThinkingTypeCompatibleModel(normalizedModel: string) {
+  return (
+    normalizedModel.includes("doubao") ||
+    normalizedModel.includes("kimi") ||
+    normalizedModel.includes("mimo") ||
+    normalizedModel.includes("zhipu")
+  );
+}
+
 const deepseekAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
-    const request = openAiCompatibleAdapter.buildRequest(config, model, messages, options);
+    const request = openAiCompatibleAdapter.buildRequest(config, model, messages, {
+      stream: options.stream,
+      tools: options.tools
+    });
     const body = isRecord(request.body) ? request.body : {};
 
     return {
       ...request,
-      body: {
-        ...body,
-        thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" }
-      }
+      body: mergeChatRequestBody(body, deepseekThinkingOptions(options))
     };
   },
   parseResponse: openAiCompatibleAdapter.parseResponse,
   parseStreamEvent: openAiCompatibleAdapter.parseStreamEvent
 };
 
+function deepseekThinkingOptions(options: ChatRequestOptions) {
+  return {
+    thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" }
+  };
+}
+
 const anthropicAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const systemMessage = messages.find((message) => message.role === "system");
     const nonSystemMessages = messages.filter((message) => message.role !== "system");
-
-    return {
-      body: {
+    const body = mergeChatRequestBody(
+      {
         max_tokens: 4096,
         messages: nonSystemMessages.map((message) => ({
           content: anthropicMessageContent(message),
@@ -159,10 +253,16 @@ const anthropicAdapter: ChatAdapter = {
           : {}),
         ...(systemMessage ? { system: systemMessage.content } : {})
       },
+      anthropicThinkingOptions(model, options)
+    );
+
+    return {
+      body,
       headers: {
         "anthropic-version": anthropicVersion,
         "content-type": "application/json",
-        "x-api-key": config.apiKey?.trim() ?? ""
+        "x-api-key": config.apiKey?.trim() ?? "",
+        ...readAiProviderCustomHeaders(config)
       },
       url: joinApiUrl(config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle.anthropic!, "/messages")
     };
@@ -206,6 +306,11 @@ const anthropicAdapter: ChatAdapter = {
     if (record.type === "content_block_delta") {
       const delta = isRecord(record.delta) ? record.delta : {};
       const index = typeof record.index === "number" ? record.index : 0;
+      if (delta.type === "thinking_delta") {
+        const thinkingDelta = typeof delta.thinking === "string" ? delta.thinking : undefined;
+        return thinkingDelta ? { thinkingDelta } : {};
+      }
+
       if (delta.type === "input_json_delta") {
         return {
           toolCallDeltas: [
@@ -217,9 +322,8 @@ const anthropicAdapter: ChatAdapter = {
         };
       }
 
-      return {
-        contentDelta: typeof delta.text === "string" ? delta.text : undefined
-      };
+      const contentDelta = typeof delta.text === "string" ? delta.text : undefined;
+      return contentDelta ? { contentDelta } : {};
     }
 
     if (record.type === "message_delta") {
@@ -233,12 +337,42 @@ const anthropicAdapter: ChatAdapter = {
   }
 };
 
+function anthropicThinkingOptions(model: string, options: ChatRequestOptions) {
+  if (!options.thinkingEnabled) return {};
+
+  if (supportsAnthropicAdaptiveThinking(model)) {
+    return {
+      thinking: {
+        display: "summarized",
+        type: "adaptive"
+      }
+    };
+  }
+
+  return {
+    thinking: {
+      budget_tokens: 1024,
+      type: "enabled"
+    }
+  };
+}
+
+function supportsAnthropicAdaptiveThinking(model: string) {
+  const normalizedModel = model.toLowerCase();
+
+  return (
+    normalizedModel.includes("claude-mythos") ||
+    normalizedModel.includes("claude-opus-4-7") ||
+    normalizedModel.includes("claude-opus-4-6") ||
+    normalizedModel.includes("claude-sonnet-4-6")
+  );
+}
+
 const azureAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle["azure-openai"]!;
-
-    return {
-      body: {
+    const body = mergeChatRequestBody(
+      {
         messages: messages.map(openAiCompatibleMessage),
         ...(options.stream ? { stream: true } : {}),
         ...(options.tools?.length
@@ -256,9 +390,15 @@ const azureAdapter: ChatAdapter = {
           : {}),
         temperature: 0.7
       },
+      openAiCompatibleThinkingOptions(config, model, options)
+    );
+
+    return {
+      body,
       headers: {
         "api-key": config.apiKey?.trim() ?? "",
-        "content-type": "application/json"
+        "content-type": "application/json",
+        ...readAiProviderCustomHeaders(config)
       },
       url: `${joinApiUrl(baseUrl, `/openai/deployments/${encodeURIComponent(model)}/chat/completions`)}?api-version=${azureApiVersion}`
     };
@@ -278,14 +418,20 @@ const googleAdapter: ChatAdapter = {
       }));
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle.google!;
     const key = encodeURIComponent(config.apiKey?.trim() ?? "");
-
-    return {
-      body: {
+    const body = mergeChatRequestBody(
+      {
         contents,
-        generationConfig: { temperature: 0.7 },
+        generationConfig: {
+          temperature: 0.7
+        },
         ...(systemMessage ? { systemInstruction: { parts: [{ text: systemMessage.content }] } } : {})
       },
-      headers: { "content-type": "application/json" },
+      googleThinkingOptions(options)
+    );
+
+    return {
+      body,
+      headers: { "content-type": "application/json", ...readAiProviderCustomHeaders(config) },
       url: options.stream
         ? `${joinApiUrl(baseUrl, `/models/${encodeURIComponent(model)}:streamGenerateContent`)}?key=${key}&alt=sse`
         : `${joinApiUrl(baseUrl, `/models/${encodeURIComponent(model)}:generateContent`)}?key=${key}`
@@ -301,7 +447,7 @@ const googleAdapter: ChatAdapter = {
     return {
       content: parts
         .filter(isRecord)
-        .map((part) => (typeof part.text === "string" ? part.text : ""))
+        .map((part) => (part.thought === true ? "" : typeof part.text === "string" ? part.text : ""))
         .join("")
     };
   },
@@ -311,17 +457,43 @@ const googleAdapter: ChatAdapter = {
     const candidate = isRecord(candidates[0]) ? candidates[0] : {};
     const content = isRecord(candidate.content) ? candidate.content : {};
     const parts = Array.isArray(content.parts) ? content.parts : [];
-    const contentDelta = parts
-      .filter(isRecord)
-      .map((part) => (typeof part.text === "string" ? part.text : ""))
-      .join("");
+    const { contentDelta, thinkingDelta } = readGoogleTextParts(parts);
+    const result: ChatStreamEventResult = {};
 
-    return {
-      contentDelta: contentDelta || undefined,
-      finishReason: typeof candidate.finishReason === "string" ? candidate.finishReason : undefined
-    };
+    if (contentDelta) result.contentDelta = contentDelta;
+    if (thinkingDelta) result.thinkingDelta = thinkingDelta;
+    if (typeof candidate.finishReason === "string") result.finishReason = candidate.finishReason;
+
+    return result;
   }
 };
+
+function googleThinkingOptions(options: ChatRequestOptions) {
+  return options.thinkingEnabled
+    ? {
+        generationConfig: {
+          thinkingConfig: { includeThoughts: true }
+        }
+      }
+    : {};
+}
+
+function readGoogleTextParts(parts: unknown[]) {
+  let contentDelta = "";
+  let thinkingDelta = "";
+
+  for (const part of parts) {
+    if (!isRecord(part) || typeof part.text !== "string") continue;
+
+    if (part.thought === true) {
+      thinkingDelta += part.text;
+    } else {
+      contentDelta += part.text;
+    }
+  }
+
+  return { contentDelta, thinkingDelta };
+}
 
 const adapterByApiStyle: Record<AiProviderApiStyle, ChatAdapter> = {
   anthropic: anthropicAdapter,
@@ -340,6 +512,21 @@ const adapterByApiStyle: Record<AiProviderApiStyle, ChatAdapter> = {
 
 export function getChatAdapter(apiStyle: AiProviderApiStyle): ChatAdapter {
   return adapterByApiStyle[apiStyle] ?? openAiCompatibleAdapter;
+}
+
+function mergeChatRequestBody(left: Record<string, unknown>, right: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...left };
+
+  for (const [key, value] of Object.entries(right)) {
+    const current = result[key];
+    result[key] = isPlainRecord(current) && isPlainRecord(value) ? mergeChatRequestBody(current, value) : value;
+  }
+
+  return result;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && !Array.isArray(value);
 }
 
 function openAiCompatibleMessage(message: ChatMessage) {
@@ -401,11 +588,11 @@ function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult 
   const firstChoice = isRecord(choices[0]) ? choices[0] : {};
   const delta = isRecord(firstChoice.delta) ? firstChoice.delta : {};
   const result: ChatStreamEventResult = {};
-  const contentDelta = typeof delta.content === "string" && delta.content.length > 0 ? delta.content : undefined;
-  const thinkingDelta = readOpenAiCompatibleThinkingDelta(delta);
+  const contentDeltas = readOpenAiCompatibleContentDeltas(delta.content);
+  const thinkingDelta = readOpenAiCompatibleThinkingDelta(delta) ?? contentDeltas.thinkingDelta;
   const toolCallDeltas = readOpenAiCompatibleToolCallDeltas(delta);
 
-  if (contentDelta) result.contentDelta = contentDelta;
+  if (contentDeltas.contentDelta) result.contentDelta = contentDeltas.contentDelta;
   if (thinkingDelta) result.thinkingDelta = thinkingDelta;
   if (toolCallDeltas.length > 0) result.toolCallDeltas = toolCallDeltas;
   if (typeof firstChoice.finish_reason === "string") result.finishReason = normalizeFinishReason(firstChoice.finish_reason);
@@ -422,6 +609,43 @@ function readOpenAiCompatibleThinkingDelta(delta: Record<string, unknown>) {
   }
 
   return undefined;
+}
+
+function readOpenAiCompatibleContentDeltas(value: unknown) {
+  if (typeof value === "string") return { contentDelta: value };
+  if (!Array.isArray(value)) return {};
+
+  const contentDelta = value.filter(isRecord).map(readOpenAiCompatibleTextChunk).join("");
+  const thinkingDelta = value.filter(isRecord).map(readOpenAiCompatibleThinkingChunk).join("");
+
+  return {
+    ...(contentDelta ? { contentDelta } : {}),
+    ...(thinkingDelta ? { thinkingDelta } : {})
+  };
+}
+
+function readOpenAiCompatibleTextChunk(chunk: Record<string, unknown>) {
+  if (chunk.type === "thinking" || chunk.type === "reasoning") return "";
+  if (typeof chunk.text === "string") return chunk.text;
+  if (typeof chunk.content === "string") return chunk.content;
+
+  return "";
+}
+
+function readOpenAiCompatibleThinkingChunk(chunk: Record<string, unknown>) {
+  if (chunk.type !== "thinking" && chunk.type !== "reasoning") return "";
+
+  return readNestedText(chunk.thinking ?? chunk.reasoning ?? chunk.text ?? chunk.content);
+}
+
+function readNestedText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return "";
+
+  return value
+    .filter(isRecord)
+    .map((item) => readNestedText(item.text ?? item.content ?? item.thinking ?? item.reasoning))
+    .join("");
 }
 
 function readOpenAiCompatibleToolCalls(message: Record<string, unknown>): ChatToolCall[] {

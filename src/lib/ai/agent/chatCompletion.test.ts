@@ -91,4 +91,34 @@ describe("chatCompletion", () => {
     expect(onDelta).toHaveBeenNthCalledWith(1, "Better ");
     expect(onDelta).toHaveBeenNthCalledWith(2, "text");
   });
+
+  it("extracts inline thinking tags from streamed content when thinking is enabled", async () => {
+    const onDelta = vi.fn();
+    const onThinkingDelta = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"choices":[{"delta":{"content":"<think>checking "}}]}\n\n');
+      onChunk('data: {"choices":[{"delta":{"content":"the note</think>Final "}}]}\n\n');
+      onChunk('data: {"choices":[{"delta":{"content":"answer"},"finish_reason":"stop"}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+
+    await expect(
+      chatCompletionStream(provider(), "gpt-5.5", [{ content: "Hi", role: "user" }], {
+        onDelta,
+        onThinkingDelta,
+        streamTransport,
+        thinkingEnabled: true
+      })
+    ).resolves.toEqual({
+      content: "Final answer",
+      finishReason: "stop"
+    });
+
+    expect(onThinkingDelta).toHaveBeenNthCalledWith(1, "checking ");
+    expect(onThinkingDelta).toHaveBeenNthCalledWith(2, "the note");
+    expect(onDelta).toHaveBeenNthCalledWith(1, "Final ");
+    expect(onDelta).toHaveBeenNthCalledWith(2, "answer");
+  });
 });

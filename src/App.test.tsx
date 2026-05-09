@@ -28,6 +28,7 @@ import {
   createAiAgentSessionId,
   consumeWelcomeDocumentState,
   deleteStoredAiAgentSession,
+  getStoredAiAgentPreferences,
   getStoredAiAgentSession,
   getStoredAiAgentSessionSummary,
   getStoredAiSettings,
@@ -104,6 +105,7 @@ vi.mock("./lib/settings/appSettings", () => ({
   },
   getStoredAiAgentSession: vi.fn(),
   getStoredAiAgentSessionSummary: vi.fn(),
+  getStoredAiAgentPreferences: vi.fn(),
   getStoredAiSettings: vi.fn(),
   getStoredEditorPreferences: vi.fn(),
   getStoredLanguage: vi.fn(),
@@ -122,6 +124,7 @@ vi.mock("./lib/settings/appSettings", () => ({
     ...preferences
   })),
   resetWelcomeDocumentState: vi.fn(),
+  saveStoredAiAgentPreferences: vi.fn(),
   saveStoredAiAgentSession: vi.fn(),
   saveStoredAiAgentSessionTitle: vi.fn(),
   saveStoredAiSettings: vi.fn(),
@@ -182,6 +185,7 @@ const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
 const mockedDeleteStoredAiAgentSession = vi.mocked(deleteStoredAiAgentSession);
+const mockedGetStoredAiAgentPreferences = vi.mocked(getStoredAiAgentPreferences);
 const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
 const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
 const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
@@ -289,6 +293,7 @@ describe("Markra workspace", () => {
     mockedOpenSettingsWindow.mockReset();
     mockedGetStoredLanguage.mockReset();
     mockedGetStoredAiSettings.mockReset();
+    mockedGetStoredAiAgentPreferences.mockReset();
     mockedGetStoredAiAgentSession.mockReset();
     mockedGetStoredAiAgentSessionSummary.mockReset();
     mockedGetStoredEditorPreferences.mockReset();
@@ -356,6 +361,9 @@ describe("Markra workspace", () => {
       panelWidth: null,
       thinkingEnabled: false,
       webSearchEnabled: false
+    });
+    mockedGetStoredAiAgentPreferences.mockResolvedValue({
+      thinkingEnabled: false
     });
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredEditorPreferences.mockResolvedValue({

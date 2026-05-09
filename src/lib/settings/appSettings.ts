@@ -23,12 +23,16 @@ const welcomeDocumentSeenKey = "welcomeDocumentSeen";
 const themeKey = "theme";
 const languageKey = "language";
 const aiProvidersKey = "aiProviders";
+const aiAgentPreferencesKey = "aiAgentPreferences";
 const editorPreferencesKey = "editorPreferences";
 const workspaceKey = "workspace";
 
 export type AppTheme = "light" | "dark" | "system";
 export type ResolvedAppTheme = "light" | "dark";
 export type EditorContentWidth = "narrow" | "default" | "wide";
+export type AiAgentPreferences = {
+  thinkingEnabled: boolean;
+};
 export type EditorPreferences = {
   autoOpenAiOnSelection: boolean;
   bodyFontSize: number;
@@ -55,6 +59,10 @@ export const defaultEditorPreferences: EditorPreferences = {
   lineHeight: 1.65,
   restoreWorkspaceOnStartup: true,
   showWordCount: true
+};
+
+export const defaultAiAgentPreferences: AiAgentPreferences = {
+  thinkingEnabled: false
 };
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
@@ -138,6 +146,13 @@ export async function getStoredAiSettings(): Promise<AiProviderSettings> {
   return settings ? normalizeAiSettings(settings) : createDefaultAiSettings();
 }
 
+export async function getStoredAiAgentPreferences(): Promise<AiAgentPreferences> {
+  const store = await loadSettingsStore();
+  const preferences = await store.get<Partial<AiAgentPreferences>>(aiAgentPreferencesKey);
+
+  return normalizeAiAgentPreferences(preferences);
+}
+
 export async function getStoredAiAgentSession(sessionId: string | null): Promise<StoredAiAgentSessionState> {
   if (!sessionId?.trim()) return normalizeStoredAiAgentSessionState(undefined);
 
@@ -172,7 +187,11 @@ export async function listStoredAiAgentSessions(
 }
 
 export async function initializeStoredAiAgentSession(sessionId: string, workspaceKey: string | null) {
-  await saveStoredAiAgentSession(sessionId, createDefaultAiAgentSessionState(), { workspaceKey });
+  const preferences = await getStoredAiAgentPreferences();
+
+  await saveStoredAiAgentSession(sessionId, createDefaultAiAgentSessionState({
+    thinkingEnabled: preferences.thinkingEnabled
+  }), { workspaceKey });
 }
 
 export async function saveStoredAiAgentSession(
@@ -305,6 +324,13 @@ export async function saveStoredAiSettings(settings: AiProviderSettings) {
   await store.save();
 }
 
+export async function saveStoredAiAgentPreferences(preferences: AiAgentPreferences) {
+  const store = await loadSettingsStore();
+
+  await store.set(aiAgentPreferencesKey, normalizeAiAgentPreferences(preferences));
+  await store.save();
+}
+
 export async function getStoredEditorPreferences(): Promise<EditorPreferences> {
   const store = await loadSettingsStore();
   const preferences = await store.get<Partial<EditorPreferences>>(editorPreferencesKey);
@@ -350,6 +376,19 @@ export type {
   AiProviderSettings
 } from "../ai/providers/aiProviders";
 export type { StoredAiAgentSessionSummary };
+
+export function normalizeAiAgentPreferences(value: unknown): AiAgentPreferences {
+  if (typeof value !== "object" || value === null) return defaultAiAgentPreferences;
+
+  const preferences = value as Partial<AiAgentPreferences>;
+
+  return {
+    thinkingEnabled:
+      typeof preferences.thinkingEnabled === "boolean"
+        ? preferences.thinkingEnabled
+        : defaultAiAgentPreferences.thinkingEnabled
+  };
+}
 
 export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   if (typeof value !== "object" || value === null) return defaultEditorPreferences;
