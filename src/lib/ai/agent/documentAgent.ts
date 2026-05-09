@@ -61,6 +61,7 @@ export type RunDocumentAiAgentResult = {
   content: string;
   finishReason?: string;
   preparedPreview?: boolean;
+  stopReasonCode?: "repeated_multi_write";
 };
 
 export async function runDocumentAiAgent({
@@ -175,7 +176,7 @@ async function runDocumentChatOnlyAgent({
     prompt,
     selection,
     toolResults,
-    webSearchEnabled: nativeWebSearchEnabled
+    webSearchMode: nativeWebSearchEnabled ? "native" : "none"
   });
   let streamedContent = "";
   let streamedThinking = "";
@@ -240,10 +241,14 @@ async function runDocumentToolCallingAgent({
   workspaceFiles = []
 }: RunDocumentAiAgentRuntimeInput): Promise<RunDocumentAiAgentResult> {
   let preparedPreview = false;
+  let consecutiveBlockedMultiWriteTurns = 0;
+  let shouldStopForRepeatedMultiWrite = false;
   const piAgentModel = createPiAgentModel(provider, model);
   const nativeWebSearchEnabled = webSearchEnabled && providerSupportsNativeWebSearch(provider, model);
   const activeWebSearchSettings =
     webSearchEnabled && !nativeWebSearchEnabled && webSearchSettingsAreUsable(webSearchSettings) ? webSearchSettings : null;
+  const blockedMultiWriteReason =
+    "Only one editor write tool can run in a single assistant turn. Choose exactly one edit operation, then call that write tool again.";
   const agent = new Agent({
     beforeToolCall: async ({ assistantMessage, toolCall }) => {
       if (!isDocumentWriteToolName(toolCall.name)) return undefined;
@@ -255,7 +260,7 @@ async function runDocumentToolCallingAgent({
 
       return {
         block: true,
-        reason: "Only one editor write tool can run in a single assistant turn. Choose exactly one edit operation, then call that write tool again."
+        reason: blockedMultiWriteReason
       };
     },
     initialState: {
@@ -291,6 +296,18 @@ async function runDocumentToolCallingAgent({
   agent.subscribe((event) => {
     onEvent?.(event);
 
+    if (event.type === "turn_end") {
+      if (!isBlockedMultiWriteTurn(event.toolResults, blockedMultiWriteReason)) {
+        consecutiveBlockedMultiWriteTurns = 0;
+      } else {
+        consecutiveBlockedMultiWriteTurns += 1;
+        if (consecutiveBlockedMultiWriteTurns >= 2) {
+          shouldStopForRepeatedMultiWrite = true;
+          agent.abort();
+        }
+      }
+    }
+
     if (event.type === "message_update" && event.message.role === "assistant") {
       const nextText = assistantTextFromAgentMessage(event.message.content);
       if (nextText) {
@@ -313,8 +330,17 @@ async function runDocumentToolCallingAgent({
     documentImages: [],
     prompt,
     selection,
-    webSearchEnabled: activeWebSearchSettings !== null || nativeWebSearchEnabled
+    webSearchMode: nativeWebSearchEnabled ? "native" : activeWebSearchSettings ? "custom" : "none"
   }));
+
+  if (!preparedPreview && !finalContent.trim() && !latestAssistantText.trim() && shouldStopForRepeatedMultiWrite) {
+    return {
+      content: "",
+      finishReason: "stop",
+      preparedPreview: false,
+      stopReasonCode: "repeated_multi_write"
+    };
+  }
 
   return {
     content: preparedPreview ? "" : (finalContent || latestAssistantText).trim(),
@@ -390,6 +416,26 @@ function isDocumentWriteToolName(toolName: string) {
     "replace_table",
     "replace_section"
   ].includes(toolName);
+}
+
+function isBlockedMultiWriteTurn(
+  toolResults: Array<{
+    content: Array<{ text?: string; type: string }>;
+    isError: boolean;
+  }>,
+  blockedMultiWriteReason: string
+) {
+  return (
+    toolResults.length > 0 &&
+    toolResults.every((toolResult) => {
+      if (!toolResult.isError) return false;
+
+      return toolResult.content
+        .map((part) => (part.type === "text" ? part.text ?? "" : ""))
+        .join("\n")
+        .includes(blockedMultiWriteReason);
+    })
+  );
 }
 
 async function readPromptedDocumentImages({
@@ -546,14 +592,14 @@ function buildDocumentAgentMessages({
   prompt,
   selection,
   toolResults,
-  webSearchEnabled
+  webSearchMode
 }: {
   documentImages: ChatImageAttachment[];
   history: DocumentAiHistoryMessage[];
   prompt: string;
   selection: AiSelectionContext | null;
   toolResults: Awaited<ReturnType<typeof runReadOnlyAgentTools>>;
-  webSearchEnabled: boolean;
+  webSearchMode: DocumentToolCallingWebSearchMode;
 }): ChatMessage[] {
   return [
     {
@@ -568,7 +614,7 @@ function buildDocumentAgentMessages({
       content: buildDocumentRuntimeContext({
         selection,
         toolCallingEnabled: false,
-        webSearchEnabled
+        webSearchMode
       }),
       role: "user"
     },
@@ -588,19 +634,19 @@ function buildDocumentToolCallingTurnMessages({
   documentImages,
   prompt,
   selection,
-  webSearchEnabled
+  webSearchMode
 }: {
   documentImages: ChatImageAttachment[];
   prompt: string;
   selection: AiSelectionContext | null;
-  webSearchEnabled: boolean;
+  webSearchMode: DocumentToolCallingWebSearchMode;
 }): AgentMessage[] {
   return [
     createAgentUserMessage(
       buildDocumentRuntimeContext({
         selection,
         toolCallingEnabled: true,
-        webSearchEnabled
+        webSearchMode
       })
     ),
     createAgentUserMessage(buildCurrentUserRequest(prompt), documentImages)
@@ -614,11 +660,11 @@ function buildCurrentUserRequest(prompt: string) {
 function buildDocumentRuntimeContext({
   selection,
   toolCallingEnabled,
-  webSearchEnabled
+  webSearchMode
 }: {
   selection: AiSelectionContext | null;
   toolCallingEnabled: boolean;
-  webSearchEnabled: boolean;
+  webSearchMode: DocumentToolCallingWebSearchMode;
 }) {
   const sections = ["Document runtime context:"];
 
@@ -630,15 +676,33 @@ function buildDocumentRuntimeContext({
       : "No document write tools are available in this provider path. Use the read-only workspace context and answer with text."
   );
 
-  if (webSearchEnabled) {
-    sections.push(
-      toolCallingEnabled
-        ? "Web search mode was requested. If live browsing is unavailable, say so briefly and continue with local document tools."
-        : "Web search mode was requested. If live browsing is unavailable in this runtime, say so briefly and continue with the provided document context."
-    );
-  }
+  sections.push(...documentRuntimeWebSearchInstructions({ toolCallingEnabled, webSearchMode }));
 
   return sections.join("\n\n");
+}
+
+function documentRuntimeWebSearchInstructions({
+  toolCallingEnabled,
+  webSearchMode
+}: {
+  toolCallingEnabled: boolean;
+  webSearchMode: DocumentToolCallingWebSearchMode;
+}) {
+  if (webSearchMode === "native") {
+    return [
+      "Native web search is enabled for this request. Use the provider's built-in web search for current or external web information, and cite sources when the provider returns them.",
+      "Do not say live browsing is unavailable merely because no local browser tool is listed."
+    ];
+  }
+  if (webSearchMode === "custom") {
+    return [
+      toolCallingEnabled
+        ? "Use builtin_web_search for live web information."
+        : "Web search was requested, but no live search tool is available on this provider path. Say so briefly and continue with the provided document context."
+    ];
+  }
+
+  return [];
 }
 
 function buildReadOnlyWorkspaceContext(toolResults: Awaited<ReturnType<typeof runReadOnlyAgentTools>>) {

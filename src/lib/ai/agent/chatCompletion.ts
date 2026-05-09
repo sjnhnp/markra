@@ -101,9 +101,13 @@ export async function chatCompletionStream(
     if (parsed.toolCallDeltas?.length) {
       for (const delta of parsed.toolCallDeltas) {
         const currentToolCall = toolCalls.get(delta.index) ?? { argumentsText: "", id: "", name: "" };
-        currentToolCall.argumentsText += delta.argumentsDelta ?? "";
+        currentToolCall.argumentsText = delta.replaceArguments
+          ? (delta.argumentsDelta ?? "")
+          : `${currentToolCall.argumentsText}${delta.argumentsDelta ?? ""}`;
         currentToolCall.id = delta.id ?? currentToolCall.id;
-        currentToolCall.name += delta.nameDelta ?? "";
+        currentToolCall.name = delta.replaceName
+          ? (delta.nameDelta ?? "")
+          : `${currentToolCall.name}${delta.nameDelta ?? ""}`;
         toolCalls.set(delta.index, currentToolCall);
         onToolCallDelta?.(delta);
       }

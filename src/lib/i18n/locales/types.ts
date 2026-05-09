@@ -270,6 +270,7 @@ export type I18nKey =
   | "app.aiProviderUnsupported"
   | "app.aiRequestFailed"
   | "app.aiEmptyResponse"
+  | "app.aiAgentRepeatedMultiWrite"
   | "app.aiAgentPreviewReady"
   | "app.clipboardImageRequiresSavedDocument"
   | "app.clipboardImageSaveFailed"

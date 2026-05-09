@@ -503,6 +503,8 @@
 
   .ai-chat-markdown {
     @apply text-[13px] leading-5;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .ai-chat-markdown h1,

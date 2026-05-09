@@ -122,6 +122,72 @@ describe("useAiAgentSession", () => {
     ]);
   });
 
+  it("preserves multiple assistant thinking rounds from one agent run", async () => {
+    mockedRunDocumentAiAgent.mockImplementation(async ({ onEvent, onThinkingDelta }) => {
+      onThinkingDelta?.("Inspecting the document structure.");
+      onEvent?.({
+        message: {
+          content: [{ thinking: "Inspecting the document structure.", type: "thinking" }],
+          role: "assistant",
+          stopReason: "toolUse"
+        },
+        type: "message_end"
+      } as Parameters<NonNullable<typeof onEvent>>[0]);
+      onThinkingDelta?.("Preparing the insertion.");
+      onThinkingDelta?.("Preparing the insertion near the end of the document.");
+      onEvent?.({
+        message: {
+          content: [{ thinking: "Preparing the insertion near the end of the document.", type: "thinking" }],
+          role: "assistant",
+          stopReason: "stop"
+        },
+        type: "message_end"
+      } as Parameters<NonNullable<typeof onEvent>>[0]);
+
+      return {
+        content: "Prepared.",
+        finishReason: "stop"
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/README.md",
+        getDocumentContent: () => "# Draft",
+        model: "gpt-5.5",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://api.openai.com/v1",
+          defaultModelId: "gpt-5.5",
+          enabled: true,
+          id: "openai",
+          models: [],
+          name: "OpenAI",
+          type: "openai"
+        },
+        sessionId: "session-a",
+        settingsLoading: false,
+        translate: (key) => key,
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("Insert something.");
+    });
+
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+    expect(result.current.messages[1]).toMatchObject({
+      role: "assistant",
+      text: "Prepared.",
+      thinking: "Preparing the insertion near the end of the document.",
+      thinkingTurns: [
+        "Inspecting the document structure.",
+        "Preparing the insertion near the end of the document."
+      ]
+    });
+  });
+
   it("surfaces provider configuration errors without calling the runtime", async () => {
     const { result } = renderHook(() =>
       useAiAgentSession({
@@ -360,6 +426,49 @@ describe("useAiAgentSession", () => {
       text: "The editor change is ready."
     });
     expect(result.current.messages.at(-1)?.isError).not.toBe(true);
+  });
+
+  it("shows a localized repeated-multi-write message instead of the generic empty response", async () => {
+    mockedRunDocumentAiAgent.mockResolvedValue({
+      content: "",
+      finishReason: "stop",
+      stopReasonCode: "repeated_multi_write"
+    } as unknown as Awaited<ReturnType<typeof runDocumentAiAgent>>);
+
+    const { result } = renderHook(() =>
+      useAiAgentSession({
+        documentPath: "/vault/example.md",
+        getDocumentContent: () => "# Draft",
+        model: "qwen3.6-plus",
+        provider: {
+          apiKey: "secret",
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          defaultModelId: "qwen3.6-plus",
+          enabled: true,
+          id: "aliyun-bailian",
+          models: [],
+          name: "Qwen",
+          type: "openai-compatible"
+        },
+        settingsLoading: false,
+        translate: testTranslate({
+          "app.aiAgentRepeatedMultiWrite": "Please ask for one document edit at a time.",
+          "app.aiEmptyResponse": "AI returned no usable text."
+        }),
+        workspaceFiles: []
+      })
+    );
+
+    await act(async () => {
+      await result.current.submit("Rewrite this and add a summary");
+    });
+
+    expect(result.current.status).toBe("error");
+    expect(result.current.messages.at(-1)).toMatchObject({
+      isError: true,
+      role: "assistant",
+      text: "Please ask for one document edit at a time."
+    });
   });
 
   it("carries prepared editor preview details into the next agent turn history", async () => {

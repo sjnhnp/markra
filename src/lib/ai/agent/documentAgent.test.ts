@@ -146,6 +146,76 @@ describe("document AI agent", () => {
     expect(result.content).toBe("I can inspect document images with tools.");
   });
 
+  it("replays Qwen Responses tool turns with provider call ids and structured tool results", async () => {
+    let replayMessages: ChatMessage[] = [];
+    const complete = vi.fn()
+      .mockImplementationOnce(async (_provider, _model, _messages: ChatMessage[], options) => {
+        options?.onToolCallDelta?.({
+          id: "call_read_document",
+          index: 0,
+          nameDelta: "get_document"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: "{}",
+          id: "call_read_document",
+          index: 0
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+        replayMessages = messages;
+
+        return {
+          content: "I have the document content now.",
+          finishReason: "stop"
+        };
+      });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Draft",
+      documentPath: "/vault/README.md",
+      model: "qwen3.6-plus",
+      prompt: "Read the current document, then summarize it.",
+      provider: provider({
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        id: "aliyun-bailian",
+        models: [{ capabilities: ["text", "tools", "web"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+        name: "Qwen",
+        type: "openai-compatible"
+      }),
+      webSearchEnabled: true,
+      workspaceFiles: []
+    });
+
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(replayMessages.at(-2)).toMatchObject({
+      content: "",
+      role: "assistant",
+      toolCalls: [
+        {
+          arguments: {},
+          id: "call_read_document|tool-call-1",
+          name: "get_document"
+        }
+      ]
+    });
+    expect(replayMessages.at(-1)).toMatchObject({
+      content: expect.stringContaining("Tool result from get_document:"),
+      role: "user",
+      toolResult: {
+        outputText: expect.stringContaining("# Draft"),
+        toolCallId: "call_read_document|tool-call-1",
+        toolName: "get_document"
+      }
+    });
+    expect(result.content).toBe("I have the document content now.");
+  });
+
   it("attaches referenced document images in chat-only mode when a vision model needs them", async () => {
     const readDocumentImage = vi.fn(async (src: string) => ({
       alt: "Architecture screenshot",
@@ -369,10 +439,10 @@ describe("document AI agent", () => {
       expect(messages[1]?.content).toContain("Current selection snapshot:");
       expect(messages[1]?.content).toContain("Range: 2-13");
       expect(messages[1]?.content).toContain("Synthetic text");
-      expect(messages[1]?.content).toContain("Web search mode was requested.");
+      expect(messages[1]?.content).toContain("Use builtin_web_search for live web information.");
       expect(messages[2]?.content).toBe("User request:\nRewrite the selected synthetic text");
       expect(messages[2]?.content).not.toContain("Current selection snapshot:");
-      expect(messages[2]?.content).not.toContain("Web search mode was requested.");
+      expect(messages[2]?.content).not.toContain("Use builtin_web_search for live web information.");
 
       return {
         content: "Synthetic response",
@@ -455,6 +525,8 @@ describe("document AI agent", () => {
       const toolNames = options?.tools?.map((tool: { name: string }) => tool.name) ?? [];
 
       expect(messages[0]?.content).not.toContain("builtin_web_search");
+      expect(messages[1]?.content).toContain("Native web search is enabled for this request.");
+      expect(messages[1]?.content).not.toContain("If live browsing is unavailable");
       expect(toolNames).not.toContain("builtin_web_search");
       expect(options?.webSearchEnabled).toBe(true);
 
@@ -493,6 +565,120 @@ describe("document AI agent", () => {
       finishReason: "stop",
       preparedPreview: false
     });
+  });
+
+  it.each([
+    {
+      model: "qwen3.6-plus",
+      provider: provider({
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        id: "aliyun-bailian",
+        models: [{ capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+        name: "Qwen",
+        type: "openai-compatible"
+      }),
+      toolName: "google_search"
+    },
+    {
+      model: "qwen3.6-plus",
+      provider: provider({
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        id: "aliyun-bailian",
+        models: [{ capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+        name: "Qwen",
+        type: "openai-compatible"
+      }),
+      toolName: "browse_page"
+    },
+    {
+      model: "gpt-5.5",
+      provider: provider({
+        models: [{ capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }],
+        type: "openai"
+      }),
+      toolName: "web_search"
+    },
+    {
+      model: "claude-opus-4-7",
+      provider: provider({
+        baseUrl: "https://api.anthropic.com/v1",
+        id: "anthropic",
+        models: [{ capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "claude-opus-4-7", name: "Claude Opus 4.7" }],
+        name: "Anthropic",
+        type: "anthropic"
+      }),
+      toolName: "web_search"
+    },
+    {
+      model: "sonar-pro",
+      provider: provider({
+        baseUrl: "https://api.perplexity.ai",
+        id: "perplexity",
+        models: [{ capabilities: ["text", "tools", "web"], enabled: true, id: "sonar-pro", name: "Sonar Pro" }],
+        name: "Perplexity",
+        type: "openai-compatible"
+      }),
+      toolName: "web_search_preview"
+    },
+    {
+      model: "qwen3.6-plus",
+      provider: provider({
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        id: "aliyun-bailian",
+        models: [{ capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+        name: "Qwen",
+        type: "openai-compatible"
+      }),
+      toolName: "synthetic_provider_search_action"
+    }
+  ])("does not execute provider-native $toolName calls as local agent tools", async ({ model, provider, toolName }) => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, _messages: ChatMessage[], options) => {
+      options?.onToolCallDelta?.({
+        id: "native_google_search",
+        index: 0,
+        nameDelta: toolName
+      });
+      options?.onToolCallDelta?.({
+        argumentsDelta: JSON.stringify({ query: "https://research.example.test/" }),
+        index: 0
+      });
+      options?.onDelta?.("Grounded answer");
+
+      return {
+        content: "Grounded answer",
+        finishReason: "stop"
+      };
+    });
+    const events: string[] = [];
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Section Alpha",
+      documentPath: "/vault/example.md",
+      model,
+      onEvent: (event) => {
+        events.push(event.type);
+      },
+      prompt: "Research this synthetic site: https://research.example.test/",
+      provider,
+      webSearchEnabled: true,
+      webSearchSettings: {
+        contentMaxChars: 12000,
+        enabled: true,
+        maxResults: 5,
+        providerId: "local-bing",
+        searxngApiHost: ""
+      },
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "Grounded answer",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(events).not.toContain("tool_start");
   });
 
   it("guides the tool-calling agent to use table-specific replacement for table edits", async () => {
@@ -687,6 +873,97 @@ describe("document AI agent", () => {
     expect(complete).toHaveBeenCalledTimes(2);
   });
 
+  it("stops after repeated multi-write blocked turns instead of looping indefinitely", async () => {
+    const complete = vi
+      .fn()
+      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
+        options?.onToolCallDelta?.({
+          id: "call_replace_document",
+          index: 0,
+          nameDelta: "replace_document"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            replacement: "# Focused note"
+          }),
+          index: 0
+        });
+        options?.onToolCallDelta?.({
+          id: "call_insert_markdown",
+          index: 1,
+          nameDelta: "insert_markdown"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            content: "Extra note",
+            placement: "after_anchor"
+          }),
+          index: 1
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
+        options?.onToolCallDelta?.({
+          id: "call_insert_markdown_a",
+          index: 0,
+          nameDelta: "insert_markdown"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            content: "Synthetic summary A",
+            placement: "after_anchor"
+          }),
+          index: 0
+        });
+        options?.onToolCallDelta?.({
+          id: "call_insert_markdown_b",
+          index: 1,
+          nameDelta: "insert_markdown"
+        });
+        options?.onToolCallDelta?.({
+          argumentsDelta: JSON.stringify({
+            content: "Synthetic summary B",
+            placement: "after_anchor"
+          }),
+          index: 1
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Old note\n\nBody",
+      documentEndPosition: 16,
+      documentPath: "/vault/README.md",
+      model: "qwen3.6-plus",
+      prompt: "看看这个文档里说了什么，并且加一段总结",
+      provider: provider({
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        id: "aliyun-bailian",
+        models: [{ capabilities: ["text", "tools"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+        name: "Qwen",
+        type: "openai-compatible"
+      }),
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "",
+      finishReason: "stop",
+      preparedPreview: false,
+      stopReasonCode: "repeated_multi_write"
+    });
+    expect(complete).toHaveBeenCalledTimes(2);
+  });
+
   it("lets the agent choose where to insert markdown around the current context", async () => {
     const onPreviewResult = vi.fn();
     const complete = vi
@@ -833,6 +1110,63 @@ describe("document AI agent", () => {
       finishReason: "stop",
       preparedPreview: false
     });
+  });
+
+  it("assigns unique local tool ids when the provider reuses tool ids across turns", async () => {
+    const toolExecutionIds: string[] = [];
+    const complete = vi
+      .fn()
+      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
+        options?.onToolCallDelta?.({
+          id: "provider-tool-1",
+          index: 0,
+          nameDelta: "get_document_outline"
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async (_provider, _model, _messages, options) => {
+        options?.onToolCallDelta?.({
+          id: "provider-tool-1",
+          index: 0,
+          nameDelta: "get_document"
+        });
+
+        return {
+          content: "",
+          finishReason: "toolUse"
+        };
+      })
+      .mockImplementationOnce(async () => ({
+        content: "Done.",
+        finishReason: "stop"
+      }));
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "",
+      documentPath: "/vault/empty.md",
+      model: "gpt-5.5",
+      onEvent: (event) => {
+        if (event.type === "tool_execution_start") toolExecutionIds.push(event.toolCallId);
+      },
+      prompt: "Insert something into the document.",
+      provider: provider(),
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "Done.",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+    expect(toolExecutionIds).toHaveLength(2);
+    expect(new Set(toolExecutionIds).size).toBe(2);
+    expect(toolExecutionIds[0]).not.toBe("provider-tool-1");
+    expect(toolExecutionIds[1]).not.toBe("provider-tool-1");
   });
 
   it("executes a delete-region tool call and stops for editor confirmation", async () => {

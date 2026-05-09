@@ -2,12 +2,31 @@ import type { Tool } from "@mariozechner/pi-ai";
 import type { AiProviderApiStyle, AiProviderConfig } from "../providers/aiProviders";
 import { readAiProviderCustomHeaders } from "../providers/aiProviders";
 import { isRecord, joinApiUrl } from "../../utils";
+import { getClaudeCompatibleThinkingRequestOptions, supportsAnthropicAdaptiveThinking as claudeSupportsAnthropicAdaptiveThinking } from "./compatibilities/claude";
+import { getDeepSeekCompatibleThinkingRequestOptions } from "./compatibilities/deepseek";
+import { getDoubaoCompatibleThinkingRequestOptions } from "./compatibilities/doubao";
+import { getGeminiCompatibleThinkingRequestOptions } from "./compatibilities/gemini";
+import { getKimiCompatibleThinkingRequestOptions } from "./compatibilities/kimi";
+import { getMimoCompatibleThinkingRequestOptions } from "./compatibilities/mimo";
 import { getNativeWebSearchKind } from "./nativeWebSearch";
+import { getQwenThinkingRequestOptions } from "./compatibilities/qwen";
+import { getZhipuCompatibleThinkingRequestOptions } from "./compatibilities/zhipu";
+import { buildChatCompletionsRequestBody } from "./requestBuilders/chatCompletions";
+import { buildResponsesRequestBody } from "./requestBuilders/responses";
+import { mergeRequestBody } from "./requestBuilders/shared";
+import { buildAnthropicTools } from "./toolBuilders/anthropic";
+import { buildGoogleTools } from "./toolBuilders/google";
 
 export type ChatMessage = {
   content: string;
   images?: ChatImageAttachment[];
   role: "assistant" | "system" | "user";
+  toolCalls?: ChatToolCall[];
+  toolResult?: {
+    outputText: string;
+    toolCallId: string;
+    toolName: string;
+  };
 };
 
 export type ChatImageAttachment = {
@@ -39,6 +58,8 @@ export type ChatToolCallDelta = {
   id?: string;
   index: number;
   nameDelta?: string;
+  replaceArguments?: boolean;
+  replaceName?: boolean;
 };
 
 export type ChatResponse = {
@@ -75,35 +96,37 @@ const openAiCompatibleAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle[config.type] || "";
     if (!baseUrl) throw new Error("API URL is required.");
-    if (usesOpenAiResponsesNativeWebSearch(config, model, options)) {
-      return buildOpenAiResponsesRequest(config, model, messages, options, baseUrl);
+    const nativeWebSearchKind = options.webSearchEnabled === true ? getNativeWebSearchKind(config, model) : null;
+    if (
+      nativeWebSearchKind === "dashscope-responses-tool" ||
+      nativeWebSearchKind === "openai-responses" ||
+      nativeWebSearchKind === "openrouter-server-tool"
+    ) {
+      return buildResponsesStyleRequest({
+        authHeaders: {
+          ...(config.apiKey?.trim() ? { Authorization: `Bearer ${config.apiKey.trim()}` } : {}),
+          "content-type": "application/json",
+          ...readAiProviderCustomHeaders(config)
+        },
+        baseUrl,
+        messages,
+        model,
+        nativeWebSearchToolType: nativeWebSearchKind === "openrouter-server-tool" ? "openrouter:web_search" : "web_search",
+        options,
+        responsePath: "/responses"
+      });
     }
 
-    const body = mergeChatRequestBody(
-      {
-        messages: messages.map(openAiCompatibleMessage),
-        model,
-        ...(options.stream ? { stream: true } : {}),
-        ...(options.tools?.length
-          ? {
-              tool_choice: "auto",
-              tools: options.tools.map((tool) => ({
-                function: {
-                  description: tool.description,
-                  name: tool.name,
-                  parameters: tool.parameters
-                },
-                type: "function"
-              }))
-            }
-          : {}),
-        temperature: 0.7
-      },
-      mergeChatRequestBody(
+    const body = buildChatCompletionsRequestBody({
+      extraBody: mergeRequestBody(
         openAiCompatibleThinkingOptions(config, model, options),
         openAiCompatibleNativeWebSearchOptions(config, model, options)
-      )
-    );
+      ),
+      messages: messages.map(openAiCompatibleMessage),
+      model,
+      stream: options.stream,
+      tools: options.tools
+    });
 
     return {
       body,
@@ -137,79 +160,53 @@ const openAiCompatibleAdapter: ChatAdapter = {
     return parseOpenAiCompatibleStreamEvent(body);
   }
 };
-
-function usesOpenAiResponsesNativeWebSearch(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
-  return options.webSearchEnabled === true && getNativeWebSearchKind(config, model) === "openai-responses";
-}
-
-function buildOpenAiResponsesRequest(
-  config: AiProviderConfig,
-  model: string,
-  messages: ChatMessage[],
-  options: ChatRequestOptions,
-  baseUrl: string
-): ChatRequest {
-  const body = mergeChatRequestBody(
-    {
-      input: openAiResponsesInputMessages(messages),
-      ...(openAiResponsesInstructions(messages) ? { instructions: openAiResponsesInstructions(messages) } : {}),
-      model,
-      ...(options.stream ? { stream: true } : {}),
-      tools: [
-        { type: "web_search" },
-        ...(options.tools ?? []).map((tool) => ({
-          description: tool.description,
-          name: tool.name,
-          parameters: tool.parameters,
-          type: "function"
-        }))
-      ]
-    },
-    openAiResponsesThinkingOptions(config, options)
-  );
+function buildResponsesStyleRequest({
+  authHeaders,
+  baseUrl,
+  messages,
+  model,
+  nativeWebSearchToolType,
+  options,
+  responsePath
+}: {
+  authHeaders: Record<string, string>;
+  baseUrl: string;
+  messages: ChatMessage[];
+  model: string;
+  nativeWebSearchToolType: "openrouter:web_search" | "web_search";
+  options: ChatRequestOptions;
+  responsePath: string;
+}): ChatRequest {
+  const body = buildResponsesRequestBody({
+    extraBody: responsesStyleRequestOptions(baseUrl, model, nativeWebSearchToolType, options),
+    messages,
+    model,
+    nativeWebSearchToolType,
+    stream: options.stream,
+    tools: options.tools
+  });
 
   return {
     body,
-    headers: {
-      ...(config.apiKey?.trim() ? { Authorization: `Bearer ${config.apiKey.trim()}` } : {}),
-      "content-type": "application/json",
-      ...readAiProviderCustomHeaders(config)
-    },
-    url: joinApiUrl(baseUrl, "/responses")
+    headers: authHeaders,
+    url: joinApiUrl(baseUrl, responsePath)
   };
 }
 
-function openAiResponsesInstructions(messages: ChatMessage[]) {
-  return messages
-    .filter((message) => message.role === "system")
-    .map((message) => message.content.trim())
-    .filter(Boolean)
-    .join("\n\n");
-}
+function responsesStyleRequestOptions(
+  baseUrl: string,
+  model: string,
+  nativeWebSearchToolType: "openrouter:web_search" | "web_search",
+  options: ChatRequestOptions
+) {
+  const qwenRequestOptions = getQwenThinkingRequestOptions({
+    baseUrl,
+    id: ""
+  }, model, options.thinkingEnabled);
+  if (Object.keys(qwenRequestOptions).length > 0) return qwenRequestOptions;
 
-function openAiResponsesInputMessages(messages: ChatMessage[]) {
-  return messages
-    .filter((message) => message.role !== "system")
-    .map((message) => ({
-      content: openAiResponsesMessageContent(message),
-      role: message.role
-    }));
-}
-
-function openAiResponsesMessageContent(message: ChatMessage) {
-  if (message.role === "assistant" && !message.images?.length) return message.content;
-
-  return [
-    { text: message.content, type: "input_text" },
-    ...(message.images ?? []).map((image) => ({
-      image_url: image.dataUrl,
-      type: "input_image"
-    }))
-  ];
-}
-
-function openAiResponsesThinkingOptions(config: AiProviderConfig, options: ChatRequestOptions) {
-  if (!options.thinkingEnabled || (config.type !== "openai" && config.type !== "xai")) return {};
+  if (!options.thinkingEnabled) return {};
+  if (nativeWebSearchToolType === "openrouter:web_search") return { reasoning: { effort: "high" } };
 
   return { reasoning: { effort: "high" } };
 }
@@ -225,22 +222,21 @@ function openAiCompatibleThinkingOptions(config: AiProviderConfig, model: string
   const thinkingEnabled = options.thinkingEnabled === true;
   const thinkingExplicitlyDisabled = options.thinkingEnabled === false;
   const normalizedModel = model.toLowerCase();
-
-  if (isDashScopeQwenRequest(config, normalizedModel) && (thinkingEnabled || thinkingExplicitlyDisabled)) {
-    return { enable_thinking: thinkingEnabled };
-  }
+  const qwenThinkingOptions = getQwenThinkingRequestOptions(config, normalizedModel, options.thinkingEnabled);
+  if (Object.keys(qwenThinkingOptions).length > 0) return qwenThinkingOptions;
 
   if (config.type === "ollama" && (thinkingEnabled || thinkingExplicitlyDisabled)) {
     return { think: thinkingEnabled };
   }
 
-  if (thinkingExplicitlyDisabled && isQwenCompatibleModel(normalizedModel)) {
-    return { chat_template_kwargs: { enable_thinking: false } };
-  }
-
-  if (thinkingExplicitlyDisabled && (isDeepSeekCompatibleModel(normalizedModel) || isThinkingTypeCompatibleModel(normalizedModel))) {
-    return { thinking: { type: "disabled" } };
-  }
+  const disabledThinkingRequestOptions = firstDefinedRequestOptions([
+    getDeepSeekCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getDoubaoCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getKimiCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getMimoCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getZhipuCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled)
+  ]);
+  if (thinkingExplicitlyDisabled && disabledThinkingRequestOptions) return disabledThinkingRequestOptions;
 
   if (!thinkingEnabled) return {};
 
@@ -250,58 +246,22 @@ function openAiCompatibleThinkingOptions(config: AiProviderConfig, model: string
     return { reasoning_effort: "high" };
   }
   if (config.type === "together") return { reasoning: { enabled: true }, reasoning_effort: "high" };
-  if (isGeminiCompatibleModel(normalizedModel)) {
-    return {
-      extra_body: {
-        google: {
-          thinking_config: {
-            include_thoughts: true,
-            thinking_budget: -1
-          }
-        }
-      }
-    };
-  }
-  if (isQwenCompatibleModel(normalizedModel)) return { chat_template_kwargs: { enable_thinking: true } };
-  if (isDeepSeekCompatibleModel(normalizedModel) || isThinkingTypeCompatibleModel(normalizedModel)) {
-    return { thinking: { type: "enabled" } };
-  }
-  if (isClaudeCompatibleModel(normalizedModel)) {
-    return { thinking: { budget_tokens: 1024, type: "enabled" } };
-  }
+  const enabledThinkingRequestOptions = firstDefinedRequestOptions([
+    getGeminiCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getDeepSeekCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getDoubaoCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getKimiCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getMimoCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getZhipuCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled),
+    getClaudeCompatibleThinkingRequestOptions(normalizedModel, options.thinkingEnabled)
+  ]);
+  if (enabledThinkingRequestOptions) return enabledThinkingRequestOptions;
 
   return {};
 }
 
-function isDashScopeQwenRequest(config: AiProviderConfig, normalizedModel: string) {
-  const baseUrl = config.baseUrl?.toLowerCase() ?? "";
-
-  return (config.id === "aliyun-bailian" || baseUrl.includes("dashscope.aliyuncs.com")) && isQwenCompatibleModel(normalizedModel);
-}
-
-function isQwenCompatibleModel(normalizedModel: string) {
-  return normalizedModel.includes("qwen");
-}
-
-function isGeminiCompatibleModel(normalizedModel: string) {
-  return normalizedModel.includes("gemini");
-}
-
-function isDeepSeekCompatibleModel(normalizedModel: string) {
-  return normalizedModel.includes("deepseek");
-}
-
-function isClaudeCompatibleModel(normalizedModel: string) {
-  return normalizedModel.includes("claude");
-}
-
-function isThinkingTypeCompatibleModel(normalizedModel: string) {
-  return (
-    normalizedModel.includes("doubao") ||
-    normalizedModel.includes("kimi") ||
-    normalizedModel.includes("mimo") ||
-    normalizedModel.includes("zhipu")
-  );
+function firstDefinedRequestOptions(candidates: Record<string, unknown>[]) {
+  return candidates.find((candidate) => Object.keys(candidate).length > 0);
 }
 
 const deepseekAdapter: ChatAdapter = {
@@ -314,7 +274,7 @@ const deepseekAdapter: ChatAdapter = {
 
     return {
       ...request,
-      body: mergeChatRequestBody(body, deepseekThinkingOptions(options))
+      body: mergeRequestBody(body, deepseekThinkingOptions(options))
     };
   },
   parseResponse: openAiCompatibleAdapter.parseResponse,
@@ -331,8 +291,8 @@ const anthropicAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const systemMessage = messages.find((message) => message.role === "system");
     const nonSystemMessages = messages.filter((message) => message.role !== "system");
-    const tools = anthropicTools(config, model, options);
-    const body = mergeChatRequestBody(
+    const tools = buildAnthropicTools(config, model, options.webSearchEnabled, options.tools);
+    const body = mergeRequestBody(
       {
         max_tokens: 4096,
         messages: nonSystemMessages.map((message) => ({
@@ -428,23 +388,10 @@ const anthropicAdapter: ChatAdapter = {
   }
 };
 
-function anthropicTools(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
-  return [
-    ...(options.webSearchEnabled === true && getNativeWebSearchKind(config, model) === "anthropic-server-tool"
-      ? [{ max_uses: 5, name: "web_search", type: "web_search_20250305" }]
-      : []),
-    ...(options.tools ?? []).map((tool) => ({
-      description: tool.description,
-      input_schema: tool.parameters,
-      name: tool.name
-    }))
-  ];
-}
-
 function anthropicThinkingOptions(model: string, options: ChatRequestOptions) {
   if (!options.thinkingEnabled) return {};
 
-  if (supportsAnthropicAdaptiveThinking(model)) {
+  if (claudeSupportsAnthropicAdaptiveThinking(model.toLowerCase())) {
     return {
       thinking: {
         display: "summarized",
@@ -461,41 +408,31 @@ function anthropicThinkingOptions(model: string, options: ChatRequestOptions) {
   };
 }
 
-function supportsAnthropicAdaptiveThinking(model: string) {
-  const normalizedModel = model.toLowerCase();
-
-  return (
-    normalizedModel.includes("claude-mythos") ||
-    normalizedModel.includes("claude-opus-4-7") ||
-    normalizedModel.includes("claude-opus-4-6") ||
-    normalizedModel.includes("claude-sonnet-4-6")
-  );
-}
-
 const azureAdapter: ChatAdapter = {
   buildRequest(config, model, messages, options = {}) {
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle["azure-openai"]!;
-    const body = mergeChatRequestBody(
-      {
-        messages: messages.map(openAiCompatibleMessage),
-        ...(options.stream ? { stream: true } : {}),
-        ...(options.tools?.length
-          ? {
-              tool_choice: "auto",
-              tools: options.tools.map((tool) => ({
-                function: {
-                  description: tool.description,
-                  name: tool.name,
-                  parameters: tool.parameters
-                },
-                type: "function"
-              }))
-            }
-          : {}),
-        temperature: 0.7
-      },
-      openAiCompatibleThinkingOptions(config, model, options)
-    );
+    if (options.webSearchEnabled === true && getNativeWebSearchKind(config, model) === "azure-openai-responses") {
+      return buildResponsesStyleRequest({
+        authHeaders: {
+          "api-key": config.apiKey?.trim() ?? "",
+          "content-type": "application/json",
+          ...readAiProviderCustomHeaders(config)
+        },
+        baseUrl,
+        messages,
+        model,
+        nativeWebSearchToolType: "web_search",
+        options,
+        responsePath: "/openai/v1/responses"
+      });
+    }
+
+    const body = buildChatCompletionsRequestBody({
+      extraBody: openAiCompatibleThinkingOptions(config, model, options),
+      messages: messages.map(openAiCompatibleMessage),
+      stream: options.stream,
+      tools: options.tools
+    });
 
     return {
       body,
@@ -519,11 +456,11 @@ const googleAdapter: ChatAdapter = {
       .map((message) => ({
         parts: googleMessageParts(message),
         role: message.role === "assistant" ? "model" : "user"
-      }));
+    }));
     const baseUrl = config.baseUrl?.trim() || defaultChatBaseUrlByApiStyle.google!;
     const key = encodeURIComponent(config.apiKey?.trim() ?? "");
-    const tools = googleTools(config, model, options);
-    const body = mergeChatRequestBody(
+    const tools = buildGoogleTools(config, model, options.webSearchEnabled);
+    const body = mergeRequestBody(
       {
         contents,
         generationConfig: {
@@ -574,12 +511,6 @@ const googleAdapter: ChatAdapter = {
   }
 };
 
-function googleTools(config: AiProviderConfig, model: string, options: ChatRequestOptions) {
-  return options.webSearchEnabled === true && getNativeWebSearchKind(config, model) === "google-search-grounding"
-    ? [{ google_search: {} }]
-    : [];
-}
-
 function googleThinkingOptions(options: ChatRequestOptions) {
   return options.thinkingEnabled
     ? {
@@ -626,33 +557,47 @@ export function getChatAdapter(apiStyle: AiProviderApiStyle): ChatAdapter {
   return adapterByApiStyle[apiStyle] ?? openAiCompatibleAdapter;
 }
 
-function mergeChatRequestBody(left: Record<string, unknown>, right: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = { ...left };
-
-  for (const [key, value] of Object.entries(right)) {
-    const current = result[key];
-    result[key] = isPlainRecord(current) && isPlainRecord(value) ? mergeChatRequestBody(current, value) : value;
+function openAiCompatibleMessage(message: ChatMessage) {
+  if (message.toolResult && !message.images?.length) {
+    return {
+      content: message.toolResult.outputText,
+      name: message.toolResult.toolName,
+      role: "tool" as const,
+      tool_call_id: message.toolResult.toolCallId
+    };
   }
 
-  return result;
-}
+  if (message.role === "assistant" && message.toolCalls?.length) {
+    return {
+      content: message.content,
+      role: message.role,
+      tool_calls: message.toolCalls.map((toolCall) => ({
+        function: {
+          arguments: JSON.stringify(toolCall.arguments),
+          name: toolCall.name
+        },
+        id: toolCall.id,
+        type: "function" as const
+      }))
+    };
+  }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return isRecord(value) && !Array.isArray(value);
-}
-
-function openAiCompatibleMessage(message: ChatMessage) {
-  if (!message.images?.length) return message;
+  if (!message.images?.length) {
+    return {
+      content: message.content,
+      role: message.role
+    };
+  }
 
   return {
-    ...message,
     content: [
       { text: message.content, type: "text" },
       ...message.images.map((image) => ({
         image_url: { url: image.dataUrl },
         type: "image_url"
       }))
-    ]
+    ],
+    role: message.role
   };
 }
 
@@ -699,12 +644,14 @@ function isOpenAiResponsesBody(body: unknown) {
 function parseOpenAiResponsesResponse(body: unknown): ChatResponse {
   const record = isRecord(body) ? body : {};
   const output = Array.isArray(record.output) ? record.output : [];
-  const content = output
-    .filter(isRecord)
-    .flatMap((item) => (Array.isArray(item.content) ? item.content : []))
-    .filter(isRecord)
-    .map((item) => (item.type === "output_text" && typeof item.text === "string" ? item.text : ""))
-    .join("");
+  const content =
+    (typeof record.output_text === "string" && record.output_text.length > 0 ? record.output_text : undefined) ??
+    output
+      .filter(isRecord)
+      .flatMap((item) => (Array.isArray(item.content) ? item.content : []))
+      .filter(isRecord)
+      .map(readOpenAiResponsesTextPart)
+      .join("");
   const toolCalls = output.flatMap(readOpenAiResponsesToolCall);
 
   return {
@@ -741,6 +688,14 @@ function parseOpenAiResponsesStreamEvent(body: unknown): ChatStreamEventResult {
     const contentDelta = typeof record.delta === "string" ? record.delta : undefined;
     return contentDelta ? { contentDelta } : {};
   }
+  if (record.type === "response.text.delta") {
+    const contentDelta = typeof record.delta === "string" ? record.delta : undefined;
+    return contentDelta ? { contentDelta } : {};
+  }
+  if (record.type === "response.reasoning_summary_text.delta") {
+    const thinkingDelta = typeof record.delta === "string" ? record.delta : undefined;
+    return thinkingDelta ? { thinkingDelta } : {};
+  }
   if (record.type === "response.output_item.added") {
     const item = isRecord(record.item) ? record.item : {};
     if (item.type !== "function_call") return {};
@@ -760,7 +715,39 @@ function parseOpenAiResponsesStreamEvent(body: unknown): ChatStreamEventResult {
       toolCallDeltas: [
         {
           argumentsDelta: typeof record.delta === "string" ? record.delta : undefined,
+          id: typeof record.call_id === "string" ? record.call_id : undefined,
           index: typeof record.output_index === "number" ? record.output_index : 0
+        }
+      ]
+    };
+  }
+  if (record.type === "response.function_call_arguments.done") {
+    return {
+      toolCallDeltas: [
+        {
+          argumentsDelta: typeof record.arguments === "string" ? record.arguments : undefined,
+          id: typeof record.call_id === "string" ? record.call_id : undefined,
+          index: typeof record.output_index === "number" ? record.output_index : 0,
+          nameDelta: typeof record.name === "string" ? record.name : undefined,
+          replaceArguments: true,
+          replaceName: true
+        }
+      ]
+    };
+  }
+  if (record.type === "response.output_item.done") {
+    const item = isRecord(record.item) ? record.item : {};
+    if (item.type !== "function_call") return {};
+
+    return {
+      toolCallDeltas: [
+        {
+          argumentsDelta: typeof item.arguments === "string" ? item.arguments : undefined,
+          id: typeof item.call_id === "string" ? item.call_id : typeof item.id === "string" ? item.id : undefined,
+          index: typeof record.output_index === "number" ? record.output_index : 0,
+          nameDelta: typeof item.name === "string" ? item.name : undefined,
+          replaceArguments: true,
+          replaceName: true
         }
       ]
     };
@@ -769,6 +756,14 @@ function parseOpenAiResponsesStreamEvent(body: unknown): ChatStreamEventResult {
   if (record.type === "response.failed") return { finishReason: "error" };
 
   return {};
+}
+
+function readOpenAiResponsesTextPart(item: Record<string, unknown>) {
+  if ((item.type === "output_text" || item.type === "text") && typeof item.text === "string") {
+    return item.text;
+  }
+
+  return "";
 }
 
 function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult {

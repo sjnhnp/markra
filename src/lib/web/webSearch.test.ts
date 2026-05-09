@@ -53,9 +53,9 @@ describe("webSearch", () => {
       <rss version="2.0">
         <channel>
           <item>
-            <title>Cloudflare changelog</title>
-            <link>https://developers.cloudflare.com/changelog/</link>
-            <description>Recent Cloudflare product changes.</description>
+            <title>Example product changelog</title>
+            <link>https://updates.example.test/changelog/</link>
+            <description>Recent example product changes.</description>
           </item>
         </channel>
       </rss>
@@ -63,9 +63,9 @@ describe("webSearch", () => {
 
     expect(results).toEqual([
       {
-        snippet: "Recent Cloudflare product changes.",
-        title: "Cloudflare changelog",
-        url: "https://developers.cloudflare.com/changelog/"
+        snippet: "Recent example product changes.",
+        title: "Example product changelog",
+        url: "https://updates.example.test/changelog/"
       }
     ]);
   });
@@ -138,9 +138,9 @@ describe("webSearch", () => {
             <rss version="2.0">
               <channel>
                 <item>
-                  <title>Cloudflare changelog</title>
-                  <link>https://developers.cloudflare.com/changelog/</link>
-                  <description>Recent Cloudflare product changes.</description>
+                  <title>Example product changelog</title>
+                  <link>https://updates.example.test/changelog/</link>
+                  <description>Recent example product changes.</description>
                 </item>
               </channel>
             </rss>
@@ -157,7 +157,7 @@ describe("webSearch", () => {
       };
     });
 
-    const response = await runCherryStyleWebSearch("Cloudflare recent product updates", {
+    const response = await runCherryStyleWebSearch("example product updates", {
       contentMaxChars: 12000,
       enabled: true,
       maxResults: 5,
@@ -166,13 +166,13 @@ describe("webSearch", () => {
     }, transport);
 
     expect(response).toEqual({
-      query: "Cloudflare recent product updates",
+      query: "example product updates",
       results: [
         {
-          content: "Recent Cloudflare product changes.",
-          snippet: "Recent Cloudflare product changes.",
-          title: "Cloudflare changelog",
-          url: "https://developers.cloudflare.com/changelog/"
+          content: "Recent example product changes.",
+          snippet: "Recent example product changes.",
+          title: "Example product changelog",
+          url: "https://updates.example.test/changelog/"
         }
       ]
     });

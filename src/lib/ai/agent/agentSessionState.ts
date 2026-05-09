@@ -10,6 +10,7 @@ export type AiAgentSessionMessage = {
   role: "assistant" | "user";
   text: string;
   thinking?: string;
+  thinkingTurns?: string[];
 };
 
 export type AiAgentSessionPreview = {
@@ -152,8 +153,16 @@ function normalizeSessionMessage(value: unknown): AiAgentSessionMessage | null {
     preview: normalizeSessionPreview(value.preview),
     role: value.role,
     text: value.text,
-    thinking: typeof value.thinking === "string" ? value.thinking : undefined
+    thinking: typeof value.thinking === "string" ? value.thinking : undefined,
+    thinkingTurns: normalizeThinkingTurns(value.thinkingTurns)
   };
+}
+
+function normalizeThinkingTurns(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+
+  const turns = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return turns.length > 0 ? turns : undefined;
 }
 
 function normalizeSessionPreview(value: unknown): AiAgentSessionPreview | undefined {

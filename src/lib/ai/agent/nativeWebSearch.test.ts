@@ -38,13 +38,31 @@ describe("native web search support", () => {
       id: "aliyun-bailian",
       models: [{ capabilities: ["text", "web"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
       type: "openai-compatible"
-    }), "qwen3.6-plus")).toBe("dashscope-enable-search");
+    }), "qwen3.6-plus")).toBe("dashscope-responses-tool");
+    expect(getNativeWebSearchKind(provider({
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      id: "aliyun-bailian",
+      models: [{ capabilities: ["text", "web"], enabled: true, id: "qwen3-max", name: "Qwen3 Max" }],
+      type: "openai-compatible"
+    }), "qwen3-max")).toBe("dashscope-enable-search");
     expect(getNativeWebSearchKind(provider({
       baseUrl: "https://api.perplexity.ai",
       id: "perplexity",
       models: [{ capabilities: ["text", "web"], enabled: true, id: "sonar-pro", name: "Sonar Pro" }],
       type: "openai-compatible"
     }), "sonar-pro")).toBe("perplexity-sonar");
+    expect(getNativeWebSearchKind(provider({
+      models: [{ capabilities: ["text", "web"], enabled: true, id: "groq/compound", name: "Groq Compound" }],
+      type: "groq"
+    }), "groq/compound")).toBe("groq-compound");
+    expect(getNativeWebSearchKind(provider({
+      models: [{ capabilities: ["text", "web"], enabled: true, id: "openrouter/auto", name: "OpenRouter Auto" }],
+      type: "openrouter"
+    }), "openrouter/auto")).toBe("openrouter-server-tool");
+    expect(getNativeWebSearchKind(provider({
+      models: [{ capabilities: ["text", "web"], enabled: true, id: "gpt-5.4", name: "GPT-5.4 deployment" }],
+      type: "azure-openai"
+    }), "gpt-5.4")).toBe("azure-openai-responses");
   });
 
   it("uses the model web capability as the native search gate", () => {

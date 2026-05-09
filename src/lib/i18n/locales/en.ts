@@ -259,6 +259,7 @@ const messages: BaseLocaleMessages = {
   "app.aiProviderUnsupported": "The selected AI provider does not support chat completions.",
   "app.aiRequestFailed": "AI request failed.",
   "app.aiEmptyResponse": "AI returned no usable text.",
+  "app.aiAgentRepeatedMultiWrite": "The AI kept trying multiple document edits in one step. Ask for one edit at a time.",
   "app.aiAgentPreviewReady": "The editor change is ready. Confirm it in the editor.",
   "app.clipboardImageRequiresSavedDocument": "Save the document before pasting images.",
   "app.clipboardImageSaveFailed": "Could not save the pasted image.",

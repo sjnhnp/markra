@@ -749,6 +749,52 @@ describe("AiAgentPanel", () => {
     expect(screen.getByText("Final answer.")).toBeInTheDocument();
   });
 
+  it("shows multiple preserved thinking rounds in the same assistant reply", () => {
+    render(
+      <AiAgentPanel
+        language="en"
+        messages={[
+          {
+            id: 1,
+            role: "assistant",
+            text: "Final answer.",
+            thinking: "Preparing the insertion near the end of the document.",
+            thinkingTurns: [
+              "Inspecting the document structure.",
+              "Preparing the insertion near the end of the document."
+            ]
+          }
+        ]}
+        open
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByText("Inspecting the document structure.")).toBeInTheDocument();
+    expect(screen.getByText("Preparing the insertion near the end of the document.")).toBeInTheDocument();
+    expect(screen.getByText("Final answer.")).toBeInTheDocument();
+  });
+
+  it("keeps assistant transcript rows shrinkable when thinking content is long", () => {
+    render(
+      <AiAgentPanel
+        language="en"
+        messages={[
+          {
+            id: 1,
+            role: "assistant",
+            text: "Final answer.",
+            thinking: "A long thinking block with inline code and links."
+          }
+        ]}
+        open
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByText("Final answer.").closest("li")).toHaveClass("min-w-0");
+  });
+
   it("lets streamed thinking content collapse and expand", () => {
     render(
       <AiAgentPanel

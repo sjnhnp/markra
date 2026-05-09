@@ -259,6 +259,7 @@ const messages: LocaleMessages = {
   "app.aiProviderUnsupported": "当前 AI 服务商不支持聊天补全。",
   "app.aiRequestFailed": "AI 请求失败。",
   "app.aiEmptyResponse": "AI 没有返回可用文本。",
+  "app.aiAgentRepeatedMultiWrite": "AI 一直试图在同一步里执行多个文档编辑。请一次只让它做一个编辑动作。",
   "app.aiAgentPreviewReady": "修改已准备好，请在编辑器里确认。",
   "app.clipboardImageRequiresSavedDocument": "请先保存文档，再粘贴图片。",
   "app.clipboardImageSaveFailed": "无法保存粘贴的图片。",

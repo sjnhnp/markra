@@ -202,6 +202,7 @@ const messages: LocaleMessages = {
   "app.aiProviderUnsupported": "El proveedor de IA seleccionado no admite completados de chat.",
   "app.aiRequestFailed": "La solicitud de IA falló.",
   "app.aiEmptyResponse": "La IA no devolvió texto utilizable.",
+  "app.aiAgentRepeatedMultiWrite": "La IA siguió intentando varias ediciones del documento en un solo paso. Pide una sola edición cada vez.",
   "app.aiAgentPreviewReady": "El cambio está listo. Confírmalo en el editor.",
   "settings.sections.startup": "Inicio",
   "settings.sections.theme": "Tema",

@@ -202,6 +202,7 @@ const messages: LocaleMessages = {
   "app.aiProviderUnsupported": "Выбранный AI-провайдер не поддерживает chat completions.",
   "app.aiRequestFailed": "Запрос AI не выполнен.",
   "app.aiEmptyResponse": "AI не вернул пригодный текст.",
+  "app.aiAgentRepeatedMultiWrite": "ИИ продолжал пытаться выполнить несколько изменений документа за один шаг. Просите по одному изменению за раз.",
   "app.aiAgentPreviewReady": "Изменение подготовлено. Подтвердите его в редакторе.",
   "settings.sections.startup": "Запуск",
   "settings.sections.theme": "Тема",

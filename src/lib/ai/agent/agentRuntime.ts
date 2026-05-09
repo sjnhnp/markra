@@ -133,12 +133,15 @@ export function createNativeChatStreamFn(
   thinkingEnabled: boolean | undefined,
   webSearchEnabled = false
 ): StreamFn {
+  let localToolCallCounter = 0;
+
   return (model, context, options) => {
     const stream = createAssistantMessageEventStream();
     streamNativeChatCompletion({
       complete,
       context,
       model,
+      nextLocalToolCallId: () => `tool-call-${++localToolCallCounter}`,
       options,
       provider,
       stream,
@@ -159,11 +162,13 @@ async function streamNativeChatCompletion({
   provider,
   stream,
   thinkingEnabled,
-  webSearchEnabled
+  webSearchEnabled,
+  nextLocalToolCallId
 }: {
   complete: InlineAiAgentComplete;
   context: Context;
   model: Model<any>;
+  nextLocalToolCallId: () => string;
   options?: { signal?: AbortSignal };
   provider: AiProviderConfig;
   stream: ReturnType<typeof createAssistantMessageEventStream>;
@@ -178,11 +183,16 @@ async function streamNativeChatCompletion({
   const contentBlocks: AssistantContentBlock[] = [];
   const toolCallBlocks = new Map<number, ToolCall>();
   const toolCallArgumentBuffers = new Map<number, string>();
+  const ignoredToolCallIndexes = new Set<number>();
   const openToolCallIndexes = new Set<number>();
   let currentBlock: AssistantContentBlock | null = null;
   const partial = createAssistantMessage(model);
   let streamedContent = "";
   stream.push({ partial, type: "start" });
+  const localToolNames = new Set((context.tools ?? []).map((tool) => tool.name));
+  const shouldIgnoreToolCall = (name: string) => {
+    return webSearchEnabled && !localToolNames.has(name);
+  };
 
   const finishCurrentBlock = () => {
     if (!currentBlock) return;
@@ -241,9 +251,10 @@ async function streamNativeChatCompletion({
     const existingBlock = toolCallBlocks.get(index);
     if (existingBlock) return existingBlock;
 
+    const localToolCallId = nextLocalToolCallId();
     const block: ToolCall = {
       arguments: {},
-      id: `tool-call-${index + 1}`,
+      id: localToolCallId,
       name: "",
       type: "toolCall"
     };
@@ -257,6 +268,18 @@ async function streamNativeChatCompletion({
     });
 
     return block;
+  };
+  const discardToolCallBlock = (index: number) => {
+    const block = toolCallBlocks.get(index);
+    if (block) {
+      const contentIndex = contentBlocks.indexOf(block);
+      if (contentIndex >= 0) contentBlocks.splice(contentIndex, 1);
+      if (currentBlock === block) currentBlock = null;
+    }
+    ignoredToolCallIndexes.add(index);
+    openToolCallIndexes.delete(index);
+    toolCallArgumentBuffers.delete(index);
+    toolCallBlocks.delete(index);
   };
   const finishToolCallBlocks = () => {
     for (const index of [...openToolCallIndexes].sort((left, right) => left - right)) {
@@ -297,13 +320,28 @@ async function streamNativeChatCompletion({
       });
     },
     onToolCallDelta: (delta) => {
+      if (ignoredToolCallIndexes.has(delta.index)) return;
+
+      const existingToolCall = toolCallBlocks.get(delta.index);
+      const nextToolCallName = delta.replaceName
+        ? (delta.nameDelta ?? "")
+        : `${existingToolCall?.name ?? ""}${delta.nameDelta ?? ""}`;
+      if (nextToolCallName && shouldIgnoreToolCall(nextToolCallName)) {
+        discardToolCallBlock(delta.index);
+        return;
+      }
+
       const toolCallBlock = ensureToolCallBlock(delta.index);
-      if (delta.id) toolCallBlock.id = delta.id;
-      if (delta.nameDelta) toolCallBlock.name += delta.nameDelta;
+      if (delta.id) {
+        toolCallBlock.id = combineToolCallIds(delta.id, localToolCallIdFromCombined(toolCallBlock.id));
+      }
+      if (delta.nameDelta) {
+        toolCallBlock.name = delta.replaceName ? delta.nameDelta : `${toolCallBlock.name}${delta.nameDelta}`;
+      }
       if (delta.argumentsDelta) {
         toolCallArgumentBuffers.set(
           delta.index,
-          `${toolCallArgumentBuffers.get(delta.index) ?? ""}${delta.argumentsDelta}`
+          delta.replaceArguments ? delta.argumentsDelta : `${toolCallArgumentBuffers.get(delta.index) ?? ""}${delta.argumentsDelta}`
         );
       }
 
@@ -327,8 +365,10 @@ async function streamNativeChatCompletion({
 
   if (response.toolCalls?.length) {
     for (const [index, toolCall] of response.toolCalls.entries()) {
+      if (shouldIgnoreToolCall(toolCall.name)) continue;
+
       const block = ensureToolCallBlock(index);
-      block.id = toolCall.id;
+      block.id = combineToolCallIds(toolCall.id, localToolCallIdFromCombined(block.id));
       block.name = toolCall.name;
       block.arguments = structuredClone(toolCall.arguments);
       toolCallArgumentBuffers.set(index, JSON.stringify(toolCall.arguments));
@@ -397,7 +437,19 @@ function chatMessageFromPiMessage(message: Message): ChatMessage[] {
   }
 
   if (message.role === "assistant") {
-    return [{ content: assistantTextContent(message), role: "assistant" }];
+    const toolCalls = message.content
+      .filter((part): part is ToolCall => part.type === "toolCall")
+      .map((toolCall) => ({
+        arguments: structuredClone(toolCall.arguments),
+        id: toolCall.id,
+        name: toolCall.name
+      }));
+
+    return [{
+      content: assistantTextContent(message),
+      role: "assistant",
+      ...(toolCalls.length ? { toolCalls } : {})
+    }];
   }
 
   return [chatMessageFromPiToolResultMessage(message)];
@@ -421,7 +473,12 @@ function chatMessageFromPiToolResultMessage(message: Extract<Message, { role: "t
   return {
     content: [`Tool result from ${message.toolName}:`, text].filter((part) => part.length > 0).join("\n"),
     ...(images.length ? { images } : {}),
-    role: "user"
+    role: "user",
+    toolResult: {
+      outputText: text,
+      toolCallId: message.toolCallId,
+      toolName: message.toolName
+    }
   };
 }
 
@@ -441,6 +498,15 @@ function imageDataUrlFromPiImage(image: ImageContent) {
   if (image.data.startsWith("data:")) return image.data;
 
   return `data:${image.mimeType};base64,${image.data}`;
+}
+
+function combineToolCallIds(providerToolCallId: string, localToolCallId: string) {
+  return providerToolCallId ? `${providerToolCallId}|${localToolCallId}` : localToolCallId;
+}
+
+function localToolCallIdFromCombined(toolCallId: string) {
+  const [, localToolCallId] = toolCallId.split("|");
+  return localToolCallId ?? toolCallId;
 }
 
 export function assistantTextContent(message: AssistantMessage) {

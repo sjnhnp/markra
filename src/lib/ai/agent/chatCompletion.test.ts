@@ -121,4 +121,62 @@ describe("chatCompletion", () => {
     expect(onDelta).toHaveBeenNthCalledWith(1, "Final ");
     expect(onDelta).toHaveBeenNthCalledWith(2, "answer");
   });
+
+  it("reconstructs Responses API tool calls from function_call_arguments.done events", async () => {
+    const onToolCallDelta = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"type":"response.function_call_arguments.done","output_index":0,"call_id":"call_read_document","name":"get_document","arguments":"{\\"path\\":\\"README.md\\"}"}\n\n');
+      onChunk('data: {"type":"response.completed"}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+
+    await expect(
+      chatCompletionStream(
+        provider({
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          id: "aliyun-bailian",
+          type: "openai-compatible"
+        }),
+        "qwen3.6-plus",
+        [{ content: "Read the document.", role: "user" }],
+        {
+          onToolCallDelta,
+          streamTransport,
+          tools: [
+            {
+              description: "Read the document.",
+              name: "get_document",
+              parameters: {
+                additionalProperties: false,
+                properties: {},
+                type: "object"
+              }
+            }
+          ],
+          webSearchEnabled: true
+        }
+      )
+    ).resolves.toEqual({
+      content: "",
+      finishReason: "stop",
+      toolCalls: [
+        {
+          arguments: { path: "README.md" },
+          id: "call_read_document",
+          name: "get_document"
+        }
+      ]
+    });
+
+    expect(onToolCallDelta).toHaveBeenCalledWith({
+      argumentsDelta: "{\"path\":\"README.md\"}",
+      id: "call_read_document",
+      index: 0,
+      nameDelta: "get_document",
+      replaceArguments: true,
+      replaceName: true
+    });
+  });
 });

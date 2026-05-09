@@ -452,10 +452,12 @@ export function AiAgentPanel({
           ) : (
             <ol className="m-0 grid list-none gap-3 p-0">
               {messages.map((message) => {
+                const thinkingSections = messageThinkingSections(message);
+
                 if (message.role === "user") {
                   return (
                     <li
-                      className="ml-auto max-w-[82%] rounded-lg bg-(--bg-active) px-3 py-2 text-[13px] leading-5 font-[560] text-(--text-heading)"
+                      className="ml-auto min-w-0 max-w-[82%] rounded-lg bg-(--bg-active) px-3 py-2 text-[13px] leading-5 font-[560] text-(--text-heading)"
                       key={message.id}
                     >
                       <AiMarkdownMessage content={message.text} />
@@ -464,23 +466,23 @@ export function AiAgentPanel({
                 }
 
                 const assistantBubbleClassName = message.isError
-                  ? "rounded-lg border border-[color:color-mix(in_oklab,var(--danger)_28%,var(--border-default))] bg-[color:color-mix(in_oklab,var(--danger)_8%,var(--bg-primary))] px-3 py-2 text-[13px] leading-5 font-[540] text-(--text-primary)"
-                  : "rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-2 text-[13px] leading-5 font-[540] text-(--text-primary)";
+                  ? "min-w-0 overflow-hidden rounded-lg border border-[color:color-mix(in_oklab,var(--danger)_28%,var(--border-default))] bg-[color:color-mix(in_oklab,var(--danger)_8%,var(--bg-primary))] px-3 py-2 text-[13px] leading-5 font-[540] text-(--text-primary)"
+                  : "min-w-0 overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 py-2 text-[13px] leading-5 font-[540] text-(--text-primary)";
                 const hasVisibleActivities = message.activities?.some(
                   (activity) => activity.kind === "assistant_message" || activity.kind === "tool_call"
                 ) ?? false;
                 const hasRunningActivity = message.activities?.some((activity) => activity.status === "running") ?? false;
                 const showFallbackThinking =
-                  !message.text && !message.thinking && !message.isError && hasRunningActivity && !hasVisibleActivities;
+                  !message.text && thinkingSections.length === 0 && !message.isError && hasRunningActivity && !hasVisibleActivities;
                 const thinkingCollapsed = collapsedThinkingMessageIds.has(message.id);
 
                 return (
-                  <li className="mr-auto max-w-[86%]" key={message.id}>
+                  <li className="mr-auto min-w-0 max-w-[86%]" key={message.id}>
                     <div className="grid gap-2">
                       {message.activities?.length ? <AiAgentProcessList activities={message.activities} translate={label} /> : null}
-                      {message.text || message.thinking || message.isError || showFallbackThinking || !message.activities?.length ? (
+                      {message.text || thinkingSections.length > 0 || message.isError || showFallbackThinking || !message.activities?.length ? (
                         <div className={assistantBubbleClassName}>
-                          {message.thinking ? (
+                          {thinkingSections.length > 0 ? (
                             <div className={message.text ? "mb-2 border-b border-(--border-default) pb-2" : ""}>
                               <button
                                 className="mb-1 inline-flex h-6 max-w-full cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-0 text-[11px] leading-4 font-[560] text-(--text-tertiary) transition-colors duration-150 ease-out hover:text-(--text-heading) focus-visible:text-(--text-heading) focus-visible:outline-none"
@@ -497,8 +499,15 @@ export function AiAgentPanel({
                                 <span className="min-w-0 truncate">{label("app.aiAgentThinking")}</span>
                               </button>
                               {thinkingCollapsed ? null : (
-                                <div className="text-[12px] leading-5 text-(--text-secondary)">
-                                  <AiMarkdownMessage content={message.thinking} />
+                                <div className="min-w-0 text-[12px] leading-5 text-(--text-secondary)">
+                                  {thinkingSections.map((section, index) => (
+                                    <div
+                                      className={index === 0 ? "" : "mt-2 border-t border-(--border-default) pt-2"}
+                                      key={`${message.id}:thinking:${index + 1}`}
+                                    >
+                                      <AiMarkdownMessage content={section} />
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>
@@ -588,4 +597,13 @@ export function AiAgentPanel({
       </div>
     </aside>
   );
+}
+
+function messageThinkingSections(message: AiAgentPanelMessage) {
+  const completedTurns = message.thinkingTurns?.filter((turn) => turn.trim().length > 0) ?? [];
+  const currentThinking = message.thinking?.trim();
+  if (!currentThinking) return completedTurns;
+  if (completedTurns.at(-1) === currentThinking) return completedTurns;
+
+  return [...completedTurns, currentThinking];
 }

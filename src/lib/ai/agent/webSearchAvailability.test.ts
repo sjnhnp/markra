@@ -33,6 +33,24 @@ describe("AI agent web search availability", () => {
       settings: null,
       settingsLoading: false
     })).toBe(true);
+    expect(aiAgentWebSearchAvailable({
+      model: model({ capabilities: ["text", "web"], id: "groq/compound" }),
+      provider: provider({ type: "groq" }),
+      settings: null,
+      settingsLoading: false
+    })).toBe(true);
+    expect(aiAgentWebSearchAvailable({
+      model: model({ capabilities: ["text", "web"], id: "openrouter/auto" }),
+      provider: provider({ type: "openrouter" }),
+      settings: null,
+      settingsLoading: false
+    })).toBe(true);
+    expect(aiAgentWebSearchAvailable({
+      model: model({ capabilities: ["text", "web"], id: "gpt-5.4" }),
+      provider: provider({ type: "azure-openai" }),
+      settings: null,
+      settingsLoading: false
+    })).toBe(true);
   });
 
   it("allows the Cherry-style tool only when the model supports tools and custom settings are usable", () => {

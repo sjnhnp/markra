@@ -377,6 +377,16 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
             ...currentMessage,
             activities: applyAgentEventToProcesses(currentMessage.activities ?? [], event, message)
           }));
+
+          if (event.type === "message_end" && event.message.role === "assistant") {
+            const completedThinking = assistantThinkingFromAgentMessageContent(event.message.content);
+            if (!completedThinking) return;
+
+            updateAssistantMessage((currentMessage) => ({
+              ...currentMessage,
+              thinkingTurns: appendThinkingTurn(currentMessage.thinkingTurns, completedThinking)
+            }));
+          }
         },
         onTextDelta: (text) => {
           if (requestIdRef.current !== requestId) return;
@@ -426,7 +436,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
           ...currentMessage,
           activities: failAgentProcesses(currentMessage.activities ?? []),
           isError: true,
-          text: message("app.aiEmptyResponse")
+          text: message(emptyResponseMessageKey(response.stopReasonCode))
         }));
         setStatus("error");
         return;
@@ -467,6 +477,41 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     titleVersion,
     webSearchEnabled
   };
+}
+
+function assistantThinkingFromAgentMessageContent(content: unknown) {
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map((part) =>
+      typeof part === "object" &&
+      part !== null &&
+      "type" in part &&
+      part.type === "thinking" &&
+      "thinking" in part &&
+      typeof part.thinking === "string"
+        ? part.thinking
+        : ""
+    )
+    .join("")
+    .trim();
+}
+
+function appendThinkingTurn(currentTurns: string[] | undefined, nextTurn: string) {
+  const normalizedNextTurn = nextTurn.trim();
+  if (!normalizedNextTurn) return currentTurns;
+  const turns = currentTurns ?? [];
+  if (turns.at(-1) === normalizedNextTurn) return turns;
+
+  return [...turns, normalizedNextTurn];
+}
+
+function emptyResponseMessageKey(stopReasonCode: "repeated_multi_write" | undefined): I18nKey {
+  if (stopReasonCode === "repeated_multi_write") {
+    return "app.aiAgentRepeatedMultiWrite";
+  }
+
+  return "app.aiEmptyResponse";
 }
 
 function sessionPreviewFromAiResult(result: AiDiffResult): AiAgentSessionPreview | undefined {

@@ -143,16 +143,16 @@ describe("AI chat adapters", () => {
         provider({
           baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
           id: "aliyun-bailian",
-          models: [{ capabilities: ["text", "web"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+          models: [{ capabilities: ["text", "web"], enabled: true, id: "qwen3-max", name: "Qwen3 Max" }],
           type: "openai-compatible"
         }),
-        "qwen3.6-plus",
+        "qwen3-max",
         messages,
         { stream: true, webSearchEnabled: true }
       ).body
     ).toMatchObject({
       enable_search: true,
-      model: "qwen3.6-plus",
+      model: "qwen3-max",
       stream: true
     });
     expect(
@@ -184,6 +184,36 @@ describe("AI chat adapters", () => {
       ).body
     ).toMatchObject({
       tools: [{ google_search: {} }]
+    });
+  });
+
+  it("uses the Responses API shape for DashScope models that only support native web search there", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        id: "aliyun-bailian",
+        models: [{ capabilities: ["text", "web"], enabled: true, id: "qwen3.6-plus", name: "Qwen3.6 Plus" }],
+        type: "openai-compatible"
+      }),
+      "qwen3.6-plus",
+      messages,
+      { stream: true, thinkingEnabled: true, webSearchEnabled: true }
+    );
+
+    expect(request).toMatchObject({
+      body: {
+        enable_thinking: true,
+        input: [{ content: [{ text: "Rewrite this.", type: "input_text" }], role: "user" }],
+        instructions: "You edit Markdown.",
+        model: "qwen3.6-plus",
+        stream: true,
+        tools: [{ type: "web_search" }]
+      },
+      headers: {
+        Authorization: "Bearer secret",
+        "content-type": "application/json"
+      },
+      url: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses"
     });
   });
 
@@ -239,11 +269,75 @@ describe("AI chat adapters", () => {
     });
   });
 
+  it("uses provider-specific native web search request shapes for OpenRouter and Azure OpenAI", () => {
+    const openRouterRequest = getChatAdapter("openrouter").buildRequest(
+      provider({
+        baseUrl: "https://openrouter.ai/api/v1",
+        models: [{ capabilities: ["text", "web"], enabled: true, id: "openrouter/auto", name: "OpenRouter Auto" }],
+        type: "openrouter"
+      }),
+      "openrouter/auto",
+      messages,
+      { stream: true, tools: [readDocumentTool], webSearchEnabled: true }
+    );
+    const azureRequest = getChatAdapter("azure-openai").buildRequest(
+      provider({
+        baseUrl: "https://markra.openai.azure.com",
+        models: [{ capabilities: ["text", "web"], enabled: true, id: "gpt-5.4", name: "GPT-5.4 deployment" }],
+        type: "azure-openai"
+      }),
+      "gpt-5.4",
+      messages,
+      { stream: true, webSearchEnabled: true }
+    );
+
+    expect(openRouterRequest).toMatchObject({
+      body: {
+        input: [{ content: [{ text: "Rewrite this.", type: "input_text" }], role: "user" }],
+        instructions: "You edit Markdown.",
+        model: "openrouter/auto",
+        stream: true,
+        tools: [
+          { type: "openrouter:web_search" },
+          {
+            description: "Read the document.",
+            name: "read_document",
+            parameters: readDocumentTool.parameters,
+            type: "function"
+          }
+        ]
+      },
+      headers: {
+        Authorization: "Bearer secret",
+        "content-type": "application/json"
+      },
+      url: "https://openrouter.ai/api/v1/responses"
+    });
+    expect(azureRequest).toMatchObject({
+      body: {
+        input: [{ content: [{ text: "Rewrite this.", type: "input_text" }], role: "user" }],
+        instructions: "You edit Markdown.",
+        model: "gpt-5.4",
+        stream: true,
+        tools: [{ type: "web_search" }]
+      },
+      headers: {
+        "api-key": "secret",
+        "content-type": "application/json"
+      },
+      url: "https://markra.openai.azure.com/openai/v1/responses"
+    });
+  });
+
   it("parses OpenAI Responses API text and function-call stream events", () => {
     const adapter = getChatAdapter("openai");
 
     expect(adapter.parseStreamEvent({ delta: "Native search answer", type: "response.output_text.delta" }))
       .toEqual({ contentDelta: "Native search answer" });
+    expect(adapter.parseStreamEvent({ delta: "Text-mode answer", type: "response.text.delta" }))
+      .toEqual({ contentDelta: "Text-mode answer" });
+    expect(adapter.parseStreamEvent({ delta: "Need to inspect the page first.", type: "response.reasoning_summary_text.delta" }))
+      .toEqual({ thinkingDelta: "Need to inspect the page first." });
     expect(adapter.parseStreamEvent({
       item: { call_id: "call_read", name: "read_document", type: "function_call" },
       output_index: 1,
@@ -258,6 +352,101 @@ describe("AI chat adapters", () => {
     })).toEqual({
       toolCallDeltas: [{ argumentsDelta: "{\"path\":\"README.md\"}", index: 1 }]
     });
+  });
+
+  it("parses Responses API final bodies that use text content parts or output_text shortcuts", () => {
+    const adapter = getChatAdapter("openai");
+
+    expect(adapter.parseResponse({
+      object: "response",
+      output: [
+        {
+          content: [{ text: "Structured response body", type: "text" }],
+          role: "assistant",
+          type: "message"
+        }
+      ],
+      status: "completed"
+    })).toEqual({
+      content: "Structured response body",
+      finishReason: "completed"
+    });
+
+    expect(adapter.parseResponse({
+      object: "response",
+      output: [
+        {
+          content: [{ text: "Duplicated in content array", type: "output_text" }],
+          role: "assistant",
+          type: "message"
+        }
+      ],
+      output_text: "Top-level shortcut response",
+      status: "completed"
+    })).toEqual({
+      content: "Top-level shortcut response",
+      finishReason: "completed"
+    });
+  });
+
+  it("ignores provider-native web search protocol events as local tool calls", () => {
+    const openAiAdapter = getChatAdapter("openai");
+    const anthropicAdapter = getChatAdapter("anthropic");
+    const googleAdapter = getChatAdapter("google");
+
+    expect(openAiAdapter.parseResponse({
+      object: "response",
+      output: [
+        { id: "ws_synthetic", status: "completed", type: "web_search_call" },
+        {
+          content: [{ text: "Grounded response", type: "output_text" }],
+          role: "assistant",
+          type: "message"
+        }
+      ],
+      status: "completed"
+    })).toEqual({ content: "Grounded response", finishReason: "completed" });
+    expect(openAiAdapter.parseStreamEvent({
+      item_id: "ws_synthetic",
+      output_index: 0,
+      sequence_number: 1,
+      type: "response.web_search_call.searching"
+    })).toEqual({});
+
+    expect(anthropicAdapter.parseResponse({
+      content: [
+        { id: "srvtoolu_synthetic", name: "web_search", type: "server_tool_use" },
+        {
+          content: [{ title: "Synthetic result", type: "web_search_result", url: "https://search.example.test/result" }],
+          tool_use_id: "srvtoolu_synthetic",
+          type: "web_search_tool_result"
+        },
+        { text: "Grounded response", type: "text" }
+      ],
+      stop_reason: "end_turn"
+    })).toEqual({ content: "Grounded response", finishReason: "end_turn" });
+    expect(anthropicAdapter.parseStreamEvent({
+      content_block: { id: "srvtoolu_synthetic", name: "web_search", type: "server_tool_use" },
+      index: 0,
+      type: "content_block_start"
+    })).toEqual({});
+
+    expect(googleAdapter.parseStreamEvent({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                functionCall: {
+                  args: { query: "synthetic query" },
+                  name: "google_search"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    })).toEqual({});
   });
 
   it("uses Cherry-style reasoning effort for OpenRouter requests", () => {
