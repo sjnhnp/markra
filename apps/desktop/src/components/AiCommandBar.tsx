@@ -24,7 +24,7 @@ import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import type { AiDiffResult, AiEditIntent } from "@markra/ai";
 import type { AiProviderApiStyle } from "../lib/settings/app-settings";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
-import { ToggleButton } from "@markra/ui";
+import { RoundIconButton, ToggleButton } from "@markra/ui";
 
 type AiCommandAction = {
   icon: LucideIcon;
@@ -395,15 +395,11 @@ export function AiCommandBar({
     ? label(aiCommandLoadingLabelKeys[activeQuickActionIntent])
     : label("app.aiAgentThinking");
   const renderSubmitButton = (compactSize: boolean) => (
-    <button
-      className={
-        compactSize
-          ? "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-(--bg-active) p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--accent) hover:text-(--bg-primary) focus-visible:bg-(--accent) focus-visible:text-(--bg-primary) focus-visible:outline-none disabled:cursor-default disabled:opacity-45 disabled:hover:bg-(--bg-active) disabled:hover:text-(--text-secondary)"
-          : "inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-(--bg-active) p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--accent) hover:text-(--bg-primary) focus-visible:bg-(--accent) focus-visible:text-(--bg-primary) focus-visible:outline-none disabled:cursor-default disabled:opacity-45 disabled:hover:bg-(--bg-active) disabled:hover:text-(--text-secondary)"
-      }
+    <RoundIconButton
+      size={compactSize ? "md" : "lg"}
       type={submitting ? "button" : "submit"}
       disabled={!submitting && !canSubmit}
-      aria-label={submitting ? label("app.aiCommandStop") : label("app.aiCommandSend")}
+      label={submitting ? label("app.aiCommandStop") : label("app.aiCommandSend")}
       onClick={submitting ? onInterrupt : undefined}
     >
       {submitting ? (
@@ -414,7 +410,7 @@ export function AiCommandBar({
       ) : (
         <ArrowUp aria-hidden="true" size={17} />
       )}
-    </button>
+    </RoundIconButton>
   );
   const renderAgentStatus = () => (
     <div

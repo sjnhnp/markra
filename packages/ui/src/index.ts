@@ -3,6 +3,7 @@ export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from ".
 export { Field, type FieldProps } from "./Field";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Modal, type ModalProps } from "./Modal";
+export { RoundIconButton, type RoundIconButtonProps, type RoundIconButtonSize } from "./RoundIconButton";
 export {
   SegmentedControl,
   SegmentedControlItem,

@@ -16,7 +16,7 @@ import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import type { AiModelCapability, AiProviderApiStyle, StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
 import type { AiAgentPanelMessage } from "../hooks/useAiAgentSession";
 import { clampNumber } from "@markra/shared";
-import { ToggleButton } from "@markra/ui";
+import { RoundIconButton, ToggleButton } from "@markra/ui";
 
 type AiAgentModelOption = AiModelPickerOption & { capabilities: AiModelCapability[] };
 
@@ -599,15 +599,15 @@ export function AiAgentPanel({
                   <span>{label("app.aiWebSearch")}</span>
                 </ToggleButton>
               </div>
-              <button
-                className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-(--bg-active) p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--accent) hover:text-(--bg-primary) focus-visible:bg-(--accent) focus-visible:text-(--bg-primary) focus-visible:outline-none disabled:cursor-default disabled:opacity-40 disabled:hover:bg-(--bg-active) disabled:hover:text-(--text-secondary)"
+              <RoundIconButton
+                className="disabled:opacity-40"
                 type={submitting ? "button" : "submit"}
                 disabled={!canSend && !submitting}
-                aria-label={label("app.aiAgentSend")}
+                label={label("app.aiAgentSend")}
                 onClick={submitting ? onInterrupt : undefined}
               >
                 {submitting ? <X aria-hidden="true" size={16} /> : <ArrowUp aria-hidden="true" size={16} />}
-              </button>
+              </RoundIconButton>
             </div>
           </div>
         </form>
