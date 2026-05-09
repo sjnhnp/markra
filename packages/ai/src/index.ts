@@ -1,4 +1,5 @@
 export * from "./agent/chat-adapters.ts";
+export type * from "./agent/chat/types.ts";
 export * from "./agent/chat-completion.ts";
 export * from "./agent/document-agent.ts";
 export * from "./agent/document-tools.ts";

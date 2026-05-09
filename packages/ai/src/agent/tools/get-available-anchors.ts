@@ -1,6 +1,7 @@
 import { Type } from "@mariozechner/pi-ai";
+import { buildDocumentAnchors } from "./anchors";
 import { DocumentAgentToolFactory } from "./base";
-import { buildDocumentAnchors, formatDocumentAnchorsText } from "./shared";
+import { formatDocumentAnchorsText } from "./format";
 
 export class GetAvailableAnchorsToolFactory extends DocumentAgentToolFactory {
   protected readonly description = "Read the available document anchors the agent can use for insertion, replacement, or deletion.";

@@ -1,7 +1,8 @@
 import { Type } from "@mariozechner/pi-ai";
 import { formatWebSearchToolResult, runCherryStyleWebSearch } from "./web-search";
 import { DocumentAgentToolFactory } from "./base";
-import { toolErrorResult, typedWebSearchArgs } from "./shared";
+import { typedWebSearchArgs } from "./params";
+import { toolErrorResult } from "./results";
 
 export class BuiltinWebSearchToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedWebSearchArgs>> {
   protected readonly description = [

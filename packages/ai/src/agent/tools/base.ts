@@ -1,6 +1,6 @@
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { TSchema } from "@mariozechner/pi-ai";
-import type { DocumentAgentToolContext, DocumentAgentToolState } from "./shared";
+import type { DocumentAgentToolContext, DocumentAgentToolState } from "./context";
 
 export abstract class DocumentAgentToolFactory<TParams = unknown> {
   constructor(

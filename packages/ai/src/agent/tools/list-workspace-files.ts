@@ -1,6 +1,7 @@
 import { Type } from "@mariozechner/pi-ai";
 import { DocumentAgentToolFactory } from "./base";
-import { formatWorkspaceFilesText, typedListWorkspaceFilesArgs } from "./shared";
+import { formatWorkspaceFilesText } from "./format";
+import { typedListWorkspaceFilesArgs } from "./params";
 
 export class ListWorkspaceFilesToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedListWorkspaceFilesArgs>> {
   protected readonly description = "List nearby Markdown files in the current workspace.";

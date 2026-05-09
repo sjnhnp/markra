@@ -1,15 +1,15 @@
 import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inline";
+import { diffTargetFromAnchor } from "./anchors";
 import { DocumentAgentToolFactory } from "./base";
+import { typedReplaceTableByHeadingArgs } from "./params";
+import { previewPreparedResult } from "./results";
 import {
   beginPreparedWrite,
-  diffTargetFromAnchor,
   ensureCompleteTableReplacement,
-  previewPreparedResult,
-  resolveTableByHeading,
-  sliceDocumentText,
-  typedReplaceTableByHeadingArgs
-} from "./shared";
+  resolveTableByHeading
+} from "./regions";
+import { sliceDocumentText } from "./text";
 
 export class ReplaceTableByHeadingToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedReplaceTableByHeadingArgs>> {
   protected readonly description = [

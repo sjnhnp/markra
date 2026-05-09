@@ -1,12 +1,12 @@
 import { Type } from "@mariozechner/pi-ai";
 import { DocumentAgentToolFactory } from "./base";
+import { formatWorkspaceFileContentText } from "./format";
+import { typedReadWorkspaceFileArgs } from "./params";
+import { toolErrorResult } from "./results";
 import {
-  formatWorkspaceFileContentText,
   resolveWorkspaceFile,
-  toolErrorResult,
-  truncateWorkspaceFileContent,
-  typedReadWorkspaceFileArgs
-} from "./shared";
+  truncateWorkspaceFileContent
+} from "./workspace";
 
 export class ReadWorkspaceFileToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedReadWorkspaceFileArgs>> {
   protected readonly description = [

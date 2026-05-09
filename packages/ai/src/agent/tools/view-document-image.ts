@@ -2,10 +2,12 @@ import { Type } from "@mariozechner/pi-ai";
 import { DocumentAgentToolFactory } from "./base";
 import {
   extractMarkdownImageReferences,
-  resolveMarkdownImageReference,
-  toolErrorResult,
-  typedViewDocumentImageArgs
-} from "./shared";
+  resolveMarkdownImageReference
+} from "./images";
+import { typedViewDocumentImageArgs } from "./params";
+import {
+  toolErrorResult
+} from "./results";
 
 export class ViewDocumentImageToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedViewDocumentImageArgs>> {
   protected readonly description = [

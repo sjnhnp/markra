@@ -1,7 +1,16 @@
-import type { Tool } from "@mariozechner/pi-ai";
 import type { AiProviderApiStyle, AiProviderConfig } from "../providers/providers";
 import { readAiProviderCustomHeaders } from "../providers/providers";
 import { isRecord, joinApiUrl } from "@markra/shared";
+import type {
+  ChatAdapter,
+  ChatMessage,
+  ChatRequest,
+  ChatRequestOptions,
+  ChatResponse,
+  ChatStreamEventResult,
+  ChatToolCall,
+  ChatToolCallDelta
+} from "./chat/types";
 import { getClaudeCompatibleThinkingRequestOptions, supportsAnthropicAdaptiveThinking as claudeSupportsAnthropicAdaptiveThinking } from "./compatibilities/claude";
 import { getDeepSeekCompatibleThinkingRequestOptions } from "./compatibilities/deepseek";
 import { getDoubaoCompatibleThinkingRequestOptions } from "./compatibilities/doubao";
@@ -17,70 +26,7 @@ import { mergeRequestBody } from "./requests/shared";
 import { buildAnthropicTools } from "./tool-builders/anthropic";
 import { buildGoogleTools } from "./tool-builders/google";
 
-export type ChatMessage = {
-  content: string;
-  images?: ChatImageAttachment[];
-  role: "assistant" | "system" | "user";
-  toolCalls?: ChatToolCall[];
-  toolResult?: {
-    outputText: string;
-    toolCallId: string;
-    toolName: string;
-  };
-};
-
-export type ChatImageAttachment = {
-  dataUrl: string;
-  mimeType: string;
-};
-
-export type ChatRequest = {
-  body: unknown;
-  headers: Record<string, string>;
-  url: string;
-};
-
-export type ChatRequestOptions = {
-  stream?: boolean;
-  thinkingEnabled?: boolean;
-  tools?: Tool[];
-  webSearchEnabled?: boolean;
-};
-
-export type ChatToolCall = {
-  arguments: Record<string, unknown>;
-  id: string;
-  name: string;
-};
-
-export type ChatToolCallDelta = {
-  argumentsDelta?: string;
-  id?: string;
-  index: number;
-  nameDelta?: string;
-  replaceArguments?: boolean;
-  replaceName?: boolean;
-};
-
-export type ChatResponse = {
-  content: string;
-  finishReason?: string;
-  toolCalls?: ChatToolCall[];
-};
-
-export type ChatStreamEventResult = {
-  contentDelta?: string;
-  done?: boolean;
-  finishReason?: string;
-  thinkingDelta?: string;
-  toolCallDeltas?: ChatToolCallDelta[];
-};
-
-export type ChatAdapter = {
-  buildRequest: (config: AiProviderConfig, model: string, messages: ChatMessage[], options?: ChatRequestOptions) => ChatRequest;
-  parseResponse: (body: unknown) => ChatResponse;
-  parseStreamEvent: (body: unknown) => ChatStreamEventResult;
-};
+export type * from "./chat/types";
 
 const anthropicVersion = "2023-06-01";
 const azureApiVersion = "2024-10-21";
@@ -900,5 +846,3 @@ function parseToolArguments(rawArguments: string) {
     return {};
   }
 }
-
-export { buildInlineAiMessages } from "./inline-prompt";

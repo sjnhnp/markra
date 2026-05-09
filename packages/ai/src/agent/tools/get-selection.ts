@@ -1,6 +1,6 @@
 import { Type } from "@mariozechner/pi-ai";
 import { DocumentAgentToolFactory } from "./base";
-import { formatSelectionText } from "./shared";
+import { formatSelectionText } from "./format";
 
 export class GetSelectionToolFactory extends DocumentAgentToolFactory {
   protected readonly description = "Read the active selection, or the current Markdown block when there is no explicit selection.";

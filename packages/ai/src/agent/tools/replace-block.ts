@@ -1,13 +1,13 @@
 import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inline";
 import { DocumentAgentToolFactory } from "./base";
+import { typedReplaceBlockArgs } from "./params";
+import { previewPreparedResult } from "./results";
 import {
   beginPreparedWrite,
   ensureReplacementFitsRegion,
-  previewPreparedResult,
-  resolveBlockRegion,
-  typedReplaceBlockArgs
-} from "./shared";
+  resolveBlockRegion
+} from "./regions";
 
 export class ReplaceBlockToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedReplaceBlockArgs>> {
   protected readonly description = [

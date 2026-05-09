@@ -1,11 +1,9 @@
 import { Type } from "@mariozechner/pi-ai";
+import { buildDocumentAnchors } from "./anchors";
 import { DocumentAgentToolFactory } from "./base";
-import {
-  buildDocumentAnchors,
-  formatLocatedRegionText,
-  locateMarkdownRegion,
-  typedLocateMarkdownRegionArgs
-} from "./shared";
+import { formatLocatedRegionText } from "./format";
+import { locateMarkdownRegion } from "./locate";
+import { typedLocateMarkdownRegionArgs } from "./params";
 
 export class LocateMarkdownRegionToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedLocateMarkdownRegionArgs>> {
   protected readonly description = [

@@ -1,6 +1,7 @@
 import { Type } from "@mariozechner/pi-ai";
 import { DocumentAgentToolFactory } from "./base";
-import { extractMarkdownImageReferences, formatDocumentImageReferencesText } from "./shared";
+import { formatDocumentImageReferencesText } from "./format";
+import { extractMarkdownImageReferences } from "./images";
 
 export class ListDocumentImagesToolFactory extends DocumentAgentToolFactory {
   protected readonly description = [

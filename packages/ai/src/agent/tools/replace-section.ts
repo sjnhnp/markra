@@ -1,12 +1,12 @@
 import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inline";
 import { DocumentAgentToolFactory } from "./base";
+import { typedReplaceSectionArgs } from "./params";
+import { previewPreparedResult } from "./results";
 import {
   beginPreparedWrite,
-  previewPreparedResult,
-  resolveSectionAnchor,
-  typedReplaceSectionArgs
-} from "./shared";
+  resolveSectionAnchor
+} from "./regions";
 
 export class ReplaceSectionToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedReplaceSectionArgs>> {
   protected readonly description = "Replace an entire Markdown section identified by a section anchor. Use this when the user asks to rewrite or remove a whole numbered section or heading group.";

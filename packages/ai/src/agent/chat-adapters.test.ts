@@ -1,8 +1,8 @@
 import {
-  buildInlineAiMessages,
   getChatAdapter,
   type ChatMessage
 } from "./chat-adapters";
+import { buildInlineAiMessages } from "./inline-prompt";
 import type { AiProviderConfig } from "../providers/providers";
 import type { Tool } from "@mariozechner/pi-ai";
 

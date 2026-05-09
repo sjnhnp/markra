@@ -1,7 +1,9 @@
 import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inline";
 import { DocumentAgentToolFactory } from "./base";
-import { beginPreparedWrite, previewPreparedResult, typedReplaceDocumentArgs } from "./shared";
+import { typedReplaceDocumentArgs } from "./params";
+import { previewPreparedResult } from "./results";
+import { beginPreparedWrite } from "./regions";
 
 export class ReplaceDocumentToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedReplaceDocumentArgs>> {
   protected readonly description = [

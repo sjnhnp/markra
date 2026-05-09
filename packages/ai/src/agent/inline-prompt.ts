@@ -1,5 +1,5 @@
 import type { AiEditIntent, AiTargetScope } from "./inline";
-import type { ChatMessage } from "./chat-adapters";
+import type { ChatMessage } from "./chat/types";
 
 type InlineAiSuggestionContext = {
   original: string;

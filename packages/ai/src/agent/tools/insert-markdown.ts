@@ -2,16 +2,15 @@ import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inline";
 import { debug } from "@markra/shared";
 import { DocumentAgentToolFactory } from "./base";
+import { typedInsertMarkdownArgs } from "./params";
 import {
-  beginPreparedWrite,
   duplicatePreparedInsertionResult,
   findDuplicatePreparedInsertion,
   normalizePreparedInsertionContent,
   rememberPreparedInsertion,
-  previewPreparedResult,
-  resolveInsertionPosition,
-  typedInsertMarkdownArgs
-} from "./shared";
+  previewPreparedResult
+} from "./results";
+import { beginPreparedWrite, resolveInsertionPosition } from "./regions";
 
 export class InsertMarkdownToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedInsertMarkdownArgs>> {
   protected readonly description = [

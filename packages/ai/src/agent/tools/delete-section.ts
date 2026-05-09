@@ -1,12 +1,12 @@
 import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inline";
 import { DocumentAgentToolFactory } from "./base";
+import { typedDeleteSectionArgs } from "./params";
+import { previewPreparedResult } from "./results";
 import {
   beginPreparedWrite,
-  previewPreparedResult,
-  resolveSectionAnchor,
-  typedDeleteSectionArgs
-} from "./shared";
+  resolveSectionAnchor
+} from "./regions";
 
 export class DeleteSectionToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedDeleteSectionArgs>> {
   protected readonly description = "Delete an entire Markdown section identified by a section anchor. Use this when the user asks to remove a whole section.";

@@ -1,13 +1,13 @@
 import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inline";
 import { DocumentAgentToolFactory } from "./base";
+import { typedReplaceRegionArgs } from "./params";
+import { previewPreparedResult } from "./results";
 import {
   beginPreparedWrite,
   ensureReplacementFitsRegion,
-  previewPreparedResult,
-  resolveWriteRegion,
-  typedReplaceRegionArgs
-} from "./shared";
+  resolveWriteRegion
+} from "./regions";
 
 export class ReplaceRegionToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedReplaceRegionArgs>> {
   protected readonly description = [

@@ -14,7 +14,7 @@ import {
 } from "@mariozechner/pi-ai";
 import type { AiProviderConfig } from "../providers/providers";
 import { chatCompletionStream, type ChatCompletionStreamOptions } from "./chat-completion";
-import type { ChatMessage, ChatResponse } from "./chat-adapters";
+import type { ChatMessage, ChatResponse } from "./chat/types";
 import { runReadOnlyAgentTools, type AgentWorkspaceFile } from "./read-only-tools";
 import type { AiEditIntent, AiTargetScope } from "./inline";
 import { buildInlineAiMessages, normalizeInlineAiReplacement } from "./inline-prompt";

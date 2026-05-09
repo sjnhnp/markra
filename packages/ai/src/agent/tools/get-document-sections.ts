@@ -1,6 +1,7 @@
 import { Type } from "@mariozechner/pi-ai";
+import { buildSectionAnchors } from "./anchors";
 import { DocumentAgentToolFactory } from "./base";
-import { buildSectionAnchors, formatSectionAnchorsText } from "./shared";
+import { formatSectionAnchorsText } from "./format";
 
 export class GetDocumentSectionsToolFactory extends DocumentAgentToolFactory {
   protected readonly description = "Read section-level anchors derived from headings, each covering a full section until the next same-level heading or document end.";

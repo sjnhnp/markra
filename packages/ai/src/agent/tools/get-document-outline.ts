@@ -1,6 +1,6 @@
 import { Type } from "@mariozechner/pi-ai";
 import { DocumentAgentToolFactory } from "./base";
-import { formatHeadingOutlineText } from "./shared";
+import { formatHeadingOutlineText } from "./format";
 
 export class GetDocumentOutlineToolFactory extends DocumentAgentToolFactory {
   protected readonly description = "Read the current Markdown heading outline with editor positions.";

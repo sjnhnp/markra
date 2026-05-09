@@ -20,7 +20,7 @@ import { ReplaceRegionToolFactory } from "./replace-region";
 import { ReplaceSectionToolFactory } from "./replace-section";
 import { ReplaceTableByHeadingToolFactory } from "./replace-table-by-heading";
 import { ReplaceTableToolFactory } from "./replace-table";
-import type { DocumentAgentToolContext, DocumentAgentToolState } from "./shared";
+import type { DocumentAgentToolContext, DocumentAgentToolState } from "./context";
 import { ViewDocumentImageToolFactory } from "./view-document-image";
 
 export function createDocumentAgentTools(context: DocumentAgentToolContext): AgentTool[] {

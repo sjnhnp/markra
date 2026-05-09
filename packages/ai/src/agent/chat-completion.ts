@@ -1,11 +1,9 @@
 import type { AiProviderConfig } from "../providers/providers";
 import { isRecord } from "@markra/shared";
 import {
-  getChatAdapter,
-  type ChatMessage,
-  type ChatResponse,
-  type ChatToolCallDelta
+  getChatAdapter
 } from "./chat-adapters";
+import type { ChatMessage, ChatResponse, ChatToolCallDelta } from "./chat/types";
 
 export type NativeAiChatRequest = {
   body: string;

@@ -1,12 +1,12 @@
 import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inline";
 import { DocumentAgentToolFactory } from "./base";
+import { typedDeleteRegionArgs } from "./params";
+import { previewPreparedResult } from "./results";
 import {
   beginPreparedWrite,
-  previewPreparedResult,
-  resolveWriteRegion,
-  typedDeleteRegionArgs
-} from "./shared";
+  resolveWriteRegion
+} from "./regions";
 
 export class DeleteRegionToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedDeleteRegionArgs>> {
   protected readonly description = "Delete the active selection, current block, or a resolved anchor from the editor. Use this when the user wants to remove content.";

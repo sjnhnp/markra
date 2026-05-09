@@ -1,11 +1,9 @@
 import { Type } from "@mariozechner/pi-ai";
+import { buildSectionAnchors } from "./anchors";
 import { DocumentAgentToolFactory } from "./base";
-import {
-  buildSectionAnchors,
-  formatLocatedSectionText,
-  locateSection,
-  typedLocateSectionArgs
-} from "./shared";
+import { formatLocatedSectionText } from "./format";
+import { locateSection } from "./locate";
+import { typedLocateSectionArgs } from "./params";
 
 export class LocateSectionToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedLocateSectionArgs>> {
   protected readonly description = [

@@ -1,5 +1,5 @@
 import type { Tool } from "@mariozechner/pi-ai";
-import type { ChatMessage } from "../chat-adapters";
+import type { ChatMessage } from "../chat/types";
 import { buildResponsesStyleTools } from "../tool-builders/openai-compatible";
 import { mergeRequestBody } from "./shared";
 
