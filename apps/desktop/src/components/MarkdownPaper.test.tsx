@@ -1902,6 +1902,64 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("renders raw HTML image badges from existing markdown", async () => {
+    const source = [
+      '<div style="display:flex;width:100%;justify-content:center;">',
+      '<img src="https://example.test/badges/version.svg" />',
+      '<img src="assets/example-badge.svg" alt="Example badge" />',
+      "</div>"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(source, {
+      resolveImageSrc: (src) => src.startsWith("assets/") ? `asset://current-note/${src}` : src
+    });
+
+    const renderedHtml = container.querySelector<HTMLElement>('.ProseMirror [data-type="html"]');
+    const remoteBadge = container.querySelector<HTMLImageElement>(
+      '.ProseMirror img[src="https://example.test/badges/version.svg"]'
+    );
+    const localBadge = container.querySelector<HTMLImageElement>(
+      '.ProseMirror img[src="asset://current-note/assets/example-badge.svg"]'
+    );
+
+    expect(renderedHtml).toBeInTheDocument();
+    expect(renderedHtml).toHaveStyle({ display: "flex", justifyContent: "center", width: "100%" });
+    expect(remoteBadge).toBeInTheDocument();
+    expect(remoteBadge?.draggable).toBe(false);
+    expect(localBadge).toHaveAttribute("alt", "Example badge");
+    expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("<img");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain('<img src="https://example.test/badges/version.svg" />');
+  });
+
+  it("switches rendered HTML into editable source when clicked", async () => {
+    const source = '<div class="example-badge">Alpha</div>';
+    const { container, editor, view } = await renderEditor(source);
+
+    const renderedHtml = container.querySelector<HTMLElement>('.ProseMirror [data-type="html"]');
+    expect(renderedHtml).toHaveTextContent("Alpha");
+
+    fireEvent.click(renderedHtml!);
+
+    const sourceInput = screen.getByRole("textbox", { name: "HTML source" });
+    const applyButton = screen.getByRole("button", { name: "Apply HTML source" });
+    expect(container.querySelector(".ProseMirror .markra-html-node-editor-label")).toHaveTextContent("HTML");
+    expect(container.querySelector(".ProseMirror .markra-html-token-tag")).toHaveTextContent("<div");
+    expect(container.querySelector(".ProseMirror .markra-html-token-attr")).toHaveTextContent("class");
+    expect(container.querySelector(".ProseMirror .markra-html-token-string")).toHaveTextContent('"example-badge"');
+    expect(sourceInput).toHaveValue(source);
+
+    fireEvent.change(sourceInput, { target: { value: '<div class="example-badge">Beta</div>' } });
+    expect(container.querySelector(".ProseMirror .markra-html-node-highlight")).toHaveTextContent("Beta");
+    fireEvent.mouseDown(applyButton);
+
+    expect(container.querySelector(".ProseMirror .markra-html-node")).toHaveTextContent("Beta");
+    expect(screen.queryByRole("textbox", { name: "HTML source" })).not.toBeInTheDocument();
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain('<div class="example-badge">Beta</div>');
+  });
+
   it("keeps normal finalized link clicks editable and opens links with a modifier click", async () => {
     const openExternalUrl = vi.fn();
     const modifierCase = await renderEditor("[Markra](https://example.com)", { openExternalUrl });

@@ -171,6 +171,8 @@ const messages: LocaleMessages = {
   "app.imagePreview": "圖片預覽",
   "app.markdownEditor": "Markdown 編輯器",
   "app.markdownDocument": "Markdown 文件",
+  "editor.htmlSource": "HTML 原始碼",
+  "editor.htmlSourceApply": "套用 HTML 原始碼",
   "editor.table.addColumnRight": "在右側新增欄",
   "editor.table.addRowBelow": "在下方新增列",
   "editor.table.alignLeft": "表格靠左對齊",

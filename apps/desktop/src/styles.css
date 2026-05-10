@@ -559,6 +559,75 @@
     @apply hidden;
   }
 
+  .markdown-paper .markra-html-node {
+    @apply max-w-full outline-none;
+  }
+
+  .markdown-paper .markra-html-node img {
+    @apply m-0 inline-block max-w-full rounded-none border-0 align-middle;
+  }
+
+  .markdown-paper .markra-html-node-source {
+    @apply relative z-10 block min-h-24 w-full resize-y rounded-none border-0 bg-transparent px-3 py-3 font-mono text-[0.9em] leading-5 text-transparent outline-none;
+    -webkit-text-fill-color: transparent;
+    box-shadow: none;
+    caret-color: var(--text-primary);
+  }
+
+  .markdown-paper .markra-html-node-source:focus {
+    @apply border-0 outline-none;
+    box-shadow: none;
+  }
+
+  .markdown-paper .markra-html-node-source::selection {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+    -webkit-text-fill-color: transparent;
+  }
+
+  .markdown-paper .markra-html-node-source-layer {
+    @apply relative;
+  }
+
+  .markdown-paper .markra-html-node-highlight {
+    @apply pointer-events-none absolute inset-0 z-0 m-0 overflow-hidden whitespace-pre px-3 py-3 font-mono text-[0.9em] leading-5 text-(--text-primary);
+  }
+
+  .markdown-paper .markra-html-node-highlight code {
+    @apply font-mono;
+  }
+
+  .markdown-paper .markra-html-token-tag {
+    color: oklch(45% 0.16 145);
+  }
+
+  .markdown-paper .markra-html-token-attr {
+    color: oklch(43% 0.15 258);
+  }
+
+  .markdown-paper .markra-html-token-string {
+    color: oklch(42% 0.14 29);
+  }
+
+  .markdown-paper .markra-html-token-comment {
+    color: var(--text-tertiary);
+  }
+
+  .markdown-paper .markra-html-node-editor {
+    @apply relative my-5 w-full bg-[color:color-mix(in_oklab,var(--bg-secondary)_70%,var(--bg-primary))] pt-6 text-(--text-primary);
+  }
+
+  .markdown-paper .markra-html-node-editor-toolbar {
+    @apply absolute top-0 right-0 z-10 flex h-7 items-center bg-[color:color-mix(in_oklab,var(--bg-secondary)_82%,var(--bg-primary))] text-[0.78em] leading-none text-(--text-secondary);
+  }
+
+  .markdown-paper .markra-html-node-editor-label {
+    @apply px-2 font-[520] tracking-normal;
+  }
+
+  .markdown-paper .markra-html-node-editor-apply {
+    @apply flex h-7 w-8 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-[1em] font-[760] text-(--text-heading) outline-none transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:bg-(--bg-hover);
+  }
+
   .markdown-paper img {
     @apply my-6 block max-w-full rounded-[3px] border border-(--border-default);
   }

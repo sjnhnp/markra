@@ -166,6 +166,8 @@ const messages: LocaleMessages = {
   "app.imagePreview": "이미지 미리보기",
   "app.markdownEditor": "Markdown 편집기",
   "app.markdownDocument": "Markdown 문서",
+  "editor.htmlSource": "HTML 소스",
+  "editor.htmlSourceApply": "HTML 소스 적용",
   "editor.table.addColumnRight": "오른쪽에 열 추가",
   "editor.table.addRowBelow": "아래에 행 추가",
   "editor.table.alignLeft": "표 왼쪽 정렬",

@@ -171,6 +171,8 @@ const messages: LocaleMessages = {
   "app.imagePreview": "画像プレビュー",
   "app.markdownEditor": "Markdown エディター",
   "app.markdownDocument": "Markdown ドキュメント",
+  "editor.htmlSource": "HTML ソース",
+  "editor.htmlSourceApply": "HTML ソースを適用",
   "editor.table.addColumnRight": "右に列を追加",
   "editor.table.addRowBelow": "下に行を追加",
   "editor.table.alignLeft": "表を左揃え",

@@ -25,6 +25,7 @@ import { $prose } from "@milkdown/kit/utils";
 import { markraLiveMarkdownPlugin } from "@markra/editor";
 import { markraClipboardImagePlugin, type SaveClipboardImage } from "@markra/editor";
 import { markraLinkImageLivePlugin } from "@markra/editor";
+import { markraRawHtmlPlugin } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
 import { markraMarkdownShortcuts } from "@markra/editor";
 import { markraTableControlsPlugin } from "@markra/editor";
@@ -311,6 +312,13 @@ function MilkdownSurface({
         )
         .use(markraTableControlsPlugin(tableControlLabels))
         .use(markraLinkImageLivePlugin(resolveImageSrc))
+        .use(
+          markraRawHtmlPlugin({
+            htmlSourceApplyLabel: t(language, "editor.htmlSourceApply"),
+            htmlSourceLabel: t(language, "editor.htmlSource"),
+            resolveImageSrc
+          })
+        )
         .use(markraLiveMarkdownPlugin);
 
       if (openExternalUrl) {
@@ -325,7 +333,7 @@ function MilkdownSurface({
 
       return editor;
     },
-    [markdownDocumentLabel, onMarkdownChange, openExternalUrl, resolveImageSrc]
+    [language, markdownDocumentLabel, onMarkdownChange, openExternalUrl, resolveImageSrc]
   );
 
   useEditor(createEditor, [createEditor]);

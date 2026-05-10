@@ -166,6 +166,8 @@ const messages: LocaleMessages = {
   "app.imagePreview": "Bildvorschau",
   "app.markdownEditor": "Markdown-Editor",
   "app.markdownDocument": "Markdown-Dokument",
+  "editor.htmlSource": "HTML-Quelle",
+  "editor.htmlSourceApply": "HTML-Quelle anwenden",
   "editor.table.addColumnRight": "Spalte rechts hinzufügen",
   "editor.table.addRowBelow": "Zeile darunter hinzufügen",
   "editor.table.alignLeft": "Tabelle links ausrichten",

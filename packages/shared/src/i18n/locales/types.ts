@@ -202,6 +202,8 @@ export type I18nKey =
   | "app.imagePreview"
   | "app.markdownEditor"
   | "app.markdownDocument"
+  | "editor.htmlSource"
+  | "editor.htmlSourceApply"
   | "editor.table.addColumnRight"
   | "editor.table.addRowBelow"
   | "editor.table.alignLeft"

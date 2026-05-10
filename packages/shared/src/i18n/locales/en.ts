@@ -191,6 +191,8 @@ const messages: BaseLocaleMessages = {
   "app.imagePreview": "Image preview",
   "app.markdownEditor": "Markdown editor",
   "app.markdownDocument": "Markdown document",
+  "editor.htmlSource": "HTML source",
+  "editor.htmlSourceApply": "Apply HTML source",
   "editor.table.addColumnRight": "Add column to the right",
   "editor.table.addRowBelow": "Add row below",
   "editor.table.alignLeft": "Align table left",
