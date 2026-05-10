@@ -103,8 +103,9 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(openFile).toHaveBeenCalledWith(markdownFiles[2]);
   });
 
-  it("opens image assets from the file tree without showing markdown file menus", () => {
+  it("opens image assets from the file tree and supports renaming them", () => {
     const openFile = vi.fn();
+    const renameFile = vi.fn();
     const asset = {
       kind: "asset" as const,
       name: "pasted-image.png",
@@ -123,6 +124,7 @@ describe("MarkdownFileTreeDrawer", () => {
         outlineItems={[]}
         rootName="Obsidian Vault"
         onOpenFile={openFile}
+        onRenameFile={renameFile}
         onSelectOutlineItem={() => {}}
       />
     );
@@ -136,11 +138,18 @@ describe("MarkdownFileTreeDrawer", () => {
     fireEvent.contextMenu(assetButton);
 
     expect(openFile).toHaveBeenCalledWith(asset);
-    expect(mockedShowNativeMarkdownFileTreeContextMenu).not.toHaveBeenCalledWith(
-      expect.anything(),
-      "en",
-      asset
-    );
+    expect(mockedShowNativeMarkdownFileTreeContextMenu).toHaveBeenCalledWith(expect.anything(), "en", asset);
+
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    act(() => {
+      contextHandlers?.renameFile?.(asset);
+    });
+
+    const renameInput = screen.getByRole("textbox", { name: "Rename file" });
+    fireEvent.change(renameInput, { target: { value: "renamed-image.png" } });
+    fireEvent.keyDown(renameInput, { key: "Enter" });
+
+    expect(renameFile).toHaveBeenCalledWith(asset, "renamed-image.png");
   });
 
   it("supports creating and renaming markdown files from the file tree", () => {
@@ -181,6 +190,36 @@ describe("MarkdownFileTreeDrawer", () => {
     fireEvent.keyDown(renameInput, { key: "Enter" });
 
     expect(renameFile).toHaveBeenCalledWith(markdownFiles[0], "Renamed.md");
+  });
+
+  it("cancels the rename input when the blank file tree area is clicked", () => {
+    const renameFile = vi.fn();
+
+    const { container } = render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onRenameFile={renameFile}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    act(() => {
+      contextHandlers?.renameFile?.(markdownFiles[0]);
+    });
+
+    expect(screen.getByRole("textbox", { name: "Rename file" })).toBeInTheDocument();
+
+    fireEvent.mouseDown(container.querySelector(".file-tree-scroll") as HTMLElement);
+
+    expect(screen.queryByRole("textbox", { name: "Rename file" })).not.toBeInTheDocument();
+    expect(renameFile).not.toHaveBeenCalled();
   });
 
   it("opens the blank file tree area context menu and creates folders", () => {

@@ -269,10 +269,25 @@ export function MarkdownFileTreeDrawer({
     setRenameFileName("");
   };
 
+  const cancelFileTreeInputs = () => {
+    setCreatingFile(false);
+    setNewFileName("");
+    setCreatingFolder(false);
+    setNewFolderName("");
+    setRenamingPath(null);
+    setRenameFileName("");
+  };
+
+  const cancelFileTreeInputsFromBlankArea = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("button, input")) return;
+
+    cancelFileTreeInputs();
+  };
+
   const openContextMenu = (event: ReactMouseEvent, file?: NativeMarkdownFolderFile) => {
     event.preventDefault();
     event.stopPropagation();
-    if (file?.kind === "asset") return;
 
     showNativeMarkdownFileTreeContextMenu(
       {
@@ -578,6 +593,7 @@ export function MarkdownFileTreeDrawer({
 
             <div
               className="file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4"
+              onMouseDown={cancelFileTreeInputsFromBlankArea}
               onContextMenu={(event) => openContextMenu(event)}
             >
               {creatingFile ? (

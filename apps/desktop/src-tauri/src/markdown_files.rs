@@ -68,6 +68,18 @@ fn is_markdown_tree_asset_file(path: &Path) -> bool {
         })
 }
 
+fn markdown_tree_file_kind(path: &Path) -> Result<MarkdownFolderEntryKind, String> {
+    if is_markdown_tree_file(path) {
+        return Ok(MarkdownFolderEntryKind::File);
+    }
+
+    if is_markdown_tree_asset_file(path) {
+        return Ok(MarkdownFolderEntryKind::Asset);
+    }
+
+    Err("File must be Markdown or a supported image asset".to_string())
+}
+
 fn is_markdown_open_file(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
@@ -437,6 +449,54 @@ fn markdown_tree_root_for_path(path: &Path) -> PathBuf {
 }
 
 fn normalize_markdown_tree_file_name(file_name: &str) -> Result<String, String> {
+    let trimmed_name = normalize_markdown_tree_single_file_name(file_name)?;
+    let candidate = Path::new(&trimmed_name);
+
+    if candidate.extension().is_none() {
+        return Ok(format!("{trimmed_name}.md"));
+    }
+
+    if !is_markdown_tree_file(candidate) {
+        return Err("File must use .md or .markdown".to_string());
+    }
+
+    Ok(trimmed_name)
+}
+
+fn normalize_markdown_tree_rename_file_name(
+    file_name: &str,
+    source_path: &Path,
+) -> Result<String, String> {
+    let trimmed_name = normalize_markdown_tree_single_file_name(file_name)?;
+    let candidate = Path::new(&trimmed_name);
+    let normalized_name = if candidate.extension().is_some() {
+        trimmed_name
+    } else if is_markdown_tree_asset_file(source_path) {
+        let extension = source_path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .ok_or_else(|| "Image file extension is invalid".to_string())?;
+
+        format!("{trimmed_name}.{extension}")
+    } else {
+        format!("{trimmed_name}.md")
+    };
+    let normalized_candidate = Path::new(&normalized_name);
+
+    if is_markdown_tree_file(source_path) && !is_markdown_tree_file(normalized_candidate) {
+        return Err("File must use .md or .markdown".to_string());
+    }
+
+    if is_markdown_tree_asset_file(source_path)
+        && !is_markdown_tree_asset_file(normalized_candidate)
+    {
+        return Err("Image file must use a supported image extension".to_string());
+    }
+
+    Ok(normalized_name)
+}
+
+fn normalize_markdown_tree_single_file_name(file_name: &str) -> Result<String, String> {
     let trimmed_name = file_name.trim();
     if trimmed_name.is_empty() {
         return Err("File name is required".to_string());
@@ -456,14 +516,6 @@ fn normalize_markdown_tree_file_name(file_name: &str) -> Result<String, String> 
 
     if stem.trim().is_empty() || matches!(trimmed_name, "." | "..") {
         return Err("File name is invalid".to_string());
-    }
-
-    if candidate.extension().is_none() {
-        return Ok(format!("{trimmed_name}.md"));
-    }
-
-    if !is_markdown_tree_file(candidate) {
-        return Err("File must use .md or .markdown".to_string());
     }
 
     Ok(trimmed_name.to_string())
@@ -507,8 +559,10 @@ fn canonical_markdown_tree_file(root: &Path, path: &Path) -> Result<PathBuf, Str
         .strip_prefix(root)
         .map_err(|_| "File is outside the current Markdown folder".to_string())?;
 
-    if !canonical_path.is_file() || !is_markdown_tree_file(&canonical_path) {
-        return Err("Path is not a Markdown file".to_string());
+    if !canonical_path.is_file()
+        || !(is_markdown_tree_file(&canonical_path) || is_markdown_tree_asset_file(&canonical_path))
+    {
+        return Err("Path is not a Markdown file or supported image asset".to_string());
     }
 
     Ok(canonical_path)
@@ -691,7 +745,7 @@ pub(crate) fn rename_markdown_tree_file(
     let root_path = PathBuf::from(root_path);
     let root = canonical_markdown_tree_root(&root_path)?;
     let source_path = canonical_markdown_tree_file(&root, &PathBuf::from(path))?;
-    let normalized_file_name = normalize_markdown_tree_file_name(&file_name)?;
+    let normalized_file_name = normalize_markdown_tree_rename_file_name(&file_name, &source_path)?;
     let parent = source_path
         .parent()
         .ok_or_else(|| "File parent is invalid".to_string())?;
@@ -705,11 +759,7 @@ pub(crate) fn rename_markdown_tree_file(
 
     fs::rename(&source_path, &target_path).map_err(|error| error.to_string())?;
 
-    Ok(MarkdownFolderFile {
-        kind: MarkdownFolderEntryKind::File,
-        path: path_to_string(&target_path),
-        relative_path: markdown_tree_relative_path(&root, &target_path)?,
-    })
+    markdown_folder_file(&root, &target_path, markdown_tree_file_kind(&target_path)?)
 }
 
 #[tauri::command]
@@ -1018,6 +1068,37 @@ mod tests {
             .expect("markdown file should be deleted");
 
         assert!(!root.join("Journal.markdown").exists());
+
+        let assets = root.join("assets");
+        fs::create_dir_all(&assets).expect("asset folder should be created");
+        let image = assets.join("pasted-image.png");
+        fs::write(&image, [1_u8, 2, 3]).expect("image asset should be created");
+
+        let renamed_image = rename_markdown_tree_file(
+            root.to_string_lossy().to_string(),
+            image.to_string_lossy().to_string(),
+            "renamed-image.png".to_string(),
+        )
+        .expect("image asset should be renamed");
+
+        assert_eq!(
+            renamed_image,
+            MarkdownFolderFile {
+                kind: MarkdownFolderEntryKind::Asset,
+                path: canonical_root
+                    .join("assets")
+                    .join("renamed-image.png")
+                    .to_string_lossy()
+                    .to_string(),
+                relative_path: "assets/renamed-image.png".to_string(),
+            }
+        );
+        assert!(!assets.join("pasted-image.png").exists());
+
+        delete_markdown_tree_file(root.to_string_lossy().to_string(), renamed_image.path)
+            .expect("image asset should be deleted");
+
+        assert!(!assets.join("renamed-image.png").exists());
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }
