@@ -915,6 +915,47 @@ describe("useAiAgentSession", () => {
     );
   });
 
+  it("does not reload the active session when restore callbacks change", async () => {
+    mockedGetStoredAiAgentSession.mockResolvedValue(storedAgentSession({
+      agentModelId: "gpt-5.5",
+      agentProviderId: "openai",
+      draft: "Session A"
+    }));
+    const firstRestore = vi.fn();
+    const secondRestore = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ onSessionModelRestore }) =>
+        useAiAgentSession(aiAgentSessionContext({
+          onSessionModelRestore,
+          sessionId: "session-a",
+          workspaceKey: "/vault"
+        })),
+      {
+        initialProps: {
+          onSessionModelRestore: firstRestore
+        }
+      }
+    );
+
+    await waitFor(() => expect(mockedGetStoredAiAgentSession).toHaveBeenCalledTimes(1));
+    expect(firstRestore).toHaveBeenCalledWith({
+      agentModelId: "gpt-5.5",
+      agentProviderId: "openai"
+    });
+
+    rerender({
+      onSessionModelRestore: secondRestore
+    });
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 0);
+    });
+
+    expect(mockedGetStoredAiAgentSession).toHaveBeenCalledTimes(1);
+    expect(secondRestore).not.toHaveBeenCalled();
+  });
+
   it("keeps the panel open while switching to another stored session", async () => {
     mockedGetStoredAiAgentSession
       .mockResolvedValueOnce(storedAgentSession({

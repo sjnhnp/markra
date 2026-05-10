@@ -76,9 +76,14 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const userChangedWebSearchPreferenceRef = useRef(false);
   const sessionTitleSourceRef = useRef<"ai" | "fallback" | "manual" | null>(null);
   const titleGenerationSignatureRef = useRef<string | null>(null);
+  const onSessionModelRestoreRef = useRef(ctx.onSessionModelRestore);
+  const onSessionRestoreRef = useRef(ctx.onSessionRestore);
   const sessionKey = ctx.sessionId?.trim() ? ctx.sessionId : null;
   const agentModelId = ctx.model ?? null;
   const agentProviderId = ctx.provider?.id ?? null;
+
+  onSessionModelRestoreRef.current = ctx.onSessionModelRestore;
+  onSessionRestoreRef.current = ctx.onSessionRestore;
 
   const setThinkingEnabled = useCallback((action: SetStateAction<boolean>) => {
     setThinkingEnabledState((currentValue) => {
@@ -180,13 +185,13 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         setMessages(storedSession.messages);
         setThinkingEnabledState(storedSession.thinkingEnabled);
         setWebSearchEnabledState(storedSession.webSearchEnabled);
-        ctx.onSessionModelRestore?.({
+        onSessionModelRestoreRef.current?.({
           agentModelId: storedSession.agentModelId,
           agentProviderId: storedSession.agentProviderId
         });
         sessionTitleSourceRef.current = storedSummary?.titleSource ?? null;
         if (shouldRestorePanelState) {
-          ctx.onSessionRestore?.({
+          onSessionRestoreRef.current?.({
             panelOpen: storedSession.panelOpen,
             panelWidth: storedSession.panelWidth
           });
@@ -207,13 +212,13 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         setMessages(defaultSession.messages);
         setThinkingEnabledState(defaultSession.thinkingEnabled);
         setWebSearchEnabledState(defaultSession.webSearchEnabled);
-        ctx.onSessionModelRestore?.({
+        onSessionModelRestoreRef.current?.({
           agentModelId: defaultSession.agentModelId,
           agentProviderId: defaultSession.agentProviderId
         });
         sessionTitleSourceRef.current = null;
         if (shouldRestorePanelState) {
-          ctx.onSessionRestore?.({
+          onSessionRestoreRef.current?.({
             panelOpen: defaultSession.panelOpen,
             panelWidth: defaultSession.panelWidth
           });
@@ -226,7 +231,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     return () => {
       active = false;
     };
-  }, [ctx.onSessionModelRestore, ctx.onSessionRestore, sessionKey]);
+  }, [sessionKey]);
 
   useEffect(() => {
     if (hydratedSessionKeyRef.current !== sessionKey) return;
