@@ -160,8 +160,13 @@ const messages: LocaleMessages = {
   "app.cancelDiscardUnsavedMarkdownDocument": "Annulla",
   "app.confirmDiscardUnsavedMarkdownDocumentAction": "Scarta",
   "app.writingSurface": "Area di scrittura",
+  "app.imagePreview": "Anteprima immagine",
   "app.markdownEditor": "Editor Markdown",
   "app.markdownDocument": "Documento Markdown",
+  "editor.table.addColumnRight": "Aggiungi colonna a destra",
+  "editor.table.addRowBelow": "Aggiungi riga sotto",
+  "editor.table.deleteColumn": "Elimina colonna",
+  "editor.table.deleteRow": "Elimina riga",
   "app.documentStatus": "Stato documento",
   "app.words": "parole",
   "app.saved": "salvato",
@@ -204,6 +209,8 @@ const messages: LocaleMessages = {
   "app.aiEmptyResponse": "L'AI non ha restituito testo utilizzabile.",
   "app.aiAgentRepeatedMultiWrite": "L'IA ha continuato a tentare più modifiche al documento in un solo passaggio. Chiedi una modifica alla volta.",
   "app.aiAgentPreviewReady": "La modifica è pronta. Confermala nell'editor.",
+  "app.clipboardImageRequiresSavedDocument": "Salva il documento prima di incollare immagini.",
+  "app.clipboardImageSaveFailed": "Impossibile salvare l’immagine incollata.",
   "settings.sections.startup": "Avvio",
   "settings.sections.theme": "Tema",
   "settings.sections.editing": "Modifica",
@@ -222,6 +229,8 @@ const messages: LocaleMessages = {
   "settings.editor.contentWidth.narrow": "Stretta",
   "settings.editor.contentWidth.default": "Predefinita",
   "settings.editor.contentWidth.wide": "Ampia",
+  "settings.editor.clipboardImageFolder": "Cartella immagini dagli appunti",
+  "settings.editor.clipboardImageFolderDescription": "Salva le immagini incollate in questa cartella accanto al file Markdown corrente.",
   "settings.editor.showWordCount": "Mostra conteggio parole",
   "settings.editor.showWordCountDescription": "Mostra il conteggio parole nella riga di stato dell’editor.",
   "settings.theme.description": "Si applica a tutte le finestre aperte e create in seguito.",
@@ -292,7 +301,8 @@ const messages: LocaleMessages = {
   "menu.quote": "Citazione",
   "menu.codeBlock": "Blocco di codice",
   "menu.link": "Link",
-  "menu.image": "Immagine"
+  "menu.image": "Immagine",
+  "menu.table": "Tabella"
 };
 
 export default messages;

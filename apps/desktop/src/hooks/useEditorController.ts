@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { editorViewCtx, parserCtx, serializerCtx, type Editor } from "@milkdown/kit/core";
 import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
-import type { Node as ProseNode } from "@milkdown/kit/prose/model";
+import { Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "@markra/ai";
@@ -18,6 +18,11 @@ import { clearAiSelectionHold, showAiSelectionHold } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 
 const outlineScrollTopOffset = 24;
+const defaultMarkdownTable = [
+  "| Column 1 | Column 2 |",
+  "| --- | --- |",
+  "|  |  |"
+].join("\n");
 
 type EditorReadyOptions = {
   autoFocus?: boolean;
@@ -358,6 +363,24 @@ export function useEditorController() {
     view.focus();
   }, []);
 
+  const insertMarkdownTable = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    try {
+      const view = editor.action((ctx) => ctx.get(editorViewCtx));
+      const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+      const parsedDocument = parseMarkdown(defaultMarkdownTable);
+      const { from, to } = view.state.selection;
+      const tr = view.state.tr.replaceRange(from, to, new Slice(parsedDocument.content, 0, 0)).scrollIntoView();
+
+      view.dispatch(tr);
+      view.focus();
+    } catch {
+      // Table insertion is a convenience command; failing silently keeps the editor usable.
+    }
+  }, []);
+
   const applyAiResult = useCallback((result: AiDiffResult, options: { previewId?: string } = {}) => {
     if (result.type === "error") return false;
 
@@ -519,6 +542,7 @@ export function useEditorController() {
     handleEditorReady,
     holdAiSelection,
     insertMarkdownSnippet,
+    insertMarkdownTable,
     listAiPreviews,
     previewAiResult,
     runEditorShortcut,

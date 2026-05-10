@@ -17,7 +17,8 @@
   "dependencies": {
     "@markra/ai": "workspace:*",
     "@markra/shared": "workspace:*",
-    "@milkdown/kit": "^7.20.0"
+    "@milkdown/kit": "^7.20.0",
+    "prosemirror-tables": "1.8.5"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

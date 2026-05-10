@@ -11,6 +11,26 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper tbody tr:nth-child(even)");
   });
 
+  it("keeps table add controls hidden until table hover or focus", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const tableControlStart = styles.indexOf(".markdown-paper .markra-table-control {");
+    const tableControlEnd = styles.indexOf(".markdown-paper .markra-table-add-column");
+    const tableControlStyles = styles.slice(tableControlStart, tableControlEnd);
+
+    expect(styles).toContain(".markdown-paper .markra-table-controls-wrapper");
+    expect(styles).toContain("@apply relative overflow-visible pt-9 pr-9 pb-9");
+    expect(styles).toContain(".markdown-paper .markra-table-control");
+    expect(styles).toContain("opacity: 0");
+    expect(styles).toContain(".markdown-paper .markra-table-controls-wrapper:hover .markra-table-control");
+    expect(styles).toContain(".markdown-paper .markra-table-controls-wrapper:focus-within .markra-table-control");
+    expect(styles).toContain(".markdown-paper .markra-table-add-column");
+    expect(styles).toContain(".markdown-paper .markra-table-add-row");
+    expect(styles).toContain(".markdown-paper .markra-table-delete-control");
+    expect(styles).toContain(".markdown-paper .markra-table-delete-column");
+    expect(styles).toContain(".markdown-paper .markra-table-delete-row");
+    expect(tableControlStyles).not.toContain("--accent");
+  });
+
   it("lets AI insert previews inherit the current Markdown block typography", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

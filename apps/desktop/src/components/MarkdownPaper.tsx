@@ -27,6 +27,7 @@ import { markraClipboardImagePlugin, type SaveClipboardImage } from "@markra/edi
 import { markraLinkImageLivePlugin } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
 import { markraMarkdownShortcuts } from "@markra/editor";
+import { markraTableControlsPlugin } from "@markra/editor";
 import { markraAiEditorPreviewPlugin } from "@markra/editor";
 import { markraAiSelectionHoldPlugin } from "@markra/editor";
 import type { AiSelectionContext } from "@markra/ai";
@@ -245,6 +246,12 @@ function MilkdownSurface({
   const onSaveClipboardImageRef = useRef(onSaveClipboardImage);
   const onTextSelectionChangeRef = useRef(onTextSelectionChange);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
+  const tableControlLabels = {
+    addColumnRight: t(language, "editor.table.addColumnRight"),
+    addRowBelow: t(language, "editor.table.addRowBelow"),
+    deleteColumn: t(language, "editor.table.deleteColumn"),
+    deleteRow: t(language, "editor.table.deleteRow")
+  };
 
   useEffect(() => {
     onSaveClipboardImageRef.current = onSaveClipboardImage;
@@ -295,6 +302,7 @@ function MilkdownSurface({
             onTextSelectionChangeRef.current?.(selection);
           })
         )
+        .use(markraTableControlsPlugin(tableControlLabels))
         .use(markraLinkImageLivePlugin(resolveImageSrc))
         .use(markraLiveMarkdownPlugin);
 

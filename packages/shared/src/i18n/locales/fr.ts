@@ -160,8 +160,13 @@ const messages: LocaleMessages = {
   "app.cancelDiscardUnsavedMarkdownDocument": "Annuler",
   "app.confirmDiscardUnsavedMarkdownDocumentAction": "Abandonner",
   "app.writingSurface": "Surface d’écriture",
+  "app.imagePreview": "Aperçu de l’image",
   "app.markdownEditor": "Éditeur Markdown",
   "app.markdownDocument": "Document Markdown",
+  "editor.table.addColumnRight": "Ajouter une colonne à droite",
+  "editor.table.addRowBelow": "Ajouter une ligne en dessous",
+  "editor.table.deleteColumn": "Supprimer la colonne",
+  "editor.table.deleteRow": "Supprimer la ligne",
   "app.documentStatus": "État du document",
   "app.words": "mots",
   "app.saved": "enregistré",
@@ -204,6 +209,8 @@ const messages: LocaleMessages = {
   "app.aiEmptyResponse": "L’IA n’a renvoyé aucun texte utilisable.",
   "app.aiAgentRepeatedMultiWrite": "L’IA a continué à tenter plusieurs modifications du document en une seule étape. Demandez une seule modification à la fois.",
   "app.aiAgentPreviewReady": "La modification est prête. Confirme-la dans l’éditeur.",
+  "app.clipboardImageRequiresSavedDocument": "Enregistrez le document avant de coller des images.",
+  "app.clipboardImageSaveFailed": "Impossible d’enregistrer l’image collée.",
   "settings.sections.startup": "Démarrage",
   "settings.sections.theme": "Thème",
   "settings.sections.editing": "Édition",
@@ -222,6 +229,8 @@ const messages: LocaleMessages = {
   "settings.editor.contentWidth.narrow": "Étroite",
   "settings.editor.contentWidth.default": "Par défaut",
   "settings.editor.contentWidth.wide": "Large",
+  "settings.editor.clipboardImageFolder": "Dossier des images du presse-papiers",
+  "settings.editor.clipboardImageFolderDescription": "Enregistre les images collées dans ce dossier à côté du fichier Markdown actuel.",
   "settings.editor.showWordCount": "Afficher le nombre de mots",
   "settings.editor.showWordCountDescription": "Affiche le nombre de mots dans la ligne d’état de l’éditeur.",
   "settings.theme.description": "S'applique à toutes les fenêtres ouvertes et nouvellement créées.",
@@ -292,7 +301,8 @@ const messages: LocaleMessages = {
   "menu.quote": "Citation",
   "menu.codeBlock": "Bloc de code",
   "menu.link": "Lien",
-  "menu.image": "Image"
+  "menu.image": "Image",
+  "menu.table": "Tableau"
 };
 
 export default messages;

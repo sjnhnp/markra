@@ -130,11 +130,13 @@ describe("native menu", () => {
     const target = document.createElement("main");
     const paper = document.createElement("article");
     const outside = document.createElement("button");
+    const insertTable = vi.fn();
     paper.className = "markdown-paper";
     target.append(paper, outside);
 
     const cleanup = await installNativeEditorContextMenu(target, {
-      formatBold: vi.fn()
+      formatBold: vi.fn(),
+      insertTable
     });
 
     outside.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
@@ -145,6 +147,13 @@ describe("native menu", () => {
 
     expect(mockedMenuNew).toHaveBeenCalledTimes(1);
     expect(popup).toHaveBeenCalledTimes(1);
+
+    const table = menuItemById(latestMenuItems(), "markra:context:table");
+    expect(table).toMatchObject({ text: "Table" });
+
+    table.action?.("markra:context:table");
+
+    expect(insertTable).toHaveBeenCalledTimes(1);
 
     cleanup();
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));

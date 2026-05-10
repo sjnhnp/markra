@@ -165,8 +165,13 @@ const messages: LocaleMessages = {
   "app.cancelDiscardUnsavedMarkdownDocument": "取消",
   "app.confirmDiscardUnsavedMarkdownDocumentAction": "放棄",
   "app.writingSurface": "書寫區域",
+  "app.imagePreview": "圖片預覽",
   "app.markdownEditor": "Markdown 編輯器",
   "app.markdownDocument": "Markdown 文件",
+  "editor.table.addColumnRight": "在右側新增欄",
+  "editor.table.addRowBelow": "在下方新增列",
+  "editor.table.deleteColumn": "刪除欄",
+  "editor.table.deleteRow": "刪除列",
   "app.documentStatus": "文件狀態",
   "app.words": "個字",
   "app.saved": "已儲存",
@@ -209,6 +214,8 @@ const messages: LocaleMessages = {
   "app.aiEmptyResponse": "AI 沒有返回可用文字。",
   "app.aiAgentRepeatedMultiWrite": "AI 一直試圖在同一步裡執行多個文件編輯。請一次只讓它做一個編輯動作。",
   "app.aiAgentPreviewReady": "修改已準備好，請在編輯器裡確認。",
+  "app.clipboardImageRequiresSavedDocument": "請先儲存文件，再貼上圖片。",
+  "app.clipboardImageSaveFailed": "無法儲存貼上的圖片。",
   "settings.language.description": "選擇應用程式介面語言，Markdown 檔案內容不會被修改。",
   "settings.welcome.description": "重新顯示首次開啟時的範例內容。",
   "settings.welcome.buttonLabel": "下次啟動時顯示歡迎文件",
@@ -222,6 +229,8 @@ const messages: LocaleMessages = {
   "settings.editor.contentWidth.narrow": "窄",
   "settings.editor.contentWidth.default": "預設",
   "settings.editor.contentWidth.wide": "寬",
+  "settings.editor.clipboardImageFolder": "剪貼簿圖片資料夾",
+  "settings.editor.clipboardImageFolderDescription": "貼上圖片時，儲存到目前 Markdown 檔案旁邊的這個資料夾。",
   "settings.editor.showWordCount": "顯示字數統計",
   "settings.editor.showWordCountDescription": "在編輯器狀態列顯示目前文件字數。",
   "settings.theme.description": "套用到所有已開啟和之後新建的視窗。",
@@ -292,7 +301,8 @@ const messages: LocaleMessages = {
   "menu.quote": "引用",
   "menu.codeBlock": "程式碼區塊",
   "menu.link": "連結",
-  "menu.image": "圖片"
+  "menu.image": "圖片",
+  "menu.table": "表格"
 };
 
 export default messages;

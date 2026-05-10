@@ -160,8 +160,13 @@ const messages: LocaleMessages = {
   "app.cancelDiscardUnsavedMarkdownDocument": "Отмена",
   "app.confirmDiscardUnsavedMarkdownDocumentAction": "Отбросить",
   "app.writingSurface": "Область письма",
+  "app.imagePreview": "Предпросмотр изображения",
   "app.markdownEditor": "Редактор Markdown",
   "app.markdownDocument": "Документ Markdown",
+  "editor.table.addColumnRight": "Добавить столбец справа",
+  "editor.table.addRowBelow": "Добавить строку ниже",
+  "editor.table.deleteColumn": "Удалить столбец",
+  "editor.table.deleteRow": "Удалить строку",
   "app.documentStatus": "Состояние документа",
   "app.words": "слов",
   "app.saved": "сохранено",
@@ -204,6 +209,8 @@ const messages: LocaleMessages = {
   "app.aiEmptyResponse": "AI не вернул пригодный текст.",
   "app.aiAgentRepeatedMultiWrite": "ИИ продолжал пытаться выполнить несколько изменений документа за один шаг. Просите по одному изменению за раз.",
   "app.aiAgentPreviewReady": "Изменение подготовлено. Подтвердите его в редакторе.",
+  "app.clipboardImageRequiresSavedDocument": "Сохраните документ перед вставкой изображений.",
+  "app.clipboardImageSaveFailed": "Не удалось сохранить вставленное изображение.",
   "settings.sections.startup": "Запуск",
   "settings.sections.theme": "Тема",
   "settings.sections.editing": "Редактирование",
@@ -222,6 +229,8 @@ const messages: LocaleMessages = {
   "settings.editor.contentWidth.narrow": "Узкая",
   "settings.editor.contentWidth.default": "По умолчанию",
   "settings.editor.contentWidth.wide": "Широкая",
+  "settings.editor.clipboardImageFolder": "Папка для изображений из буфера обмена",
+  "settings.editor.clipboardImageFolderDescription": "Сохранять вставленные изображения в этой папке рядом с текущим файлом Markdown.",
   "settings.editor.showWordCount": "Показывать число слов",
   "settings.editor.showWordCountDescription": "Показывает число слов документа в строке состояния редактора.",
   "settings.theme.description": "Применяется ко всем открытым и новым окнам.",
@@ -292,7 +301,8 @@ const messages: LocaleMessages = {
   "menu.quote": "Цитата",
   "menu.codeBlock": "Блок кода",
   "menu.link": "Ссылка",
-  "menu.image": "Изображение"
+  "menu.image": "Изображение",
+  "menu.table": "Таблица"
 };
 
 export default messages;

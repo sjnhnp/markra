@@ -293,9 +293,17 @@
     @apply my-6 overflow-x-auto;
   }
 
+  .markdown-paper .markra-table-controls-wrapper {
+    @apply relative overflow-visible pt-9 pr-9 pb-9;
+  }
+
   .markdown-paper table {
     @apply my-6 w-full border-collapse overflow-hidden text-left text-[0.95em] leading-[1.55];
     table-layout: fixed;
+  }
+
+  .markdown-paper .markra-table-controls-wrapper > table {
+    @apply my-0;
   }
 
   .markdown-paper th,
@@ -318,6 +326,60 @@
   .markdown-paper th p,
   .markdown-paper td p {
     @apply m-0;
+  }
+
+  .markdown-paper .markra-table-control {
+    @apply absolute inline-flex size-6 cursor-pointer items-center justify-center rounded-full border border-(--border-default) p-0 text-[18px] leading-none font-[420] transition-[opacity,color,background-color,border-color,box-shadow,scale] duration-150 ease-out hover:border-(--border-strong) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:border-(--border-strong) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none;
+    background: color-mix(in srgb, var(--bg-primary) 94%, var(--bg-secondary));
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.08);
+    color: var(--text-secondary);
+    opacity: 0;
+    pointer-events: none;
+    scale: 0.9;
+  }
+
+  .markdown-paper .markra-table-controls-wrapper:hover .markra-table-control,
+  .markdown-paper .markra-table-controls-wrapper:focus-within .markra-table-control {
+    opacity: 1;
+    pointer-events: auto;
+    scale: 1;
+  }
+
+  .markdown-paper .markra-table-control:hover,
+  .markdown-paper .markra-table-control:focus-visible {
+    box-shadow:
+      0 12px 30px rgba(0, 0, 0, 0.12),
+      0 0 0 3px color-mix(in srgb, var(--text-secondary) 14%, transparent);
+  }
+
+  .markdown-paper .markra-table-delete-control {
+    @apply hover:border-red-400/70 hover:bg-red-500/10 hover:text-red-600 focus-visible:border-red-400/70 focus-visible:bg-red-500/10 focus-visible:text-red-600;
+    transform: translate(-50%, -50%);
+  }
+
+  .markdown-paper .markra-table-delete-control:hover,
+  .markdown-paper .markra-table-delete-control:focus-visible {
+    box-shadow:
+      0 12px 30px rgba(0, 0, 0, 0.12),
+      0 0 0 3px color-mix(in srgb, oklch(63.7% 0.237 25.331) 14%, transparent);
+  }
+
+  .markdown-paper .markra-table-delete-column {
+    @apply z-10;
+  }
+
+  .markdown-paper .markra-table-delete-row {
+    @apply z-10;
+  }
+
+  .markdown-paper .markra-table-add-column {
+    @apply right-1.5 top-1/2 -translate-y-1/2;
+  }
+
+  .markdown-paper .markra-table-add-row {
+    @apply bottom-1.5 left-1/2 -translate-x-1/2;
   }
 
   .markdown-paper a {

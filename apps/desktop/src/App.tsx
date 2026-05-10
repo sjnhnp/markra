@@ -609,6 +609,7 @@ export default function App() {
   ]);
   const nativeMenuHandlers = useNativeMenuHandlers({
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
+    insertMarkdownTable: editor.insertMarkdownTable,
     openDocument: handleOpenMarkdownFile,
     runEditorShortcut: editor.runEditorShortcut,
     saveDocument: handleSaveClick,

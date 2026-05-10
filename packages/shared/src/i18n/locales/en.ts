@@ -188,6 +188,10 @@ const messages: BaseLocaleMessages = {
   "app.imagePreview": "Image preview",
   "app.markdownEditor": "Markdown editor",
   "app.markdownDocument": "Markdown document",
+  "editor.table.addColumnRight": "Add column to the right",
+  "editor.table.addRowBelow": "Add row below",
+  "editor.table.deleteColumn": "Delete column",
+  "editor.table.deleteRow": "Delete row",
   "app.documentStatus": "Document status",
   "app.words": "words",
   "app.saved": "saved",
@@ -297,7 +301,8 @@ const messages: BaseLocaleMessages = {
   "menu.quote": "Quote",
   "menu.codeBlock": "Code Block",
   "menu.link": "Link",
-  "menu.image": "Image"
+  "menu.image": "Image",
+  "menu.table": "Table"
 };
 
 export default messages;

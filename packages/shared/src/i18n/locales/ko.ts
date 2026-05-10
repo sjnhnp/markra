@@ -160,8 +160,13 @@ const messages: LocaleMessages = {
   "app.cancelDiscardUnsavedMarkdownDocument": "취소",
   "app.confirmDiscardUnsavedMarkdownDocumentAction": "버리기",
   "app.writingSurface": "쓰기 영역",
+  "app.imagePreview": "이미지 미리보기",
   "app.markdownEditor": "Markdown 편집기",
   "app.markdownDocument": "Markdown 문서",
+  "editor.table.addColumnRight": "오른쪽에 열 추가",
+  "editor.table.addRowBelow": "아래에 행 추가",
+  "editor.table.deleteColumn": "열 삭제",
+  "editor.table.deleteRow": "행 삭제",
   "app.documentStatus": "문서 상태",
   "app.words": "단어",
   "app.saved": "저장됨",
@@ -204,6 +209,8 @@ const messages: LocaleMessages = {
   "app.aiEmptyResponse": "AI가 사용할 수 있는 텍스트를 반환하지 않았습니다.",
   "app.aiAgentRepeatedMultiWrite": "AI가 한 단계에서 여러 문서 편집을 계속 시도했습니다. 한 번에 하나의 편집만 요청해 주세요.",
   "app.aiAgentPreviewReady": "편집 변경 사항이 준비되었습니다. 에디터에서 확인하세요.",
+  "app.clipboardImageRequiresSavedDocument": "이미지를 붙여넣기 전에 문서를 저장하세요.",
+  "app.clipboardImageSaveFailed": "붙여넣은 이미지를 저장할 수 없습니다.",
   "settings.sections.startup": "시작",
   "settings.sections.theme": "테마",
   "settings.sections.editing": "편집",
@@ -222,6 +229,8 @@ const messages: LocaleMessages = {
   "settings.editor.contentWidth.narrow": "좁게",
   "settings.editor.contentWidth.default": "기본",
   "settings.editor.contentWidth.wide": "넓게",
+  "settings.editor.clipboardImageFolder": "클립보드 이미지 폴더",
+  "settings.editor.clipboardImageFolderDescription": "붙여넣은 이미지를 현재 Markdown 파일 옆의 이 폴더에 저장합니다.",
   "settings.editor.showWordCount": "단어 수 표시",
   "settings.editor.showWordCountDescription": "편집기 상태 줄에 문서 단어 수를 표시합니다.",
   "settings.theme.description": "열려 있는 모든 창과 새로 만든 창에 적용됩니다.",
@@ -292,7 +301,8 @@ const messages: LocaleMessages = {
   "menu.quote": "인용",
   "menu.codeBlock": "코드 블록",
   "menu.link": "링크",
-  "menu.image": "이미지"
+  "menu.image": "이미지",
+  "menu.table": "표"
 };
 
 export default messages;

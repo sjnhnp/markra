@@ -165,8 +165,13 @@ const messages: LocaleMessages = {
   "app.cancelDiscardUnsavedMarkdownDocument": "キャンセル",
   "app.confirmDiscardUnsavedMarkdownDocumentAction": "破棄",
   "app.writingSurface": "執筆領域",
+  "app.imagePreview": "画像プレビュー",
   "app.markdownEditor": "Markdown エディター",
   "app.markdownDocument": "Markdown ドキュメント",
+  "editor.table.addColumnRight": "右に列を追加",
+  "editor.table.addRowBelow": "下に行を追加",
+  "editor.table.deleteColumn": "列を削除",
+  "editor.table.deleteRow": "行を削除",
   "app.documentStatus": "ドキュメント状態",
   "app.words": "語",
   "app.saved": "保存済み",
@@ -209,6 +214,8 @@ const messages: LocaleMessages = {
   "app.aiEmptyResponse": "AI は使用できるテキストを返しませんでした。",
   "app.aiAgentRepeatedMultiWrite": "AI が 1 回のステップで複数のドキュメント編集を繰り返し試みました。1 回に 1 つの編集だけ依頼してください。",
   "app.aiAgentPreviewReady": "編集内容を準備しました。エディターで確認してください。",
+  "app.clipboardImageRequiresSavedDocument": "画像を貼り付ける前にドキュメントを保存してください。",
+  "app.clipboardImageSaveFailed": "貼り付けた画像を保存できませんでした。",
   "settings.language.description": "アプリの言語を選択します。Markdown ファイルの内容は変更されません。",
   "settings.welcome.description": "初回起動時のサンプル内容をもう一度表示します。",
   "settings.welcome.buttonLabel": "次回起動時にウェルカムドキュメントを表示",
@@ -222,6 +229,8 @@ const messages: LocaleMessages = {
   "settings.editor.contentWidth.narrow": "狭い",
   "settings.editor.contentWidth.default": "標準",
   "settings.editor.contentWidth.wide": "広い",
+  "settings.editor.clipboardImageFolder": "クリップボード画像フォルダー",
+  "settings.editor.clipboardImageFolderDescription": "貼り付けた画像を現在の Markdown ファイルの隣にあるこのフォルダーへ保存します。",
   "settings.editor.showWordCount": "単語数を表示",
   "settings.editor.showWordCountDescription": "エディターのステータス行にドキュメントの単語数を表示します。",
   "settings.theme.description": "開いているすべてのウィンドウと今後作成するウィンドウに適用されます。",
@@ -292,7 +301,8 @@ const messages: LocaleMessages = {
   "menu.quote": "引用",
   "menu.codeBlock": "コードブロック",
   "menu.link": "リンク",
-  "menu.image": "画像"
+  "menu.image": "画像",
+  "menu.table": "表"
 };
 
 export default messages;

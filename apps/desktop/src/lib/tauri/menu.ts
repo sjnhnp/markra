@@ -36,7 +36,8 @@ export type NativeMenuCommand =
   | "formatQuote"
   | "formatCodeBlock"
   | "insertLink"
-  | "insertImage";
+  | "insertImage"
+  | "insertTable";
 
 type NativeMenuCommandPayload = {
   command: NativeMenuCommand;
@@ -154,6 +155,7 @@ export function createNativeApplicationMenuItems(
   const codeBlock = customItem("formatCodeBlock", label("menu.codeBlock"), "CmdOrCtrl+Alt+C", handlers.formatCodeBlock);
   const link = customItem("insertLink", label("menu.link"), "CmdOrCtrl+K", handlers.insertLink);
   const image = customItem("insertImage", label("menu.image"), "CmdOrCtrl+Shift+I", handlers.insertImage);
+  const table = customItem("insertTable", label("menu.table"), undefined, handlers.insertTable);
 
   return [
     {
@@ -217,7 +219,8 @@ export function createNativeApplicationMenuItems(
         codeBlock,
         separator(),
         link,
-        image
+        image,
+        table
       ]
     },
     {
@@ -254,7 +257,8 @@ export function createNativeEditorContextMenuItems(handlers: NativeMenuHandlers,
     separator(),
     customItem("markra:context:bold", label("menu.bold"), "CmdOrCtrl+B", handlers.formatBold),
     customItem("markra:context:italic", label("menu.italic"), "CmdOrCtrl+I", handlers.formatItalic),
-    customItem("markra:context:link", label("menu.link"), "CmdOrCtrl+K", handlers.insertLink)
+    customItem("markra:context:link", label("menu.link"), "CmdOrCtrl+K", handlers.insertLink),
+    customItem("markra:context:table", label("menu.table"), undefined, handlers.insertTable)
   ];
 }
 

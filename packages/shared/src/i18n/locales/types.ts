@@ -199,6 +199,10 @@ export type I18nKey =
   | "app.imagePreview"
   | "app.markdownEditor"
   | "app.markdownDocument"
+  | "editor.table.addColumnRight"
+  | "editor.table.addRowBelow"
+  | "editor.table.deleteColumn"
+  | "editor.table.deleteRow"
   | "app.documentStatus"
   | "app.words"
   | "app.saved"
@@ -308,7 +312,8 @@ export type I18nKey =
   | "menu.quote"
   | "menu.codeBlock"
   | "menu.link"
-  | "menu.image";
+  | "menu.image"
+  | "menu.table";
 
 export type BaseLocaleMessages = Record<I18nKey, string>;
 export type LocaleMessages = Partial<Record<I18nKey, string>>;

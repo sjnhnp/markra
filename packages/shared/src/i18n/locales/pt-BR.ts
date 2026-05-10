@@ -160,8 +160,13 @@ const messages: LocaleMessages = {
   "app.cancelDiscardUnsavedMarkdownDocument": "Cancelar",
   "app.confirmDiscardUnsavedMarkdownDocumentAction": "Descartar",
   "app.writingSurface": "Área de escrita",
+  "app.imagePreview": "Prévia da imagem",
   "app.markdownEditor": "Editor Markdown",
   "app.markdownDocument": "Documento Markdown",
+  "editor.table.addColumnRight": "Adicionar coluna à direita",
+  "editor.table.addRowBelow": "Adicionar linha abaixo",
+  "editor.table.deleteColumn": "Excluir coluna",
+  "editor.table.deleteRow": "Excluir linha",
   "app.documentStatus": "Status do documento",
   "app.words": "palavras",
   "app.saved": "salvo",
@@ -204,6 +209,8 @@ const messages: LocaleMessages = {
   "app.aiEmptyResponse": "A IA não retornou texto utilizável.",
   "app.aiAgentRepeatedMultiWrite": "A IA continuou tentando fazer várias edições no documento em uma única etapa. Peça uma edição por vez.",
   "app.aiAgentPreviewReady": "A alteração está pronta. Confirme-a no editor.",
+  "app.clipboardImageRequiresSavedDocument": "Salve o documento antes de colar imagens.",
+  "app.clipboardImageSaveFailed": "Não foi possível salvar a imagem colada.",
   "settings.sections.startup": "Inicialização",
   "settings.sections.theme": "Tema",
   "settings.sections.editing": "Edição",
@@ -222,6 +229,8 @@ const messages: LocaleMessages = {
   "settings.editor.contentWidth.narrow": "Estreita",
   "settings.editor.contentWidth.default": "Padrão",
   "settings.editor.contentWidth.wide": "Ampla",
+  "settings.editor.clipboardImageFolder": "Pasta de imagens da área de transferência",
+  "settings.editor.clipboardImageFolderDescription": "Salve imagens coladas nesta pasta ao lado do arquivo Markdown atual.",
   "settings.editor.showWordCount": "Mostrar contagem de palavras",
   "settings.editor.showWordCountDescription": "Mostra a contagem de palavras na linha de status do editor.",
   "settings.theme.description": "Aplica-se a todas as janelas abertas e recém-criadas.",
@@ -292,7 +301,8 @@ const messages: LocaleMessages = {
   "menu.quote": "Citação",
   "menu.codeBlock": "Bloco de código",
   "menu.link": "Link",
-  "menu.image": "Imagem"
+  "menu.image": "Imagem",
+  "menu.table": "Tabela"
 };
 
 export default messages;

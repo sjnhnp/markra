@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@milkdown/kit/core";
 import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
@@ -261,6 +261,144 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("![Screenshot](assets/pasted-image.png)");
     expect(serializeMarkdown(view.state.doc)).not.toContain("!\\[Screenshot\\]\\(assets/pasted-image.png\\)");
     await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("![Screenshot](assets/pasted-image.png)")));
+  });
+
+  it("adds table rows and columns from the hover controls", async () => {
+    const initialTable = ["| Field | Value |", "| --- | --- |", "| Name | Markra |"].join("\n");
+    const { container, view } = await renderEditor(initialTable);
+    const cellCountInFirstRow = () => container.querySelectorAll(".ProseMirror table tr:first-child th, .ProseMirror table tr:first-child td").length;
+    const rowCount = () => container.querySelectorAll(".ProseMirror table tr").length;
+    const firstRowCells = () =>
+      Array.from(container.querySelectorAll(".ProseMirror table tr:first-child th, .ProseMirror table tr:first-child td")).map(
+        (cell) => cell.textContent
+      );
+    const lastRowCells = () =>
+      Array.from(container.querySelectorAll(".ProseMirror table tr:last-child th, .ProseMirror table tr:last-child td")).map(
+        (cell) => cell.textContent
+      );
+
+    expect(cellCountInFirstRow()).toBe(2);
+    expect(rowCount()).toBe(2);
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Add column to the right" }));
+
+    await waitFor(() => expect(cellCountInFirstRow()).toBe(3));
+    expect(container.querySelector(".ProseMirror .selectedCell")).not.toBeInTheDocument();
+    typeText(view, "New column");
+    await waitFor(() => expect(firstRowCells()).toEqual(["Field", "Value", "New column"]));
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Add row below" }));
+
+    await waitFor(() => expect(rowCount()).toBe(3));
+    expect(container.querySelector(".ProseMirror .selectedCell")).not.toBeInTheDocument();
+    typeText(view, "New row");
+    await waitFor(() => expect(lastRowCells()).toEqual(["New row", "", ""]));
+  });
+
+  it("deletes the hovered table row and column from visual controls", async () => {
+    const initialTable = ["| A | B | C |", "| --- | --- | --- |", "| 1 | 2 | 3 |", "| 4 | 5 | 6 |"].join("\n");
+    const { container } = await renderEditor(initialTable);
+    const tableRows = () =>
+      Array.from(container.querySelectorAll(".ProseMirror table tr")).map((row) =>
+        Array.from(row.querySelectorAll("th, td")).map((cell) => cell.textContent)
+      );
+
+    fireEvent.mouseMove(screen.getByRole("cell", { name: "5" }));
+
+    expect(screen.queryByRole("button", { name: "Delete column" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete row" })).toBeInTheDocument();
+
+    fireEvent.mouseMove(screen.getByRole("columnheader", { name: "B" }));
+
+    expect(screen.getByRole("button", { name: "Delete column" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete row" })).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Delete column" }));
+
+    await waitFor(() =>
+      expect(tableRows()).toEqual([
+        ["A", "C"],
+        ["1", "3"],
+        ["4", "6"]
+      ])
+    );
+    expect(container.querySelector(".ProseMirror .selectedCell")).not.toBeInTheDocument();
+
+    fireEvent.mouseMove(screen.getByRole("cell", { name: "4" }));
+
+    expect(screen.queryByRole("button", { name: "Delete column" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete row" })).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Delete row" }));
+
+    await waitFor(() =>
+      expect(tableRows()).toEqual([
+        ["A", "C"],
+        ["1", "3"]
+      ])
+    );
+    expect(container.querySelector(".ProseMirror .selectedCell")).not.toBeInTheDocument();
+  });
+
+  it("places the row delete control at the hovered row right edge", async () => {
+    const initialTable = ["| A | B |", "| --- | --- |", "| 1 | 2 |"].join("\n");
+    const { container } = await renderEditor(initialTable);
+    const wrapper = container.querySelector<HTMLElement>(".ProseMirror .markra-table-controls-wrapper");
+    const row = container.querySelector<HTMLTableRowElement>(".ProseMirror table tr:nth-child(2)");
+    const cell = screen.getByRole("cell", { name: "1" });
+
+    expect(wrapper).not.toBeNull();
+    expect(row).not.toBeNull();
+
+    wrapper!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          left: 20,
+          top: 10,
+          right: 260,
+          bottom: 90,
+          width: 240,
+          height: 80,
+          x: 20,
+          y: 10,
+          toJSON: () => ({})
+        }) as DOMRect
+    );
+    row!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          left: 20,
+          top: 50,
+          right: 220,
+          bottom: 90,
+          width: 200,
+          height: 40,
+          x: 20,
+          y: 50,
+          toJSON: () => ({})
+        }) as DOMRect
+    );
+    cell.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          left: 20,
+          top: 50,
+          right: 120,
+          bottom: 90,
+          width: 100,
+          height: 40,
+          x: 20,
+          y: 50,
+          toJSON: () => ({})
+        }) as DOMRect
+    );
+
+    fireEvent.mouseMove(cell);
+
+    expect(screen.getByRole("button", { name: "Delete row" })).toHaveStyle({
+      left: "200px",
+      top: "60px"
+    });
   });
 
   it("renders AI replacement comparison inside the editor", async () => {

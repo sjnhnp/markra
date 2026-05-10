@@ -188,6 +188,10 @@ const messages: LocaleMessages = {
   "app.imagePreview": "图片预览",
   "app.markdownEditor": "Markdown 编辑器",
   "app.markdownDocument": "Markdown 文档",
+  "editor.table.addColumnRight": "在右侧新增列",
+  "editor.table.addRowBelow": "在下方新增行",
+  "editor.table.deleteColumn": "删除列",
+  "editor.table.deleteRow": "删除行",
   "app.documentStatus": "文档状态",
   "app.words": "个词",
   "app.saved": "已保存",
@@ -297,7 +301,8 @@ const messages: LocaleMessages = {
   "menu.quote": "引用",
   "menu.codeBlock": "代码块",
   "menu.link": "链接",
-  "menu.image": "图片"
+  "menu.image": "图片",
+  "menu.table": "表格"
 };
 
 export default messages;

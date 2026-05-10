@@ -1291,6 +1291,22 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("heading", { name: "native-menu.md" })).toBeInTheDocument();
   });
 
+  it("inserts a markdown table from the native editor menu handler", async () => {
+    const { container } = renderApp();
+
+    await screen.findByText("Welcome to Markra");
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as Record<string, () => unknown>;
+
+    await act(async () => {
+      menuHandlers.insertTable?.();
+    });
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror table")).toBeInTheDocument());
+    expect(container.querySelector(".ProseMirror table")).toHaveTextContent("Column 1");
+    expect(container.querySelector(".ProseMirror table")).toHaveTextContent("Column 2");
+  });
+
   it("reloads the current file when a native watcher reports an external change", async () => {
     let emitExternalChange: (path: string) => unknown | Promise<unknown> = () => {};
 

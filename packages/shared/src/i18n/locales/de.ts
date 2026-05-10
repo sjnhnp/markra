@@ -160,8 +160,13 @@ const messages: LocaleMessages = {
   "app.cancelDiscardUnsavedMarkdownDocument": "Abbrechen",
   "app.confirmDiscardUnsavedMarkdownDocumentAction": "Verwerfen",
   "app.writingSurface": "Schreibfläche",
+  "app.imagePreview": "Bildvorschau",
   "app.markdownEditor": "Markdown-Editor",
   "app.markdownDocument": "Markdown-Dokument",
+  "editor.table.addColumnRight": "Spalte rechts hinzufügen",
+  "editor.table.addRowBelow": "Zeile darunter hinzufügen",
+  "editor.table.deleteColumn": "Spalte löschen",
+  "editor.table.deleteRow": "Zeile löschen",
   "app.documentStatus": "Dokumentstatus",
   "app.words": "Wörter",
   "app.saved": "gespeichert",
@@ -204,6 +209,8 @@ const messages: LocaleMessages = {
   "app.aiEmptyResponse": "AI hat keinen verwendbaren Text zurückgegeben.",
   "app.aiAgentRepeatedMultiWrite": "Die KI hat wiederholt mehrere Dokumentbearbeitungen in einem Schritt versucht. Bitte fordere jeweils nur eine Bearbeitung an.",
   "app.aiAgentPreviewReady": "Die Änderung ist vorbereitet. Bestätige sie im Editor.",
+  "app.clipboardImageRequiresSavedDocument": "Speichere das Dokument, bevor du Bilder einfügst.",
+  "app.clipboardImageSaveFailed": "Das eingefügte Bild konnte nicht gespeichert werden.",
   "settings.sections.startup": "Start",
   "settings.sections.theme": "Design",
   "settings.sections.editing": "Bearbeitung",
@@ -222,6 +229,8 @@ const messages: LocaleMessages = {
   "settings.editor.contentWidth.narrow": "Schmal",
   "settings.editor.contentWidth.default": "Standard",
   "settings.editor.contentWidth.wide": "Breit",
+  "settings.editor.clipboardImageFolder": "Ordner für Zwischenablagebilder",
+  "settings.editor.clipboardImageFolderDescription": "Speichert eingefügte Bilder in diesem Ordner neben der aktuellen Markdown-Datei.",
   "settings.editor.showWordCount": "Wortzahl anzeigen",
   "settings.editor.showWordCountDescription": "Zeigt die Wortzahl des Dokuments in der Statuszeile des Editors.",
   "settings.theme.description": "Gilt für alle geöffneten und neu erstellten Fenster.",
@@ -292,7 +301,8 @@ const messages: LocaleMessages = {
   "menu.quote": "Zitat",
   "menu.codeBlock": "Codeblock",
   "menu.link": "Link",
-  "menu.image": "Bild"
+  "menu.image": "Bild",
+  "menu.table": "Tabelle"
 };
 
 export default messages;

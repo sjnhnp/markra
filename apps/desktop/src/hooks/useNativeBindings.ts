@@ -9,6 +9,7 @@ import type { AppLanguage } from "@markra/shared";
 
 type NativeMenuHandlerOptions = {
   insertMarkdownSnippet: (open: string, close: string, placeholder: string) => unknown;
+  insertMarkdownTable: () => unknown;
   openDocument: () => unknown | Promise<unknown>;
   runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "shiftKey">) => unknown;
   saveDocument: () => unknown | Promise<unknown>;
@@ -24,6 +25,7 @@ type ApplicationShortcutOptions = {
 
 export function useNativeMenuHandlers({
   insertMarkdownSnippet,
+  insertMarkdownTable,
   openDocument,
   runEditorShortcut,
   saveDocument,
@@ -47,9 +49,10 @@ export function useNativeMenuHandlers({
       formatQuote: () => runEditorShortcut("b", { shiftKey: true }),
       formatCodeBlock: () => runEditorShortcut("c", { altKey: true }),
       insertLink: () => insertMarkdownSnippet("[", "](https://)", "text"),
-      insertImage: () => insertMarkdownSnippet("![", "](https://)", "alt")
+      insertImage: () => insertMarkdownSnippet("![", "](https://)", "alt"),
+      insertTable: insertMarkdownTable
     }),
-    [insertMarkdownSnippet, openDocument, runEditorShortcut, saveDocument, saveDocumentAs]
+    [insertMarkdownSnippet, insertMarkdownTable, openDocument, runEditorShortcut, saveDocument, saveDocumentAs]
   );
 }
 
