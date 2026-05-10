@@ -12,9 +12,14 @@ type TableControlLabels = {
   alignRight: string;
   deleteColumn: string;
   deleteRow: string;
+  adjustTable: string;
+  resizeTableTo: string;
+  tableColumns: string;
+  tableRows: string;
 };
 
 type TableAlignment = "left" | "center" | "right";
+type TableSize = { columns: number; rows: number };
 
 const defaultTableControlLabels: TableControlLabels = {
   addColumnRight: "Add column to the right",
@@ -23,10 +28,16 @@ const defaultTableControlLabels: TableControlLabels = {
   alignCenter: "Align table center",
   alignRight: "Align table right",
   deleteColumn: "Delete column",
-  deleteRow: "Delete row"
+  deleteRow: "Delete row",
+  adjustTable: "Adjust table",
+  resizeTableTo: "Resize table to {columns} columns by {rows} rows",
+  tableColumns: "Table columns",
+  tableRows: "Table rows"
 };
 
 const tableAlignments: TableAlignment[] = ["left", "center", "right"];
+const tableSizePickerColumns = 8;
+const tableSizePickerRows = 10;
 
 function controlTargetFromEvent(event: Event) {
   return event.target instanceof Node ? event.target : null;
@@ -77,6 +88,32 @@ function createTableAlignIcon(ownerDocument: Document, alignment: TableAlignment
   return icon;
 }
 
+function createTableSizeIcon(ownerDocument: Document) {
+  const icon = ownerDocument.createElement("span");
+  icon.className = "markra-table-size-icon";
+  icon.ariaHidden = "true";
+
+  for (let index = 0; index < 4; index += 1) {
+    const square = ownerDocument.createElement("span");
+    square.className = "markra-table-size-icon-square";
+    icon.append(square);
+  }
+
+  return icon;
+}
+
+function clampTableSize(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+
+  return Math.max(min, Math.min(max, Math.trunc(value)));
+}
+
+function formatTableSizeLabel(labels: TableControlLabels, size: TableSize) {
+  return labels.resizeTableTo
+    .replace("{columns}", String(size.columns))
+    .replace("{rows}", String(size.rows));
+}
+
 class MarkraTableNodeView {
   readonly dom: HTMLElement;
   readonly contentDOM: HTMLElement;
@@ -84,12 +121,19 @@ class MarkraTableNodeView {
   private node: ProseNode;
   private readonly table: HTMLTableElement;
   private readonly alignControls: HTMLElement;
+  private readonly sizeControls: HTMLElement;
+  private readonly sizeButton: HTMLButtonElement;
+  private readonly sizePopover: HTMLElement;
+  private readonly sizeCells: HTMLButtonElement[];
+  private readonly columnsInput: HTMLInputElement;
+  private readonly rowsInput: HTMLInputElement;
   private readonly alignButtons: HTMLButtonElement[];
   private readonly addColumnButton: HTMLButtonElement;
   private readonly addRowButton: HTMLButtonElement;
   private readonly deleteColumnButton: HTMLButtonElement;
   private readonly deleteRowButton: HTMLButtonElement;
   private hoveredCell: { column: number; row: number } | null = null;
+  private pendingSize: TableSize = { columns: 1, rows: 1 };
 
   constructor(
     node: ProseNode,
@@ -101,7 +145,21 @@ class MarkraTableNodeView {
     this.dom = view.dom.ownerDocument.createElement("div");
     this.table = view.dom.ownerDocument.createElement("table");
     this.alignControls = view.dom.ownerDocument.createElement("div");
+    this.sizeControls = view.dom.ownerDocument.createElement("div");
+    this.sizePopover = view.dom.ownerDocument.createElement("div");
     this.contentDOM = view.dom.ownerDocument.createElement("tbody");
+    this.sizeButton = createTableControlButton(
+      view.dom.ownerDocument,
+      "markra-table-size-button",
+      labels.adjustTable,
+      "",
+      this.handleSizeButtonMouseDown
+    );
+    this.sizeButton.ariaExpanded = "false";
+    this.sizeButton.append(createTableSizeIcon(view.dom.ownerDocument));
+    this.columnsInput = this.createSizeInput(labels.tableColumns, tableSizePickerColumns);
+    this.rowsInput = this.createSizeInput(labels.tableRows, tableSizePickerRows);
+    this.sizeCells = this.createSizeCells(labels);
     this.alignButtons = tableAlignments.map((alignment) => {
       const label =
         alignment === "left" ? labels.alignLeft : alignment === "center" ? labels.alignCenter : labels.alignRight;
@@ -147,12 +205,18 @@ class MarkraTableNodeView {
 
     this.dom.className = "tableWrapper markra-table-controls-wrapper";
     this.alignControls.className = "markra-table-align-controls";
+    this.sizeControls.className = "markra-table-size-controls";
+    this.sizePopover.className = "markra-table-size-popover";
+    this.sizePopover.contentEditable = "false";
+    this.sizePopover.hidden = true;
+    this.buildSizePopover();
     this.deleteColumnButton.hidden = true;
     this.deleteRowButton.hidden = true;
     this.dom.addEventListener("mousemove", this.handleMouseMove);
     this.dom.addEventListener("mouseleave", this.hideDeleteControls);
     this.table.append(this.contentDOM);
-    this.alignControls.append(...this.alignButtons);
+    this.sizeControls.append(this.sizeButton, this.sizePopover);
+    this.alignControls.append(this.sizeControls, ...this.alignButtons);
     this.dom.append(
       this.alignControls,
       this.table,
@@ -177,6 +241,7 @@ class MarkraTableNodeView {
     return Boolean(
       target &&
         (this.addColumnButton.contains(target) ||
+          this.sizeControls.contains(target) ||
           this.alignControls.contains(target) ||
           this.addRowButton.contains(target) ||
           this.deleteColumnButton.contains(target) ||
@@ -189,6 +254,7 @@ class MarkraTableNodeView {
     return (
       target instanceof Node &&
       (this.addColumnButton.contains(target) ||
+        this.sizeControls.contains(target) ||
         this.alignControls.contains(target) ||
         this.addRowButton.contains(target) ||
         this.deleteColumnButton.contains(target) ||
@@ -199,6 +265,17 @@ class MarkraTableNodeView {
   destroy() {
     this.dom.removeEventListener("mousemove", this.handleMouseMove);
     this.dom.removeEventListener("mouseleave", this.hideDeleteControls);
+    this.view.dom.ownerDocument.removeEventListener("mousedown", this.handleDocumentMouseDown, true);
+    this.sizeButton.removeEventListener("mousedown", this.handleSizeButtonMouseDown);
+    for (const cell of this.sizeCells) {
+      cell.removeEventListener("mouseenter", this.handleSizeCellMouseEnter);
+      cell.removeEventListener("focus", this.handleSizeCellFocus);
+      cell.removeEventListener("mousedown", this.handleSizeCellMouseDown);
+    }
+    this.columnsInput.removeEventListener("input", this.handleSizeInput);
+    this.columnsInput.removeEventListener("keydown", this.handleSizeInputKeyDown);
+    this.rowsInput.removeEventListener("input", this.handleSizeInput);
+    this.rowsInput.removeEventListener("keydown", this.handleSizeInputKeyDown);
     for (const button of this.alignButtons) {
       button.removeEventListener("mousedown", this.handleAlignMouseDown);
     }
@@ -207,6 +284,110 @@ class MarkraTableNodeView {
     this.deleteColumnButton.removeEventListener("mousedown", this.handleDeleteColumnMouseDown);
     this.deleteRowButton.removeEventListener("mousedown", this.handleDeleteRowMouseDown);
   }
+
+  private createSizeInput(label: string, max: number) {
+    const input = this.view.dom.ownerDocument.createElement("input");
+    input.type = "number";
+    input.min = "1";
+    input.max = String(max);
+    input.className = "markra-table-size-input";
+    input.ariaLabel = label;
+    input.contentEditable = "false";
+    input.draggable = false;
+    input.addEventListener("input", this.handleSizeInput);
+    input.addEventListener("keydown", this.handleSizeInputKeyDown);
+    return input;
+  }
+
+  private createSizeCells(labels: TableControlLabels) {
+    const cells: HTMLButtonElement[] = [];
+
+    for (let row = 1; row <= tableSizePickerRows; row += 1) {
+      for (let column = 1; column <= tableSizePickerColumns; column += 1) {
+        const cell = this.view.dom.ownerDocument.createElement("button");
+        const size = { columns: column, rows: row };
+        cell.type = "button";
+        cell.className = "markra-table-size-cell";
+        cell.ariaLabel = formatTableSizeLabel(labels, size);
+        cell.ariaPressed = "false";
+        cell.contentEditable = "false";
+        cell.draggable = false;
+        cell.dataset.columns = String(column);
+        cell.dataset.rows = String(row);
+        cell.addEventListener("mouseenter", this.handleSizeCellMouseEnter);
+        cell.addEventListener("focus", this.handleSizeCellFocus);
+        cell.addEventListener("mousedown", this.handleSizeCellMouseDown);
+        cells.push(cell);
+      }
+    }
+
+    return cells;
+  }
+
+  private buildSizePopover() {
+    const grid = this.view.dom.ownerDocument.createElement("div");
+    const footer = this.view.dom.ownerDocument.createElement("div");
+    const separator = this.view.dom.ownerDocument.createElement("span");
+
+    grid.className = "markra-table-size-grid";
+    grid.append(...this.sizeCells);
+    footer.className = "markra-table-size-footer";
+    separator.className = "markra-table-size-separator";
+    separator.textContent = "x";
+    footer.append(this.columnsInput, separator, this.rowsInput);
+    this.sizePopover.append(grid, footer);
+  }
+
+  private readonly handleSizeButtonMouseDown = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (this.sizePopover.hidden) {
+      this.showSizePopover();
+    } else {
+      this.hideSizePopover();
+    }
+  };
+
+  private readonly handleDocumentMouseDown = (event: MouseEvent) => {
+    const target = controlTargetFromEvent(event);
+    if (target && this.sizeControls.contains(target)) return;
+
+    this.hideSizePopover();
+  };
+
+  private readonly handleSizeCellMouseEnter = (event: MouseEvent) => {
+    this.updatePendingSize(this.sizeFromTarget(event.currentTarget));
+  };
+
+  private readonly handleSizeCellFocus = (event: FocusEvent) => {
+    this.updatePendingSize(this.sizeFromTarget(event.currentTarget));
+  };
+
+  private readonly handleSizeCellMouseDown = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.resizeTableTo(this.sizeFromTarget(event.currentTarget));
+  };
+
+  private readonly handleSizeInput = () => {
+    this.updatePendingSize(this.sizeFromInputs());
+  };
+
+  private readonly handleSizeInputKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.resizeTableTo(this.sizeFromInputs());
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.hideSizePopover();
+      this.view.focus();
+    }
+  };
 
   private readonly handleAddColumnMouseDown = (event: MouseEvent) => {
     event.preventDefault();
@@ -255,6 +436,55 @@ class MarkraTableNodeView {
     this.deleteColumnButton.hidden = true;
     this.deleteRowButton.hidden = true;
   };
+
+  private showSizePopover() {
+    const map = TableMap.get(this.node);
+    this.sizePopover.hidden = false;
+    this.sizeButton.ariaExpanded = "true";
+    this.updatePendingSize({
+      columns: Math.min(map.width, tableSizePickerColumns),
+      rows: Math.min(map.height, tableSizePickerRows)
+    });
+    this.view.dom.ownerDocument.addEventListener("mousedown", this.handleDocumentMouseDown, true);
+  }
+
+  private hideSizePopover() {
+    this.sizePopover.hidden = true;
+    this.sizeButton.ariaExpanded = "false";
+    this.view.dom.ownerDocument.removeEventListener("mousedown", this.handleDocumentMouseDown, true);
+  }
+
+  private sizeFromTarget(target: EventTarget | null): TableSize {
+    const element = target instanceof HTMLElement ? target : null;
+    return {
+      columns: clampTableSize(Number(element?.dataset.columns), 1, tableSizePickerColumns),
+      rows: clampTableSize(Number(element?.dataset.rows), 1, tableSizePickerRows)
+    };
+  }
+
+  private sizeFromInputs(): TableSize {
+    return {
+      columns: clampTableSize(Number(this.columnsInput.value), 1, tableSizePickerColumns),
+      rows: clampTableSize(Number(this.rowsInput.value), 1, tableSizePickerRows)
+    };
+  }
+
+  private updatePendingSize(size: TableSize) {
+    this.pendingSize = {
+      columns: clampTableSize(size.columns, 1, tableSizePickerColumns),
+      rows: clampTableSize(size.rows, 1, tableSizePickerRows)
+    };
+    this.columnsInput.value = String(this.pendingSize.columns);
+    this.rowsInput.value = String(this.pendingSize.rows);
+
+    for (const cell of this.sizeCells) {
+      const columns = Number(cell.dataset.columns);
+      const rows = Number(cell.dataset.rows);
+      const isActive = columns <= this.pendingSize.columns && rows <= this.pendingSize.rows;
+      cell.ariaPressed = String(isActive);
+      cell.classList.toggle("markra-table-size-cell-active", isActive);
+    }
+  }
 
   private showDeleteControlsForCell(cell: HTMLTableCellElement) {
     const row = cell.parentElement;
@@ -366,6 +596,69 @@ class MarkraTableNodeView {
     this.view.dispatch(tr.scrollIntoView());
     this.updateAlignmentButtons();
     this.view.focus();
+  }
+
+  private resizeTableTo(size: TableSize) {
+    const tablePosition = this.tablePosition();
+    if (tablePosition === false) return;
+
+    const targetSize = {
+      columns: clampTableSize(size.columns, 1, tableSizePickerColumns),
+      rows: clampTableSize(size.rows, 1, tableSizePickerRows)
+    };
+    const resizedTable = this.createResizedTable(targetSize);
+    if (!resizedTable) return;
+
+    let tr = this.view.state.tr
+      .replaceWith(tablePosition, tablePosition + this.node.nodeSize, resizedTable)
+      .scrollIntoView();
+    tr = this.moveTransactionCursorToCell(tr, tablePosition, targetSize.rows - 1, targetSize.columns - 1);
+    this.view.dispatch(tr);
+    this.hideSizePopover();
+    this.hideDeleteControls();
+    this.view.focus();
+  }
+
+  private createResizedTable(size: TableSize) {
+    if (!this.node.childCount) return null;
+
+    const rows: ProseNode[] = [];
+
+    for (let rowIndex = 0; rowIndex < size.rows; rowIndex += 1) {
+      const sourceRow = rowIndex < this.node.childCount ? this.node.child(rowIndex) : null;
+      const templateRow = sourceRow ?? this.templateRowForIndex(rowIndex);
+      const cells: ProseNode[] = [];
+
+      for (let columnIndex = 0; columnIndex < size.columns; columnIndex += 1) {
+        const sourceCell =
+          sourceRow && columnIndex < sourceRow.childCount ? sourceRow.child(columnIndex) : null;
+        cells.push(sourceCell ?? this.createEmptyCellForPosition(rowIndex, columnIndex));
+      }
+
+      rows.push(templateRow.type.createChecked(templateRow.attrs, cells));
+    }
+
+    return this.node.type.createChecked(this.node.attrs, rows);
+  }
+
+  private templateRowForIndex(rowIndex: number) {
+    if (rowIndex === 0 || this.node.childCount === 1) return this.node.child(0);
+
+    return this.node.child(Math.min(rowIndex, this.node.childCount - 1));
+  }
+
+  private createEmptyCellForPosition(rowIndex: number, columnIndex: number) {
+    const templateRow = this.templateRowForIndex(rowIndex);
+    const templateCell = templateRow.child(Math.min(columnIndex, templateRow.childCount - 1));
+    const attrs: Record<string, unknown> = { ...templateCell.attrs };
+    const alignment = this.tableAlignment();
+
+    if ("alignment" in attrs && alignment) attrs.alignment = alignment;
+    if ("colspan" in attrs) attrs.colspan = 1;
+    if ("rowspan" in attrs) attrs.rowspan = 1;
+    if ("colwidth" in attrs) attrs.colwidth = null;
+
+    return templateCell.type.createAndFill(attrs) ?? templateCell.type.create(attrs);
   }
 
   private insertColumnAfterTable() {

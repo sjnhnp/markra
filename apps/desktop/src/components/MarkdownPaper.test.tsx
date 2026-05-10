@@ -420,6 +420,56 @@ describe("MarkdownPaper editing", () => {
     expect(screen.getByRole("button", { name: "Align table left" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("resizes a table from the top-left size picker", async () => {
+    const initialTable = ["| Field | Value |", "| --- | --- |", "| Name | Markra |"].join("\n");
+    const { container, view } = await renderEditor(initialTable);
+    const tableRows = () =>
+      Array.from(container.querySelectorAll(".ProseMirror table tr")).map((row) =>
+        Array.from(row.querySelectorAll("th, td")).map((cell) => cell.textContent)
+      );
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Adjust table" }));
+
+    const resizeOption = screen.getByRole("button", { name: "Resize table to 3 columns by 4 rows" });
+    fireEvent.mouseEnter(resizeOption);
+
+    expect(screen.getByLabelText("Table columns")).toHaveValue(3);
+    expect(screen.getByLabelText("Table rows")).toHaveValue(4);
+
+    fireEvent.mouseDown(resizeOption);
+
+    await waitFor(() =>
+      expect(tableRows()).toEqual([
+        ["Field", "Value", ""],
+        ["Name", "Markra", ""],
+        ["", "", ""],
+        ["", "", ""]
+      ])
+    );
+    expect(container.querySelector(".ProseMirror .selectedCell")).not.toBeInTheDocument();
+
+    typeText(view, "New cell");
+
+    await waitFor(() =>
+      expect(tableRows()).toEqual([
+        ["Field", "Value", ""],
+        ["Name", "Markra", ""],
+        ["", "", ""],
+        ["", "", "New cell"]
+      ])
+    );
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Adjust table" }));
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Resize table to 2 columns by 2 rows" }));
+
+    await waitFor(() =>
+      expect(tableRows()).toEqual([
+        ["Field", "Value"],
+        ["Name", "Markra"]
+      ])
+    );
+  });
+
   it("renders AI replacement comparison inside the editor", async () => {
     const { container, view } = await renderEditor("Original text");
     const from = findTextPosition(view, "Original");

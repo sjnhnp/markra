@@ -253,7 +253,11 @@ function MilkdownSurface({
     alignCenter: t(language, "editor.table.alignCenter"),
     alignRight: t(language, "editor.table.alignRight"),
     deleteColumn: t(language, "editor.table.deleteColumn"),
-    deleteRow: t(language, "editor.table.deleteRow")
+    deleteRow: t(language, "editor.table.deleteRow"),
+    adjustTable: t(language, "editor.table.adjustTable"),
+    resizeTableTo: t(language, "editor.table.resizeTableTo"),
+    tableColumns: t(language, "editor.table.columns"),
+    tableRows: t(language, "editor.table.rows")
   };
 
   useEffect(() => {
