@@ -3,8 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig } from "bumpp";
 
-const tauriConfigPath = "src-tauri/tauri.conf.json";
-const cargoLockPath = "src-tauri/Cargo.lock";
+const desktopPackagePath = "apps/desktop/package.json";
+const tauriConfigPath = "apps/desktop/src-tauri/tauri.conf.json";
+const cargoLockPath = "apps/desktop/src-tauri/Cargo.lock";
 
 function addUpdatedFile(operation, relativePath) {
   const absolutePath = path.resolve(operation.options.cwd, relativePath);
@@ -30,7 +31,7 @@ function syncTauriVersion(operation) {
 }
 
 function syncCargoLock(operation) {
-  execFileSync("cargo", ["update", "--manifest-path", "src-tauri/Cargo.toml", "-w"], {
+  execFileSync("cargo", ["update", "--manifest-path", "apps/desktop/src-tauri/Cargo.toml", "-w"], {
     cwd: operation.options.cwd,
     stdio: "inherit",
   });
@@ -43,4 +44,5 @@ export default defineConfig({
     syncTauriVersion(operation);
     syncCargoLock(operation);
   },
+  files: ["package.json", desktopPackagePath, "apps/desktop/src-tauri/Cargo.toml"]
 });

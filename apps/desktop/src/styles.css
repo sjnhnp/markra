@@ -1,0 +1,915 @@
+@import "tailwindcss";
+@source "../../../packages/ui/src";
+@import "@milkdown/kit/prose/view/style/prosemirror.css";
+@import "@milkdown/kit/prose/tables/style/tables.css";
+
+@keyframes markra-ai-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes markra-ai-float-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes markra-ai-command-open {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+
+  58% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.012);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes markra-ai-command-close {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+@keyframes markra-ai-thinking-breathe {
+  0% {
+    opacity: 0.52;
+  }
+
+  50% {
+    opacity: 0.82;
+  }
+
+  100% {
+    opacity: 0.52;
+  }
+}
+
+@keyframes markra-ai-inline-shimmer {
+  0% {
+    opacity: 0;
+    transform: translateX(-80%) skewX(-10deg);
+  }
+
+  22% {
+    opacity: 0.28;
+  }
+
+  54% {
+    opacity: 0.62;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(420%) skewX(-10deg);
+  }
+}
+
+@property --markra-ai-agent-border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes markra-ai-agent-border-run {
+  to {
+    --markra-ai-agent-border-angle: 360deg;
+  }
+}
+
+@keyframes markra-ai-preview-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@layer base {
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #fafafa;
+    --bg-code: #f8f8f8;
+    --bg-hover: #f5f5f5;
+    --bg-active: #eeeeee;
+
+    --text-primary: #555555;
+    --text-heading: #333333;
+    --text-secondary: #999999;
+    --text-md-char: #c7c5c5;
+
+    --border-default: #eeeeee;
+    --border-strong: #dddddd;
+    --accent: #3f66d8;
+    --accent-soft: rgba(63, 102, 216, 0.12);
+    --accent-hover: #2f56c6;
+
+    --ai-command-shadow: 0 18px 52px rgba(0, 0, 0, 0.12);
+    --ai-command-expanded-shadow: 0 20px 64px rgba(0, 0, 0, 0.16);
+    --ai-command-panel-shadow: 0 18px 52px rgba(0, 0, 0, 0.13);
+    --ai-command-popover-shadow: 0 18px 48px rgba(0, 0, 0, 0.14);
+    --ai-preview-action-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+    --ai-preview-action-quiet-shadow:
+      0 10px 26px rgba(0, 0, 0, 0.13),
+      0 1px 2px rgba(0, 0, 0, 0.08);
+
+    --ai-ghost: #c0c0c0;
+    --ai-border: #dddddd;
+
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    color-scheme: light;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  [data-theme="dark"] {
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #252526;
+    --bg-code: #1e1e1e;
+    --bg-hover: #2a2d2e;
+    --bg-active: #37373d;
+
+    --text-primary: #d4d4d4;
+    --text-heading: #e0e0e0;
+    --text-secondary: #808080;
+    --text-md-char: #555555;
+
+    --border-default: #333333;
+    --border-strong: #444444;
+    --accent: #91a7ff;
+    --accent-soft: rgba(145, 167, 255, 0.16);
+    --accent-hover: #b7c5ff;
+
+    --ai-command-shadow:
+      0 24px 64px rgba(0, 0, 0, 0.64),
+      0 0 0 1px rgba(255, 255, 255, 0.035),
+      0 0 32px rgba(145, 167, 255, 0.08);
+    --ai-command-expanded-shadow:
+      0 28px 76px rgba(0, 0, 0, 0.68),
+      0 0 0 1px rgba(255, 255, 255, 0.045),
+      0 0 40px rgba(145, 167, 255, 0.11);
+    --ai-command-panel-shadow:
+      0 24px 68px rgba(0, 0, 0, 0.62),
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 0 34px rgba(145, 167, 255, 0.08);
+    --ai-command-popover-shadow:
+      0 22px 58px rgba(0, 0, 0, 0.66),
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 0 28px rgba(145, 167, 255, 0.08);
+    --ai-preview-action-shadow:
+      0 16px 38px rgba(0, 0, 0, 0.7),
+      0 0 0 1px rgba(255, 255, 255, 0.035);
+    --ai-preview-action-quiet-shadow:
+      0 18px 44px rgba(0, 0, 0, 0.78),
+      0 0 0 1px rgba(255, 255, 255, 0.045),
+      0 0 24px rgba(145, 167, 255, 0.07);
+
+    --ai-ghost: #555555;
+    --ai-border: #444444;
+
+    color-scheme: dark;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply m-0 h-full w-full min-w-190 overscroll-none;
+  }
+
+  body {
+    @apply bg-(--bg-primary) text-(--text-primary);
+  }
+
+  html[data-window="settings"],
+  html[data-window="settings"] body,
+  html[data-window="settings"] #root {
+    @apply min-w-0;
+  }
+
+  button {
+    font: inherit;
+  }
+
+  @media (max-width: 900px) {
+    html,
+    body,
+    #root {
+      @apply min-w-0;
+    }
+  }
+}
+
+@layer components {
+  .markdown-paper [data-milkdown-root],
+  .markdown-paper .ProseMirror {
+    @apply min-h-[calc(100vh-176px)] outline-none;
+  }
+
+  .markdown-paper .ProseMirror {
+    @apply wrap-break-word whitespace-pre-wrap;
+  }
+
+  .markdown-paper .ProseMirror-focused {
+    @apply outline-none;
+  }
+
+  .markdown-paper h1,
+  .markdown-paper h2,
+  .markdown-paper h3,
+  .markdown-paper h4,
+  .markdown-paper h5,
+  .markdown-paper h6 {
+    @apply text-[var(--text-heading)] font-[760] tracking-normal;
+  }
+
+  .markdown-paper h1 {
+    @apply m-0 mb-4.5 border-b border-(--border-default) pb-2.5 text-[44px] leading-[1.15] max-[900px]:text-[34px];
+  }
+
+  .markdown-paper h2 {
+    @apply mt-9 mb-4.5 border-b border-(--border-default) pb-1.5 text-[31px] leading-[1.22] max-[900px]:text-[26px];
+  }
+
+  .markdown-paper h3 {
+    @apply mt-7.5 mb-3 text-2xl leading-[1.28];
+  }
+
+  .markdown-paper p {
+    @apply m-0 mb-4.5;
+  }
+
+  .markdown-paper blockquote {
+    @apply my-4.5 mr-0 border-l border-(--border-strong) py-0 pr-0 pl-5 text-(--text-secondary);
+  }
+
+  .markdown-paper blockquote p {
+    @apply m-0 mb-3;
+  }
+
+  .markdown-paper ul {
+    @apply mt-3 mb-6 list-disc pl-[1.4em] marker:text-(--text-secondary);
+  }
+
+  .markdown-paper ol {
+    @apply mt-3 mb-6 list-decimal pl-[1.4em] marker:text-(--text-secondary);
+  }
+
+  .markdown-paper li {
+    @apply my-2;
+  }
+
+  .markdown-paper .tableWrapper {
+    @apply my-6 overflow-x-auto;
+  }
+
+  .markdown-paper .markra-table-controls-wrapper {
+    @apply relative overflow-visible pt-7 pr-9 pb-9;
+  }
+
+  .markdown-paper table {
+    @apply my-6 w-full border-collapse overflow-hidden text-left text-[0.95em] leading-[1.55];
+    table-layout: fixed;
+  }
+
+  .markdown-paper .markra-table-controls-wrapper > table {
+    @apply my-0;
+  }
+
+  .markdown-paper th,
+  .markdown-paper td {
+    @apply border border-(--border-strong) px-3 py-2 align-top;
+  }
+
+  .markdown-paper th {
+    @apply bg-(--bg-secondary) text-(--text-heading) font-[650];
+  }
+
+  .markdown-paper td {
+    @apply bg-(--bg-primary);
+  }
+
+  .markdown-paper tbody tr:nth-child(even) td {
+    @apply bg-(--bg-secondary);
+  }
+
+  .markdown-paper th p,
+  .markdown-paper td p {
+    @apply m-0;
+  }
+
+  .markdown-paper .markra-table-control {
+    @apply absolute inline-flex size-6 cursor-pointer items-center justify-center rounded-full border border-(--border-default) p-0 text-[18px] leading-none font-[420] transition-[opacity,color,background-color,border-color,box-shadow,scale] duration-150 ease-out hover:border-(--border-strong) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:border-(--border-strong) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none;
+    background: color-mix(in srgb, var(--bg-primary) 94%, var(--bg-secondary));
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.08);
+    color: var(--text-secondary);
+    opacity: 0;
+    pointer-events: none;
+    scale: 0.9;
+  }
+
+  .markdown-paper .markra-table-controls-wrapper:hover .markra-table-control,
+  .markdown-paper .markra-table-controls-wrapper:focus-within .markra-table-control {
+    opacity: 1;
+    pointer-events: auto;
+    scale: 1;
+  }
+
+  .markdown-paper .markra-table-control:hover,
+  .markdown-paper .markra-table-control:focus-visible {
+    box-shadow:
+      0 12px 30px rgba(0, 0, 0, 0.12),
+      0 0 0 3px color-mix(in srgb, var(--text-secondary) 14%, transparent);
+  }
+
+  .markdown-paper .markra-table-delete-control {
+    @apply hover:border-red-400/70 hover:bg-red-500/10 hover:text-red-600 focus-visible:border-red-400/70 focus-visible:bg-red-500/10 focus-visible:text-red-600;
+    transform: translate(-50%, -50%);
+  }
+
+  .markdown-paper .markra-table-delete-control:hover,
+  .markdown-paper .markra-table-delete-control:focus-visible {
+    box-shadow:
+      0 12px 30px rgba(0, 0, 0, 0.12),
+      0 0 0 3px color-mix(in srgb, oklch(63.7% 0.237 25.331) 14%, transparent);
+  }
+
+  .markdown-paper .markra-table-delete-column {
+    @apply z-10;
+  }
+
+  .markdown-paper .markra-table-delete-row {
+    @apply z-10;
+  }
+
+  .markdown-paper .markra-table-align-controls {
+    @apply absolute top-0 left-1.5 z-10 flex items-center gap-0.5;
+  }
+
+  .markdown-paper .markra-table-size-controls {
+    @apply relative flex items-center;
+  }
+
+  .markdown-paper .markra-table-size-button {
+    @apply static size-6 rounded-md border-transparent text-[0] shadow-none hover:border-(--border-default) focus-visible:border-(--border-default);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .markdown-paper .markra-table-size-button:hover,
+  .markdown-paper .markra-table-size-button:focus-visible,
+  .markdown-paper .markra-table-size-button[aria-expanded="true"] {
+    background: var(--bg-hover);
+    box-shadow: none;
+    color: var(--text-heading);
+  }
+
+  .markdown-paper .markra-table-size-icon {
+    @apply grid size-4 grid-cols-2 gap-0.75;
+  }
+
+  .markdown-paper .markra-table-size-icon-square {
+    @apply block rounded-[1px] border border-current;
+  }
+
+  .markdown-paper .markra-table-size-popover {
+    @apply absolute top-7 left-0 z-30 rounded-lg border border-(--border-default) p-3;
+    background: color-mix(in srgb, var(--bg-primary) 98%, var(--bg-secondary));
+    box-shadow:
+      0 18px 40px rgba(0, 0, 0, 0.16),
+      0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .markdown-paper .markra-table-size-grid {
+    @apply grid gap-1;
+    grid-template-columns: repeat(8, 0.875rem);
+  }
+
+  .markdown-paper .markra-table-size-cell {
+    @apply size-3.5 rounded-[2px] border border-(--border-default) p-0 transition-[background-color,border-color] duration-100 ease-out;
+    background: var(--bg-secondary);
+  }
+
+  .markdown-paper .markra-table-size-cell:hover,
+  .markdown-paper .markra-table-size-cell:focus-visible {
+    @apply outline-none;
+    border-color: var(--text-secondary);
+  }
+
+  .markdown-paper .markra-table-size-cell-active {
+    background: color-mix(in srgb, var(--text-secondary) 46%, var(--bg-secondary));
+    border-color: color-mix(in srgb, var(--text-secondary) 66%, var(--border-default));
+  }
+
+  .markdown-paper .markra-table-size-footer {
+    @apply mt-3 flex items-center justify-center gap-2 border-t border-(--border-default) pt-3;
+  }
+
+  .markdown-paper .markra-table-size-input {
+    @apply h-7 w-10 rounded-sm border border-(--border-default) bg-(--bg-primary) px-1 text-center text-sm leading-none text-(--text-primary) outline-none focus-visible:border-(--border-strong);
+  }
+
+  .markdown-paper .markra-table-size-input::-webkit-outer-spin-button,
+  .markdown-paper .markra-table-size-input::-webkit-inner-spin-button {
+    margin: 0;
+    appearance: none;
+  }
+
+  .markdown-paper .markra-table-size-input[type="number"] {
+    appearance: textfield;
+  }
+
+  .markdown-paper .markra-table-size-separator {
+    @apply text-sm text-(--text-secondary);
+  }
+
+  .markdown-paper .markra-table-align-button {
+    @apply static size-6 rounded-md border-transparent text-[0] shadow-none hover:border-(--border-default) focus-visible:border-(--border-default);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .markdown-paper .markra-table-align-button:hover,
+  .markdown-paper .markra-table-align-button:focus-visible,
+  .markdown-paper .markra-table-align-button[aria-pressed="true"] {
+    background: var(--bg-hover);
+    box-shadow: none;
+    color: var(--text-heading);
+  }
+
+  .markdown-paper .markra-table-align-icon {
+    @apply flex w-3.5 flex-col gap-0.75;
+  }
+
+  .markdown-paper .markra-table-align-icon-line {
+    @apply block h-0.5 rounded-full bg-current;
+  }
+
+  .markdown-paper .markra-table-align-icon-line:nth-child(1) {
+    width: 0.875rem;
+  }
+
+  .markdown-paper .markra-table-align-icon-line:nth-child(2) {
+    width: 0.625rem;
+  }
+
+  .markdown-paper .markra-table-align-icon-line:nth-child(3) {
+    width: 0.75rem;
+  }
+
+  .markdown-paper .markra-table-align-icon-left .markra-table-align-icon-line {
+    @apply mr-auto;
+  }
+
+  .markdown-paper .markra-table-align-icon-center .markra-table-align-icon-line {
+    @apply mx-auto;
+  }
+
+  .markdown-paper .markra-table-align-icon-right .markra-table-align-icon-line {
+    @apply ml-auto;
+  }
+
+  .markdown-paper .markra-table-add-column {
+    @apply right-1.5 top-1/2 -translate-y-1/2;
+  }
+
+  .markdown-paper .markra-table-add-row {
+    @apply bottom-1.5 left-1/2 -translate-x-1/2;
+  }
+
+  .markdown-paper a {
+    @apply cursor-text text-(--accent-hover) underline underline-offset-2;
+    -webkit-user-drag: none;
+    user-select: text;
+  }
+
+  .markdown-paper .markra-live-link-label {
+    @apply cursor-text text-(--accent-hover) underline underline-offset-2;
+    -webkit-user-drag: none;
+    user-select: text;
+  }
+
+  .markdown-paper .ProseMirror.markra-link-open-modifier-active a[href],
+  .markdown-paper .ProseMirror.markra-link-open-modifier-active .markra-live-link-label {
+    cursor: pointer;
+  }
+
+  .markdown-paper .markra-live-link-source-label {
+    @apply cursor-text text-(--accent-hover) underline underline-offset-2;
+  }
+
+  .markdown-paper a[href]::after,
+  .markdown-paper .markra-live-link-label::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .markdown-paper .markra-live-link-icon {
+    @apply inline-block text-(--accent-hover);
+    margin-left: 0.18em;
+    pointer-events: none;
+    text-decoration: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  .markdown-paper .markra-live-link-icon::before {
+    content: "↗";
+    display: inline-block;
+    transform: translateY(-0.08em);
+    font-size: 0.72em;
+    font-weight: 650;
+    line-height: 1;
+    opacity: 0.7;
+  }
+
+  .markdown-paper .markra-live-link-icon + .markra-live-link-icon {
+    @apply hidden;
+  }
+
+  .markdown-paper img {
+    @apply my-6 block max-w-full rounded-[3px] border border-(--border-default);
+  }
+
+  .markdown-paper .markra-image-node {
+    @apply block max-w-full outline-none;
+    -webkit-user-drag: none;
+    user-select: text;
+  }
+
+  .markdown-paper .markra-image-node.ProseMirror-selectednode {
+    @apply bg-transparent outline-none;
+  }
+
+  .markdown-paper .markra-image-node-source-row {
+    @apply m-0 flex w-full min-w-0 items-center gap-1.5 p-0 text-(--text-primary);
+  }
+
+  .markdown-paper .markra-image-node-source-icon {
+    @apply shrink-0 text-(--text-secondary);
+  }
+
+  .markdown-paper .markra-image-node-source {
+    @apply m-0 block w-full min-w-0 appearance-none rounded-none border-0 bg-transparent p-0 font-mono text-[0.95em] text-(--text-primary) outline-none;
+    box-shadow: none;
+    line-height: inherit;
+  }
+
+  .markdown-paper .markra-image-node-source:focus {
+    @apply border-0 outline-none;
+    box-shadow: none;
+  }
+
+  .markdown-paper .markra-image-node > img {
+    @apply mt-0 border-0;
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+
+  .markdown-paper .markra-image-node-source::selection {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+
+  .markdown-paper .markra-image-node-source-invalid .markra-image-node-source {
+    @apply text-red-600;
+  }
+
+  .markdown-paper .markra-live-image-preview {
+    @apply my-6 block max-w-full rounded-[3px] border border-(--border-default);
+  }
+
+  .markdown-paper strong {
+    @apply text-(--text-heading) font-[760];
+  }
+
+  .markdown-paper .markra-md-delimiter {
+    @apply text-(--text-md-char);
+  }
+
+  .markdown-paper .markra-md-hidden-delimiter {
+    @apply hidden;
+  }
+
+  .markdown-paper .markra-live-mark-strong {
+    @apply text-(--text-heading) font-[760];
+  }
+
+  .markdown-paper .markra-live-mark-emphasis {
+    @apply italic;
+  }
+
+  .markdown-paper .markra-live-mark-strikethrough {
+    @apply line-through;
+  }
+
+  .markdown-paper .markra-live-mark-inlineCode {
+    @apply rounded-[3px] border border-(--border-default) bg-(--bg-code) px-[0.28em] py-[0.12em] text-[0.88em] text-(--text-primary);
+    font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  }
+
+  .markdown-paper .markra-ai-preview-delete {
+    @apply rounded-[3px] text-(--text-secondary) line-through decoration-red-500/50 decoration-1;
+    background: color-mix(in srgb, oklch(63.7% 0.237 25.331) 7%, transparent);
+  }
+
+  .markdown-paper .markra-ai-selection-hold {
+    @apply rounded-[3px];
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .markdown-paper .markra-ai-preview-widget {
+    @apply relative my-1 inline-flex max-w-full items-start align-baseline;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-style: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+    text-decoration: inherit;
+    text-transform: inherit;
+    white-space: normal;
+    isolation: isolate;
+    z-index: 30;
+  }
+
+  .markdown-paper .markra-ai-preview-widget-block {
+    @apply my-4 flex w-full max-w-full items-start;
+    font-size: 16px;
+    font-weight: 520;
+    line-height: 1.65;
+  }
+
+  .markdown-paper .markra-ai-preview-scope {
+    @apply mr-1 inline-flex shrink-0 items-center rounded border border-(--border-default) bg-(--bg-secondary) px-1.5 py-0.5 text-(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .markdown-paper .markra-ai-preview-widget-block .markra-ai-preview-scope {
+    @apply mt-0;
+  }
+
+  .markdown-paper .markra-ai-preview-insert {
+    @apply inline-block max-w-full rounded-[3px];
+    background: color-mix(in srgb, oklch(69.6% 0.17 162.48) 9%, transparent);
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-style: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+    text-decoration: inherit;
+    text-transform: inherit;
+    white-space: pre-wrap;
+  }
+
+  .markdown-paper .markra-ai-preview-insert-rendered {
+    @apply block min-w-0 overflow-x-auto;
+    font-weight: initial;
+    text-decoration: none;
+    white-space: normal;
+  }
+
+  .markdown-paper .markra-ai-preview-insert-rendered table {
+    @apply my-0;
+  }
+
+  .markdown-paper .markra-ai-preview-actions {
+    @apply absolute right-0 bottom-[calc(100%+6px)] inline-flex items-center gap-0.5 rounded-md border border-(--border-default) bg-(--bg-primary) p-0.5 shadow-[var(--ai-preview-action-shadow)];
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    z-index: 60;
+  }
+
+  .markdown-paper .markra-ai-preview-actions-quiet {
+    @apply scale-[0.98] border-transparent transition-[opacity,transform,border-color,background-color] duration-150 ease-out;
+    opacity: 0.58;
+    background: color-mix(in srgb, var(--bg-primary) 92%, var(--bg-secondary));
+    box-shadow: var(--ai-preview-action-quiet-shadow);
+    transform-origin: right bottom;
+  }
+
+  .markdown-paper .markra-ai-preview-widget:hover .markra-ai-preview-actions-quiet,
+  .markdown-paper .markra-ai-preview-widget:focus-within .markra-ai-preview-actions-quiet {
+    @apply scale-100 border-(--border-default);
+    opacity: 1;
+  }
+
+  .markdown-paper .markra-ai-preview-action {
+    @apply inline-flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none;
+  }
+
+  .markdown-paper .markra-ai-preview-apply {
+    @apply text-(--accent) hover:bg-(--accent-soft) hover:text-(--accent-hover) focus-visible:bg-(--accent-soft) focus-visible:text-(--accent-hover);
+  }
+
+  .markdown-paper .markra-ai-preview-applying {
+    @apply cursor-default bg-(--accent-soft) text-(--accent);
+  }
+
+  .markdown-paper .markra-ai-preview-copied {
+    @apply bg-emerald-500/12 text-emerald-600 hover:bg-emerald-500/16 hover:text-emerald-700 focus-visible:bg-emerald-500/16 focus-visible:text-emerald-700;
+  }
+
+  .markdown-paper .markra-ai-preview-icon {
+    @apply pointer-events-none;
+  }
+
+  .markdown-paper .markra-ai-preview-spinner {
+    transform-origin: center;
+    animation: markra-ai-preview-spin 0.82s linear infinite;
+  }
+
+  .markdown-paper code {
+    @apply rounded-[3px] border border-(--border-default) bg-(--bg-code) px-[0.28em] py-[0.12em] text-[0.88em] text-(--text-primary);
+    font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  }
+
+  .markdown-paper pre {
+    @apply mt-5 mb-7 overflow-auto rounded border border-(--border-default) bg-(--bg-code) px-4.5 py-4;
+  }
+
+  .markdown-paper pre code {
+    @apply border-0 bg-transparent p-0;
+  }
+
+  .markdown-paper hr {
+    @apply my-8 border-0 border-t border-(--border-default);
+  }
+
+  .ai-chat-markdown {
+    @apply text-[13px] leading-5;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .ai-chat-markdown h1,
+  .ai-chat-markdown h2,
+  .ai-chat-markdown h3,
+  .ai-chat-markdown h4,
+  .ai-chat-markdown h5,
+  .ai-chat-markdown h6 {
+    @apply mt-0 mb-2 border-0 p-0 text-[1em] leading-5 font-[700];
+  }
+
+  .ai-chat-markdown p {
+    @apply m-0 mb-2;
+  }
+
+  .ai-chat-markdown p:last-child {
+    @apply mb-0;
+  }
+
+  .ai-chat-markdown ul,
+  .ai-chat-markdown ol {
+    @apply my-2 pl-[1.2em];
+  }
+
+  .ai-chat-markdown li {
+    @apply my-1;
+  }
+
+  .ai-chat-markdown blockquote {
+    @apply my-2 pl-3;
+  }
+
+  .ai-chat-markdown table {
+    @apply my-2 text-[12px];
+  }
+
+  .ai-chat-markdown img {
+    @apply my-2 rounded-[6px];
+  }
+
+  .ai-chat-markdown pre {
+    @apply my-2 overflow-x-auto rounded-[8px] border border-(--border-default) bg-(--bg-secondary) p-3;
+  }
+
+  .markdown-paper::selection,
+  .markdown-paper *::selection {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  .ai-command-thinking-text {
+    color: color-mix(in srgb, var(--text-secondary) 68%, transparent);
+    animation: markra-ai-thinking-breathe 1.8s ease-in-out infinite;
+  }
+
+  .ai-command-inline-loading-text {
+    @apply relative inline-block max-w-full overflow-hidden font-[520];
+    color: color-mix(in srgb, var(--text-secondary) 74%, transparent);
+  }
+
+  .ai-command-inline-loading-text::after {
+    content: "";
+    position: absolute;
+    top: -0.35em;
+    bottom: -0.35em;
+    left: -0.85em;
+    width: 1.35em;
+    border-radius: 999px;
+    background: radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--bg-primary) 96%, transparent) 0%,
+      color-mix(in srgb, var(--bg-primary) 68%, transparent) 46%,
+      transparent 72%
+    );
+    filter: blur(10px);
+    opacity: 0;
+    transform: translateX(-80%) skewX(-10deg);
+    animation: markra-ai-inline-shimmer 1.9s cubic-bezier(0.33, 0, 0.2, 1) infinite;
+    pointer-events: none;
+  }
+
+  .ai-agent-composer-running {
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--border-default));
+    box-shadow: var(--ai-command-shadow);
+  }
+
+  .ai-agent-composer-running::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: 1;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(
+      from var(--markra-ai-agent-border-angle),
+      transparent 0deg,
+      transparent 218deg,
+      color-mix(in srgb, var(--accent) 14%, transparent) 256deg,
+      color-mix(in srgb, var(--accent) 92%, var(--bg-primary)) 304deg,
+      color-mix(in srgb, var(--accent) 18%, transparent) 338deg,
+      transparent 360deg
+    );
+    animation: markra-ai-agent-border-run 1.65s linear infinite;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ai-command-thinking-text {
+      animation: none;
+      opacity: 0.68;
+    }
+
+    .ai-command-inline-loading-text::after {
+      animation: none;
+      opacity: 0;
+    }
+
+    .ai-agent-composer-running {
+      box-shadow: var(--ai-command-shadow);
+    }
+
+    .ai-agent-composer-running::before {
+      animation: none;
+    }
+
+    .markdown-paper .markra-ai-preview-spinner {
+      animation: none;
+    }
+  }
+}

@@ -4,7 +4,8 @@ const commandArgs = [
   "node_modules/bumpp/bin/bumpp.mjs",
   ...process.argv.slice(2),
   "package.json",
-  "src-tauri/Cargo.toml",
+  "apps/desktop/package.json",
+  "apps/desktop/src-tauri/Cargo.toml",
   "--configFilePath",
   "bump.config.mjs",
 ];
