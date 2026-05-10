@@ -34,6 +34,7 @@ type AiAgentPanelProps = {
   activeSessionId?: string | null;
   availableModels?: AiAgentModelOption[];
   context?: AiAgentPanelContext | null;
+  documentAvailable?: boolean;
   draft?: string;
   language?: AppLanguage;
   messages?: AiAgentPanelMessage[];
@@ -76,6 +77,7 @@ export function AiAgentPanel({
   activeSessionId = null,
   availableModels = [],
   context = null,
+  documentAvailable = true,
   draft = "",
   language = "en",
   messages = [],
@@ -153,7 +155,10 @@ export function AiAgentPanel({
     }
   ];
   const submitting = status === "thinking" || status === "streaming";
-  const canSend = draft.trim().length > 0 && !submitting;
+  const canSend = documentAvailable && draft.trim().length > 0 && !submitting;
+  const emptyTitle = documentAvailable ? label("app.aiAgentEmptyTitle") : label("app.aiAgentUnavailableTitle");
+  const emptyBody = documentAvailable ? label("app.aiAgentEmptyBody") : label("app.aiAgentUnavailableBody");
+  const composerPlaceholder = documentAvailable ? label("app.aiAgentPlaceholder") : label("app.aiAgentUnavailablePlaceholder");
   const contextDocumentName = context?.documentName?.trim() || "Untitled.md";
   const contextSelection =
     (context?.selectionChars ?? 0) > 0
@@ -299,6 +304,8 @@ export function AiAgentPanel({
   };
 
   const handleSuggestion = (suggestion: string) => {
+    if (!documentAvailable || submitting) return;
+
     onDraftChange?.(suggestion);
     onSubmit?.(suggestion);
   };
@@ -453,10 +460,10 @@ export function AiAgentPanel({
             <div className="grid gap-3">
               <div className="px-1 py-2">
                 <p className="m-0 text-[13px] leading-5 font-[560] text-(--text-heading)">
-                  {label("app.aiAgentEmptyTitle")}
+                  {emptyTitle}
                 </p>
                 <p className="m-0 mt-1 text-[12px] leading-5 font-[520] text-(--text-secondary)">
-                  {label("app.aiAgentEmptyBody")}
+                  {emptyBody}
                 </p>
               </div>
               <div className="grid border-y border-(--border-default)">
@@ -465,9 +472,10 @@ export function AiAgentPanel({
 
                   return (
                     <button
-                      className="inline-flex h-9 w-full cursor-pointer items-center gap-2 border-0 border-b border-(--border-default) bg-transparent px-1 text-left text-[13px] leading-5 font-[540] text-(--text-primary) transition-[background-color,color] duration-150 ease-out last:border-b-0 hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                      className="inline-flex h-9 w-full cursor-pointer items-center gap-2 border-0 border-b border-(--border-default) bg-transparent px-1 text-left text-[13px] leading-5 font-[540] text-(--text-primary) transition-[background-color,color] duration-150 ease-out last:border-b-0 hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none disabled:cursor-default disabled:opacity-45 disabled:hover:bg-transparent disabled:hover:text-(--text-primary)"
                       key={suggestion.label}
                       type="button"
+                      disabled={!documentAvailable || submitting}
                       onClick={() => handleSuggestion(suggestion.label)}
                     >
                       <Icon aria-hidden="true" className={suggestionIconClassName} size={15} />
@@ -567,11 +575,15 @@ export function AiAgentPanel({
               id="markra-ai-agent-input"
               className="max-h-32 min-h-14 w-full resize-none border-0 bg-transparent p-0 text-[14px] leading-5 text-(--text-primary) outline-none placeholder:text-(--text-secondary)"
               value={draft}
-              placeholder={label("app.aiAgentPlaceholder")}
+              placeholder={composerPlaceholder}
               rows={2}
               aria-label={label("app.aiAgentMessage")}
+              disabled={!documentAvailable}
               readOnly={submitting}
-              onChange={(event) => onDraftChange?.(event.target.value)}
+              onChange={(event) => {
+                if (!documentAvailable) return;
+                onDraftChange?.(event.target.value);
+              }}
               onCompositionEnd={handleCompositionEnd}
               onCompositionStart={handleCompositionStart}
               onKeyDown={handleKeyDown}

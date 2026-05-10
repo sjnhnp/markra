@@ -67,6 +67,33 @@ describe("Markra AI workspace", () => {
     );
   });
 
+  it("does not allow agent messages until a markdown document is open", async () => {
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+
+    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    const input = within(agentPanel).getByRole("textbox", { name: "Markra AI message" });
+    const sendButton = within(agentPanel).getByRole("button", { name: "Send message" });
+    const suggestion = within(agentPanel).getByRole("button", { name: "Summarize this document" });
+
+    expect(within(agentPanel).getByText("Open a Markdown document to chat")).toBeInTheDocument();
+    expect(input).toBeDisabled();
+    expect(sendButton).toBeDisabled();
+    expect(suggestion).toBeDisabled();
+  });
+
   it("restores the pending AI suggestion without reopening the command input when an applied suggestion is undone", async () => {
     const { container } = renderApp();
 

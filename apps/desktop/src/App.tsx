@@ -799,6 +799,7 @@ export default function App() {
                 activeSessionId={activeAiAgentSessionId}
                 availableModels={aiSettings.availableTextModels}
                 context={aiAgentContext}
+                documentAvailable={hasOpenDocument && !activeImageFile}
                 draft={aiAgent.draft}
                 language={appLanguage.language}
                 messages={aiAgent.messages}

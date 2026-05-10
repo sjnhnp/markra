@@ -273,6 +273,36 @@ describe("AiAgentPanel", () => {
     expect(input).toHaveValue("");
   });
 
+  it("does not allow sending when no document is available", () => {
+    const submit = vi.fn();
+    const updateDraft = vi.fn();
+
+    renderAgentPanel({
+      documentAvailable: false,
+      draft: "Summarize this note",
+      onDraftChange: updateDraft,
+      onSubmit: submit
+    });
+
+    const input = screen.getByRole("textbox", { name: "Markra AI message" });
+    const sendButton = screen.getByRole("button", { name: "Send message" });
+    const suggestion = screen.getByRole("button", { name: "Summarize this document" });
+
+    expect(screen.getByText("Open a Markdown document to chat")).toBeInTheDocument();
+    expect(screen.getByText("Select a file from the sidebar or create a new Markdown document first.")).toBeInTheDocument();
+    expect(input).toHaveAttribute("placeholder", "Open a Markdown document first");
+    expect(input).toBeDisabled();
+    expect(sendButton).toBeDisabled();
+    expect(suggestion).toBeDisabled();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.click(sendButton);
+    fireEvent.click(suggestion);
+
+    expect(updateDraft).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+  });
+
   it("does not send when Enter confirms an IME composition", () => {
     function Harness() {
       const [draft, setDraft] = useState("都有什么ai");
