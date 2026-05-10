@@ -321,28 +321,100 @@
   }
 
   .markdown-paper a {
-    @apply cursor-pointer text-(--accent-hover) underline underline-offset-2;
+    @apply cursor-text text-(--accent-hover) underline underline-offset-2;
+    -webkit-user-drag: none;
+    user-select: text;
   }
 
   .markdown-paper .markra-live-link-label {
-    @apply cursor-pointer text-(--accent-hover) underline underline-offset-2;
+    @apply cursor-text text-(--accent-hover) underline underline-offset-2;
+    -webkit-user-drag: none;
+    user-select: text;
+  }
+
+  .markdown-paper .ProseMirror.markra-link-open-modifier-active a[href],
+  .markdown-paper .ProseMirror.markra-link-open-modifier-active .markra-live-link-label {
+    cursor: pointer;
+  }
+
+  .markdown-paper .markra-live-link-source-label {
+    @apply cursor-text text-(--accent-hover) underline underline-offset-2;
   }
 
   .markdown-paper a[href]::after,
   .markdown-paper .markra-live-link-label::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .markdown-paper .markra-live-link-icon {
+    @apply inline-block text-(--accent-hover);
+    margin-left: 0.18em;
+    pointer-events: none;
+    text-decoration: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  .markdown-paper .markra-live-link-icon::before {
     content: "↗";
     display: inline-block;
-    margin-left: 0.18em;
     transform: translateY(-0.08em);
     font-size: 0.72em;
     font-weight: 650;
     line-height: 1;
-    text-decoration: none;
     opacity: 0.7;
+  }
+
+  .markdown-paper .markra-live-link-icon + .markra-live-link-icon {
+    @apply hidden;
   }
 
   .markdown-paper img {
     @apply my-6 block max-w-full rounded-[3px] border border-(--border-default);
+  }
+
+  .markdown-paper .markra-image-node {
+    @apply block max-w-full outline-none;
+    -webkit-user-drag: none;
+    user-select: text;
+  }
+
+  .markdown-paper .markra-image-node.ProseMirror-selectednode {
+    @apply bg-transparent outline-none;
+  }
+
+  .markdown-paper .markra-image-node-source-row {
+    @apply m-0 flex w-full min-w-0 items-center gap-1.5 p-0 text-(--text-primary);
+  }
+
+  .markdown-paper .markra-image-node-source-icon {
+    @apply shrink-0 text-(--text-secondary);
+  }
+
+  .markdown-paper .markra-image-node-source {
+    @apply m-0 block w-full min-w-0 appearance-none rounded-none border-0 bg-transparent p-0 font-mono text-[0.95em] text-(--text-primary) outline-none;
+    box-shadow: none;
+    line-height: inherit;
+  }
+
+  .markdown-paper .markra-image-node-source:focus {
+    @apply border-0 outline-none;
+    box-shadow: none;
+  }
+
+  .markdown-paper .markra-image-node > img {
+    @apply mt-0 border-0;
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+
+  .markdown-paper .markra-image-node-source::selection {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+
+  .markdown-paper .markra-image-node-source-invalid .markra-image-node-source {
+    @apply text-red-600;
   }
 
   .markdown-paper .markra-live-image-preview {

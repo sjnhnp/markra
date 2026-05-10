@@ -1202,6 +1202,43 @@ describe("Markra workspace", () => {
     );
   });
 
+  it("saves expanded link source as markdown instead of escaped text", async () => {
+    mockOpenMarkdownFile({
+      content: "[关于我们](https://m.techflowpost.com/article/9424)",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "native.md",
+      path: mockNativePath
+    });
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+
+    const link = await screen.findByText("关于我们");
+    fireEvent.click(link.closest("a")!);
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe(
+      "[关于我们](https://m.techflowpost.com/article/9424)"
+    );
+
+    fireEvent.keyDown(window, { key: "s", metaKey: true });
+
+    await waitFor(() =>
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: mockNativePath,
+          suggestedName: "native.md"
+        })
+      )
+    );
+    const savedContents = mockedSaveNativeMarkdownFile.mock.calls.at(-1)?.[0].contents ?? "";
+    expect(savedContents).toContain("[关于我们](https://m.techflowpost.com/article/9424)");
+    expect(savedContents).not.toContain("\\[关于我们\\]");
+    expect(savedContents).not.toContain("\\(https\\://m.techflowpost.com/article/9424\\)");
+  });
+
   it("wires native menu file actions to the current document commands", async () => {
     mockOpenMarkdownFile({
       content: "# Native menu file\n\nOpened from the native menu.",

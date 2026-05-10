@@ -4,8 +4,10 @@ import { history } from "@milkdown/kit/plugin/history";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import {
   commands as commonmarkCommands,
+  imageSchema,
   inputRules as commonmarkInputRules,
   keymap as commonmarkKeymap,
+  linkSchema,
   plugins as commonmarkPlugins,
   schema as commonmarkSchema
 } from "@milkdown/kit/preset/commonmark";
@@ -23,6 +25,7 @@ import { $prose } from "@milkdown/kit/utils";
 import { markraLiveMarkdownPlugin } from "@markra/editor";
 import { markraClipboardImagePlugin, type SaveClipboardImage } from "@markra/editor";
 import { markraLinkImageLivePlugin } from "@markra/editor";
+import { serializeLinkImageLiveMarkdown } from "@markra/editor";
 import { markraMarkdownShortcuts } from "@markra/editor";
 import { markraAiEditorPreviewPlugin } from "@markra/editor";
 import { markraAiSelectionHoldPlugin } from "@markra/editor";
@@ -142,12 +145,16 @@ function markraTextSelectionObserverPlugin(
   });
 }
 
-function linkHrefFromClickTarget(target: EventTarget | null) {
+function linkTargetFromClickTarget(target: EventTarget | null) {
   const targetElement =
     target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
   if (!targetElement) return null;
 
-  const linkTarget = targetElement.closest<HTMLAnchorElement | HTMLElement>("a[href], .markra-live-link-label[data-markra-href]");
+  return targetElement.closest<HTMLAnchorElement | HTMLElement>("a[href], .markra-live-link-label[data-markra-href]");
+}
+
+function linkHrefFromClickTarget(target: EventTarget | null) {
+  const linkTarget = linkTargetFromClickTarget(target);
   if (!linkTarget) return null;
 
   if (linkTarget instanceof HTMLAnchorElement) {
@@ -157,14 +164,33 @@ function linkHrefFromClickTarget(target: EventTarget | null) {
   return linkTarget.dataset.markraHref ?? null;
 }
 
+function linkOpenModifierIsPressed(event: MouseEvent) {
+  return event.metaKey || event.ctrlKey;
+}
+
 function markraExternalLinkClickPlugin(openExternalUrl: (url: string) => unknown) {
   return $prose(() => {
     return new Plugin({
       props: {
         handleDOMEvents: {
+          mousedown(_view, event) {
+            const href = linkHrefFromClickTarget(event.target);
+            if (!href) return false;
+
+            if (!linkOpenModifierIsPressed(event)) {
+              return false;
+            }
+
+            event.preventDefault();
+            return true;
+          },
           click(_view, event) {
             const href = linkHrefFromClickTarget(event.target);
             if (!href) return false;
+
+            if (!linkOpenModifierIsPressed(event)) {
+              return false;
+            }
 
             event.preventDefault();
 
@@ -244,7 +270,14 @@ function MilkdownSurface({
           }));
           ctx.get(listenerCtx).updated((editorCtx, doc) => {
             try {
-              onMarkdownChange(editorCtx.get(serializerCtx)(doc));
+              onMarkdownChange(
+                serializeLinkImageLiveMarkdown(
+                  doc,
+                  editorCtx.get(serializerCtx),
+                  linkSchema.type(editorCtx),
+                  imageSchema.type(editorCtx)
+                )
+              );
             } catch {
               // Milkdown can flush a delayed update after teardown in tests or fast window closes.
             }

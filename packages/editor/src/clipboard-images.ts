@@ -1,4 +1,6 @@
-import { Plugin } from "@milkdown/kit/prose/state";
+import { imageSchema } from "@milkdown/kit/preset/commonmark";
+import { Fragment, type NodeType } from "@milkdown/kit/prose/model";
+import { Plugin, Selection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 
@@ -22,18 +24,23 @@ function clipboardImageFiles(event: ClipboardEvent) {
   return images;
 }
 
-function escapeImageAlt(alt: string) {
-  return alt.replace(/\\/gu, "\\\\").replace(/\]/gu, "\\]");
-}
-
-function imageMarkdown(image: SavedClipboardImage) {
-  return `![${escapeImageAlt(image.alt || "image")}](${image.src})`;
+function createImageFragment(images: SavedClipboardImage[], image: NodeType) {
+  return Fragment.fromArray(
+    images.map((savedImage) =>
+      image.create({
+        alt: savedImage.alt || "image",
+        src: savedImage.src,
+        title: ""
+      })
+    )
+  );
 }
 
 async function saveAndInsertClipboardImages(
   view: EditorView,
   files: File[],
-  saveClipboardImage: SaveClipboardImage
+  saveClipboardImage: SaveClipboardImage,
+  image: NodeType
 ) {
   const bookmark = view.state.selection.getBookmark();
   const savedImages: SavedClipboardImage[] = [];
@@ -46,15 +53,19 @@ async function saveAndInsertClipboardImages(
   if (!savedImages.length) return;
 
   const selection = bookmark.resolve(view.state.doc);
-  const markdown = savedImages.map(imageMarkdown).join("\n");
-  const transaction = view.state.tr.insertText(markdown, selection.from, selection.to).scrollIntoView();
+  const fragment = createImageFragment(savedImages, image);
+  const transaction = view.state.tr.replaceWith(selection.from, selection.to, fragment).scrollIntoView();
+  const cursor = Math.min(transaction.doc.content.size, selection.from + fragment.size);
 
+  transaction.setSelection(Selection.near(transaction.doc.resolve(cursor)));
   view.dispatch(transaction);
   view.focus();
 }
 
 export function markraClipboardImagePlugin(saveClipboardImage: SaveClipboardImage) {
-  return $prose(() => {
+  return $prose((ctx) => {
+    const image = imageSchema.type(ctx);
+
     return new Plugin({
       props: {
         handlePaste: (view, event) => {
@@ -62,7 +73,7 @@ export function markraClipboardImagePlugin(saveClipboardImage: SaveClipboardImag
           if (!files.length) return false;
 
           event.preventDefault();
-          saveAndInsertClipboardImages(view, files, saveClipboardImage).catch((error: unknown) => {
+          saveAndInsertClipboardImages(view, files, saveClipboardImage, image).catch((error: unknown) => {
             console.error("[markra-clipboard-images] failed to insert pasted image", error);
           });
           return true;

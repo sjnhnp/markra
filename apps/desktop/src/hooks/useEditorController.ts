@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
-import { editorViewCtx, parserCtx, type Editor } from "@milkdown/kit/core";
+import { editorViewCtx, parserCtx, serializerCtx, type Editor } from "@milkdown/kit/core";
+import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import { getMarkdown } from "@milkdown/kit/utils";
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "@markra/ai";
 import {
   applyAiEditorResult,
@@ -13,6 +13,7 @@ import {
   showAiEditorPreview,
   type AiEditorPreviewLabels
 } from "@markra/editor";
+import { serializeLinkImageLiveMarkdown } from "@markra/editor";
 import { clearAiSelectionHold, showAiSelectionHold } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 
@@ -211,7 +212,15 @@ export function useEditorController() {
 
   const getCurrentMarkdown = useCallback((fallbackContent: string) => {
     try {
-      return editorRef.current?.action(getMarkdown()) ?? fallbackContent;
+      return editorRef.current?.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        return serializeLinkImageLiveMarkdown(
+          view.state.doc,
+          ctx.get(serializerCtx),
+          linkSchema.type(ctx),
+          imageSchema.type(ctx)
+        );
+      }) ?? fallbackContent;
     } catch {
       return fallbackContent;
     }

@@ -1,6 +1,6 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import type { Editor } from "@milkdown/kit/core";
-import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
+import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
@@ -26,6 +26,7 @@ import { clearAiSelectionHold, showAiSelectionHold } from "@markra/editor";
 async function renderEditor(
   initialContent = "",
   options: {
+    onMarkdownChange?: (content: string) => unknown;
     onSaveClipboardImage?: (image: File) => Promise<{ alt: string; src: string } | null>;
     openExternalUrl?: (url: string) => unknown;
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
@@ -39,7 +40,7 @@ async function renderEditor(
       onEditorReady={(instance) => {
         editor = instance;
       }}
-      onMarkdownChange={() => {}}
+      onMarkdownChange={options.onMarkdownChange ?? (() => {})}
       onSaveClipboardImage={options.onSaveClipboardImage}
       openExternalUrl={options.openExternalUrl}
       onTextSelectionChange={options.onTextSelectionChange}
@@ -212,6 +213,18 @@ function expectLiveLink(container: HTMLElement, text: string) {
   return liveLink;
 }
 
+function expectActiveSourceLinkLabel(container: HTMLElement, text: string) {
+  const sourceLabel = container.querySelector(".ProseMirror .markra-live-link-source-label");
+  expect(sourceLabel).toHaveTextContent(text);
+  expect(sourceLabel).not.toHaveClass("markra-live-link-label");
+  expect(sourceLabel).not.toHaveAttribute("data-markra-href");
+  return sourceLabel;
+}
+
+function expectLinkIconCount(container: HTMLElement, count: number) {
+  expect(container.querySelectorAll(".ProseMirror .markra-live-link-icon")).toHaveLength(count);
+}
+
 function expectLiveImagePreview(container: HTMLElement, src: string) {
   const image = container.querySelector<HTMLImageElement>(
     `.ProseMirror img.markra-live-image-preview[src="${src}"]`
@@ -229,19 +242,25 @@ describe("MarkdownPaper editing", () => {
   });
 
   it("saves pasted clipboard images and inserts markdown image references", async () => {
+    const onMarkdownChange = vi.fn();
     const onSaveClipboardImage = vi.fn().mockResolvedValue({
       alt: "Screenshot",
       src: "assets/pasted-image.png"
     });
     const image = new File([new Uint8Array([1, 2, 3])], "Screenshot.png", { type: "image/png" });
-    const { view } = await renderEditor("", { onSaveClipboardImage });
+    const { container, editor, view } = await renderEditor("", { onMarkdownChange, onSaveClipboardImage });
 
     expect(pasteImage(view, image)).toBe(true);
 
     await waitFor(() => expect(onSaveClipboardImage).toHaveBeenCalledWith(image));
     await waitFor(() => {
-      expect(view.state.doc.textContent).toContain("![Screenshot](assets/pasted-image.png)");
+      const insertedImage = container.querySelector<HTMLImageElement>('img[src="assets/pasted-image.png"]');
+      expect(insertedImage).toHaveAttribute("alt", "Screenshot");
     });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("![Screenshot](assets/pasted-image.png)");
+    expect(serializeMarkdown(view.state.doc)).not.toContain("!\\[Screenshot\\]\\(assets/pasted-image.png\\)");
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("![Screenshot](assets/pasted-image.png)")));
   });
 
   it("renders AI replacement comparison inside the editor", async () => {
@@ -1670,21 +1689,111 @@ describe("MarkdownPaper editing", () => {
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="https://example.com/logo.png"]');
 
     expect(link).toHaveTextContent("Markra");
+    expectLinkIconCount(container, 1);
     expect(image).toBeInTheDocument();
     expect(image).toHaveAttribute("alt", "Markra logo");
     await settleMarkdownListener();
   });
 
-  it("opens finalized links with a normal click", async () => {
+  it("keeps normal finalized link clicks editable and opens links with a modifier click", async () => {
     const openExternalUrl = vi.fn();
-    const { container } = await renderEditor("[Markra](https://example.com)", { openExternalUrl });
+    const modifierCase = await renderEditor("[Markra](https://example.com)", { openExternalUrl });
+
+    const modifierLink = modifierCase.container.querySelector<HTMLAnchorElement>(
+      '.ProseMirror a[href="https://example.com"]'
+    );
+    expect(modifierLink).toBeInTheDocument();
+
+    expect(fireEvent.mouseDown(modifierLink!, { metaKey: true })).toBe(false);
+    modifierLink?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true }));
+
+    expect(openExternalUrl).toHaveBeenCalledWith("https://example.com");
+    expect(modifierCase.container.querySelector(".ProseMirror")?.textContent).toBe("Markra");
+
+    const editCase = await renderEditor("[Markra](https://example.com)", { openExternalUrl });
+    const editableLink = editCase.container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="https://example.com"]');
+    const editableSurface = editCase.container.querySelector<HTMLElement>(".ProseMirror");
+    expect(editableLink).toBeInTheDocument();
+    expect(editableSurface).not.toHaveClass("markra-link-open-modifier-active");
+
+    fireEvent.keyDown(editableSurface!, { key: "Meta", metaKey: true });
+
+    expect(editableSurface).toHaveClass("markra-link-open-modifier-active");
+
+    fireEvent.keyUp(editableSurface!, { key: "Meta" });
+
+    expect(editableSurface).not.toHaveClass("markra-link-open-modifier-active");
+
+    expect(fireEvent.dragStart(editableLink!)).toBe(false);
+    editableLink?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    expect(openExternalUrl).toHaveBeenCalledTimes(1);
+    expect(editCase.container.querySelector(".ProseMirror")?.textContent).toBe("[Markra](https://example.com)");
+    expectActiveSourceLinkLabel(editCase.container, "Markra");
+    expect(editCase.container.querySelector(".ProseMirror .markra-live-link-mark-source-text")).not.toBeInTheDocument();
+  });
+
+  it("expands finalized links into editable markdown source", async () => {
+    const { container, editor, view } = await renderEditor("[Markra](https://example.com) after");
 
     const link = container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="https://example.com"]');
+    expect(link).toBeInTheDocument();
+    expectLinkIconCount(container, 1);
+
+    expect(fireEvent.dragStart(link!)).toBe(false);
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    expectLinkIconCount(container, 0);
+    expect(container.querySelector(".ProseMirror .markra-live-link-mark-source-text")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("[Markra](https://example.com) after");
+    expectActiveSourceLinkLabel(container, "Markra");
+
+    const hrefFrom = findTextPosition(view, "https://example.com");
+    selectText(view, hrefFrom, hrefFrom + "https://example.com".length);
+
+    expect(container.querySelectorAll(".ProseMirror .markra-live-link-source.markra-md-delimiter")).toHaveLength(2);
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("[Markra](https://example.com) after");
+
+    insertTextDirectly(view, "https://edited.example");
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("[Markra](https://edited.example) after");
+    expect(pressEnter(view)).toBe(true);
+    expect(container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="https://edited.example"]')).toHaveTextContent(
+      "Markra"
+    );
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("[Markra](https://edited.example)");
+  });
+
+  it("serializes edited expanded links as markdown instead of escaped text", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("[关于我们](https://m.techflowpost.com/article/9424)", {
+      onMarkdownChange
+    });
+
+    const link = container.querySelector<HTMLAnchorElement>(
+      '.ProseMirror a[href="https://m.techflowpost.com/article/9424"]'
+    );
     expect(link).toBeInTheDocument();
 
     link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-    expect(openExternalUrl).toHaveBeenCalledWith("https://example.com");
+    const labelFrom = findTextPosition(view, "关于我们");
+    selectText(view, labelFrom, labelFrom + "关于我们".length);
+    insertTextDirectly(view, "是关于我们");
+
+    await waitFor(() => {
+      expect(
+        onMarkdownChange.mock.calls.some(([markdown]) =>
+          String(markdown).includes("[是关于我们](https://m.techflowpost.com/article/9424)")
+        )
+      ).toBe(true);
+    });
+
+    const latestMarkdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "");
+    expect(latestMarkdown).not.toContain("\\[是关于我们\\]");
+    expect(latestMarkdown).not.toContain("\\(https\\://m.techflowpost.com/article/9424\\)");
   });
 
   it("renders local image markdown with resolved preview sources", async () => {
@@ -1695,9 +1804,51 @@ describe("MarkdownPaper editing", () => {
     const image = container.querySelector<HTMLImageElement>(
       '.ProseMirror img[src="asset://current-note/assets/pasted-image.png"]'
     );
+    const imageNode = image?.closest<HTMLElement>(".markra-image-node");
 
     expect(image).toBeInTheDocument();
     expect(image).toHaveAttribute("alt", "Screenshot");
+    expect(imageNode?.draggable).toBe(false);
+    expect(image?.draggable).toBe(false);
+    expect(fireEvent.dragStart(imageNode!)).toBe(false);
+  });
+
+  it("shows finalized image markdown source when the image is clicked", async () => {
+    const { container, editor, view } = await renderEditor("![Screenshot](assets/pasted-image.png)");
+
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    expect(image).toBeInTheDocument();
+
+    expect(fireEvent.mouseDown(image!)).toBe(false);
+
+    const sourceRow = container.querySelector<HTMLElement>(".ProseMirror .markra-image-node-source-row");
+    expect(sourceRow?.querySelector(".markra-image-node-source-icon")).toHaveAttribute("aria-hidden", "true");
+
+    const source = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
+    expect(source).toHaveValue("![Screenshot](assets/pasted-image.png)");
+    expect(image?.closest(".markra-image-node")).not.toHaveClass("ProseMirror-selectednode");
+
+    fireEvent.change(source!, { target: { value: "![Edited screenshot](assets/edited.png)" } });
+
+    expect(source).toHaveValue("![Edited screenshot](assets/edited.png)");
+    expect(container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/edited.png"]')).toBeInTheDocument();
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("![Edited screenshot](assets/edited.png)");
+  });
+
+  it("hides finalized image markdown source when another editor area is pressed", async () => {
+    const { container } = await renderEditor("Intro\n\n![Screenshot](assets/pasted-image.png)");
+
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    expect(image).toBeInTheDocument();
+
+    expect(fireEvent.mouseDown(image!)).toBe(false);
+    expect(container.querySelector(".ProseMirror .markra-image-node-source")).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+
+    expect(container.querySelector(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
   });
 
   it("keeps typed link markdown editable and styles the label live", async () => {
@@ -1705,7 +1856,7 @@ describe("MarkdownPaper editing", () => {
 
     typeText(view, "[Markra](https://example.com)");
 
-    expectLiveLink(container, "Markra");
+    expectActiveSourceLinkLabel(container, "Markra");
     expect(container.querySelector('.ProseMirror a[href="https://example.com"]')).not.toBeInTheDocument();
     expect(container.querySelectorAll(".ProseMirror .markra-live-link-source.markra-md-delimiter")).toHaveLength(2);
     expect(container.querySelector(".ProseMirror")?.textContent).toBe("[Markra](https://example.com)");
@@ -1740,12 +1891,14 @@ describe("MarkdownPaper editing", () => {
     insertTextDirectly(view, "[Markra](https://example.com) after");
     moveCursor(view, findTextPosition(view, "Markra", "Markra".length));
 
-    expectLiveLink(container, "Markra");
+    expectActiveSourceLinkLabel(container, "Markra");
+    expectLinkIconCount(container, 0);
     expect(container.querySelectorAll(".ProseMirror .markra-live-link-source.markra-md-delimiter")).toHaveLength(2);
 
     moveCursor(view, findTextPosition(view, "after", "after".length));
 
     expectLiveLink(container, "Markra");
+    expectLinkIconCount(container, 1);
     expect(container.querySelectorAll(".ProseMirror .markra-live-link-source.markra-md-hidden-delimiter")).toHaveLength(
       2
     );
@@ -1763,6 +1916,7 @@ describe("MarkdownPaper editing", () => {
     const link = linkCase.container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="https://example.com"]');
     expect(link).toHaveTextContent("Markra");
     expect(linkCase.container.querySelector(".ProseMirror")?.textContent).toBe("Markra");
+    expect(linkCase.container.querySelector(".ProseMirror .markra-live-link-mark-source-text")).not.toBeInTheDocument();
 
     const imageCase = await renderEditor();
     insertTextDirectly(imageCase.view, "![Markra logo](https://example.com/logo.png)");
