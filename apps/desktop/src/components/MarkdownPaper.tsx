@@ -249,6 +249,9 @@ function MilkdownSurface({
   const tableControlLabels = {
     addColumnRight: t(language, "editor.table.addColumnRight"),
     addRowBelow: t(language, "editor.table.addRowBelow"),
+    alignLeft: t(language, "editor.table.alignLeft"),
+    alignCenter: t(language, "editor.table.alignCenter"),
+    alignRight: t(language, "editor.table.alignRight"),
     deleteColumn: t(language, "editor.table.deleteColumn"),
     deleteRow: t(language, "editor.table.deleteRow")
   };

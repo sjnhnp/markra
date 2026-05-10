@@ -18,13 +18,18 @@ describe("editor stylesheet", () => {
     const tableControlStyles = styles.slice(tableControlStart, tableControlEnd);
 
     expect(styles).toContain(".markdown-paper .markra-table-controls-wrapper");
-    expect(styles).toContain("@apply relative overflow-visible pt-9 pr-9 pb-9");
+    expect(styles).toContain("@apply relative overflow-visible pt-7 pr-9 pb-9");
     expect(styles).toContain(".markdown-paper .markra-table-control");
     expect(styles).toContain("opacity: 0");
     expect(styles).toContain(".markdown-paper .markra-table-controls-wrapper:hover .markra-table-control");
     expect(styles).toContain(".markdown-paper .markra-table-controls-wrapper:focus-within .markra-table-control");
     expect(styles).toContain(".markdown-paper .markra-table-add-column");
     expect(styles).toContain(".markdown-paper .markra-table-add-row");
+    expect(styles).toContain(".markdown-paper .markra-table-align-controls");
+    expect(styles).toContain(".markdown-paper .markra-table-align-button[aria-pressed=\"true\"]");
+    expect(styles).toContain(".markdown-paper .markra-table-align-icon-left");
+    expect(styles).toContain(".markdown-paper .markra-table-align-icon-center");
+    expect(styles).toContain(".markdown-paper .markra-table-align-icon-right");
     expect(styles).toContain(".markdown-paper .markra-table-delete-control");
     expect(styles).toContain(".markdown-paper .markra-table-delete-column");
     expect(styles).toContain(".markdown-paper .markra-table-delete-row");

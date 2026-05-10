@@ -7,16 +7,26 @@ import { addColumnAfter, addRowAfter, deleteColumn, deleteRow, TableMap } from "
 type TableControlLabels = {
   addColumnRight: string;
   addRowBelow: string;
+  alignLeft: string;
+  alignCenter: string;
+  alignRight: string;
   deleteColumn: string;
   deleteRow: string;
 };
 
+type TableAlignment = "left" | "center" | "right";
+
 const defaultTableControlLabels: TableControlLabels = {
   addColumnRight: "Add column to the right",
   addRowBelow: "Add row below",
+  alignLeft: "Align table left",
+  alignCenter: "Align table center",
+  alignRight: "Align table right",
   deleteColumn: "Delete column",
   deleteRow: "Delete row"
 };
+
+const tableAlignments: TableAlignment[] = ["left", "center", "right"];
 
 function controlTargetFromEvent(event: Event) {
   return event.target instanceof Node ? event.target : null;
@@ -53,12 +63,28 @@ function createTableControlButton(
   return button;
 }
 
+function createTableAlignIcon(ownerDocument: Document, alignment: TableAlignment) {
+  const icon = ownerDocument.createElement("span");
+  icon.className = `markra-table-align-icon markra-table-align-icon-${alignment}`;
+  icon.ariaHidden = "true";
+
+  for (let index = 0; index < 3; index += 1) {
+    const line = ownerDocument.createElement("span");
+    line.className = "markra-table-align-icon-line";
+    icon.append(line);
+  }
+
+  return icon;
+}
+
 class MarkraTableNodeView {
   readonly dom: HTMLElement;
   readonly contentDOM: HTMLElement;
 
   private node: ProseNode;
   private readonly table: HTMLTableElement;
+  private readonly alignControls: HTMLElement;
+  private readonly alignButtons: HTMLButtonElement[];
   private readonly addColumnButton: HTMLButtonElement;
   private readonly addRowButton: HTMLButtonElement;
   private readonly deleteColumnButton: HTMLButtonElement;
@@ -74,7 +100,22 @@ class MarkraTableNodeView {
     this.node = node;
     this.dom = view.dom.ownerDocument.createElement("div");
     this.table = view.dom.ownerDocument.createElement("table");
+    this.alignControls = view.dom.ownerDocument.createElement("div");
     this.contentDOM = view.dom.ownerDocument.createElement("tbody");
+    this.alignButtons = tableAlignments.map((alignment) => {
+      const label =
+        alignment === "left" ? labels.alignLeft : alignment === "center" ? labels.alignCenter : labels.alignRight;
+      const button = createTableControlButton(
+        view.dom.ownerDocument,
+        `markra-table-align-button markra-table-align-${alignment}`,
+        label,
+        "",
+        this.handleAlignMouseDown
+      );
+      button.dataset.alignment = alignment;
+      button.append(createTableAlignIcon(view.dom.ownerDocument, alignment));
+      return button;
+    });
     this.addColumnButton = createTableControlButton(
       view.dom.ownerDocument,
       "markra-table-add-column",
@@ -105,18 +146,29 @@ class MarkraTableNodeView {
     );
 
     this.dom.className = "tableWrapper markra-table-controls-wrapper";
+    this.alignControls.className = "markra-table-align-controls";
     this.deleteColumnButton.hidden = true;
     this.deleteRowButton.hidden = true;
     this.dom.addEventListener("mousemove", this.handleMouseMove);
     this.dom.addEventListener("mouseleave", this.hideDeleteControls);
     this.table.append(this.contentDOM);
-    this.dom.append(this.table, this.addColumnButton, this.addRowButton, this.deleteColumnButton, this.deleteRowButton);
+    this.alignControls.append(...this.alignButtons);
+    this.dom.append(
+      this.alignControls,
+      this.table,
+      this.addColumnButton,
+      this.addRowButton,
+      this.deleteColumnButton,
+      this.deleteRowButton
+    );
+    this.updateAlignmentButtons();
   }
 
   update(nextNode: ProseNode) {
     if (nextNode.type !== this.node.type) return false;
 
     this.node = nextNode;
+    this.updateAlignmentButtons();
     return true;
   }
 
@@ -125,6 +177,7 @@ class MarkraTableNodeView {
     return Boolean(
       target &&
         (this.addColumnButton.contains(target) ||
+          this.alignControls.contains(target) ||
           this.addRowButton.contains(target) ||
           this.deleteColumnButton.contains(target) ||
           this.deleteRowButton.contains(target))
@@ -136,6 +189,7 @@ class MarkraTableNodeView {
     return (
       target instanceof Node &&
       (this.addColumnButton.contains(target) ||
+        this.alignControls.contains(target) ||
         this.addRowButton.contains(target) ||
         this.deleteColumnButton.contains(target) ||
         this.deleteRowButton.contains(target))
@@ -145,6 +199,9 @@ class MarkraTableNodeView {
   destroy() {
     this.dom.removeEventListener("mousemove", this.handleMouseMove);
     this.dom.removeEventListener("mouseleave", this.hideDeleteControls);
+    for (const button of this.alignButtons) {
+      button.removeEventListener("mousedown", this.handleAlignMouseDown);
+    }
     this.addColumnButton.removeEventListener("mousedown", this.handleAddColumnMouseDown);
     this.addRowButton.removeEventListener("mousedown", this.handleAddRowMouseDown);
     this.deleteColumnButton.removeEventListener("mousedown", this.handleDeleteColumnMouseDown);
@@ -155,6 +212,17 @@ class MarkraTableNodeView {
     event.preventDefault();
     event.stopPropagation();
     this.insertColumnAfterTable();
+  };
+
+  private readonly handleAlignMouseDown = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const button = event.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
+    const alignment = button?.dataset.alignment;
+    if (alignment !== "left" && alignment !== "center" && alignment !== "right") return;
+
+    this.alignTable(alignment);
   };
 
   private readonly handleAddRowMouseDown = (event: MouseEvent) => {
@@ -244,6 +312,60 @@ class MarkraTableNodeView {
 
     const cellPosition = tablePosition + 1 + map.positionAt(row, column, table);
     return tr.setSelection(TextSelection.near(tr.doc.resolve(cellPosition + 1), 1));
+  }
+
+  private tableAlignment() {
+    const map = TableMap.get(this.node);
+    const alignments = new Set<TableAlignment>();
+
+    for (let column = 0; column < map.width; column += 1) {
+      const cell = this.node.nodeAt(map.positionAt(0, column, this.node));
+      const alignment = cell?.attrs.alignment;
+      if (alignment === "center" || alignment === "right") {
+        alignments.add(alignment);
+      } else {
+        alignments.add("left");
+      }
+    }
+
+    return alignments.size === 1 ? [...alignments][0] : null;
+  }
+
+  private updateAlignmentButtons() {
+    const activeAlignment = this.tableAlignment();
+
+    for (const button of this.alignButtons) {
+      button.ariaPressed = String(button.dataset.alignment === activeAlignment);
+    }
+  }
+
+  private alignTable(alignment: TableAlignment) {
+    const tablePosition = this.tablePosition();
+    if (tablePosition === false) return;
+
+    const map = TableMap.get(this.node);
+    const cellPositions = new Set<number>();
+
+    for (let row = 0; row < map.height; row += 1) {
+      for (let column = 0; column < map.width; column += 1) {
+        cellPositions.add(tablePosition + 1 + map.positionAt(row, column, this.node));
+      }
+    }
+
+    const tr = this.view.state.tr;
+    for (const cellPosition of cellPositions) {
+      const cell = tr.doc.nodeAt(cellPosition);
+      if (!cell) continue;
+
+      tr.setNodeMarkup(cellPosition, undefined, {
+        ...cell.attrs,
+        alignment
+      });
+    }
+
+    this.view.dispatch(tr.scrollIntoView());
+    this.updateAlignmentButtons();
+    this.view.focus();
   }
 
   private insertColumnAfterTable() {

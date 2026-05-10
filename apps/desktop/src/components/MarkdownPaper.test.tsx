@@ -401,6 +401,25 @@ describe("MarkdownPaper editing", () => {
     });
   });
 
+  it("aligns the whole table from the top-left controls", async () => {
+    const initialTable = ["| Field | Value |", "| --- | --- |", "| Name | Markra |"].join("\n");
+    const { editor, view } = await renderEditor(initialTable);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Align table center" }));
+
+    expect(serializeMarkdown(view.state.doc)).toMatch(/\| :---+: \| :---+: \|/u);
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Align table right" }));
+
+    expect(serializeMarkdown(view.state.doc)).toMatch(/\| ---+: \| ---+: \|/u);
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Align table left" }));
+
+    expect(serializeMarkdown(view.state.doc)).toMatch(/\| :---+ \| :---+ \|/u);
+    expect(screen.getByRole("button", { name: "Align table left" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("renders AI replacement comparison inside the editor", async () => {
     const { container, view } = await renderEditor("Original text");
     const from = findTextPosition(view, "Original");
