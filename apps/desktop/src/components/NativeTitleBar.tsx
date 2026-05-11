@@ -10,6 +10,7 @@ import {
   SquarePen,
   Sun
 } from "lucide-react";
+import type { CSSProperties } from "react";
 import { IconButton } from "@markra/ui";
 import type { ResolvedAppTheme } from "../lib/settings/app-settings";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
@@ -64,9 +65,60 @@ export function NativeTitleBar({
   onToggleTheme
 }: NativeTitleBarProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
-  if (platform === "windows") return null;
-
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
+  const renderDocumentActions = (className: string, style?: CSSProperties) => (
+    <div
+      className={className}
+      aria-label={label("app.fileActions")}
+      style={style}
+    >
+      <IconButton
+        className={
+          aiAgentOpen
+            ? "bg-(--bg-active) text-(--text-heading) opacity-100"
+            : "bg-transparent text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading)"
+        }
+        label={label("app.toggleAiAgent")}
+        pressed={aiAgentOpen}
+        onClick={onToggleAiAgent}
+      >
+        <Bot aria-hidden="true" size={15} />
+      </IconButton>
+      <IconButton
+        label={label("app.openMarkdownOrFolder")}
+        onClick={onOpenMarkdown}
+      >
+        <FolderOpen aria-hidden="true" size={15} />
+      </IconButton>
+      <IconButton
+        className="disabled:opacity-35"
+        disabled={saveDisabled}
+        label={label("app.saveMarkdown")}
+        onClick={onSaveMarkdown}
+      >
+        <Save aria-hidden="true" size={15} />
+      </IconButton>
+      <IconButton
+        label={themeActionLabel}
+        onClick={onToggleTheme}
+      >
+        {theme === "dark" ? <Sun aria-hidden="true" size={15} /> : <Moon aria-hidden="true" size={15} />}
+      </IconButton>
+    </div>
+  );
+
+  const documentActionsClassName = `document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
+    aiAgentResizing
+      ? "transition-none"
+      : "transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+  }`;
+
+  if (platform === "windows") {
+    return renderDocumentActions(
+      "document-actions fixed top-0 right-3.5 z-10 flex h-10 items-center justify-end gap-0.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100"
+    );
+  }
+
   const editorLeftInset = markdownFilesOpen ? markdownFilesWidth : 0;
   const editorRightInset = aiAgentOpen ? aiAgentWidth : 0;
   const titleOffset = (editorLeftInset - editorRightInset) / 2;
@@ -121,48 +173,7 @@ export function NativeTitleBar({
           <span className="save-mark size-1.25 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
         ) : null}
       </h1>
-      <div
-        className={`document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
-          aiAgentResizing
-            ? "transition-none"
-            : "transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
-        }`}
-        aria-label={label("app.fileActions")}
-        style={{ transform: aiAgentOpen ? `translateX(-${aiAgentWidth}px)` : undefined }}
-      >
-        <IconButton
-          className={
-            aiAgentOpen
-              ? "bg-(--bg-active) text-(--text-heading) opacity-100"
-              : "bg-transparent text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading)"
-          }
-          label={label("app.toggleAiAgent")}
-          pressed={aiAgentOpen}
-          onClick={onToggleAiAgent}
-        >
-          <Bot aria-hidden="true" size={15} />
-        </IconButton>
-        <IconButton
-          label={label("app.openMarkdownOrFolder")}
-          onClick={onOpenMarkdown}
-        >
-          <FolderOpen aria-hidden="true" size={15} />
-        </IconButton>
-        <IconButton
-          className="disabled:opacity-35"
-          disabled={saveDisabled}
-          label={label("app.saveMarkdown")}
-          onClick={onSaveMarkdown}
-        >
-          <Save aria-hidden="true" size={15} />
-        </IconButton>
-        <IconButton
-          label={themeActionLabel}
-          onClick={onToggleTheme}
-        >
-          {theme === "dark" ? <Sun aria-hidden="true" size={15} /> : <Moon aria-hidden="true" size={15} />}
-        </IconButton>
-      </div>
+      {renderDocumentActions(documentActionsClassName, { transform: aiAgentOpen ? `translateX(-${aiAgentWidth}px)` : undefined })}
     </header>
   );
 }

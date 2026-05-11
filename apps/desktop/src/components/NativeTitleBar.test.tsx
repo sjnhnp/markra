@@ -196,10 +196,11 @@ describe("NativeTitleBar", () => {
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 
-  it("does not render a custom titlebar on Windows", () => {
+  it("keeps only right-aligned file actions on Windows", () => {
     const { container } = render(
       <NativeTitleBar
-        aiAgentOpen={false}
+        aiAgentOpen
+        aiAgentWidth={384}
         dirty
         documentName="Draft.md"
         markdownFilesOpen={false}
@@ -220,10 +221,12 @@ describe("NativeTitleBar", () => {
     expect(screen.queryByRole("heading", { name: "Draft.md" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save Markdown" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Switch to dark theme" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Toggle Markra AI" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Markdown or Folder" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toBeInTheDocument();
+    expect(container.querySelector(".document-actions")).toHaveClass("fixed", "right-3.5");
+    expect(container.querySelector(".document-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
   });
 
   it("shows a quick new file button next to the markdown files toggle when the sidebar is collapsed", () => {
