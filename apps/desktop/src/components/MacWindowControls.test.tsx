@@ -23,18 +23,16 @@ describe("MacWindowControls", () => {
       expect(glyph).toHaveAttribute("aria-hidden", "true");
       expect(glyph).toHaveClass(
         "absolute",
-        "top-1/2",
-        "left-1/2",
-        "-translate-x-1/2",
-        "-translate-y-1/2",
+        "inset-0",
+        "m-auto",
+        "size-[9px]",
         "opacity-0",
         "group-hover/window-controls:opacity-70"
       );
     });
-    expect(close.querySelector('[data-icon="macos-close"]')).toHaveAttribute("viewBox", "0 0 16 18");
-    expect(minimize.querySelector('[data-icon="macos-minimize"]')).toHaveAttribute("viewBox", "0 0 17 6");
-    expect(zoom.querySelector('[data-icon="macos-zoom"]')).toHaveAttribute("viewBox", "0 0 16 16");
-    expect(zoom.querySelector("g")).toHaveAttribute("transform", "translate(16 0) scale(-1 1)");
+    expect(close.querySelector('[data-icon="macos-close"]')).toHaveAttribute("viewBox", "0 0 9 9");
+    expect(minimize.querySelector('[data-icon="macos-minimize"]')).toHaveAttribute("viewBox", "0 0 9 9");
+    expect(zoom.querySelector('[data-icon="macos-zoom"]')).toHaveAttribute("viewBox", "0 0 9 9");
     expect(zoom.querySelectorAll("path")).toHaveLength(2);
   });
 
