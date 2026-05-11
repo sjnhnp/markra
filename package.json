@@ -10,6 +10,7 @@
     "dev": "pnpm --filter @markra/desktop dev",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
+    "test:release": "node --test scripts/release/*.test.mjs",
     "test:watch": "pnpm --filter @markra/desktop test:watch",
     "typecheck:test": "pnpm -r --if-present typecheck:test",
     "tauri": "pnpm --filter @markra/desktop tauri"

@@ -42,21 +42,27 @@ jobs:
             artifact_name: macOS-apple-silicon
             os: macos-15
             target: aarch64-apple-darwin
+            asset_arch: aarch64
+            updater_platform: darwin-aarch64
             args: --target aarch64-apple-darwin
           - name: macOS (Intel)
             artifact_name: macOS-intel
             os: macos-15-intel
             target: x86_64-apple-darwin
+            asset_arch: x64
+            updater_platform: darwin-x86_64
             args: --target x86_64-apple-darwin
           - name: Linux (x64)
             artifact_name: Linux-x64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            updater_platform: linux-x86_64
             args: --target x86_64-unknown-linux-gnu
           - name: Windows (x64)
             artifact_name: Windows-x64
             os: windows-latest
             target: x86_64-pc-windows-msvc
+            updater_platform: windows-x86_64
             args: --target x86_64-pc-windows-msvc
 
     name: Build ${{ matrix.name }}
@@ -68,6 +74,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
+
+      - name: Checkout release scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .release-scripts
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -196,6 +208,31 @@ jobs:
           projectPath: ${{ env.DESKTOP_DIR }}
           args: ${{ matrix.args }} --config tauri.updater.conf.json
 
+      - name: Rename macOS updater bundle
+        if: startsWith(matrix.os, 'macos-')
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          BUNDLE_DIR="${DESKTOP_DIR}/src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          SOURCE_BUNDLE="$(find "${BUNDLE_DIR}" -maxdepth 1 -type f -name '*.app.tar.gz' | head -n 1)"
+
+          if [[ -z "${SOURCE_BUNDLE}" ]]; then
+            echo "macOS updater bundle not found" >&2
+            exit 1
+          fi
+
+          TARGET_BUNDLE="${BUNDLE_DIR}/${APP_SLUG}_${VERSION}_${{ matrix.asset_arch }}.app.tar.gz"
+
+          if [[ "${SOURCE_BUNDLE}" != "${TARGET_BUNDLE}" ]]; then
+            mv "${SOURCE_BUNDLE}" "${TARGET_BUNDLE}"
+          fi
+
+          if [[ -f "${SOURCE_BUNDLE}.sig" && "${SOURCE_BUNDLE}.sig" != "${TARGET_BUNDLE}.sig" ]]; then
+            mv "${SOURCE_BUNDLE}.sig" "${TARGET_BUNDLE}.sig"
+          fi
+
       - name: Collect bundle paths
         id: bundle_paths
         shell: bash
@@ -214,6 +251,7 @@ jobs:
           const target = process.env.TARGET;
           const bundleRoot = path.join(desktopDir, "src-tauri", "target", target, "release", "bundle");
           const artifactPaths = [];
+          const seen = new Set();
 
           function addArtifact(filePath) {
             if (!filePath) return;
@@ -226,11 +264,13 @@ jobs:
 
             try {
               if (!fs.statSync(artifactPath).isFile()) return;
+              artifactPath = fs.realpathSync(artifactPath);
             } catch {
               return;
             }
 
-            if (!artifactPaths.includes(artifactPath)) {
+            if (!seen.has(artifactPath)) {
+              seen.add(artifactPath);
               artifactPaths.push(artifactPath);
             }
           }
@@ -281,11 +321,20 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `paths<<__PATHS__\n${artifactPaths.join("\n")}\n__PATHS__\n`);
           NODE
 
+      - name: Create updater metadata
+        shell: bash
+        env:
+          ARTIFACT_PATHS_RAW: ${{ steps.bundle_paths.outputs.paths }}
+          UPDATER_PLATFORM: ${{ matrix.updater_platform }}
+        run: node .release-scripts/scripts/release/create-updater-metadata.mjs
+
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_SLUG }}-${{ matrix.artifact_name }}-bundles
-          path: ${{ steps.bundle_paths.outputs.paths }}
+          path: |
+            ${{ steps.bundle_paths.outputs.paths }}
+            release-metadata.json
           if-no-files-found: error
 
   publish_release:
@@ -301,6 +350,12 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ env.RELEASE_TAG }}
+
+      - name: Checkout release scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .release-scripts
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -354,7 +409,18 @@ jobs:
         with:
           pattern: ${{ env.APP_SLUG }}-*-bundles
           path: release-assets
-          merge-multiple: true
+
+      - name: Generate updater manifest
+        env:
+          EXPECTED_UPDATER_PLATFORMS: darwin-aarch64,darwin-x86_64,linux-x86_64,windows-x86_64
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_ASSETS_ROOT: release-assets
+          RELEASE_NOTES_PATH: release-notes.md
+          RELEASE_VERSION: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          export RELEASE_VERSION="${RELEASE_VERSION#v}"
+          node .release-scripts/scripts/release/generate-updater-manifest.mjs
 
       - name: Collect release files
         id: release_files
@@ -362,7 +428,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          find release-assets -type f | sort > release-files.txt
+          find release-assets -type f ! -name 'release-metadata.json' | sort > release-files.txt
 
           {
             echo 'paths<<__FILES__'
