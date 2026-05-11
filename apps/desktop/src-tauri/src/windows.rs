@@ -391,8 +391,9 @@ mod tests {
 
     #[test]
     fn windows_main_window_config_disables_transparency() {
-        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.windows.conf.json"))
-            .expect("windows Tauri config should be valid JSON");
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.windows.conf.json"))
+                .expect("windows Tauri config should be valid JSON");
         let transparent = config
             .pointer("/app/windows/0/transparent")
             .and_then(serde_json::Value::as_bool);
