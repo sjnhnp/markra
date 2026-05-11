@@ -216,8 +216,12 @@ describe("NativeTitleBar", () => {
       />
     );
 
-    expect(screen.queryByLabelText("Window drag region")).not.toBeInTheDocument();
-    expect(container.querySelector(".native-titlebar")).not.toBeInTheDocument();
+    const titlebar = container.querySelector(".native-titlebar");
+
+    expect(screen.getByLabelText("Window drag region")).toBeInTheDocument();
+    expect(titlebar).toHaveClass("fixed", "right-3.5", "w-auto");
+    expect(titlebar).not.toHaveClass("inset-x-0");
+    expect(titlebar).not.toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
     expect(screen.queryByRole("heading", { name: "Draft.md" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
@@ -225,7 +229,7 @@ describe("NativeTitleBar", () => {
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toBeInTheDocument();
-    expect(container.querySelector(".document-actions")).toHaveClass("fixed", "right-3.5");
+    expect(container.querySelector(".document-actions")).toHaveClass("relative");
     expect(container.querySelector(".document-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
   });
 

@@ -114,8 +114,16 @@ export function NativeTitleBar({
   }`;
 
   if (platform === "windows") {
-    return renderDocumentActions(
-      "document-actions fixed top-0 right-3.5 z-10 flex h-10 items-center justify-end gap-0.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100"
+    return (
+      <header
+        className="native-titlebar fixed top-0 right-3.5 z-10 flex h-10 w-auto select-none items-center justify-end [-webkit-user-select:none]"
+        aria-label={label("app.windowDragRegion")}
+        data-tauri-drag-region
+      >
+        {renderDocumentActions(
+          "document-actions relative flex h-10 items-center justify-end gap-0.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100"
+        )}
+      </header>
     );
   }
 
