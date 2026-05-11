@@ -65,7 +65,7 @@ export function SettingsSidebar({
   translate: Translate;
 }) {
   const headerClassName = platform === "windows"
-    ? "settings-sidebar-header px-7 py-4"
+    ? "settings-sidebar-header flex h-14 items-center px-7"
     : "settings-sidebar-header px-7 pt-14 pb-5";
 
   return (

@@ -285,7 +285,7 @@ describe("Markra workspace", () => {
 
     await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
     expect(container.querySelector(".settings-drag-region")).not.toBeInTheDocument();
-    expect(container.querySelector(".settings-sidebar-header")).toHaveClass("py-4");
+    expect(container.querySelector(".settings-sidebar-header")).toHaveClass("h-14", "items-center");
     expect(container.querySelector(".settings-sidebar-header")).not.toHaveClass("pt-14");
     expect(container.querySelector(".settings-sidebar-title")).toBeInTheDocument();
   });
