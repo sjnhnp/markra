@@ -26,6 +26,7 @@ concurrency:
 env:
   APP_SLUG: markra
   APP_PRODUCT_NAME: Markra
+  DESKTOP_DIR: apps/desktop
   NODE_VERSION: 24
   PNPM_VERSION: 10.30.3
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
@@ -88,14 +89,20 @@ jobs:
           node <<'NODE'
           const fs = require("fs");
           const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
-          const tauriConfig = JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8"));
-          const cargoToml = fs.readFileSync("src-tauri/Cargo.toml", "utf8");
+          const desktopDir = process.env.DESKTOP_DIR;
+          const desktopPackageJson = JSON.parse(fs.readFileSync(`${desktopDir}/package.json`, "utf8"));
+          const tauriConfig = JSON.parse(fs.readFileSync(`${desktopDir}/src-tauri/tauri.conf.json`, "utf8"));
+          const cargoToml = fs.readFileSync(`${desktopDir}/src-tauri/Cargo.toml`, "utf8");
           const cargoVersion = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
           const tagName = process.env.RELEASE_TAG;
           const expectedTag = `v${packageJson.version}`;
 
           if (tagName !== expectedTag) {
             throw new Error(`Release tag ${tagName} does not match package version ${expectedTag}.`);
+          }
+
+          if (desktopPackageJson.version !== packageJson.version) {
+            throw new Error(`Desktop package version ${desktopPackageJson.version} does not match package version ${packageJson.version}.`);
           }
 
           if (tauriConfig.version !== packageJson.version) {
@@ -115,7 +122,7 @@ jobs:
       - name: Restore Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri -> target
+          workspaces: ${{ env.DESKTOP_DIR }}/src-tauri -> target
 
       - name: Install Linux system dependencies
         if: matrix.os == 'ubuntu-22.04'
@@ -139,6 +146,7 @@ jobs:
         id: tauri_build
         uses: tauri-apps/tauri-action@v0.6.0
         with:
+          projectPath: ${{ env.DESKTOP_DIR }}
           args: ${{ matrix.args }}
 
       - name: Collect bundle paths
@@ -146,6 +154,7 @@ jobs:
         shell: bash
         env:
           ARTIFACT_PATHS_JSON: ${{ steps.tauri_build.outputs.artifactPaths }}
+          DESKTOP_DIR: ${{ env.DESKTOP_DIR }}
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
@@ -154,14 +163,20 @@ jobs:
           const fs = require("fs");
           const path = require("path");
           const artifactPathsJson = process.env.ARTIFACT_PATHS_JSON || "[]";
+          const desktopDir = process.env.DESKTOP_DIR;
           const target = process.env.TARGET;
-          const bundleRoot = path.join("src-tauri", "target", target, "release", "bundle");
+          const bundleRoot = path.join(desktopDir, "src-tauri", "target", target, "release", "bundle");
           let artifactPaths = [];
 
           try {
             const parsed = JSON.parse(artifactPathsJson);
             if (Array.isArray(parsed)) {
-              artifactPaths = parsed.filter((candidate) => fs.existsSync(candidate));
+              artifactPaths = parsed.flatMap((candidate) => {
+                if (fs.existsSync(candidate)) return [candidate];
+
+                const desktopRelativePath = path.join(desktopDir, candidate);
+                return fs.existsSync(desktopRelativePath) ? [desktopRelativePath] : [];
+              });
             }
           } catch {
             artifactPaths = [];

@@ -234,6 +234,13 @@ function expectLiveImagePreview(container: HTMLElement, src: string) {
   return image;
 }
 
+afterAll(async () => {
+  // Milkdown ctx leaves 3s listener cleanup timers pending after editor teardown.
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, 3200);
+  });
+});
+
 describe("MarkdownPaper editing", () => {
   it("keeps the writing surface from macOS-style scroll dragging", async () => {
     const { container } = await renderEditor();
