@@ -23,7 +23,6 @@ const SETTINGS_WINDOW_URL: &str = "index.html?settings=1";
 const SETTINGS_WINDOW_TRANSPARENT: bool = false;
 #[cfg(not(target_os = "windows"))]
 const SETTINGS_WINDOW_TRANSPARENT: bool = true;
-#[cfg(target_os = "macos")]
 const SETTINGS_WINDOW_DECORATIONS: bool = true;
 const SETTINGS_WINDOW_WIDTH: f64 = 1040.0;
 const SETTINGS_WINDOW_HEIGHT: f64 = 720.0;
@@ -69,6 +68,13 @@ where
         return;
     };
     schedule_hide_native_macos_window_controls(ns_window);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn hide_native_macos_window_controls<R>(_window: &tauri::WebviewWindow<R>)
+where
+    R: tauri::Runtime,
+{
 }
 
 #[cfg(target_os = "macos")]
@@ -203,7 +209,6 @@ where
 
         match builder.build() {
             Ok(window) => {
-                #[cfg(target_os = "macos")]
                 hide_native_macos_window_controls(&window);
             }
             Err(error) => {
@@ -318,7 +323,6 @@ where
 
         match builder.build() {
             Ok(window) => {
-                #[cfg(target_os = "macos")]
                 hide_native_macos_window_controls(&window);
             }
             Err(error) => {
