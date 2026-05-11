@@ -365,6 +365,7 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Connected"));
     expect(document.querySelector(".app-toaster")).toHaveStyle({ width: "fit-content" });
     expect(document.querySelector(".app-toast")).toHaveClass("app-toast-centered");
+    expect(document.querySelector(".app-toast")).toHaveClass("left-1/2", "-translate-x-1/2");
     expect(document.querySelector(".app-toast")).toHaveClass("w-fit", "min-w-40");
     expect(document.querySelector(".app-toast")).not.toHaveClass("w-[24rem]");
     expect(document.querySelector(".app-toast-close")).toBeInTheDocument();
