@@ -444,6 +444,10 @@ describe("Markra workspace", () => {
 
   it("checks for updates from the settings window", async () => {
     window.history.pushState({}, "", "/?settings=1");
+    let resolveUpdateCheck: (value: null) => void = () => {};
+    mockedCheckNativeAppUpdate.mockReturnValue(new Promise((resolve) => {
+      resolveUpdateCheck = resolve;
+    }));
 
     renderApp();
 
@@ -452,6 +456,20 @@ describe("Markra workspace", () => {
     fireEvent.click(checkUpdatesButton);
 
     await waitFor(() => expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Checking for Markra updates..."));
+    expect(document.querySelector(".app-toast [data-icon]")).toHaveClass(
+      "relative",
+      "inline-flex",
+      "size-4",
+      "items-center",
+      "justify-center",
+      "self-center"
+    );
+
+    await act(async () => {
+      resolveUpdateCheck(null);
+    });
+
     await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Markra is up to date."));
   });
 
