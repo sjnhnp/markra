@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  English | <a href="README.zh-CN.md">Simplified Chinese</a> | <a href="#key-features">Key Features</a> | <a href="#roadmap">Roadmap</a> | <a href="#contributing">Contributing</a> | <a href="#license">License</a>
+  English | <a href="README.zh-CN.md">简体中文</a> | <a href="#key-features">Key Features</a> | <a href="#roadmap">Roadmap</a> | <a href="#contributing">Contributing</a> | <a href="#license">License</a>
 </p>
 
 <p align="center">
