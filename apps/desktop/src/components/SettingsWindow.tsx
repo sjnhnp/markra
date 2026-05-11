@@ -9,6 +9,7 @@ import {
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
 import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
 import { useAutoUpdater } from "../hooks/useAutoUpdater";
+import { useDefaultContextMenuBlocker } from "../hooks/useDefaultContextMenuBlocker";
 import { resolveDesktopPlatform } from "../lib/platform";
 
 export function SettingsWindow() {
@@ -36,6 +37,7 @@ export function SettingsWindow() {
     welcomeReset
   } = settingsState;
   const platform = resolveDesktopPlatform();
+  useDefaultContextMenuBlocker();
   const updater = useAutoUpdater(appLanguage.language, appLanguage.ready, {
     autoCheck: false
   });

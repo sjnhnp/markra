@@ -19,6 +19,7 @@ import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditor
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
+import { useDefaultContextMenuBlocker } from "./hooks/useDefaultContextMenuBlocker";
 import { useWebSearchSettings } from "./hooks/useWebSearchSettings";
 import {
   useApplicationShortcuts,
@@ -105,6 +106,7 @@ export default function App() {
   const reconciledAiWorkspaceKeyRef = useRef<string | null | undefined>(undefined);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const editor = useEditorController();
+  useDefaultContextMenuBlocker();
   const fileTree = useMarkdownFileTree({
     onWorkspaceSessionChange: setAiAgentSessionId
   });
