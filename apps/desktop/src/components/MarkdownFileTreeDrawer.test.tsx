@@ -91,6 +91,8 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(toggle).toHaveClass("fixed", "bottom-3");
     expect(toggle).toHaveStyle({ left: "300px" });
     expect(toggle).toContainElement(container.querySelector(".lucide-panel-left"));
+    expect(container.querySelector(".markdown-file-tree")).toHaveClass("pt-0");
+    expect(container.querySelector(".markdown-file-tree")).not.toHaveClass("pt-10");
 
     fireEvent.click(toggle);
 

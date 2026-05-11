@@ -193,6 +193,7 @@ export function MarkdownFileTreeDrawer({
   const showWindowsSidebarToggle = platform === "windows" && onToggleMarkdownFiles;
   const WindowsSidebarToggleIcon = open ? PanelLeft : PanelRight;
   const windowsSidebarToggleLeft = open && resolvedWidth !== null ? `${resolvedWidth + 12}px` : "48px";
+  const drawerTopPaddingClassName = platform === "windows" ? "pt-0" : "pt-10";
 
   useEffect(() => {
     return () => {
@@ -505,7 +506,7 @@ export function MarkdownFileTreeDrawer({
       ) : null}
 
       <aside
-        className={`markdown-file-tree relative flex h-full min-h-0 w-full flex-col border-r border-(--border-default) bg-(--bg-secondary) pt-10 will-change-transform transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}
+        className={`markdown-file-tree relative flex h-full min-h-0 w-full flex-col border-r border-(--border-default) bg-(--bg-secondary) ${drawerTopPaddingClassName} will-change-transform transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}
         aria-label={label("app.markdownFileTree")}
         aria-hidden={!open}
         inert={!open}

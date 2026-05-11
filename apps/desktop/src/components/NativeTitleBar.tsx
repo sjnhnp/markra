@@ -64,19 +64,19 @@ export function NativeTitleBar({
   onToggleTheme
 }: NativeTitleBarProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
+  if (platform === "windows") return null;
+
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
   const editorLeftInset = markdownFilesOpen ? markdownFilesWidth : 0;
   const editorRightInset = aiAgentOpen ? aiAgentWidth : 0;
   const titleOffset = (editorLeftInset - editorRightInset) / 2;
   const titleTransform = titleOffset === 0 ? undefined : `translateX(${titleOffset}px)`;
   const titleResizing = aiAgentResizing || markdownFilesResizing;
-  const showTitlebarMarkdownControls = platform !== "windows";
   const showQuickCreateMarkdownFile =
-    showTitlebarMarkdownControls && quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
+    quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
   const TitleIcon = documentKind === "folder" ? FolderOpen : documentKind === "image" ? ImageIcon : FileText;
   const MarkdownFilesIcon = markdownFilesOpen ? PanelLeft : PanelRight;
   const titlebarLeftPaddingClassName = platform === "macos" ? "pl-22" : "pl-2";
-  const showDocumentTitle = platform !== "windows";
 
   return (
     <header
@@ -88,16 +88,14 @@ export function NativeTitleBar({
         className={`titlebar-spacer relative z-20 flex h-10 items-center gap-1 ${titlebarLeftPaddingClassName}`}
         data-tauri-drag-region
       >
-        {showTitlebarMarkdownControls ? (
-          <IconButton
-            className={dimTitlebarIconButtonClassName}
-            label={label("app.toggleMarkdownFiles")}
-            pressed={markdownFilesOpen}
-            onClick={onToggleMarkdownFiles}
-          >
-            <MarkdownFilesIcon aria-hidden="true" size={15} />
-          </IconButton>
-        ) : null}
+        <IconButton
+          className={dimTitlebarIconButtonClassName}
+          label={label("app.toggleMarkdownFiles")}
+          pressed={markdownFilesOpen}
+          onClick={onToggleMarkdownFiles}
+        >
+          <MarkdownFilesIcon aria-hidden="true" size={15} />
+        </IconButton>
         {showQuickCreateMarkdownFile ? (
           <IconButton
             className={dimTitlebarIconButtonClassName}
@@ -108,23 +106,21 @@ export function NativeTitleBar({
           </IconButton>
         ) : null}
       </div>
-      {showDocumentTitle ? (
-        <h1
-          className={`native-title pointer-events-none m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary) motion-reduce:transition-none ${
-            titleResizing ? "transition-none" : "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
-          }`}
-          data-tauri-drag-region
-          style={{ transform: titleTransform }}
-        >
-          <TitleIcon aria-hidden="true" size={15} />
-          <span className="min-w-0 truncate" data-tauri-drag-region>
-            {documentName}
-          </span>
-          {dirty ? (
-            <span className="save-mark size-1.25 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
-          ) : null}
-        </h1>
-      ) : null}
+      <h1
+        className={`native-title pointer-events-none m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary) motion-reduce:transition-none ${
+          titleResizing ? "transition-none" : "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        }`}
+        data-tauri-drag-region
+        style={{ transform: titleTransform }}
+      >
+        <TitleIcon aria-hidden="true" size={15} />
+        <span className="min-w-0 truncate" data-tauri-drag-region>
+          {documentName}
+        </span>
+        {dirty ? (
+          <span className="save-mark size-1.25 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
+        ) : null}
+      </h1>
       <div
         className={`document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
           aiAgentResizing
