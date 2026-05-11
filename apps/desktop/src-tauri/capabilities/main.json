@@ -19,6 +19,7 @@
     "dialog:allow-message",
     "dialog:allow-open",
     "dialog:allow-save",
+    "os:default",
     "store:allow-delete",
     "store:allow-get",
     "store:allow-load",

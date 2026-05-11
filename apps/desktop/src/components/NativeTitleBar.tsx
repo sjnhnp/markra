@@ -1,6 +1,18 @@
-import { Bot, FileText, FolderOpen, ImageIcon, Moon, PanelLeft, Save, SquarePen, Sun } from "lucide-react";
+import {
+  Bot,
+  FileText,
+  FolderOpen,
+  ImageIcon,
+  Moon,
+  PanelLeft,
+  PanelRight,
+  Save,
+  SquarePen,
+  Sun
+} from "lucide-react";
 import { IconButton } from "@markra/ui";
 import type { ResolvedAppTheme } from "../lib/settings/app-settings";
+import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import { t, type AppLanguage } from "@markra/shared";
 
 type NativeTitleBarProps = {
@@ -14,6 +26,7 @@ type NativeTitleBarProps = {
   markdownFilesOpen: boolean;
   markdownFilesResizing?: boolean;
   markdownFilesWidth?: number;
+  platform?: DesktopPlatform;
   quickCreateMarkdownFileVisible?: boolean;
   saveDisabled?: boolean;
   theme: ResolvedAppTheme;
@@ -39,6 +52,7 @@ export function NativeTitleBar({
   markdownFilesOpen,
   markdownFilesResizing = false,
   markdownFilesWidth = 288,
+  platform = resolveDesktopPlatform(),
   quickCreateMarkdownFileVisible = false,
   saveDisabled = false,
   theme,
@@ -56,8 +70,13 @@ export function NativeTitleBar({
   const titleOffset = (editorLeftInset - editorRightInset) / 2;
   const titleTransform = titleOffset === 0 ? undefined : `translateX(${titleOffset}px)`;
   const titleResizing = aiAgentResizing || markdownFilesResizing;
-  const showQuickCreateMarkdownFile = quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
+  const showTitlebarMarkdownControls = platform !== "windows";
+  const showQuickCreateMarkdownFile =
+    showTitlebarMarkdownControls && quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
   const TitleIcon = documentKind === "folder" ? FolderOpen : documentKind === "image" ? ImageIcon : FileText;
+  const MarkdownFilesIcon = markdownFilesOpen ? PanelLeft : PanelRight;
+  const titlebarLeftPaddingClassName = platform === "macos" ? "pl-22" : "pl-2";
+  const showDocumentTitle = platform !== "windows";
 
   return (
     <header
@@ -65,15 +84,20 @@ export function NativeTitleBar({
       aria-label={label("app.windowDragRegion")}
       data-tauri-drag-region
     >
-      <div className="titlebar-spacer relative z-20 flex h-10 items-center gap-1 pl-22" data-tauri-drag-region>
-        <IconButton
-          className={dimTitlebarIconButtonClassName}
-          label={label("app.toggleMarkdownFiles")}
-          pressed={markdownFilesOpen}
-          onClick={onToggleMarkdownFiles}
-        >
-          <PanelLeft aria-hidden="true" size={15} />
-        </IconButton>
+      <div
+        className={`titlebar-spacer relative z-20 flex h-10 items-center gap-1 ${titlebarLeftPaddingClassName}`}
+        data-tauri-drag-region
+      >
+        {showTitlebarMarkdownControls ? (
+          <IconButton
+            className={dimTitlebarIconButtonClassName}
+            label={label("app.toggleMarkdownFiles")}
+            pressed={markdownFilesOpen}
+            onClick={onToggleMarkdownFiles}
+          >
+            <MarkdownFilesIcon aria-hidden="true" size={15} />
+          </IconButton>
+        ) : null}
         {showQuickCreateMarkdownFile ? (
           <IconButton
             className={dimTitlebarIconButtonClassName}
@@ -84,21 +108,23 @@ export function NativeTitleBar({
           </IconButton>
         ) : null}
       </div>
-      <h1
-        className={`native-title pointer-events-none m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary) motion-reduce:transition-none ${
-          titleResizing ? "transition-none" : "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
-        }`}
-        data-tauri-drag-region
-        style={{ transform: titleTransform }}
-      >
-        <TitleIcon aria-hidden="true" size={15} />
-        <span className="min-w-0 truncate" data-tauri-drag-region>
-          {documentName}
-        </span>
-        {dirty ? (
-          <span className="save-mark size-1.25 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
-        ) : null}
-      </h1>
+      {showDocumentTitle ? (
+        <h1
+          className={`native-title pointer-events-none m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary) motion-reduce:transition-none ${
+            titleResizing ? "transition-none" : "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          }`}
+          data-tauri-drag-region
+          style={{ transform: titleTransform }}
+        >
+          <TitleIcon aria-hidden="true" size={15} />
+          <span className="min-w-0 truncate" data-tauri-drag-region>
+            {documentName}
+          </span>
+          {dirty ? (
+            <span className="save-mark size-1.25 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
+          ) : null}
+        </h1>
+      ) : null}
       <div
         className={`document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
           aiAgentResizing

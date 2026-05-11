@@ -14,6 +14,8 @@ import {
   Folder,
   FolderTree,
   ImageIcon,
+  PanelLeft,
+  PanelRight,
   Plus,
   Search,
   Settings,
@@ -25,6 +27,7 @@ import type { MarkdownOutlineItem } from "@markra/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
 import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 import { clampNumber } from "@markra/shared";
+import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 
 type MarkdownFileTreeDrawerProps = {
   currentPath: string | null;
@@ -34,6 +37,7 @@ type MarkdownFileTreeDrawerProps = {
   minWidth?: number;
   open: boolean;
   outlineItems: MarkdownOutlineItem[];
+  platform?: DesktopPlatform;
   rootName: string;
   width?: number;
   onCreateFile?: (fileName: string) => unknown | Promise<unknown>;
@@ -46,6 +50,7 @@ type MarkdownFileTreeDrawerProps = {
   onResizeEnd?: () => unknown;
   onResizeStart?: () => unknown;
   onSelectOutlineItem: (item: MarkdownOutlineItem, index: number) => unknown;
+  onToggleMarkdownFiles?: () => unknown;
 };
 
 type FolderNode = {
@@ -150,6 +155,7 @@ export function MarkdownFileTreeDrawer({
   minWidth = 220,
   open,
   outlineItems,
+  platform = resolveDesktopPlatform(),
   rootName,
   width = 288,
   onCreateFile,
@@ -161,7 +167,8 @@ export function MarkdownFileTreeDrawer({
   onResize,
   onResizeEnd,
   onResizeStart,
-  onSelectOutlineItem
+  onSelectOutlineItem,
+  onToggleMarkdownFiles
 }: MarkdownFileTreeDrawerProps) {
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
@@ -183,6 +190,9 @@ export function MarkdownFileTreeDrawer({
   const resolvedMinWidth = Math.max(160, minWidth);
   const resolvedMaxWidth = Math.max(resolvedMinWidth, maxWidth);
   const resolvedWidth = clampNumber(width, resolvedMinWidth, resolvedMaxWidth);
+  const showWindowsSidebarToggle = platform === "windows" && onToggleMarkdownFiles;
+  const WindowsSidebarToggleIcon = open ? PanelLeft : PanelRight;
+  const windowsSidebarToggleLeft = open && resolvedWidth !== null ? `${resolvedWidth + 12}px` : "48px";
 
   useEffect(() => {
     return () => {
@@ -479,6 +489,20 @@ export function MarkdownFileTreeDrawer({
       >
         <Settings aria-hidden="true" size={15} />
       </IconButton>
+
+      {showWindowsSidebarToggle ? (
+        <IconButton
+          className={`fixed bottom-3 z-30 transition-[left,opacity,background-color,color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:opacity-100 focus-visible:opacity-100 ${
+            open ? "bg-(--bg-active) text-(--text-heading) opacity-80" : "opacity-45"
+          }`}
+          label={label("app.toggleMarkdownFiles")}
+          pressed={open}
+          style={{ left: windowsSidebarToggleLeft }}
+          onClick={onToggleMarkdownFiles}
+        >
+          <WindowsSidebarToggleIcon aria-hidden="true" size={15} />
+        </IconButton>
+      ) : null}
 
       <aside
         className={`markdown-file-tree relative flex h-full min-h-0 w-full flex-col border-r border-(--border-default) bg-(--bg-secondary) pt-10 will-change-transform transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}

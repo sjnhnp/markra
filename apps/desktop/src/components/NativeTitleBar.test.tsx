@@ -196,6 +196,33 @@ describe("NativeTitleBar", () => {
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 
+  it("hides titlebar markdown controls and the duplicate document title on Windows", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        quickCreateMarkdownFileVisible
+        theme="light"
+        platform="windows"
+        onCreateMarkdownFile={() => {}}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".native-title")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Draft.md" })).not.toBeInTheDocument();
+    expect(container.querySelector(".titlebar-spacer")).toHaveClass("pl-2");
+    expect(container.querySelector(".titlebar-spacer")).not.toHaveClass("pl-22");
+    expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
+  });
+
   it("shows a quick new file button next to the markdown files toggle when the sidebar is collapsed", () => {
     const createMarkdownFile = vi.fn();
     const { container } = render(
@@ -216,7 +243,9 @@ describe("NativeTitleBar", () => {
     );
 
     const button = screen.getByRole("button", { name: "New file" });
+    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
 
+    expect(toggle).toContainElement(container.querySelector(".lucide-panel-right"));
     expect(button.closest(".titlebar-spacer")).toHaveClass("gap-1");
     expect(button).toContainElement(container.querySelector(".lucide-square-pen"));
 

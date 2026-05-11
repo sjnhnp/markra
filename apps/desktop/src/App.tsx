@@ -758,6 +758,7 @@ export default function App() {
               onResizeEnd={endFileTreeResize}
               onResizeStart={startFileTreeResize}
               onSelectOutlineItem={editor.selectOutlineItem}
+              onToggleMarkdownFiles={handleFileTreeToggle}
             />
           </div>
 

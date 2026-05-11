@@ -68,6 +68,59 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(outlineSwitch).toContainElement(container.querySelector(".lucide-table-of-contents"));
   });
 
+  it("places the Windows sidebar toggle at the lower drawer edge", () => {
+    const toggleMarkdownFiles = vi.fn();
+    const { container } = render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        platform="windows"
+        rootName="Obsidian Vault"
+        width={288}
+        onOpenFile={() => {}}
+        onToggleMarkdownFiles={toggleMarkdownFiles}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(toggle).toHaveClass("fixed", "bottom-3");
+    expect(toggle).toHaveStyle({ left: "300px" });
+    expect(toggle).toContainElement(container.querySelector(".lucide-panel-left"));
+
+    fireEvent.click(toggle);
+
+    expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the Windows sidebar toggle reachable when the drawer is collapsed", () => {
+    const toggleMarkdownFiles = vi.fn();
+    const { container } = render(
+      <MarkdownFileTreeDrawer
+        currentPath={null}
+        files={[]}
+        open={false}
+        outlineItems={[]}
+        platform="windows"
+        rootName="Obsidian Vault"
+        width={288}
+        onOpenFile={() => {}}
+        onToggleMarkdownFiles={toggleMarkdownFiles}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(toggle).toHaveStyle({ left: "48px" });
+    expect(toggle).toContainElement(container.querySelector(".lucide-panel-right"));
+  });
+
   it("renders a folder-style markdown file tree with folders collapsed by default", () => {
     const openFile = vi.fn();
     const { container } = render(

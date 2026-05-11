@@ -7,12 +7,20 @@ use tauri::{utils::config::Color, Manager, WebviewUrl, WebviewWindowBuilder};
 const BLANK_EDITOR_WINDOW_LABEL_PREFIX: &str = "markra-editor-";
 const BLANK_EDITOR_WINDOW_URL: &str = "index.html?blank=1";
 const MAIN_WINDOW_LABEL: &str = "main";
+// Windows native menu bars reveal the window surface when transparency is enabled.
+#[cfg(target_os = "windows")]
+const EDITOR_WINDOW_TRANSPARENT: bool = false;
+#[cfg(not(target_os = "windows"))]
+const EDITOR_WINDOW_TRANSPARENT: bool = true;
 #[cfg(test)]
 pub(crate) const OPEN_BLANK_EDITOR_WINDOW_COMMAND: &str = "open_blank_editor_window";
 #[cfg(test)]
 pub(crate) const OPEN_SETTINGS_WINDOW_COMMAND: &str = "open_settings_window";
 const SETTINGS_WINDOW_LABEL: &str = "markra-settings";
 const SETTINGS_WINDOW_URL: &str = "index.html?settings=1";
+#[cfg(target_os = "windows")]
+const SETTINGS_WINDOW_TRANSPARENT: bool = false;
+#[cfg(not(target_os = "windows"))]
 const SETTINGS_WINDOW_TRANSPARENT: bool = true;
 const SETTINGS_WINDOW_WIDTH: f64 = 1040.0;
 const SETTINGS_WINDOW_HEIGHT: f64 = 720.0;
@@ -212,7 +220,7 @@ where
             .inner_size(1360.0, 800.0)
             .min_inner_size(960.0, 640.0)
             .decorations(true)
-            .transparent(true)
+            .transparent(editor_window_transparent())
             .shadow(true)
             .center();
 
@@ -231,6 +239,10 @@ where
             }
         }
     });
+}
+
+fn editor_window_transparent() -> bool {
+    EDITOR_WINDOW_TRANSPARENT
 }
 
 pub(crate) fn spawn_blank_editor_window<R>(app: tauri::AppHandle<R>)
@@ -265,8 +277,14 @@ fn settings_window_shadow() -> bool {
     SETTINGS_WINDOW_SHADOW
 }
 
-fn settings_window_background_color() -> Color {
-    Color(255, 255, 255, 0)
+#[cfg(target_os = "windows")]
+fn settings_window_background_color() -> Option<Color> {
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+fn settings_window_background_color() -> Option<Color> {
+    Some(Color(255, 255, 255, 0))
 }
 
 #[cfg(target_os = "macos")]
@@ -303,10 +321,15 @@ where
         .min_inner_size(min_width, min_height)
         .decorations(true)
         .transparent(settings_window_transparent())
-        .background_color(settings_window_background_color())
         .resizable(settings_window_resizable())
         .shadow(settings_window_shadow())
         .center();
+
+        let builder = if let Some(color) = settings_window_background_color() {
+            builder.background_color(color)
+        } else {
+            builder
+        };
 
         #[cfg(target_os = "macos")]
         let builder = builder
@@ -336,7 +359,7 @@ mod tests {
 
     #[test]
     fn settings_window_matches_editor_window_chrome() {
-        assert!(settings_window_transparent());
+        assert_eq!(settings_window_transparent(), editor_window_transparent());
 
         #[cfg(target_os = "macos")]
         {
@@ -349,6 +372,35 @@ mod tests {
     }
 
     #[test]
+    fn editor_window_transparency_is_disabled_only_on_windows() {
+        #[cfg(target_os = "windows")]
+        assert!(!editor_window_transparent());
+
+        #[cfg(not(target_os = "windows"))]
+        assert!(editor_window_transparent());
+    }
+
+    #[test]
+    fn settings_window_transparency_is_disabled_only_on_windows() {
+        #[cfg(target_os = "windows")]
+        assert!(!settings_window_transparent());
+
+        #[cfg(not(target_os = "windows"))]
+        assert!(settings_window_transparent());
+    }
+
+    #[test]
+    fn windows_main_window_config_disables_transparency() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.windows.conf.json"))
+            .expect("windows Tauri config should be valid JSON");
+        let transparent = config
+            .pointer("/app/windows/0/transparent")
+            .and_then(serde_json::Value::as_bool);
+
+        assert_eq!(transparent, Some(false));
+    }
+
+    #[test]
     fn settings_window_uses_roomier_default_size() {
         assert_eq!(settings_window_inner_size(), (1040.0, 720.0));
         assert_eq!(settings_window_min_inner_size(), (860.0, 600.0));
@@ -356,9 +408,17 @@ mod tests {
     }
 
     #[test]
-    fn settings_window_keeps_shadow_with_transparent_background() {
+    fn settings_window_background_matches_transparency_strategy() {
         assert!(settings_window_shadow());
-        assert_eq!(settings_window_background_color(), Color(255, 255, 255, 0));
+
+        #[cfg(target_os = "windows")]
+        assert_eq!(settings_window_background_color(), None);
+
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(
+            settings_window_background_color(),
+            Some(Color(255, 255, 255, 0))
+        );
     }
 
     #[test]
