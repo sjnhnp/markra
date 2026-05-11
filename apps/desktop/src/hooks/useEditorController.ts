@@ -10,6 +10,7 @@ import {
   clearAiEditorPreview,
   confirmAiEditorResultApplied,
   listAiEditorPreviewResults,
+  scrollAiEditorPreviewIntoView,
   showAiEditorPreview,
   type AiEditorPreviewLabels
 } from "@markra/editor";
@@ -464,6 +465,17 @@ export function useEditorController() {
     }
   }, []);
 
+  const scrollToAiPreview = useCallback((result?: AiDiffResult, options: { previewId?: string } = {}) => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return false;
+
+      return scrollAiEditorPreviewIntoView(view, result, options);
+    } catch {
+      return false;
+    }
+  }, []);
+
   const clearAiSelection = useCallback(() => {
     try {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
@@ -546,6 +558,7 @@ export function useEditorController() {
     listAiPreviews,
     previewAiResult,
     runEditorShortcut,
+    scrollToAiPreview,
     selectOutlineItem
   };
 }

@@ -246,6 +246,9 @@ export default function App() {
     },
     [editor, translate, updateAiResults]
   );
+  const handleAiPreviewReady = useCallback((result: AiDiffResult, previewId?: string) => {
+    editor.scrollToAiPreview(result, { previewId });
+  }, [editor]);
   const createAiAgentInitialSessionOptions = useCallback(() => ({
     agentModelId: aiSettings.agentModelId,
     agentProviderId: aiSettings.agentProviderId
@@ -282,6 +285,7 @@ export default function App() {
     getSelection: getActiveAiSelection,
     getTableAnchors: editor.getTableAnchors,
     model: aiSettings.agentModelId,
+    onAiPreviewReady: handleAiPreviewReady,
     onAiResult: handleAiResult,
     onSessionModelRestore: handleAiAgentSessionModelRestore,
     onSessionRestore: handleAiAgentSessionRestore,

@@ -78,6 +78,10 @@ type ShowAiEditorPreviewOptions = {
   previewId?: string;
 };
 
+type ScrollAiEditorPreviewOptions = {
+  previewId?: string;
+};
+
 type AppliedTransactionResult = {
   appliedResult: AiTextDiffResult;
   cursor: number;
@@ -113,16 +117,10 @@ export function showAiEditorPreview(
   labels?: AiEditorPreviewLabels,
   options: ShowAiEditorPreviewOptions = {}
 ) {
-  const docSize = view.state.doc.content.size;
-  const from = result.type === "error" ? null : clampNumber(result.from, 0, docSize);
-  const to = result.type === "error" ? null : clampNumber(result.to, 0, docSize);
   const renderedReplacementHtml = isTextDiffResult(result)
     ? renderMarkdownPreviewHtml(result.replacement, options.parseMarkdown)
     : undefined;
-  const appendPosition =
-    result.type === "error" || from === null || to === null
-      ? null
-      : findPreviewAppendPosition(view.state.doc, result, from, to);
+  const appendPosition = findPreviewAppendPositionForResult(view.state.doc, result);
   const transaction = view.state.tr.setMeta(aiEditorPreviewKey, {
     kind: "show",
     labels,
@@ -137,6 +135,28 @@ export function showAiEditorPreview(
   }
 
   view.dispatch(transaction);
+}
+
+export function scrollAiEditorPreviewIntoView(
+  view: EditorView,
+  result?: AiDiffResult,
+  options: ScrollAiEditorPreviewOptions = {}
+) {
+  const previewState = aiEditorPreviewKey.getState(view.state);
+  const preview = findAiEditorPreviewSnapshot(previewState?.pending ?? [], result, options.previewId);
+  if (!preview) return false;
+
+  const appendPosition = findPreviewAppendPositionForResult(view.state.doc, preview.result);
+  if (appendPosition === null) return false;
+
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.near(view.state.doc.resolve(appendPosition), 1))
+      .scrollIntoView()
+  );
+  scrollAiPreviewWidgetElementIntoView(view, preview.id);
+
+  return true;
 }
 
 export function clearAiEditorPreview(view: EditorView, result?: AiDiffResult, options: { previewId?: string } = {}) {
@@ -638,6 +658,30 @@ function samePreviewResult(left: AiTextDiffResult, right: AiTextDiffResult) {
   );
 }
 
+function findAiEditorPreviewSnapshot(
+  previews: AiEditorPreviewSnapshot[],
+  result?: AiDiffResult,
+  previewId?: string
+) {
+  if (previewId) return previews.find((snapshot) => snapshot.id === previewId) ?? null;
+  if (result && isTextDiffResult(result)) {
+    return previews.find((snapshot) => samePreviewResult(snapshot.result, result)) ?? null;
+  }
+
+  return previews.at(-1) ?? null;
+}
+
+function findPreviewAppendPositionForResult(doc: ProseNode, result: AiDiffResult) {
+  if (!isTextDiffResult(result)) return null;
+
+  const docSize = doc.content.size;
+  const from = clampNumber(result.from, 0, docSize);
+  const to = clampNumber(result.to, 0, docSize);
+  if (from === null || to === null) return null;
+
+  return findPreviewAppendPosition(doc, result, from, to);
+}
+
 function sortPreviewSnapshots(previews: AiEditorPreviewSnapshot[]) {
   return [...previews].sort((left, right) => {
     const leftFrom = left.result.from ?? 0;
@@ -773,6 +817,7 @@ function createPreviewWidget(
     ? "markra-ai-preview-widget markra-ai-preview-widget-block"
     : "markra-ai-preview-widget";
   preview.contentEditable = "false";
+  preview.dataset.markraAiPreviewId = previewId;
 
   const scope = document.createElement("span");
   scope.className = "markra-ai-preview-scope";
@@ -1001,6 +1046,20 @@ function isPreviewWidgetEventTarget(target: Node) {
   return target.closest(".markra-ai-preview-widget") !== null;
 }
 
+function scrollAiPreviewWidgetElementIntoView(view: EditorView, previewId: string) {
+  const preview = Array.from(view.dom.querySelectorAll<HTMLElement>(".markra-ai-preview-widget"))
+    .find((element) => element.dataset.markraAiPreviewId === previewId);
+
+  if (!preview || typeof preview.scrollIntoView !== "function") return false;
+
+  preview.scrollIntoView({
+    block: "center",
+    inline: "nearest"
+  });
+
+  return true;
+}
+
 function isTextDiffResult(result: AiDiffResult): result is AiTextDiffResult {
   return result.type === "insert" || result.type === "replace";
 }
@@ -1195,6 +1254,8 @@ function markdownLineToComparableText(line: string) {
   return normalizePreviewComparableText(
     trimmed
       .replace(/^#{1,6}\s+/u, "")
+      .replace(/^[-*+]\s+/u, "")
+      .replace(/^\d+\.\s+/u, "")
       .replace(/^\|/u, "")
       .replace(/\|$/u, "")
       .replace(/\|/gu, " ")
@@ -1204,7 +1265,7 @@ function markdownLineToComparableText(line: string) {
 function normalizePreviewComparableText(value: string) {
   return value
     .toLowerCase()
-    .replace(/[`"'“”‘’#*()[\]{}:,.!?|<>~_-]/gu, " ")
+    .replace(/[`"'“”‘’#*()[\]{}:,.!?|<>~_\-：，。！？、；]/gu, " ")
     .replace(/\s+/gu, " ")
     .trim();
 }

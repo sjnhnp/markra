@@ -13,6 +13,7 @@ import {
   applyAiEditorResult,
   clearAiEditorPreview,
   confirmAiEditorResultApplied,
+  scrollAiEditorPreviewIntoView,
   showAiEditorPreview
 } from "@markra/editor";
 import {
@@ -583,6 +584,41 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Improved");
 
+    clearAiEditorPreview(view);
+  });
+
+  it("scrolls to a pending AI preview on request", async () => {
+    const { view } = await renderEditor("Original text");
+    const from = findTextPosition(view, "Original");
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    const result = {
+      from,
+      original: "Original",
+      replacement: "Improved",
+      to: from + "Original".length,
+      type: "replace" as const
+    };
+
+    showAiEditorPreview(view, result);
+    const dispatchSpy = vi.spyOn(view, "dispatch");
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      expect(scrollAiEditorPreviewIntoView(view, result)).toBe(true);
+
+      const scrollTransaction = dispatchSpy.mock.calls[0]?.[0];
+      expect(scrollTransaction?.scrolledIntoView).toBe(true);
+      expect(scrollTransaction?.selection.from).toBe(result.to);
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: "center",
+        inline: "nearest"
+      });
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
+
+    dispatchSpy.mockRestore();
     clearAiEditorPreview(view);
   });
 
@@ -1418,6 +1454,39 @@ describe("MarkdownPaper editing", () => {
     view.dispatch(view.state.tr.insertText(" ", view.state.doc.content.size, view.state.doc.content.size));
 
     expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(0);
+
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
+  it("does not restore a parsed Chinese block insert preview after applying it", async () => {
+    const { container, editor, view } = await renderEditor("# Alpha\n\nBody");
+    const documentEnd = view.state.doc.content.size;
+    const result = {
+      from: documentEnd,
+      original: "",
+      replacement: [
+        "## 📝 总结",
+        "",
+        "`vue3-lazyload` 是一款专为 Vue 3 设计的轻量级图片懒加载插件，具有以下核心优势：",
+        "",
+        "- **零运行时依赖**：不增加额外打包体积",
+        "- **TypeScript 支持**：提供完整的类型定义",
+        "- **多种使用方式**：支持指令和组件"
+      ].join("\n"),
+      to: documentEnd,
+      type: "insert" as const
+    };
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+
+    showAiEditorPreview(view, result, undefined, { parseMarkdown, previewId: "tool-call-7" });
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(1);
+
+    expect(applyAiEditorResult(view, result, { parseMarkdown, previewId: "tool-call-7" })).toBe(true);
+
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(0);
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("vue3-lazyload");
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("零运行时依赖");
 
     clearAiEditorPreview(view);
     await settleMarkdownListener();

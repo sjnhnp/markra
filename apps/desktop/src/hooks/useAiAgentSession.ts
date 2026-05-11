@@ -41,6 +41,7 @@ type AiAgentSessionContext = {
   getSelection?: () => AiSelectionContext | null;
   getTableAnchors?: () => AiDocumentAnchor[];
   model: string | null;
+  onAiPreviewReady?: (result: AiDiffResult, previewId?: string) => unknown;
   onAiResult?: (result: AiDiffResult, previewId?: string) => unknown;
   onSessionModelRestore?: (
     selection: Pick<StoredAiAgentSessionState, "agentModelId" | "agentProviderId">
@@ -393,6 +394,9 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     setDraft("");
     setStatus("thinking");
     let preparedEditorPreview = false;
+    const latestPreparedEditorPreview: { current: { previewId?: string; result: AiDiffResult } | null } = {
+      current: null
+    };
     setMessages((currentMessages) => [
       ...currentMessages,
       { id: userMessageId, role: "user", text: prompt },
@@ -423,6 +427,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
           const preview = sessionPreviewFromAiResult(result);
           if (preview) {
             preparedEditorPreview = true;
+            latestPreparedEditorPreview.current = { previewId, result };
             updateAssistantMessage((currentMessage) => ({
               ...currentMessage,
               previews: [...(currentMessage.previews ?? []), preview],
@@ -491,6 +496,12 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
             text: message("app.aiAgentPreviewReady")
           }));
           setStatus("idle");
+          if (latestPreparedEditorPreview.current) {
+            ctx.onAiPreviewReady?.(
+              latestPreparedEditorPreview.current.result,
+              latestPreparedEditorPreview.current.previewId
+            );
+          }
           return;
         }
 
@@ -510,6 +521,12 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         text: response.content
       }));
       setStatus("idle");
+      if (latestPreparedEditorPreview.current) {
+        ctx.onAiPreviewReady?.(
+          latestPreparedEditorPreview.current.result,
+          latestPreparedEditorPreview.current.previewId
+        );
+      }
     } catch (error) {
       if (requestIdRef.current !== requestId) return;
 

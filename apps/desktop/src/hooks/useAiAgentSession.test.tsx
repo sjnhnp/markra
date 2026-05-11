@@ -281,6 +281,49 @@ describe("useAiAgentSession", () => {
     }, "tool-summary");
   });
 
+  it("notifies that the latest prepared editor preview is ready after the agent finishes", async () => {
+    const onAiResult = vi.fn();
+    const onAiPreviewReady = vi.fn();
+    const latestPreview = {
+      from: 4,
+      original: "",
+      replacement: "## Summary",
+      to: 4,
+      type: "insert" as const
+    };
+    mockedRunDocumentAiAgent.mockImplementation(async ({ onPreviewResult }) => {
+      onPreviewResult?.({
+        from: 4,
+        original: "",
+        replacement: "## Intro",
+        to: 4,
+        type: "insert"
+      }, "tool-intro");
+      onPreviewResult?.(latestPreview, "tool-summary");
+
+      expect(onAiPreviewReady).not.toHaveBeenCalled();
+
+      return {
+        content: "",
+        finishReason: "stop",
+        preparedPreview: true
+      };
+    });
+
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      onAiPreviewReady,
+      onAiResult
+    });
+
+    await act(async () => {
+      await result.current.submit("Add an intro and summary");
+    });
+
+    expect(onAiResult).toHaveBeenCalledWith(latestPreview, "tool-summary");
+    expect(onAiPreviewReady).toHaveBeenCalledWith(latestPreview, "tool-summary");
+  });
+
   it("passes editor table anchors to the document agent runtime", async () => {
     const tableAnchors = [
       {
