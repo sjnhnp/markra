@@ -65,6 +65,7 @@ import {
 import { fetchAiProviderModels, testAiProviderConnection } from "@markra/providers";
 import { chatCompletion } from "@markra/ai";
 import { generateAiAgentSessionTitle } from "@markra/ai";
+import { resolveDesktopPlatform } from "../lib/platform";
 vi.mock("../lib/tauri", () => ({
   confirmNativeMarkdownFileDelete: vi.fn(),
   confirmNativeUnsavedMarkdownDocumentDiscard: vi.fn(),
@@ -97,6 +98,15 @@ vi.mock("../lib/tauri", () => ({
 vi.mock("../lib/tauri/updater", () => ({
   checkNativeAppUpdate: vi.fn()
 }));
+
+vi.mock("../lib/platform", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/platform")>();
+
+  return {
+    ...actual,
+    resolveDesktopPlatform: vi.fn(() => "macos")
+  };
+});
 
 vi.mock("../lib/settings/app-settings", () => ({
   createAiAgentSessionId: vi.fn(),
@@ -213,6 +223,7 @@ export const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEdito
 export const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
 export const mockedOpenNativeExternalUrl = vi.mocked(openNativeExternalUrl);
 export const mockedCheckNativeAppUpdate = vi.mocked(checkNativeAppUpdate);
+export const mockedResolveDesktopPlatform = vi.mocked(resolveDesktopPlatform);
 export const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 export const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
 export const mockedDeleteStoredAiAgentSession = vi.mocked(deleteStoredAiAgentSession);
@@ -345,6 +356,7 @@ export function installAppTestHarness() {
     mockedInstallNativeEditorContextMenu.mockReset();
     mockedOpenNativeExternalUrl.mockReset();
     mockedCheckNativeAppUpdate.mockReset();
+    mockedResolveDesktopPlatform.mockReset();
     mockedOpenSettingsWindow.mockReset();
     mockedGetStoredLanguage.mockReset();
     mockedGetStoredAiSettings.mockReset();
@@ -386,6 +398,7 @@ export function installAppTestHarness() {
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenNativeExternalUrl.mockResolvedValue(undefined);
     mockedCheckNativeAppUpdate.mockResolvedValue(null);
+    mockedResolveDesktopPlatform.mockReturnValue("macos");
     mockedOpenSettingsWindow.mockResolvedValue(undefined);
     mockedReadNativeMarkdownImageFile.mockResolvedValue({
       dataUrl: "data:image/png;base64,aGVsbG8=",

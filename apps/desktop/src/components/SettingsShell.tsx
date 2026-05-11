@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { SettingsCategory } from "../hooks/useSettingsWindowState";
+import type { DesktopPlatform } from "../lib/platform";
 import type { I18nKey } from "@markra/shared";
 
 type Translate = (key: I18nKey) => string;
@@ -55,15 +56,21 @@ function categoryLabel(categoryId: SettingsCategory, translate: Translate) {
 export function SettingsSidebar({
   activeCategory,
   onCategoryChange,
+  platform,
   translate
 }: {
   activeCategory: SettingsCategory;
   onCategoryChange: (category: SettingsCategory) => unknown;
+  platform: DesktopPlatform;
   translate: Translate;
 }) {
+  const headerClassName = platform === "windows"
+    ? "settings-sidebar-header px-7 py-4"
+    : "settings-sidebar-header px-7 pt-14 pb-5";
+
   return (
     <aside className="settings-sidebar flex min-h-0 flex-col border-r border-(--border-default) bg-(--bg-secondary)">
-      <div className="px-7 pt-14 pb-5">
+      <div className={headerClassName}>
         <h1 className="settings-sidebar-title m-0 text-[17px] leading-6 font-bold tracking-normal text-(--text-heading)">
           {translate("settings.title")}
         </h1>

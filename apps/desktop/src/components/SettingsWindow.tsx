@@ -9,6 +9,7 @@ import {
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
 import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
 import { useAutoUpdater } from "../hooks/useAutoUpdater";
+import { resolveDesktopPlatform } from "../lib/platform";
 
 export function SettingsWindow() {
   const settingsState = useSettingsWindowState();
@@ -34,6 +35,7 @@ export function SettingsWindow() {
     webSearchSettings,
     welcomeReset
   } = settingsState;
+  const platform = resolveDesktopPlatform();
   const updater = useAutoUpdater(appLanguage.language, appLanguage.ready, {
     autoCheck: false
   });
@@ -44,13 +46,20 @@ export function SettingsWindow() {
       aria-label={translate("settings.aria.main")}
     >
       <AppToaster language={appLanguage.language} />
-      <div
-        className="settings-drag-region fixed inset-x-0 top-0 z-10 h-9.5 select-none [-webkit-user-select:none]"
-        aria-label={translate("settings.aria.dragRegion")}
-        data-tauri-drag-region
-      />
+      {platform === "windows" ? null : (
+        <div
+          className="settings-drag-region fixed inset-x-0 top-0 z-10 h-9.5 select-none [-webkit-user-select:none]"
+          aria-label={translate("settings.aria.dragRegion")}
+          data-tauri-drag-region
+        />
+      )}
       <div className="settings-layout grid h-screen grid-cols-[180px_minmax(0,1fr)]">
-        <SettingsSidebar activeCategory={activeCategory} translate={translate} onCategoryChange={setActiveCategory} />
+        <SettingsSidebar
+          activeCategory={activeCategory}
+          platform={platform}
+          translate={translate}
+          onCategoryChange={setActiveCategory}
+        />
         <SettingsContent activeCategory={activeCategory} translate={translate}>
           {activeCategory === "general" ? (
             <GeneralSettings

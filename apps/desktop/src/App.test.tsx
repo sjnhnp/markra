@@ -33,6 +33,7 @@ import {
   mockedOpenSettingsWindow,
   mockedReadNativeMarkdownFile,
   mockedResetWelcomeDocumentState,
+  mockedResolveDesktopPlatform,
   mockedSaveNativeMarkdownFile,
   mockedSaveStoredAiSettings,
   mockedSaveStoredLanguage,
@@ -273,6 +274,20 @@ describe("Markra workspace", () => {
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     await waitFor(() => expect(mockedSaveStoredTheme).toHaveBeenCalledWith("dark"));
     await waitFor(() => expect(mockedNotifyAppThemeChanged).toHaveBeenCalledWith("dark"));
+  });
+
+  it("removes the reserved settings drag space on Windows", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockedResolveDesktopPlatform.mockReturnValue("windows");
+    window.history.pushState({}, "", "/?settings=1");
+
+    const { container } = renderApp();
+
+    await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
+    expect(container.querySelector(".settings-drag-region")).not.toBeInTheDocument();
+    expect(container.querySelector(".settings-sidebar-header")).toHaveClass("py-4");
+    expect(container.querySelector(".settings-sidebar-header")).not.toHaveClass("pt-14");
+    expect(container.querySelector(".settings-sidebar-title")).toBeInTheDocument();
   });
 
   it("edits and stores AI provider settings from the settings window", async () => {
