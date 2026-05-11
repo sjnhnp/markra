@@ -185,8 +185,10 @@ describe("NativeTitleBar", () => {
     );
 
     const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+    const controls = container.querySelector(".mac-window-controls");
 
-    expect(toggle.closest(".titlebar-spacer")).toHaveClass("pl-22");
+    expect(controls).toBeInTheDocument();
+    expect(toggle.closest(".titlebar-spacer")).not.toHaveClass("pl-22");
     expect(toggle.closest(".titlebar-spacer")).toHaveClass("h-10");
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(toggle).toContainElement(container.querySelector(".lucide-panel-left"));
@@ -222,6 +224,7 @@ describe("NativeTitleBar", () => {
     expect(titlebar).toHaveClass("fixed", "right-3.5", "w-auto");
     expect(titlebar).not.toHaveClass("inset-x-0");
     expect(titlebar).not.toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
+    expect(container.querySelector(".mac-window-controls")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Draft.md" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();

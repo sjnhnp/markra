@@ -232,6 +232,7 @@ describe("Markra workspace", () => {
 
     await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
     expect(container.querySelector(".settings-drag-region")).toHaveAttribute("data-tauri-drag-region");
+    expect(container.querySelector(".settings-window .mac-window-controls")).toBeInTheDocument();
     expect(container.querySelector(".settings-window")).not.toHaveClass("border");
     expect(container.querySelector(".settings-window")).toHaveClass("overscroll-none");
     expect(container.querySelector(".settings-scroll")).toHaveClass("overscroll-none");
@@ -285,6 +286,7 @@ describe("Markra workspace", () => {
 
     await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
     expect(container.querySelector(".settings-drag-region")).not.toBeInTheDocument();
+    expect(container.querySelector(".settings-window .mac-window-controls")).not.toBeInTheDocument();
     expect(container.querySelector(".settings-sidebar-header")).toHaveClass("h-14", "items-center");
     expect(container.querySelector(".settings-sidebar-header")).not.toHaveClass("pt-14");
     expect(container.querySelector(".settings-sidebar-title")).toBeInTheDocument();

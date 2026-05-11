@@ -15,6 +15,7 @@ import { IconButton } from "@markra/ui";
 import type { ResolvedAppTheme } from "../lib/settings/app-settings";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import { t, type AppLanguage } from "@markra/shared";
+import { MacWindowControls } from "./MacWindowControls";
 
 type NativeTitleBarProps = {
   aiAgentOpen: boolean;
@@ -136,7 +137,8 @@ export function NativeTitleBar({
     quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
   const TitleIcon = documentKind === "folder" ? FolderOpen : documentKind === "image" ? ImageIcon : FileText;
   const MarkdownFilesIcon = markdownFilesOpen ? PanelLeft : PanelRight;
-  const titlebarLeftPaddingClassName = platform === "macos" ? "pl-22" : "pl-2";
+  const showMacWindowControls = platform === "macos";
+  const titlebarLeftPaddingClassName = showMacWindowControls ? "pl-0" : "pl-2";
 
   return (
     <header
@@ -148,6 +150,7 @@ export function NativeTitleBar({
         className={`titlebar-spacer relative z-20 flex h-10 items-center gap-1 ${titlebarLeftPaddingClassName}`}
         data-tauri-drag-region
       >
+        {showMacWindowControls ? <MacWindowControls /> : null}
         <IconButton
           className={dimTitlebarIconButtonClassName}
           label={label("app.toggleMarkdownFiles")}

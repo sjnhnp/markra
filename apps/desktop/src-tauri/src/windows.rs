@@ -12,6 +12,7 @@ const MAIN_WINDOW_LABEL: &str = "main";
 const EDITOR_WINDOW_TRANSPARENT: bool = false;
 #[cfg(not(target_os = "windows"))]
 const EDITOR_WINDOW_TRANSPARENT: bool = true;
+const EDITOR_WINDOW_DECORATIONS: bool = true;
 #[cfg(test)]
 pub(crate) const OPEN_BLANK_EDITOR_WINDOW_COMMAND: &str = "open_blank_editor_window";
 #[cfg(test)]
@@ -22,6 +23,8 @@ const SETTINGS_WINDOW_URL: &str = "index.html?settings=1";
 const SETTINGS_WINDOW_TRANSPARENT: bool = false;
 #[cfg(not(target_os = "windows"))]
 const SETTINGS_WINDOW_TRANSPARENT: bool = true;
+#[cfg(target_os = "macos")]
+const SETTINGS_WINDOW_DECORATIONS: bool = true;
 const SETTINGS_WINDOW_WIDTH: f64 = 1040.0;
 const SETTINGS_WINDOW_HEIGHT: f64 = 720.0;
 const SETTINGS_WINDOW_MIN_WIDTH: f64 = 860.0;
@@ -30,10 +33,6 @@ const SETTINGS_WINDOW_RESIZABLE: bool = true;
 const SETTINGS_WINDOW_SHADOW: bool = true;
 #[cfg(target_os = "macos")]
 const SETTINGS_WINDOW_HIDDEN_TITLE: bool = true;
-#[cfg(target_os = "macos")]
-const TRAFFIC_LIGHT_X: f64 = 20.0;
-#[cfg(target_os = "macos")]
-const TRAFFIC_LIGHT_TOP_INSET: f64 = 22.0;
 
 static NEXT_EDITOR_WINDOW_ID: AtomicUsize = AtomicUsize::new(1);
 
@@ -62,29 +61,29 @@ fn encode_url_query_component(value: &str) -> String {
 }
 
 #[cfg(target_os = "macos")]
-fn apply_macos_traffic_light_position<R>(window: &tauri::WebviewWindow<R>)
+fn hide_native_macos_window_controls<R>(window: &tauri::WebviewWindow<R>)
 where
     R: tauri::Runtime,
 {
     let Ok(ns_window) = window.ns_window() else {
         return;
     };
-    schedule_macos_traffic_light_position(ns_window);
+    schedule_hide_native_macos_window_controls(ns_window);
 }
 
 #[cfg(target_os = "macos")]
-fn apply_macos_window_traffic_light_position<R>(window: &tauri::Window<R>)
+fn hide_native_macos_window_controls_for_window<R>(window: &tauri::Window<R>)
 where
     R: tauri::Runtime,
 {
     let Ok(ns_window) = window.ns_window() else {
         return;
     };
-    schedule_macos_traffic_light_position(ns_window);
+    schedule_hide_native_macos_window_controls(ns_window);
 }
 
 #[cfg(target_os = "macos")]
-fn schedule_macos_traffic_light_position(ns_window: *mut std::ffi::c_void) {
+fn schedule_hide_native_macos_window_controls(ns_window: *mut std::ffi::c_void) {
     if ns_window.is_null() {
         return;
     }
@@ -93,51 +92,24 @@ fn schedule_macos_traffic_light_position(ns_window: *mut std::ffi::c_void) {
 
     dispatch2::run_on_main(move |_| {
         let ns_window = ns_window as *mut std::ffi::c_void;
-        inset_macos_traffic_lights(ns_window);
+        hide_native_macos_standard_buttons(ns_window);
     });
 }
 
 #[cfg(target_os = "macos")]
-fn inset_macos_traffic_lights(ns_window: *mut std::ffi::c_void) {
-    use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
+fn hide_native_macos_standard_buttons(ns_window: *mut std::ffi::c_void) {
+    use objc2_app_kit::{NSWindow, NSWindowButton};
 
-    // Match Wry's native inset strategy: move the titlebar container itself,
-    // then place the standard buttons horizontally inside that container.
     let window = unsafe { &*ns_window.cast::<NSWindow>() };
-    let Some(close) = window.standardWindowButton(NSWindowButton::CloseButton) else {
-        return;
-    };
-    let Some(miniaturize) = window.standardWindowButton(NSWindowButton::MiniaturizeButton) else {
-        return;
-    };
-    let zoom = window.standardWindowButton(NSWindowButton::ZoomButton);
 
-    let Some(button_container) = (unsafe { NSView::superview(&close) }) else {
-        return;
-    };
-    let Some(titlebar_container) = (unsafe { NSView::superview(&button_container) }) else {
-        return;
-    };
-
-    let close_frame = NSView::frame(&close);
-    let titlebar_height = close_frame.size.height + TRAFFIC_LIGHT_TOP_INSET;
-    let mut titlebar_frame = NSView::frame(&titlebar_container);
-    titlebar_frame.size.height = titlebar_height;
-    titlebar_frame.origin.y = window.frame().size.height - titlebar_height;
-    titlebar_container.setFrame(titlebar_frame);
-
-    let miniaturize_frame = NSView::frame(&miniaturize);
-    let space_between = miniaturize_frame.origin.x - close_frame.origin.x;
-    let mut buttons = vec![close, miniaturize];
-
-    if let Some(zoom) = zoom {
-        buttons.push(zoom);
-    }
-
-    for (index, button) in buttons.into_iter().enumerate() {
-        let mut frame = NSView::frame(&button);
-        frame.origin.x = TRAFFIC_LIGHT_X + index as f64 * space_between;
-        button.setFrameOrigin(frame.origin);
+    for button in [
+        NSWindowButton::CloseButton,
+        NSWindowButton::MiniaturizeButton,
+        NSWindowButton::ZoomButton,
+    ] {
+        if let Some(button) = window.standardWindowButton(button) {
+            button.setHidden(true);
+        }
     }
 }
 
@@ -149,7 +121,7 @@ where
     let Ok(ns_window) = webview.window().ns_window() else {
         return;
     };
-    schedule_macos_traffic_light_position(ns_window);
+    schedule_hide_native_macos_window_controls(ns_window);
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -168,7 +140,7 @@ where
         tauri::WindowEvent::Focused(true)
         | tauri::WindowEvent::Resized(_)
         | tauri::WindowEvent::ScaleFactorChanged { .. } => {
-            apply_macos_window_traffic_light_position(window);
+            hide_native_macos_window_controls_for_window(window);
         }
         _ => {}
     }
@@ -187,7 +159,7 @@ where
     R: tauri::Runtime,
 {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        apply_macos_traffic_light_position(&window);
+        hide_native_macos_window_controls(&window);
     }
 }
 
@@ -219,7 +191,7 @@ where
             .title("")
             .inner_size(1360.0, 800.0)
             .min_inner_size(960.0, 640.0)
-            .decorations(true)
+            .decorations(editor_window_decorations())
             .transparent(editor_window_transparent())
             .shadow(true)
             .center();
@@ -232,7 +204,7 @@ where
         match builder.build() {
             Ok(window) => {
                 #[cfg(target_os = "macos")]
-                apply_macos_traffic_light_position(&window);
+                hide_native_macos_window_controls(&window);
             }
             Err(error) => {
                 eprintln!("failed to create blank editor window: {error}");
@@ -243,6 +215,10 @@ where
 
 fn editor_window_transparent() -> bool {
     EDITOR_WINDOW_TRANSPARENT
+}
+
+fn editor_window_decorations() -> bool {
+    EDITOR_WINDOW_DECORATIONS
 }
 
 pub(crate) fn spawn_blank_editor_window<R>(app: tauri::AppHandle<R>)
@@ -259,6 +235,10 @@ pub(crate) fn open_blank_editor_window(app: tauri::AppHandle) {
 
 fn settings_window_transparent() -> bool {
     SETTINGS_WINDOW_TRANSPARENT
+}
+
+fn settings_window_decorations() -> bool {
+    SETTINGS_WINDOW_DECORATIONS
 }
 
 fn settings_window_inner_size() -> (f64, f64) {
@@ -319,7 +299,7 @@ where
         .title("Settings")
         .inner_size(width, height)
         .min_inner_size(min_width, min_height)
-        .decorations(true)
+        .decorations(settings_window_decorations())
         .transparent(settings_window_transparent())
         .resizable(settings_window_resizable())
         .shadow(settings_window_shadow())
@@ -339,7 +319,7 @@ where
         match builder.build() {
             Ok(window) => {
                 #[cfg(target_os = "macos")]
-                apply_macos_traffic_light_position(&window);
+                hide_native_macos_window_controls(&window);
             }
             Err(error) => {
                 eprintln!("failed to create settings window: {error}");
@@ -360,6 +340,7 @@ mod tests {
     #[test]
     fn settings_window_matches_editor_window_chrome() {
         assert_eq!(settings_window_transparent(), editor_window_transparent());
+        assert_eq!(settings_window_decorations(), editor_window_decorations());
 
         #[cfg(target_os = "macos")]
         {
@@ -387,6 +368,56 @@ mod tests {
 
         #[cfg(not(target_os = "windows"))]
         assert!(settings_window_transparent());
+    }
+
+    #[test]
+    fn macos_windows_preserve_native_rounded_frame() {
+        assert!(editor_window_decorations());
+        assert!(settings_window_decorations());
+    }
+
+    #[test]
+    fn macos_main_window_config_preserves_native_rounded_frame() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.macos.conf.json"))
+                .expect("macOS Tauri config should be valid JSON");
+        let decorations = config
+            .pointer("/app/windows/0/decorations")
+            .and_then(serde_json::Value::as_bool);
+        let title_bar_style = config
+            .pointer("/app/windows/0/titleBarStyle")
+            .and_then(serde_json::Value::as_str);
+        let hidden_title = config
+            .pointer("/app/windows/0/hiddenTitle")
+            .and_then(serde_json::Value::as_bool);
+
+        assert_eq!(decorations, Some(true));
+        assert_eq!(title_bar_style, Some("Overlay"));
+        assert_eq!(hidden_title, Some(true));
+    }
+
+    #[test]
+    fn main_capability_allows_self_drawn_window_controls() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/main.json"))
+                .expect("main capability should be valid JSON");
+        let permissions = capability
+            .pointer("/permissions")
+            .and_then(serde_json::Value::as_array)
+            .expect("main capability should declare permissions");
+
+        for permission in [
+            "core:window:allow-close",
+            "core:window:allow-minimize",
+            "core:window:allow-toggle-maximize",
+        ] {
+            assert!(
+                permissions
+                    .iter()
+                    .any(|value| value.as_str() == Some(permission)),
+                "missing permission {permission}"
+            );
+        }
     }
 
     #[test]

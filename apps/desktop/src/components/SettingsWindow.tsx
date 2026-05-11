@@ -11,6 +11,7 @@ import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
 import { useAutoUpdater } from "../hooks/useAutoUpdater";
 import { useDefaultContextMenuBlocker } from "../hooks/useDefaultContextMenuBlocker";
 import { resolveDesktopPlatform } from "../lib/platform";
+import { MacWindowControls } from "./MacWindowControls";
 
 export function SettingsWindow() {
   const settingsState = useSettingsWindowState();
@@ -55,6 +56,9 @@ export function SettingsWindow() {
           data-tauri-drag-region
         />
       )}
+      {platform === "macos" ? (
+        <MacWindowControls className="fixed top-0 left-0 z-20 h-9.5" />
+      ) : null}
       <div className="settings-layout grid h-screen grid-cols-[180px_minmax(0,1fr)]">
         <SettingsSidebar
           activeCategory={activeCategory}
