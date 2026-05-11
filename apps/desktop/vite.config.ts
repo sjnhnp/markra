@@ -53,7 +53,7 @@ const aiSdkDependencies = dependencyPattern([
 
 function vendorChunkName(id: string) {
   if (reactDependencies.test(id)) return "react-vendor";
-  if (milkdownDependencies.test(id)) return "milkdown-vendor";
+  if (milkdownDependencies.test(id)) return null;
   if (tauriDependencies.test(id)) return "tauri-vendor";
   if (iconDependencies.test(id)) return "icons-vendor";
   if (piAgentDependencies.test(id)) return "pi-agent-vendor";
@@ -80,6 +80,13 @@ export default defineConfig(({ mode }) => ({
         assetFileNames: outputAssetFileName,
         codeSplitting: {
           groups: [
+            {
+              // Keep Milkdown's unified/remark/prosemirror graph in one chunk; maxSize
+              // splitting can break circular CommonJS wrapper initialization.
+              name: "milkdown-vendor",
+              test: (id) => milkdownDependencies.test(id),
+              priority: 10
+            },
             {
               name: vendorChunkName,
               maxSize: chunkSizeLimit
