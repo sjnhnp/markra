@@ -112,12 +112,14 @@ async function runDocumentChatOnlyAgent({
   documentContent,
   documentPath,
   documentImages = [],
+  headingAnchors = [],
   history = [],
   model,
   onTextDelta,
   onThinkingDelta,
   prompt,
   provider,
+  sectionAnchors,
   selection = null,
   thinkingEnabled,
   webSearchEnabled = false,
@@ -132,9 +134,12 @@ async function runDocumentChatOnlyAgent({
   });
   const nativeWebSearchEnabled = webSearchEnabled && providerSupportsNativeWebSearch(provider, model);
   const messages = buildDocumentAgentMessages({
+    documentContent,
     documentImages,
+    headingAnchors,
     history,
     prompt,
+    sectionAnchors,
     selection,
     toolResults,
     webSearchMode: nativeWebSearchEnabled ? "native" : "none"
@@ -260,8 +265,11 @@ async function runDocumentToolCallingAgent({
   });
 
   await agent.prompt(buildDocumentToolCallingTurnMessages({
+    documentContent,
     documentImages: [],
+    headingAnchors,
     prompt,
+    sectionAnchors,
     selection,
     webSearchMode: nativeWebSearchEnabled ? "native" : activeWebSearchSettings ? "custom" : "none"
   }));

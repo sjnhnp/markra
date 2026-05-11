@@ -6,8 +6,10 @@ import { previewPreparedResult } from "./results";
 import {
   beginPreparedWrite,
   ensureReplacementFitsRegion,
+  resolveSelectedBlockRegion,
   resolveWriteRegion
 } from "./regions";
+import { looksLikeBlockMarkdown } from "./text";
 
 export class ReplaceRegionToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedReplaceRegionArgs>> {
   protected readonly description = [
@@ -33,16 +35,23 @@ export class ReplaceRegionToolFactory extends DocumentAgentToolFactory<ReturnTyp
 
     const region = resolveWriteRegion(this.context, params.anchorId, "replace");
     if ("error" in region) return region.error;
-    const fitCheck = ensureReplacementFitsRegion(this.context, params.anchorId, params.replacement, region.region);
+
+    const selectedBlock =
+      !params.anchorId && looksLikeBlockMarkdown(params.replacement)
+        ? resolveSelectedBlockRegion(this.context)
+        : null;
+    const replacementAnchorId = selectedBlock?.anchorId ?? params.anchorId;
+    const replacementRegion = selectedBlock?.region ?? region.region;
+    const fitCheck = ensureReplacementFitsRegion(this.context, replacementAnchorId, params.replacement, replacementRegion);
     if ("error" in fitCheck) return fitCheck.error;
 
     this.markPreparedWrite();
     const result: AiDiffResult = {
-      from: region.region.from,
-      original: region.region.original,
+      from: replacementRegion.from,
+      original: replacementRegion.original,
       replacement: params.replacement,
-      ...(region.region.target ? { target: region.region.target } : {}),
-      to: region.region.to,
+      ...(replacementRegion.target ? { target: replacementRegion.target } : {}),
+      to: replacementRegion.to,
       type: "replace"
     };
     this.context.onPreviewResult?.(result, toolCallId);

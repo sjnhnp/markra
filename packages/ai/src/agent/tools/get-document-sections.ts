@@ -15,7 +15,7 @@ export class GetDocumentSectionsToolFactory extends DocumentAgentToolFactory {
     return {
       content: [
         {
-          text: formatSectionAnchorsText(sectionAnchors),
+          text: formatSectionAnchorsText(sectionAnchors, this.context.documentContent),
           type: "text" as const
         }
       ],

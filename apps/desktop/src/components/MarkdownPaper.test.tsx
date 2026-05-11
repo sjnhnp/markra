@@ -1292,6 +1292,55 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("clears a parsed heading replacement preview after applying from the widget", async () => {
+    const { container, editor, view } = await renderEditor("## 拉取 image\n\nBody");
+    const from = findTextPosition(view, "拉取 image");
+    const result = {
+      from,
+      original: "拉取 image",
+      replacement: "# 拉取 image",
+      target: {
+        from: 0,
+        id: "current-context",
+        kind: "current_block" as const,
+        title: "拉取 image",
+        to: "## 拉取 image".length
+      },
+      to: from + "拉取 image".length,
+      type: "replace" as const
+    };
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+    const onPreviewAction = vi.fn((event: Event) => {
+      const detail = (event as CustomEvent<AiEditorPreviewActionDetail>).detail;
+      if (detail.action === "apply") {
+        applyAiEditorResult(view, detail.result, {
+          parseMarkdown,
+          previewId: detail.previewId
+        });
+      }
+    });
+
+    window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    showAiEditorPreview(view, result, undefined, { parseMarkdown, previewId: "tool-heading" });
+
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("拉取 image");
+
+    container.querySelector<HTMLButtonElement>(".ProseMirror .markra-ai-preview-apply")?.click();
+
+    expect(container.querySelector(".ProseMirror h1")).toHaveTextContent("拉取 image");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
+
+    expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
+    expect(container.querySelector(".ProseMirror h2")).toHaveTextContent("拉取 image");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("拉取 image");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("拉取 image");
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
   it("marks the AI preview apply action busy and prevents repeated dispatches", async () => {
     const { container, view } = await renderEditor("Original text");
     const from = findTextPosition(view, "Original");

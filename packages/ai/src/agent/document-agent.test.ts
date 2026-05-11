@@ -483,6 +483,108 @@ describe("document AI agent", () => {
     });
   });
 
+  it("includes selected heading Markdown source in the runtime context", async () => {
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+      expect(messages[1]?.content).toContain("Markdown source range: 0-10");
+      expect(messages[1]?.content).toContain("```markdown\n# 登录docker\n```");
+
+      return {
+        content: "你选中的是一级标题。",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# 登录docker\n\nBody",
+      documentEndPosition: 16,
+      documentPath: "/vault/AWS.md",
+      headingAnchors: [{ from: 0, level: 1, title: "登录docker", to: 10 }],
+      model: "gpt-5.5",
+      prompt: "我选中的是几级标题",
+      provider: provider(),
+      sectionAnchors: [{
+        description: "Section 登录docker",
+        from: 0,
+        id: "section:0",
+        kind: "section",
+        title: "登录docker",
+        to: 16
+      }],
+      selection: {
+        cursor: 10,
+        from: 2,
+        source: "selection",
+        text: "登录docker",
+        to: 10
+      },
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "你选中的是一级标题。",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
+  it("includes containing section Markdown source when the selection is not a heading", async () => {
+    const documentContent = ["# 登录docker", "", "Body paragraph", "", "## 拉取 image"].join("\n");
+    const bodyStart = documentContent.indexOf("Body paragraph");
+    const nextHeadingStart = documentContent.indexOf("## 拉取 image");
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+      expect(messages[1]?.content).toContain(`Markdown source range: 0-${nextHeadingStart}`);
+      expect(messages[1]?.content).toContain("# 登录docker");
+      expect(messages[1]?.content).toContain("Body paragraph");
+
+      return {
+        content: "这段选区属于“登录docker”这个 section。",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/AWS.md",
+      headingAnchors: [
+        { from: 0, level: 1, title: "登录docker", to: "# 登录docker".length },
+        {
+          from: nextHeadingStart,
+          level: 2,
+          title: "拉取 image",
+          to: nextHeadingStart + "## 拉取 image".length
+        }
+      ],
+      model: "gpt-5.5",
+      prompt: "我选中的是哪个 section",
+      provider: provider(),
+      sectionAnchors: [{
+        description: "Section 登录docker",
+        from: 0,
+        id: "section:0",
+        kind: "section",
+        title: "登录docker",
+        to: nextHeadingStart
+      }],
+      selection: {
+        cursor: bodyStart + "Body paragraph".length,
+        from: bodyStart,
+        source: "selection",
+        text: "Body paragraph",
+        to: bodyStart + "Body paragraph".length
+      },
+      workspaceFiles: []
+    });
+
+    expect(result).toEqual({
+      content: "这段选区属于“登录docker”这个 section。",
+      finishReason: "stop",
+      preparedPreview: false
+    });
+  });
+
   it("registers the Cherry-style web search tool for tool-calling agents when enabled and configured", async () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages[0]?.content).toContain("builtin_web_search");

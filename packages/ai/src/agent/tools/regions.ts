@@ -1,6 +1,12 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { AiDiffTarget, AiDocumentAnchor, AiSelectionContext } from "../inline";
-import { buildDocumentAnchors, buildSectionAnchors, diffTargetFromAnchor, documentTableAnchors } from "./anchors";
+import {
+  buildDocumentAnchors,
+  buildSectionAnchors,
+  currentContextAnchor,
+  diffTargetFromAnchor,
+  documentTableAnchors
+} from "./anchors";
 import type { DocumentAgentToolContext, DocumentAnchorPlacement, RegionOperation } from "./context";
 import type { InsertMarkdownArgs } from "./params";
 import { toolErrorResult } from "./results";
@@ -104,6 +110,9 @@ export function resolveBlockRegion(
       };
     }
 
+    const selectedBlock = resolveSelectedBlockRegion(context);
+    if (selectedBlock) return selectedBlock;
+
     if (context.selection.source !== "block") {
       return {
         anchorId: "current-context",
@@ -175,6 +184,27 @@ export function resolveBlockRegion(
       original: anchor.text ?? sliceDocumentText(context.documentContent, anchor.from, anchor.to),
       target: diffTargetFromAnchor(anchor),
       to: anchor.to
+    }
+  };
+}
+
+export function resolveSelectedBlockRegion(context: DocumentAgentToolContext): {
+  anchorId: string;
+  region: { from: number; original: string; target: AiDiffTarget; to: number };
+} | null {
+  const selection = context.selection;
+  if (!selection?.text.trim()) return null;
+
+  const selectedBlock = currentContextAnchor(context);
+  if (!selectedBlock || (selectedBlock.from === selection.from && selectedBlock.to === selection.to)) return null;
+
+  return {
+    anchorId: selectedBlock.id,
+    region: {
+      from: selectedBlock.from,
+      original: selectedBlock.text ?? sliceDocumentText(context.documentContent, selectedBlock.from, selectedBlock.to),
+      target: diffTargetFromAnchor(selectedBlock),
+      to: selectedBlock.to
     }
   };
 }

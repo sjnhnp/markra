@@ -1222,6 +1222,7 @@ function resultMatchesReplacement(doc: ProseNode, result: AiTextDiffResult) {
 function resultStillLooksApplied(doc: ProseNode, result: AiTextDiffResult) {
   if (resultMatchesReplacement(doc, result)) return true;
   if (!shouldTreatReplacementAsBlockMarkdown(result.replacement)) return false;
+  if (headingReplacementStillLooksApplied(doc, result)) return true;
 
   const docSize = doc.content.size;
   const from = clampNumber(result.from, 0, docSize);
@@ -1234,6 +1235,46 @@ function resultStillLooksApplied(doc: ProseNode, result: AiTextDiffResult) {
   const nearbyText = normalizePreviewComparableText(doc.textBetween(from, nearbyEnd, "\n"));
 
   return needles.every((needle) => nearbyText.includes(needle));
+}
+
+function headingReplacementStillLooksApplied(doc: ProseNode, result: AiTextDiffResult) {
+  const heading = parseSingleHeadingReplacement(result.replacement);
+  if (!heading) return false;
+
+  const docSize = doc.content.size;
+  const from = clampNumber(result.from, 0, docSize);
+  const to = clampNumber(result.to ?? result.from, 0, docSize);
+  if (from === null || to === null) return false;
+
+  let matched = false;
+  doc.nodesBetween(from, Math.max(from, to), (node, position) => {
+    if (matched || !node.isTextblock) return false;
+    if (node.type.name !== "heading") return false;
+
+    matched =
+      Number(node.attrs.level ?? 1) === heading.level &&
+      normalizePreviewComparableText(node.textContent) === heading.text;
+
+    return false;
+  });
+
+  return matched;
+}
+
+function parseSingleHeadingReplacement(markdown: string) {
+  const lines = markdown.trim().split("\n").filter((line) => line.trim().length > 0);
+  if (lines.length !== 1) return null;
+
+  const match = /^(#{1,6})\s+(.+)$/u.exec(lines[0]!.trim());
+  if (!match) return null;
+
+  const text = normalizePreviewComparableText(match[2] ?? "");
+  if (!text) return null;
+
+  return {
+    level: match[1]!.length,
+    text
+  };
 }
 
 function blockMarkdownReplacementNeedles(result: AiTextDiffResult) {

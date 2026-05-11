@@ -7,6 +7,41 @@ function toolText(result: AgentToolResult<unknown> | undefined) {
   return content?.type === "text" ? content.text : "";
 }
 
+type PreviewResultCallback = Parameters<typeof createDocumentAgentTools>[0]["onPreviewResult"];
+
+function selectedAwsHeadingToolContext(onPreviewResult: PreviewResultCallback) {
+  const documentContent = ["## 登录docker", "", "Body", "", "## 拉取 image", "", "Pull body"].join("\n");
+  const firstHeading = "## 登录docker";
+  const secondHeading = "## 拉取 image";
+
+  return {
+    context: {
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/AWS.md",
+      headingAnchors: [
+        { from: 0, level: 2, title: "登录docker", to: firstHeading.length },
+        {
+          from: documentContent.indexOf(secondHeading),
+          level: 2,
+          title: "拉取 image",
+          to: documentContent.indexOf(secondHeading) + secondHeading.length
+        }
+      ],
+      onPreviewResult,
+      selection: {
+        cursor: 11,
+        from: 3,
+        source: "selection" as const,
+        text: "登录docker",
+        to: 11
+      },
+      workspaceFiles: []
+    },
+    firstHeading
+  };
+}
+
 describe("documentAgentTools", () => {
   it("lists and reads Markdown document images", async () => {
     const readDocumentImage = vi.fn(async (src: string) => ({
@@ -189,13 +224,15 @@ describe("documentAgentTools", () => {
   });
 
   it("returns section anchors derived from headings", async () => {
+    const documentContent = "# Title\n\nIntro\n\n## Section\n\nBody";
+    const sectionHeadingStart = documentContent.indexOf("## Section");
     const tool = createDocumentAgentTools({
-      documentContent: "# Title\n\nIntro\n\n## Section\n\nBody",
-      documentEndPosition: 31,
+      documentContent,
+      documentEndPosition: documentContent.length,
       documentPath: "/vault/README.md",
       headingAnchors: [
-        { from: 0, level: 1, title: "Title", to: 8 },
-        { from: 15, level: 2, title: "Section", to: 26 }
+        { from: 0, level: 1, title: "Title", to: "# Title".length },
+        { from: sectionHeadingStart, level: 2, title: "Section", to: sectionHeadingStart + "## Section".length }
       ],
       selection: null,
       workspaceFiles: []
@@ -203,8 +240,11 @@ describe("documentAgentTools", () => {
 
     const result = await tool?.execute("tool_get_document_sections", {});
 
-    expect(toolText(result)).toContain("section:0: Title (0-31)");
-    expect(toolText(result)).toContain("section:1: Section (15-31)");
+    expect(toolText(result)).toContain(`section:0: Title (0-${documentContent.length})`);
+    expect(toolText(result)).toContain(`section:1: Section (${sectionHeadingStart}-${documentContent.length})`);
+    expect(toolText(result)).toContain(`Markdown source range: 0-${documentContent.length}`);
+    expect(toolText(result)).toContain("# Title");
+    expect(toolText(result)).toContain("## Section");
   });
 
   it("prepares a delete preview for the current selection", async () => {
@@ -347,21 +387,81 @@ describe("documentAgentTools", () => {
     expect(toolText(result)).toContain("document-end");
   });
 
-  it("locates the most appropriate region before insertion", async () => {
+  it("reads the selected heading Markdown source from the current selection", async () => {
     const tool = createDocumentAgentTools({
-      documentContent: "# Title\n\n## Section\n\nBody",
-      documentEndPosition: 24,
-      documentPath: "/vault/README.md",
+      documentContent: "# 登录docker\n\nBody",
+      documentEndPosition: 16,
+      documentPath: "/vault/AWS.md",
+      headingAnchors: [{ from: 0, level: 1, title: "登录docker", to: 10 }],
+      selection: {
+        cursor: 10,
+        from: 2,
+        source: "selection",
+        text: "登录docker",
+        to: 10
+      },
+      workspaceFiles: []
+    }).find((item) => item.name === "get_selection");
+
+    const result = await tool?.execute("tool_get_selection", {});
+
+    expect(toolText(result)).toContain("Markdown source range: 0-10");
+    expect(toolText(result)).toContain("```markdown\n# 登录docker\n```");
+  });
+
+  it("reads containing section Markdown source from arbitrary selected text", async () => {
+    const documentContent = ["# 登录docker", "", "Body paragraph", "", "## 拉取 image"].join("\n");
+    const bodyStart = documentContent.indexOf("Body paragraph");
+    const nextHeadingStart = documentContent.indexOf("## 拉取 image");
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/AWS.md",
       headingAnchors: [
-        { from: 0, level: 1, title: "Title", to: 8 },
-        { from: 10, level: 2, title: "Section", to: 21 }
+        { from: 0, level: 1, title: "登录docker", to: "# 登录docker".length },
+        {
+          from: nextHeadingStart,
+          level: 2,
+          title: "拉取 image",
+          to: nextHeadingStart + "## 拉取 image".length
+        }
       ],
       selection: {
-        cursor: 16,
-        from: 10,
+        cursor: bodyStart + "Body paragraph".length,
+        from: bodyStart,
+        source: "selection",
+        text: "Body paragraph",
+        to: bodyStart + "Body paragraph".length
+      },
+      workspaceFiles: []
+    }).find((item) => item.name === "get_selection");
+
+    const result = await tool?.execute("tool_get_selection", {});
+
+    expect(toolText(result)).toContain(`Markdown source range: 0-${documentContent.length}`);
+    expect(toolText(result)).toContain("# 登录docker");
+    expect(toolText(result)).toContain("Body paragraph");
+    expect(toolText(result)).not.toContain("Markdown structure: heading level");
+  });
+
+  it("locates the most appropriate region before insertion", async () => {
+    const documentContent = "# Title\n\n## Section\n\nBody";
+    const sectionHeading = "## Section";
+    const sectionHeadingStart = documentContent.indexOf(sectionHeading);
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/README.md",
+      headingAnchors: [
+        { from: 0, level: 1, title: "Title", to: "# Title".length },
+        { from: sectionHeadingStart, level: 2, title: "Section", to: sectionHeadingStart + sectionHeading.length }
+      ],
+      selection: {
+        cursor: sectionHeadingStart + sectionHeading.length,
+        from: sectionHeadingStart,
         source: "block",
         text: "Section",
-        to: 17
+        to: sectionHeadingStart + sectionHeading.length
       },
       workspaceFiles: []
     }).find((item) => item.name === "locate_markdown_region");
@@ -374,6 +474,8 @@ describe("documentAgentTools", () => {
       anchorId: "heading:1",
       operation: "insert"
     }));
+    expect(toolText(result)).toContain("Recommended anchor source:");
+    expect(toolText(result)).toContain("## Section");
   });
 
   it("locates a Markdown table instead of the owning heading for table edits", async () => {
@@ -411,6 +513,8 @@ describe("documentAgentTools", () => {
       anchorId: "table:0"
     }));
     expect(toolText(result)).toContain("table:0");
+    expect(toolText(result)).toContain("Recommended anchor source:");
+    expect(toolText(result)).toContain("| Sync note | None | Needs source token (old-token) |");
   });
 
   it("uses enum schemas for bounded tool arguments", () => {
@@ -449,14 +553,19 @@ describe("documentAgentTools", () => {
   });
 
   it("locates the most appropriate section by heading title", async () => {
+    const documentContent = "# Intro\n\n## 10. Current\n\nBody\n\n## 11. Follow-ups\n\nMore body";
+    const currentHeading = "## 10. Current";
+    const followUpHeading = "## 11. Follow-ups";
+    const currentHeadingStart = documentContent.indexOf(currentHeading);
+    const followUpHeadingStart = documentContent.indexOf(followUpHeading);
     const tool = createDocumentAgentTools({
-      documentContent: "# Intro\n\n## 10. Current\n\nBody\n\n## 11. Follow-ups\n\nMore body",
-      documentEndPosition: 61,
+      documentContent,
+      documentEndPosition: documentContent.length,
       documentPath: "/vault/README.md",
       headingAnchors: [
-        { from: 0, level: 1, title: "Intro", to: 8 },
-        { from: 9, level: 2, title: "10. Current", to: 23 },
-        { from: 30, level: 2, title: "11. Follow-ups", to: 46 }
+        { from: 0, level: 1, title: "Intro", to: "# Intro".length },
+        { from: currentHeadingStart, level: 2, title: "10. Current", to: currentHeadingStart + currentHeading.length },
+        { from: followUpHeadingStart, level: 2, title: "11. Follow-ups", to: followUpHeadingStart + followUpHeading.length }
       ],
       selection: null,
       workspaceFiles: []
@@ -469,6 +578,9 @@ describe("documentAgentTools", () => {
     expect(result?.details).toEqual(expect.objectContaining({
       anchorId: "section:2"
     }));
+    expect(toolText(result)).toContain("Recommended section source:");
+    expect(toolText(result)).toContain("## 11. Follow-ups");
+    expect(toolText(result)).toContain("More body");
   });
 
   it("rejects delete requests when there is no editable selection or block", async () => {
@@ -610,6 +722,76 @@ describe("documentAgentTools", () => {
       type: "replace"
     }, expect.any(String));
     expect(toolText(result)).toContain("Prepared a block replacement preview");
+  });
+
+  it("prepares a block replacement for selected heading text", async () => {
+    const onPreviewResult = vi.fn();
+    const { context, firstHeading } = selectedAwsHeadingToolContext(onPreviewResult);
+    const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_block");
+
+    const result = await tool?.execute("tool_replace_block", {
+      replacement: "# 登录docker"
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 0,
+      original: "登录docker",
+      replacement: "# 登录docker",
+      target: {
+        from: 0,
+        id: "current-context",
+        kind: "current_block",
+        title: "登录docker",
+        to: firstHeading.length
+      },
+      to: firstHeading.length,
+      type: "replace"
+    }, expect.any(String));
+    expect(toolText(result)).toContain("Prepared a block replacement preview");
+  });
+
+  it("uses the selected heading block for the current-context anchor", async () => {
+    const onPreviewResult = vi.fn();
+    const { context, firstHeading } = selectedAwsHeadingToolContext(onPreviewResult);
+    const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_region");
+
+    await tool?.execute("tool_replace_region", {
+      anchorId: "current-context",
+      replacement: "# 登录docker"
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 0,
+      original: "登录docker",
+      replacement: "# 登录docker",
+      to: firstHeading.length,
+      type: "replace"
+    }, expect.any(String));
+  });
+
+  it("promotes selected heading text when replace_region receives block Markdown", async () => {
+    const onPreviewResult = vi.fn();
+    const { context, firstHeading } = selectedAwsHeadingToolContext(onPreviewResult);
+    const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_region");
+
+    await tool?.execute("tool_replace_region", {
+      replacement: "# 登录docker"
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: 0,
+      original: "登录docker",
+      replacement: "# 登录docker",
+      target: {
+        from: 0,
+        id: "current-context",
+        kind: "current_block",
+        title: "登录docker",
+        to: firstHeading.length
+      },
+      to: firstHeading.length,
+      type: "replace"
+    }, expect.any(String));
   });
 
   it("rejects table anchors through replace_block", async () => {

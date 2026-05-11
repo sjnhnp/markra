@@ -1,5 +1,10 @@
 import type { AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../inline";
 import type { AgentWorkspaceFile } from "../read-only-tools";
+import {
+  formatMarkdownSourceContext,
+  formatSelectionSourceContext,
+  resolveMarkdownSourceContext
+} from "../selection";
 import type { MarkdownImageReference } from "./images";
 import type { LocatedMarkdownRegion, LocatedSection } from "./locate";
 
@@ -11,11 +16,14 @@ export function formatHeadingOutlineText(headingAnchors: AiHeadingAnchor[]) {
     .join("\n");
 }
 
-export function formatSectionAnchorsText(sectionAnchors: AiDocumentAnchor[]) {
+export function formatSectionAnchorsText(sectionAnchors: AiDocumentAnchor[], documentContent?: string) {
   if (!sectionAnchors.length) return "No Markdown sections are available in the current document.";
 
   return sectionAnchors
-    .map((section) => `- ${section.id}: ${section.title ?? "(untitled)"} (${section.from}-${section.to})`)
+    .map((section) => [
+      `- ${section.id}: ${section.title ?? "(untitled)"} (${section.from}-${section.to})`,
+      ...formatAnchorSourceLines(section, documentContent, "Markdown source context:")
+    ].join("\n"))
     .join("\n");
 }
 
@@ -25,7 +33,18 @@ export function formatDocumentAnchorsText(anchors: AiDocumentAnchor[]) {
     .join("\n");
 }
 
-export function formatSelectionText(selection: AiSelectionContext | null) {
+export function formatSelectionText(
+  selection: AiSelectionContext | null,
+  {
+    documentContent,
+    headingAnchors,
+    sectionAnchors
+  }: {
+    documentContent?: string;
+    headingAnchors?: AiHeadingAnchor[];
+    sectionAnchors?: AiDocumentAnchor[];
+  } = {}
+) {
   if (!selection?.text.trim()) {
     return "No active selection or current block is available right now.";
   }
@@ -34,6 +53,9 @@ export function formatSelectionText(selection: AiSelectionContext | null) {
     `Range: ${selection.from}-${selection.to}`,
     `Cursor: ${selection.cursor ?? selection.to}`,
     `Source: ${selection.source ?? "selection"}`,
+    ...(documentContent
+      ? formatSelectionSourceContext({ documentContent, headingAnchors, sectionAnchors, selection })
+      : []),
     "",
     selection.text
   ].join("\n");
@@ -69,22 +91,49 @@ export function formatDocumentImageReferencesText(references: MarkdownImageRefer
   ].join("\n");
 }
 
-export function formatLocatedSectionText(located: LocatedSection) {
+export function formatLocatedSectionText(
+  located: LocatedSection,
+  sectionAnchors: AiDocumentAnchor[] = [],
+  documentContent?: string
+) {
+  const recommended = sectionAnchors.find((section) => section.id === located.anchorId);
+
   return [
     `Recommended section: ${located.anchorId ?? "none"}`,
     `Reason: ${located.reason}`,
+    ...formatAnchorSourceLines(recommended, documentContent, "Recommended section source:"),
     "",
     "Top candidates:",
     ...located.candidates.map((candidate) => `- ${candidate.anchorId}: ${candidate.description} (${candidate.reason})`)
   ].join("\n");
 }
 
-export function formatLocatedRegionText(located: LocatedMarkdownRegion) {
+export function formatLocatedRegionText(
+  located: LocatedMarkdownRegion,
+  anchors: AiDocumentAnchor[] = [],
+  documentContent?: string
+) {
+  const recommended = anchors.find((anchor) => anchor.id === located.anchorId);
+
   return [
     `Recommended anchor: ${located.anchorId}`,
     `Reason: ${located.reason}`,
+    ...formatAnchorSourceLines(recommended, documentContent, "Recommended anchor source:"),
     "",
     "Top candidates:",
     ...located.candidates.map((candidate) => `- ${candidate.anchorId}: ${candidate.description} (${candidate.reason})`)
   ].join("\n");
+}
+
+function formatAnchorSourceLines(anchor: AiDocumentAnchor | undefined, documentContent: string | undefined, label: string) {
+  if (!anchor || anchor.kind === "document_end") return [];
+
+  const source = resolveMarkdownSourceContext({
+    documentContent: documentContent ?? "",
+    fallbackText: anchor.text,
+    from: anchor.from,
+    to: anchor.to
+  });
+
+  return source ? formatMarkdownSourceContext(source, label) : [];
 }

@@ -1,4 +1,5 @@
 import type { AiDiffTarget, AiDocumentAnchor } from "../inline";
+import { findSelectedHeading } from "../selection";
 import type { DocumentAgentToolContext } from "./context";
 import {
   getMarkdownLines,
@@ -22,20 +23,8 @@ export function buildDocumentAnchors(context: DocumentAgentToolContext): AiDocum
     to: context.documentEndPosition
   });
 
-  if (context.selection?.text.trim()) {
-    anchors.push({
-      description:
-        context.selection.source === "selection"
-          ? "Current selected text"
-          : "Current text block under the cursor",
-      from: context.selection.from,
-      id: "current-context",
-      kind: "current_block",
-      text: context.selection.text,
-      title: summarizeAnchorTitle(context.selection.text),
-      to: context.selection.to
-    });
-  }
+  const currentContext = currentContextAnchor(context);
+  if (currentContext) anchors.push(currentContext);
 
   anchors.push(...documentTableAnchors(context));
 
@@ -64,6 +53,40 @@ export function buildDocumentAnchors(context: DocumentAgentToolContext): AiDocum
 
 export function documentTableAnchors(context: DocumentAgentToolContext): AiDocumentAnchor[] {
   return context.tableAnchors ?? buildTableAnchors(context);
+}
+
+export function currentContextAnchor(context: DocumentAgentToolContext): AiDocumentAnchor | null {
+  if (!context.selection?.text.trim()) return null;
+
+  const selectedHeading = selectedHeadingAnchor(context);
+  if (selectedHeading) {
+    return {
+      description: `Current selected heading block (level ${selectedHeading.level})`,
+      from: selectedHeading.from,
+      id: "current-context",
+      kind: "current_block",
+      text: selectedHeading.title,
+      title: selectedHeading.title,
+      to: selectedHeading.to
+    };
+  }
+
+  return {
+    description:
+      context.selection.source === "selection"
+        ? "Current selected text"
+        : "Current text block under the cursor",
+    from: context.selection.from,
+    id: "current-context",
+    kind: "current_block",
+    text: context.selection.text,
+    title: summarizeAnchorTitle(context.selection.text),
+    to: context.selection.to
+  };
+}
+
+function selectedHeadingAnchor(context: DocumentAgentToolContext) {
+  return findSelectedHeading(context.selection, context.headingAnchors);
 }
 
 export function buildSectionAnchors(context: DocumentAgentToolContext): AiDocumentAnchor[] {

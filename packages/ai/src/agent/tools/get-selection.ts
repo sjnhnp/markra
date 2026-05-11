@@ -1,6 +1,7 @@
 import { Type } from "@mariozechner/pi-ai";
 import { DocumentAgentToolFactory } from "./base";
 import { formatSelectionText } from "./format";
+import { buildSectionAnchors } from "./anchors";
 
 export class GetSelectionToolFactory extends DocumentAgentToolFactory {
   protected readonly description = "Read the active selection, or the current Markdown block when there is no explicit selection.";
@@ -12,7 +13,11 @@ export class GetSelectionToolFactory extends DocumentAgentToolFactory {
     return {
       content: [
         {
-          text: formatSelectionText(this.context.selection),
+          text: formatSelectionText(this.context.selection, {
+            documentContent: this.context.documentContent,
+            headingAnchors: this.context.headingAnchors,
+            sectionAnchors: buildSectionAnchors(this.context)
+          }),
           type: "text" as const
         }
       ],

@@ -33,7 +33,7 @@ export class LocateMarkdownRegionToolFactory extends DocumentAgentToolFactory<Re
     return {
       content: [
         {
-          text: formatLocatedRegionText(located),
+          text: formatLocatedRegionText(located, anchors, this.context.documentContent),
           type: "text" as const
         }
       ],

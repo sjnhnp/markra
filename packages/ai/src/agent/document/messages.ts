@@ -1,22 +1,29 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ChatImageAttachment, ChatMessage } from "../chat/types";
-import type { AiDiffTarget, AiSelectionContext } from "../inline";
+import type { AiDiffTarget, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../inline";
 import type { AgentToolResult } from "../read-only-tools";
+import { formatSelectionSourceContext } from "../selection";
 import type { DocumentAiHistoryMessage, DocumentAiHistoryPreview } from "./types";
 
 export type DocumentToolCallingWebSearchMode = "custom" | "native" | "none";
 
 export function buildDocumentAgentMessages({
+  documentContent,
   documentImages,
   history,
   prompt,
   selection,
+  sectionAnchors,
+  headingAnchors,
   toolResults,
   webSearchMode
 }: {
+  documentContent: string;
   documentImages: ChatImageAttachment[];
+  headingAnchors?: AiHeadingAnchor[];
   history: DocumentAiHistoryMessage[];
   prompt: string;
+  sectionAnchors?: AiDocumentAnchor[];
   selection: AiSelectionContext | null;
   toolResults: AgentToolResult[];
   webSearchMode: DocumentToolCallingWebSearchMode;
@@ -32,6 +39,9 @@ export function buildDocumentAgentMessages({
     })),
     {
       content: buildDocumentRuntimeContext({
+        documentContent,
+        headingAnchors,
+        sectionAnchors,
         selection,
         toolCallingEnabled: false,
         webSearchMode
@@ -51,19 +61,28 @@ export function buildDocumentAgentMessages({
 }
 
 export function buildDocumentToolCallingTurnMessages({
+  documentContent,
   documentImages,
   prompt,
   selection,
+  sectionAnchors,
+  headingAnchors,
   webSearchMode
 }: {
+  documentContent: string;
   documentImages: ChatImageAttachment[];
+  headingAnchors?: AiHeadingAnchor[];
   prompt: string;
+  sectionAnchors?: AiDocumentAnchor[];
   selection: AiSelectionContext | null;
   webSearchMode: DocumentToolCallingWebSearchMode;
 }): AgentMessage[] {
   return [
     createAgentUserMessage(
       buildDocumentRuntimeContext({
+        documentContent,
+        headingAnchors,
+        sectionAnchors,
         selection,
         toolCallingEnabled: true,
         webSearchMode
@@ -177,17 +196,28 @@ function buildCurrentUserRequest(prompt: string) {
 }
 
 function buildDocumentRuntimeContext({
+  documentContent,
+  headingAnchors,
+  sectionAnchors,
   selection,
   toolCallingEnabled,
   webSearchMode
 }: {
+  documentContent: string;
+  headingAnchors?: AiHeadingAnchor[];
+  sectionAnchors?: AiDocumentAnchor[];
   selection: AiSelectionContext | null;
   toolCallingEnabled: boolean;
   webSearchMode: DocumentToolCallingWebSearchMode;
 }) {
   const sections = ["Document runtime context:"];
 
-  sections.push(formatSelectionSnapshot(selection) ?? "There is no active cursor or selection snapshot.");
+  sections.push(formatSelectionSnapshot({
+    documentContent,
+    headingAnchors,
+    sectionAnchors,
+    selection
+  }) ?? "There is no active cursor or selection snapshot.");
 
   sections.push(
     toolCallingEnabled
@@ -307,14 +337,25 @@ function emptyAgentUsage() {
   };
 }
 
-function formatSelectionSnapshot(selection: AiSelectionContext | null) {
+function formatSelectionSnapshot({
+  documentContent,
+  headingAnchors,
+  sectionAnchors,
+  selection
+}: {
+  documentContent: string;
+  headingAnchors?: AiHeadingAnchor[];
+  sectionAnchors?: AiDocumentAnchor[];
+  selection: AiSelectionContext | null;
+}) {
   if (!selection) return null;
 
   if (!selection.text.trim()) {
     return [
       "Current cursor snapshot:",
       `Cursor: ${selection.cursor ?? selection.from}`,
-      `Range: ${selection.from}-${selection.to}`
+      `Range: ${selection.from}-${selection.to}`,
+      ...formatSelectionSourceContext({ documentContent, headingAnchors, sectionAnchors, selection })
     ].join("\n");
   }
 
@@ -323,6 +364,7 @@ function formatSelectionSnapshot(selection: AiSelectionContext | null) {
     `Range: ${selection.from}-${selection.to}`,
     `Cursor: ${selection.cursor ?? selection.to}`,
     `Source: ${selection.source ?? "selection"}`,
+    ...formatSelectionSourceContext({ documentContent, headingAnchors, sectionAnchors, selection }),
     selection.text
   ].join("\n");
 }

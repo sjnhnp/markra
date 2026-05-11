@@ -28,7 +28,7 @@ export class LocateSectionToolFactory extends DocumentAgentToolFactory<ReturnTyp
     return {
       content: [
         {
-          text: formatLocatedSectionText(located),
+          text: formatLocatedSectionText(located, sections, this.context.documentContent),
           type: "text" as const
         }
       ],
