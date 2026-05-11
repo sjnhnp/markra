@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@milkdown/kit/core";
 import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/kit/core";
-import { TextSelection } from "@milkdown/kit/prose/state";
+import { NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
 import {
@@ -86,6 +86,10 @@ function moveCursor(view: EditorView, position: number) {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, position)));
 }
 
+function selectNode(view: EditorView, position: number) {
+  view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, position)));
+}
+
 function selectText(view: EditorView, from: number, to: number) {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
 }
@@ -129,6 +133,24 @@ function findNodeEndPosition(view: EditorView, typeName: string) {
   return position;
 }
 
+function findNodeStartPosition(view: EditorView, typeName: string) {
+  let position: number | null = null;
+
+  view.state.doc.descendants((node, nodePosition) => {
+    if (position !== null) return false;
+    if (node.type.name !== typeName) return true;
+
+    position = nodePosition;
+    return false;
+  });
+
+  if (position === null) {
+    throw new Error(`Could not find node in editor: ${typeName}`);
+  }
+
+  return position;
+}
+
 function pressEnter(view: EditorView) {
   const event = new KeyboardEvent("keydown", {
     key: "Enter",
@@ -150,6 +172,15 @@ function pressArrowRight(view: EditorView) {
 function pressArrowLeft(view: EditorView) {
   const event = new KeyboardEvent("keydown", {
     key: "ArrowLeft",
+    bubbles: true,
+    cancelable: true
+  });
+  return view.someProp("handleKeyDown", (handler) => handler(view, event));
+}
+
+function pressArrowDown(view: EditorView) {
+  const event = new KeyboardEvent("keydown", {
+    key: "ArrowDown",
     bubbles: true,
     cancelable: true
   });
@@ -1625,6 +1656,95 @@ describe("MarkdownPaper editing", () => {
     expect(pressShortcut(inlineCode.view, "e", { metaKey: true })).toBe(true);
 
     expect(inlineCode.container.querySelector(".ProseMirror code")).toHaveTextContent("code");
+    await settleMarkdownListener();
+  });
+
+  it("exits a terminal code block so text can be added below it", async () => {
+    const source = ["## Pull image", "", "```", "sudo docker pull image", "```"].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "sudo docker pull image") + "sudo docker pull image".length);
+
+    expect(pressShortcut(view, "Enter", { metaKey: true })).toBe(true);
+    insertTextDirectly(view, "Next paragraph");
+
+    expect(serializeMarkdown(view.state.doc)).toContain([
+      "```",
+      "sudo docker pull image",
+      "```",
+      "",
+      "Next paragraph"
+    ].join("\n"));
+    await settleMarkdownListener();
+  });
+
+  it("moves below a terminal code block with ArrowDown at the block end", async () => {
+    const source = ["```", "sudo docker pull image", "```"].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "sudo docker pull image") + "sudo docker pull image".length);
+
+    expect(pressArrowDown(view)).toBe(true);
+    insertTextDirectly(view, "Next paragraph");
+
+    expect(serializeMarkdown(view.state.doc)).toContain([
+      "```",
+      "sudo docker pull image",
+      "```",
+      "",
+      "Next paragraph"
+    ].join("\n"));
+    await settleMarkdownListener();
+  });
+
+  it("moves below a terminal table with ArrowDown from the last cell", async () => {
+    const source = ["| Name | Role |", "| --- | --- |", "| Markra | Editor |"].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Editor") + "Editor".length);
+
+    expect(pressArrowDown(view)).toBe(true);
+    insertTextDirectly(view, "Next paragraph");
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("Next paragraph");
+    expect(markdown.indexOf("Next paragraph")).toBeGreaterThan(markdown.indexOf("Markra"));
+    await settleMarkdownListener();
+  });
+
+  it("exits a terminal table with the editor exit shortcut", async () => {
+    const source = ["| Name | Role |", "| --- | --- |", "| Markra | Editor |"].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Editor") + "Editor".length);
+
+    expect(pressShortcut(view, "Enter", { metaKey: true })).toBe(true);
+    insertTextDirectly(view, "Next paragraph");
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("Next paragraph");
+    expect(markdown.indexOf("Next paragraph")).toBeGreaterThan(markdown.indexOf("Markra"));
+    await settleMarkdownListener();
+  });
+
+  it("moves below terminal raw HTML with ArrowDown when the node is selected", async () => {
+    const source = '<div class="example-badge">Alpha</div>';
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    selectNode(view, findNodeStartPosition(view, "html"));
+
+    expect(pressArrowDown(view)).toBe(true);
+    insertTextDirectly(view, "Next paragraph");
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain(source);
+    expect(markdown).toContain("Next paragraph");
+    expect(markdown.indexOf("Next paragraph")).toBeGreaterThan(markdown.indexOf(source));
     await settleMarkdownListener();
   });
 

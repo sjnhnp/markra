@@ -10,10 +10,11 @@ import {
   strongSchema
 } from "@milkdown/kit/preset/commonmark";
 import { strikethroughSchema } from "@milkdown/kit/preset/gfm";
-import { setBlockType, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
+import { exitCode, setBlockType, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
 import { redo, undo } from "@milkdown/kit/prose/history";
+import type { ResolvedPos } from "@milkdown/kit/prose/model";
 import type { Command } from "@milkdown/kit/prose/state";
-import { Plugin } from "@milkdown/kit/prose/state";
+import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { wrapInList } from "@milkdown/kit/prose/schema-list";
 import { $prose } from "@milkdown/kit/utils";
@@ -46,6 +47,62 @@ function runCommand(view: EditorView, command: Command) {
   return handled;
 }
 
+function isPlainParagraphNodeName(nodeName: string) {
+  return nodeName === "paragraph";
+}
+
+function isAtEndOfAncestorChain($pos: ResolvedPos, topDepth: number) {
+  if ($pos.parentOffset !== $pos.parent.content.size) return false;
+
+  for (let depth = $pos.depth - 1; depth >= topDepth; depth -= 1) {
+    if ($pos.after(depth + 1) !== $pos.end(depth)) return false;
+  }
+
+  return true;
+}
+
+function findTerminalAncestorEndPosition(view: EditorView, $pos: ResolvedPos) {
+  if ($pos.depth < 1) return null;
+
+  const topNodeEnd = $pos.after(1);
+  if (topNodeEnd < view.state.doc.content.size) return null;
+  if (!isAtEndOfAncestorChain($pos, 1)) return null;
+
+  return topNodeEnd;
+}
+
+function findTerminalBlockEndPosition(view: EditorView) {
+  const { selection } = view.state;
+
+  if (selection instanceof NodeSelection) {
+    if (isPlainParagraphNodeName(selection.node.type.name)) return null;
+    if (selection.to >= view.state.doc.content.size) return selection.to;
+
+    return findTerminalAncestorEndPosition(view, selection.$to);
+  }
+
+  if (!selection.empty) return null;
+
+  const { $from } = selection;
+  if ($from.depth < 1) return null;
+
+  const topNode = $from.node(1);
+  if (isPlainParagraphNodeName(topNode.type.name)) return null;
+
+  return findTerminalAncestorEndPosition(view, $from);
+}
+
+function moveBelowTerminalBlock(view: EditorView, paragraph: ReturnType<typeof paragraphSchema.type>) {
+  const position = findTerminalBlockEndPosition(view);
+  if (position === null) return false;
+
+  const tr = view.state.tr.insert(position, paragraph.create());
+  view.dispatch(tr.setSelection(TextSelection.create(tr.doc, position + 1)).scrollIntoView());
+  view.focus();
+
+  return true;
+}
+
 export const markraMarkdownShortcuts = $prose((ctx) => {
   const strong = strongSchema.type(ctx);
   const emphasis = emphasisSchema.type(ctx);
@@ -65,7 +122,19 @@ export const markraMarkdownShortcuts = $prose((ctx) => {
         const key = event.key.toLowerCase();
 
         // Support both Milkdown-style shortcuts and common document-editor aliases.
-        if (matchesShortcut(event, "z")) {
+        if (event.key === "Enter" && isModKey(event) && !event.shiftKey && !event.altKey) {
+          const handled = runCommand(view, exitCode) || moveBelowTerminalBlock(view, paragraph);
+          if (!handled) return false;
+
+          event.preventDefault();
+          return true;
+        } else if (event.key === "ArrowDown" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          const handled = moveBelowTerminalBlock(view, paragraph);
+          if (!handled) return false;
+
+          event.preventDefault();
+          return true;
+        } else if (matchesShortcut(event, "z")) {
           command = undo;
         } else if (matchesShortcut(event, "z", { shift: true }) || matchesShortcut(event, "y")) {
           command = redo;
