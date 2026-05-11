@@ -1,6 +1,14 @@
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
+const localUpdaterProxyUrls = [
+  "http://127.0.0.1:7890",
+  "http://127.0.0.1:7897",
+  "http://127.0.0.1:1087",
+  "http://127.0.0.1:10809",
+  "http://127.0.0.1:6152"
+] as const;
+
 export type NativeAppUpdateProgress = {
   contentLength: number | null;
   downloaded: number;
@@ -18,6 +26,18 @@ export type NativeAppUpdate = {
 
 function isTauriRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+async function checkWithLocalProxyFallback() {
+  for (const proxy of localUpdaterProxyUrls) {
+    try {
+      return await check({ proxy });
+    } catch {
+      // Local proxies are optional; fall through to the next candidate or direct check.
+    }
+  }
+
+  return check();
 }
 
 function resolveProgress(downloaded: number, contentLength: number | null) {
@@ -45,7 +65,7 @@ function emitProgress({
 export async function checkNativeAppUpdate(): Promise<NativeAppUpdate | null> {
   if (!isTauriRuntime()) return null;
 
-  const update = await check();
+  const update = await checkWithLocalProxyFallback();
   if (!update) return null;
 
   return {

@@ -33,6 +33,39 @@ describe("native app updater", () => {
 
     await expect(checkNativeAppUpdate()).resolves.toBeNull();
     expect(mockedCheck).toHaveBeenCalledTimes(1);
+    expect(mockedCheck).toHaveBeenCalledWith({
+      proxy: "http://127.0.0.1:7890"
+    });
+  });
+
+  it("falls back to a direct update check when local HTTP proxies are unavailable", async () => {
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    mockedCheck.mockImplementation(async (options) => {
+      if (options?.proxy) {
+        throw new Error(`proxy unavailable: ${options.proxy}`);
+      }
+
+      return null;
+    });
+
+    await expect(checkNativeAppUpdate()).resolves.toBeNull();
+
+    expect(mockedCheck).toHaveBeenCalledWith({
+      proxy: "http://127.0.0.1:7890"
+    });
+    expect(mockedCheck).toHaveBeenCalledWith({
+      proxy: "http://127.0.0.1:7897"
+    });
+    expect(mockedCheck).toHaveBeenCalledWith({
+      proxy: "http://127.0.0.1:1087"
+    });
+    expect(mockedCheck).toHaveBeenCalledWith({
+      proxy: "http://127.0.0.1:10809"
+    });
+    expect(mockedCheck).toHaveBeenCalledWith({
+      proxy: "http://127.0.0.1:6152"
+    });
+    expect(mockedCheck).toHaveBeenLastCalledWith();
   });
 
   it("wraps update metadata and separates download from restart", async () => {
