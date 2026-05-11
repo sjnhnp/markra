@@ -289,10 +289,10 @@ export function useMarkdownDocument({
       if (current.path !== path) return current;
 
       return {
-        ...current,
-        dirty: true,
-        name: "Untitled.md",
-        open: true,
+        content: "",
+        dirty: false,
+        name: "",
+        open: false,
         path: null,
         revision: current.revision + 1
       };

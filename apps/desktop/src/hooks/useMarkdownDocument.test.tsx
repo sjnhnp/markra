@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { useMarkdownDocument } from "./useMarkdownDocument";
 import {
   openNativeMarkdownPath,
+  readNativeMarkdownFile,
   watchNativeMarkdownFile
 } from "../lib/tauri";
 
@@ -23,12 +24,14 @@ vi.mock("../lib/tauri", () => ({
 }));
 
 const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
+const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
 const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
 
 describe("useMarkdownDocument", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/");
     mockedOpenNativeMarkdownPath.mockReset();
+    mockedReadNativeMarkdownFile.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
   });
@@ -164,5 +167,71 @@ describe("useMarkdownDocument", () => {
     });
 
     expect(onMarkdownTreeChange).toHaveBeenCalledWith("/mock-files/assets/pasted-image.png");
+  });
+
+  it("clears a deleted active tree file without turning its content into an unsaved draft", async () => {
+    let editorMarkdown = "";
+    const confirmDiscardUnsavedChanges = vi.fn(() => true);
+    mockedOpenNativeMarkdownPath.mockResolvedValueOnce({
+      kind: "file",
+      file: {
+        content: "# Test 1",
+        name: "test1.md",
+        path: "/mock-files/test1.md"
+      }
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "# Test 2",
+      name: "test2.md",
+      path: "/mock-files/test2.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        getCurrentMarkdown: () => editorMarkdown,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openMarkdownFile();
+    });
+
+    editorMarkdown = "# Test 1\n\nDraft";
+    act(() => {
+      result.current.handleMarkdownChange(editorMarkdown);
+    });
+
+    act(() => {
+      expect(result.current.detachDeletedDocumentFile("/mock-files/test1.md")).toBe(true);
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "",
+      dirty: false,
+      name: "",
+      open: false,
+      path: null
+    });
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "test2.md",
+        path: "/mock-files/test2.md",
+        relativePath: "test2.md"
+      });
+    });
+
+    expect(confirmDiscardUnsavedChanges).not.toHaveBeenCalled();
+    expect(result.current.document).toMatchObject({
+      content: "# Test 2",
+      dirty: false,
+      name: "test2.md",
+      open: true,
+      path: "/mock-files/test2.md"
+    });
   });
 });

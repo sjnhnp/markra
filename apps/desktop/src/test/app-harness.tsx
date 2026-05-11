@@ -12,6 +12,7 @@ import {
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
   saveNativeMarkdownFile,
+  showNativeMarkdownFileTreeContextMenu,
   installNativeMarkdownFileDrop,
   listNativeMarkdownFilesForPath,
   renameNativeMarkdownTreeFile,
@@ -81,6 +82,7 @@ vi.mock("../lib/tauri", () => ({
   renameNativeMarkdownTreeFile: vi.fn(),
   saveNativeClipboardImage: vi.fn(),
   saveNativeMarkdownFile: vi.fn(),
+  showNativeMarkdownFileTreeContextMenu: vi.fn(),
   watchNativeMarkdownFile: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn(),
   installNativeApplicationMenu: vi.fn(),
@@ -195,6 +197,7 @@ export const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
 export const mockedReadNativeMarkdownImageFile = vi.mocked(readNativeMarkdownImageFile);
 export const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
 export const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
+export const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
 export const mockedInstallNativeMarkdownFileDrop = vi.mocked(installNativeMarkdownFileDrop);
 export const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
 export const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
@@ -324,6 +327,7 @@ export function installAppTestHarness() {
     mockedReadNativeMarkdownFile.mockReset();
     mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
+    mockedShowNativeMarkdownFileTreeContextMenu.mockReset();
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
     mockedInstallNativeApplicationMenu.mockReset();
@@ -377,6 +381,7 @@ export function installAppTestHarness() {
       src: "assets/image.png"
     });
     mockedSaveStoredEditorPreferences.mockResolvedValue(undefined);
+    mockedShowNativeMarkdownFileTreeContextMenu.mockResolvedValue(undefined);
     mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
     mockedListenAppWebSearchSettingsChanged.mockResolvedValue(() => {});

@@ -8,10 +8,12 @@ import {
   mockOpenMarkdownFile,
   mockSystemColorScheme,
   mockUntitledPath,
+  mockedConfirmNativeMarkdownFileDelete,
   mockedConfirmNativeUnsavedMarkdownDocumentDiscard,
   mockedConsumeWelcomeDocumentState,
   mockedCreateAiAgentSessionId,
   mockedCreateNativeMarkdownTreeFile,
+  mockedDeleteNativeMarkdownTreeFile,
   mockedFetchAiProviderModels,
   mockedGetStoredLanguage,
   mockedGetStoredTheme,
@@ -34,6 +36,7 @@ import {
   mockedSaveStoredAiSettings,
   mockedSaveStoredLanguage,
   mockedSaveStoredTheme,
+  mockedShowNativeMarkdownFileTreeContextMenu,
   mockedTestAiProviderConnection,
   mockedWatchNativeMarkdownFile,
   renderApp
@@ -695,6 +698,77 @@ describe("Markra workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "docs/notes.md" }));
     expect(await screen.findByText("Notes")).toBeInTheDocument();
 
+    expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
+  });
+
+  it("clears a selected folder file after deleting it from the file tree", async () => {
+    const test1Path = "/mock-files/vault/test1.md";
+    const test2Path = "/mock-files/vault/test2.md";
+    const test1File = { name: "test1.md", path: test1Path, relativePath: "test1.md" };
+    const test2File = { name: "test2.md", path: test2Path, relativePath: "test2.md" };
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([test1File, test2File]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === test1Path) {
+        return {
+          content: "Original synthetic text",
+          name: "test1.md",
+          path: test1Path
+        };
+      }
+
+      return {
+        content: "# Test 2",
+        name: "test2.md",
+        path: test2Path
+      };
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "test1.md" }));
+    expect(await screen.findByText("Original synthetic text")).toBeInTheDocument();
+
+    window.dispatchEvent(
+      new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, {
+        detail: {
+          action: "apply",
+          result: {
+            from: 1,
+            original: "Original",
+            replacement: "Edited",
+            to: 9,
+            type: "replace"
+          }
+        }
+      })
+    );
+    expect(await screen.findByText("Edited synthetic text")).toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "test1.md" }));
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+
+    act(() => {
+      contextHandlers?.deleteFile?.(test1File);
+    });
+
+    await waitFor(() => expect(mockedConfirmNativeMarkdownFileDelete).toHaveBeenCalledWith("test1.md", expect.any(Object)));
+    await waitFor(() => expect(mockedDeleteNativeMarkdownTreeFile).toHaveBeenCalledWith(mockFolderPath, test1Path));
+    await waitFor(() => expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument());
+    expect(screen.queryByText("Edited synthetic text")).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "test2.md" }));
+
+    expect(await screen.findByText("Test 2")).toBeInTheDocument();
     expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
   });
 
