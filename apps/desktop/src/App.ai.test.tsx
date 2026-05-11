@@ -183,10 +183,16 @@ describe("Markra AI workspace", () => {
       }
     } as const;
 
-    window.dispatchEvent(new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
-    window.dispatchEvent(new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
+    const dispatchApplyEvent = () => {
+      fireEvent(window, new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
+    };
 
-    await waitFor(() => expect(screen.getByText("Original improved text")).toBeInTheDocument());
+    await waitFor(() => {
+      dispatchApplyEvent();
+      expect(screen.getByText("Original improved text")).toBeInTheDocument();
+    });
+
+    dispatchApplyEvent();
     expect(screen.queryByText("Original improved improved text")).not.toBeInTheDocument();
   });
 
