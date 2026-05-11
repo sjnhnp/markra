@@ -14,6 +14,10 @@ vi.mock("../lib/tauri/updater", () => ({
 const mockedShowAppToast = vi.mocked(showAppToast);
 const mockedCheckNativeAppUpdate = vi.mocked(checkNativeAppUpdate);
 
+type ClickableToastAction = {
+  onClick: () => unknown;
+};
+
 function AutoUpdaterHarness({
   autoCheck,
   confirmInstall,
@@ -53,6 +57,22 @@ function createUpdate(overrides: Partial<NativeAppUpdate> = {}): NativeAppUpdate
   };
 }
 
+function isClickableToastAction(action: unknown): action is ClickableToastAction {
+  return typeof action === "object"
+    && action !== null
+    && "onClick" in action
+    && typeof (action as { onClick?: unknown }).onClick === "function";
+}
+
+function getToastAction(callIndex = 0) {
+  const action = mockedShowAppToast.mock.calls[callIndex]?.[0].action;
+  if (!isClickableToastAction(action)) {
+    throw new Error(`Expected toast call ${callIndex} to include a clickable action.`);
+  }
+
+  return action;
+}
+
 describe("useAutoUpdater", () => {
   beforeEach(() => {
     mockedShowAppToast.mockReset();
@@ -89,8 +109,8 @@ describe("useAutoUpdater", () => {
       })
     );
 
-    const action = mockedShowAppToast.mock.calls[0]?.[0].action;
-    action?.onClick();
+    const action = getToastAction();
+    action.onClick();
 
     await waitFor(() => expect(confirmInstall).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(installAndRestart).toHaveBeenCalledTimes(1));
@@ -115,8 +135,8 @@ describe("useAutoUpdater", () => {
 
     await waitFor(() => expect(mockedShowAppToast).toHaveBeenCalledTimes(1));
 
-    const action = mockedShowAppToast.mock.calls[0]?.[0].action;
-    action?.onClick();
+    const action = getToastAction();
+    action.onClick();
 
     await waitFor(() => expect(confirmInstall).toHaveBeenCalledTimes(1));
     expect(installAndRestart).not.toHaveBeenCalled();
@@ -172,8 +192,8 @@ describe("useAutoUpdater", () => {
 
     await waitFor(() => expect(mockedShowAppToast).toHaveBeenCalledTimes(1));
 
-    const action = mockedShowAppToast.mock.calls[0]?.[0].action;
-    action?.onClick();
+    const action = getToastAction();
+    action.onClick();
 
     await waitFor(() =>
       expect(mockedShowAppToast).toHaveBeenLastCalledWith({
