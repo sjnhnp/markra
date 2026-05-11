@@ -214,13 +214,25 @@ jobs:
           const target = process.env.TARGET;
           const bundleRoot = path.join(desktopDir, "src-tauri", "target", target, "release", "bundle");
           const artifactPaths = [];
-          const seen = new Set();
 
           function addArtifact(filePath) {
-            if (seen.has(filePath) || !fs.existsSync(filePath)) return;
+            if (!filePath) return;
+            if (filePath.endsWith("/latest.json") || filePath.endsWith("\\latest.json")) return;
 
-            seen.add(filePath);
-            artifactPaths.push(filePath);
+            let artifactPath = filePath;
+            if (!path.isAbsolute(artifactPath) && !fs.existsSync(artifactPath)) {
+              artifactPath = path.join(desktopDir, artifactPath);
+            }
+
+            try {
+              if (!fs.statSync(artifactPath).isFile()) return;
+            } catch {
+              return;
+            }
+
+            if (!artifactPaths.includes(artifactPath)) {
+              artifactPaths.push(artifactPath);
+            }
           }
 
           function collectBundleFiles(root) {
@@ -236,13 +248,14 @@ jobs:
                 const entryPath = path.join(current, entry.name);
 
                 if (entry.isDirectory()) {
-                  if (!entry.name.endsWith(".app")) {
-                    stack.push(entryPath);
-                  }
+                  stack.push(entryPath);
                   continue;
                 }
 
-                addArtifact(entryPath);
+                if (entry.name.endsWith(".sig")) {
+                  addArtifact(entryPath);
+                  addArtifact(entryPath.slice(0, -4));
+                }
               }
             }
           }
@@ -251,12 +264,7 @@ jobs:
             const parsed = JSON.parse(artifactPathsJson);
             if (Array.isArray(parsed)) {
               for (const candidate of parsed) {
-                if (fs.existsSync(candidate)) {
-                  addArtifact(candidate);
-                  continue;
-                }
-
-                addArtifact(path.join(desktopDir, candidate));
+                if (typeof candidate === "string") addArtifact(candidate);
               }
             }
           } catch {
@@ -269,6 +277,7 @@ jobs:
             throw new Error("No release bundle artifacts were found.");
           }
 
+          artifactPaths.sort();
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `paths<<__PATHS__\n${artifactPaths.join("\n")}\n__PATHS__\n`);
           NODE
 
