@@ -626,7 +626,7 @@ export default function App() {
   useNativeMarkdownDrop(handleDroppedMarkdownPath);
   useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null);
   useAutoUpdater(appLanguage.language, appLanguage.ready, {
-    confirmInstall: confirmCanDiscardCurrentDocument
+    confirmRestart: confirmCanDiscardCurrentDocument
   });
   useApplicationShortcuts({
     openDocument: handleOpenMarkdownFile,

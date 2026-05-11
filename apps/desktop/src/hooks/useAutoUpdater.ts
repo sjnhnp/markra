@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useRef } from "react";
+import { createElement, useCallback, useEffect, useRef } from "react";
 import { t, type AppLanguage } from "@markra/shared";
+import { UpdateProgressToast } from "../components/UpdateProgressToast";
 import { showAppToast } from "../lib/app-toast";
 import { checkNativeAppUpdate, type NativeAppUpdate, type NativeAppUpdateProgress } from "../lib/tauri/updater";
 
 const appUpdateToastId = "app-update-toast";
+const defaultAutoUpdateCheckIntervalMs = 6 * 60 * 60 * 1000;
 
 export type AutoUpdaterOptions = {
   autoCheck?: boolean;
+  checkIntervalMs?: number;
   confirmInstall?: () => boolean | Promise<boolean>;
+  confirmRestart?: () => boolean | Promise<boolean>;
 };
 
 function formatUpdateMessage(message: string, update: NativeAppUpdate, progress?: NativeAppUpdateProgress) {
@@ -20,64 +24,94 @@ function formatUpdateMessage(message: string, update: NativeAppUpdate, progress?
 }
 
 export function useAutoUpdater(language: AppLanguage, enabled = true, options: AutoUpdaterOptions = {}) {
-  const checkedRef = useRef(false);
   const checkingRef = useRef(false);
-  const installingRef = useRef(false);
+  const downloadingRef = useRef(false);
+  const downloadedUpdateRef = useRef<NativeAppUpdate | null>(null);
   const autoCheck = options.autoCheck ?? true;
+  const checkIntervalMs = options.checkIntervalMs ?? defaultAutoUpdateCheckIntervalMs;
   const confirmInstall = options.confirmInstall;
+  const confirmRestart = options.confirmRestart;
 
-  const installUpdate = useCallback(async (update: NativeAppUpdate) => {
-    if (installingRef.current) return;
+  const restartUpdate = useCallback(async (update: NativeAppUpdate) => {
+    const canRestart = await (confirmRestart ?? confirmInstall)?.();
+    if (canRestart === false) return;
 
-    installingRef.current = true;
     try {
-      const canInstall = await confirmInstall?.();
-      if (canInstall === false) return;
-
-      showAppToast({
-        id: appUpdateToastId,
-        message: formatUpdateMessage(t(language, "app.updateInstalling"), update),
-        status: "loading"
-      });
-      await update.installAndRestart({
-        onProgress: (progress) => {
-          const key = progress.progress === null ? "app.updateDownloading" : "app.updateDownloadingProgress";
-          showAppToast({
-            id: appUpdateToastId,
-            message: formatUpdateMessage(t(language, key), update, progress),
-            status: "loading"
-          });
-        }
-      });
       showAppToast({
         id: appUpdateToastId,
         message: t(language, "app.updateRestarting"),
-        status: "success"
+        status: "loading"
       });
+      await update.restart();
     } catch {
       showAppToast({
         id: appUpdateToastId,
         message: t(language, "app.updateFailed"),
         status: "error"
       });
-    } finally {
-      installingRef.current = false;
     }
-  }, [confirmInstall, language]);
+  }, [confirmInstall, confirmRestart, language]);
 
-  const showAvailableUpdate = useCallback((update: NativeAppUpdate) => {
+  const showReadyToRestart = useCallback((update: NativeAppUpdate) => {
+    downloadedUpdateRef.current = update;
     showAppToast({
       action: {
-        label: t(language, "app.updateInstallAndRestart"),
+        label: t(language, "app.updateRestartNow"),
         onClick: () => {
-          installUpdate(update);
+          restartUpdate(update);
         }
       },
+      duration: Infinity,
       id: appUpdateToastId,
-      message: formatUpdateMessage(t(language, "app.updateAvailable"), update),
+      message: formatUpdateMessage(t(language, "app.updateReadyToRestart"), update),
+      status: "success"
+    });
+  }, [language, restartUpdate]);
+
+  const showDownloadProgress = useCallback((update: NativeAppUpdate, progress: NativeAppUpdateProgress) => {
+    const key = progress.progress === null ? "app.updateDownloading" : "app.updateDownloadingProgress";
+    const message = formatUpdateMessage(t(language, key), update, progress);
+
+    showAppToast({
+      id: appUpdateToastId,
+      message: createElement(UpdateProgressToast, {
+        message,
+        progress: progress.progress
+      }),
       status: "loading"
     });
-  }, [installUpdate, language]);
+  }, [language]);
+
+  const downloadUpdate = useCallback(async (update: NativeAppUpdate, options: { notifyFailure: boolean }) => {
+    if (downloadingRef.current) return;
+    if (downloadedUpdateRef.current?.version === update.version) {
+      showReadyToRestart(downloadedUpdateRef.current);
+      return;
+    }
+
+    downloadingRef.current = true;
+    try {
+      showDownloadProgress(update, {
+        contentLength: null,
+        downloaded: 0,
+        progress: null
+      });
+      await update.downloadAndInstall({
+        onProgress: (progress) => showDownloadProgress(update, progress)
+      });
+      showReadyToRestart(update);
+    } catch {
+      if (options.notifyFailure) {
+        showAppToast({
+          id: appUpdateToastId,
+          message: t(language, "app.updateFailed"),
+          status: "error"
+        });
+      }
+    } finally {
+      downloadingRef.current = false;
+    }
+  }, [showDownloadProgress, showReadyToRestart, language]);
 
   const checkForUpdates = useCallback(async () => {
     if (!enabled || checkingRef.current) return;
@@ -92,7 +126,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
     try {
       const update = await checkNativeAppUpdate();
       if (update) {
-        showAvailableUpdate(update);
+        await downloadUpdate(update, { notifyFailure: true });
         return;
       }
 
@@ -110,29 +144,34 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
     } finally {
       checkingRef.current = false;
     }
-  }, [enabled, language, showAvailableUpdate]);
+  }, [downloadUpdate, enabled, language]);
 
   useEffect(() => {
-    if (!autoCheck || !enabled || checkedRef.current) return;
-
-    checkedRef.current = true;
+    if (!autoCheck || !enabled) return;
     let cancelled = false;
 
-    async function checkForUpdatesOnStartup() {
+    async function checkForUpdatesInBackground() {
+      if (checkingRef.current || downloadingRef.current) return;
+
+      checkingRef.current = true;
       try {
         const update = await checkNativeAppUpdate();
-        if (!cancelled && update) showAvailableUpdate(update);
+        if (!cancelled && update) await downloadUpdate(update, { notifyFailure: false });
       } catch {
-        // Background update checks should not interrupt normal app startup.
+        // Background update checks should not interrupt normal app usage.
+      } finally {
+        checkingRef.current = false;
       }
     }
 
-    checkForUpdatesOnStartup();
+    checkForUpdatesInBackground();
+    const interval = window.setInterval(checkForUpdatesInBackground, checkIntervalMs);
 
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
-  }, [autoCheck, enabled, showAvailableUpdate]);
+  }, [autoCheck, checkIntervalMs, downloadUpdate, enabled]);
 
   return {
     checkForUpdates

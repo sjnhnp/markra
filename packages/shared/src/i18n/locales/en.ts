@@ -125,6 +125,8 @@ const messages: BaseLocaleMessages = {
   "app.updateDownloading": "Downloading Markra {version}...",
   "app.updateDownloadingProgress": "Downloading Markra {version} ({progress}%).",
   "app.updateInstalling": "Installing Markra {version}...",
+  "app.updateReadyToRestart": "Update downloaded. Restart Markra to finish.",
+  "app.updateRestartNow": "Restart now",
   "app.updateRestarting": "Update installed. Restarting Markra...",
   "app.updateFailed": "Markra update failed.",
   "app.openMarkdownOrFolder": "Open Markdown or Folder",

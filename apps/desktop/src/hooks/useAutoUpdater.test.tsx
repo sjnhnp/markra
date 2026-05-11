@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { isValidElement, type ReactElement } from "react";
+import { UpdateProgressToast } from "../components/UpdateProgressToast";
 import { showAppToast } from "../lib/app-toast";
 import { checkNativeAppUpdate, type NativeAppUpdate } from "../lib/tauri/updater";
 import { useAutoUpdater } from "./useAutoUpdater";
@@ -20,14 +22,16 @@ type ClickableToastAction = {
 
 function AutoUpdaterHarness({
   autoCheck,
-  confirmInstall,
+  checkIntervalMs,
+  confirmRestart,
   language = "en"
 }: {
   autoCheck?: boolean;
-  confirmInstall?: () => Promise<boolean>;
+  checkIntervalMs?: number;
+  confirmRestart?: () => Promise<boolean>;
   language?: "en" | "zh-CN";
 }) {
-  const updater = useAutoUpdater(language, true, { autoCheck, confirmInstall });
+  const updater = useAutoUpdater(language, true, { autoCheck, checkIntervalMs, confirmRestart });
 
   return (
     <button type="button" onClick={updater.checkForUpdates}>
@@ -51,7 +55,8 @@ function createUpdate(overrides: Partial<NativeAppUpdate> = {}): NativeAppUpdate
     body: "Release notes",
     currentVersion: "0.0.6",
     date: "2026-05-11T00:00:00Z",
-    installAndRestart: vi.fn(),
+    downloadAndInstall: vi.fn(),
+    restart: vi.fn(),
     version: "0.0.7",
     ...overrides
   };
@@ -73,10 +78,34 @@ function getToastAction(callIndex = 0) {
   return action;
 }
 
+function isProgressToastMessage(message: unknown): message is ReactElement<{ progress: number | null }> {
+  return isValidElement<{ progress: number | null }>(message) && message.type === UpdateProgressToast;
+}
+
+function expectProgressToast(progress: number | null) {
+  expect(mockedShowAppToast).toHaveBeenCalledWith(
+    expect.objectContaining({
+      id: "app-update-toast",
+      message: expect.anything(),
+      status: "loading"
+    })
+  );
+  const progressCall = mockedShowAppToast.mock.calls.find(([toast]) => {
+    const message = toast.message;
+    return isProgressToastMessage(message) && message.props.progress === progress;
+  });
+  expect(progressCall).toBeTruthy();
+}
+
 describe("useAutoUpdater", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     mockedShowAppToast.mockReset();
     mockedCheckNativeAppUpdate.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("checks for updates once on startup and stays quiet when none are available", async () => {
@@ -88,58 +117,55 @@ describe("useAutoUpdater", () => {
     expect(mockedShowAppToast).not.toHaveBeenCalled();
   });
 
-  it("shows an install action for an available update and reports install progress", async () => {
-    const confirmInstall = vi.fn(async () => true);
-    const installAndRestart = vi.fn(async ({ onProgress }: Parameters<NativeAppUpdate["installAndRestart"]>[0] = {}) => {
+  it("downloads an available update in the background and prompts restart", async () => {
+    const confirmRestart = vi.fn(async () => true);
+    const restart = vi.fn();
+    const downloadAndInstall = vi.fn(async ({ onProgress }: Parameters<NativeAppUpdate["downloadAndInstall"]>[0] = {}) => {
       onProgress?.({ contentLength: 100, downloaded: 50, progress: 50 });
       onProgress?.({ contentLength: 100, downloaded: 100, progress: 100 });
     });
-    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate({ installAndRestart }));
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate({ downloadAndInstall, restart }));
 
-    render(<AutoUpdaterHarness confirmInstall={confirmInstall} />);
+    render(<AutoUpdaterHarness confirmRestart={confirmRestart} />);
 
-    await waitFor(() =>
-      expect(mockedShowAppToast).toHaveBeenCalledWith({
-        action: expect.objectContaining({
-          label: "Install and restart"
-        }),
-        id: "app-update-toast",
-        message: "Markra 0.0.7 is available.",
-        status: "loading"
-      })
-    );
-
-    const action = getToastAction();
-    action.onClick();
-
-    await waitFor(() => expect(confirmInstall).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(installAndRestart).toHaveBeenCalledTimes(1));
-    expect(mockedShowAppToast).toHaveBeenCalledWith({
-      id: "app-update-toast",
-      message: "Downloading Markra 0.0.7 (50%).",
-      status: "loading"
-    });
+    await waitFor(() => expect(downloadAndInstall).toHaveBeenCalledTimes(1));
+    expect(confirmRestart).not.toHaveBeenCalled();
+    expectProgressToast(50);
     expect(mockedShowAppToast).toHaveBeenLastCalledWith({
+      action: expect.objectContaining({
+        label: "Restart now"
+      }),
+      duration: Infinity,
       id: "app-update-toast",
-      message: "Update installed. Restarting Markra...",
+      message: "Update downloaded. Restart Markra to finish.",
       status: "success"
     });
-  });
 
-  it("does not install when restart confirmation is declined", async () => {
-    const confirmInstall = vi.fn(async () => false);
-    const installAndRestart = vi.fn();
-    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate({ installAndRestart }));
-
-    render(<AutoUpdaterHarness confirmInstall={confirmInstall} />);
-
-    await waitFor(() => expect(mockedShowAppToast).toHaveBeenCalledTimes(1));
-
-    const action = getToastAction();
+    const action = getToastAction(mockedShowAppToast.mock.calls.length - 1);
     action.onClick();
 
-    await waitFor(() => expect(confirmInstall).toHaveBeenCalledTimes(1));
-    expect(installAndRestart).not.toHaveBeenCalled();
+    await waitFor(() => expect(confirmRestart).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(restart).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not restart when restart confirmation is declined", async () => {
+    const confirmRestart = vi.fn(async () => false);
+    const restart = vi.fn();
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate({ restart }));
+
+    render(<AutoUpdaterHarness confirmRestart={confirmRestart} />);
+
+    await waitFor(() => expect(mockedShowAppToast).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        action: expect.objectContaining({ label: "Restart now" })
+      })
+    ));
+
+    const action = getToastAction(mockedShowAppToast.mock.calls.length - 1);
+    action.onClick();
+
+    await waitFor(() => expect(confirmRestart).toHaveBeenCalledTimes(1));
+    expect(restart).not.toHaveBeenCalled();
   });
 
   it("keeps background check failures quiet during startup", async () => {
@@ -149,6 +175,35 @@ describe("useAutoUpdater", () => {
 
     await waitFor(() => expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1));
     expect(mockedShowAppToast).not.toHaveBeenCalled();
+  });
+
+  it("keeps checking for updates on a schedule", async () => {
+    vi.useFakeTimers();
+
+    try {
+      mockedCheckNativeAppUpdate.mockResolvedValue(null);
+
+      render(<AutoUpdaterHarness checkIntervalMs={1000} />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+        await Promise.resolve();
+      });
+      expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+        await Promise.resolve();
+      });
+      expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("lets the UI manually check for updates and reports when Markra is current", async () => {
@@ -183,17 +238,17 @@ describe("useAutoUpdater", () => {
   });
 
   it("surfaces install failures after the user starts the update", async () => {
-    const installAndRestart = vi.fn(async () => {
+    const downloadAndInstall = vi.fn(async () => {
       throw new Error("download failed");
     });
-    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate({ installAndRestart }));
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate({ downloadAndInstall }));
 
-    render(<AutoUpdaterHarness />);
+    render(<AutoUpdaterHarness autoCheck={false} />);
 
-    await waitFor(() => expect(mockedShowAppToast).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Manual check" }));
 
-    const action = getToastAction();
-    action.onClick();
+    await waitFor(() => expect(downloadAndInstall).toHaveBeenCalledTimes(1));
+
 
     await waitFor(() =>
       expect(mockedShowAppToast).toHaveBeenLastCalledWith({

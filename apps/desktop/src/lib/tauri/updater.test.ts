@@ -35,7 +35,7 @@ describe("native app updater", () => {
     expect(mockedCheck).toHaveBeenCalledTimes(1);
   });
 
-  it("wraps update metadata and relaunches after download and install", async () => {
+  it("wraps update metadata and separates download from restart", async () => {
     (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
     const downloadAndInstall = vi.fn(async (onEvent: (event: unknown) => unknown) => {
       onEvent({ data: { contentLength: 100 }, event: "Started" });
@@ -54,7 +54,7 @@ describe("native app updater", () => {
     const onProgress = vi.fn();
 
     const update = await checkNativeAppUpdate();
-    await update?.installAndRestart({ onProgress });
+    await update?.downloadAndInstall({ onProgress });
 
     expect(update).toMatchObject({
       body: "Release notes",
@@ -73,6 +73,10 @@ describe("native app updater", () => {
       downloaded: 100,
       progress: 100
     });
+    expect(mockedRelaunch).not.toHaveBeenCalled();
+
+    await update?.restart();
+
     expect(mockedRelaunch).toHaveBeenCalledTimes(1);
   });
 });

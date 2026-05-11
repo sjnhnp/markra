@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { toast, type ExternalToast } from "sonner";
 
 export type AppToastStatus = "error" | "loading" | "success";
@@ -7,18 +8,20 @@ export const defaultAppToastId = "app-toast";
 
 export function showAppToast({
   action,
+  duration,
   id = defaultAppToastId,
   message,
   status
 }: {
   action?: AppToastAction;
+  duration?: ExternalToast["duration"];
   id?: string;
-  message: string;
+  message: ReactNode;
   status: AppToastStatus;
 }) {
   const options: ExternalToast = {
     ...(action ? { action } : {}),
-    duration: status === "success" ? 4500 : Infinity,
+    duration: duration ?? (status === "success" ? 4500 : Infinity),
     id
   };
 

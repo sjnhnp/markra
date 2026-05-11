@@ -136,6 +136,8 @@ export type I18nKey =
   | "app.updateDownloading"
   | "app.updateDownloadingProgress"
   | "app.updateInstalling"
+  | "app.updateReadyToRestart"
+  | "app.updateRestartNow"
   | "app.updateRestarting"
   | "app.updateFailed"
   | "app.openMarkdownOrFolder"

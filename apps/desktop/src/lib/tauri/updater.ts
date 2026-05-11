@@ -11,7 +11,8 @@ export type NativeAppUpdate = {
   body?: string;
   currentVersion: string;
   date?: string;
-  installAndRestart: (callbacks?: { onProgress?: (progress: NativeAppUpdateProgress) => unknown }) => Promise<void>;
+  downloadAndInstall: (callbacks?: { onProgress?: (progress: NativeAppUpdateProgress) => unknown }) => Promise<void>;
+  restart: () => Promise<void>;
   version: string;
 };
 
@@ -51,7 +52,7 @@ export async function checkNativeAppUpdate(): Promise<NativeAppUpdate | null> {
     body: update.body,
     currentVersion: update.currentVersion,
     date: update.date,
-    async installAndRestart(callbacks = {}) {
+    async downloadAndInstall(callbacks = {}) {
       let contentLength: number | null = null;
       let downloaded = 0;
 
@@ -74,8 +75,8 @@ export async function checkNativeAppUpdate(): Promise<NativeAppUpdate | null> {
           emitProgress({ contentLength, downloaded, onProgress: callbacks.onProgress });
         }
       });
-      await relaunch();
     },
+    restart: relaunch,
     version: update.version
   };
 }

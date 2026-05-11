@@ -100,6 +100,8 @@ const messages: LocaleMessages = {
   "app.updateDownloading": "Téléchargement de Markra {version}...",
   "app.updateDownloadingProgress": "Téléchargement de Markra {version} ({progress} %).",
   "app.updateInstalling": "Installation de Markra {version}...",
+  "app.updateReadyToRestart": "Mise à jour téléchargée. Redémarrez Markra pour terminer.",
+  "app.updateRestartNow": "Redémarrer",
   "app.updateRestarting": "Mise à jour installée. Redémarrage de Markra...",
   "app.updateFailed": "La mise à jour de Markra a échoué.",
   "app.openMarkdownOrFolder": "Ouvrir un Markdown ou un dossier",

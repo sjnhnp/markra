@@ -100,6 +100,8 @@ const messages: LocaleMessages = {
   "app.updateDownloading": "Markra {version} 다운로드 중...",
   "app.updateDownloadingProgress": "Markra {version} 다운로드 중({progress}%).",
   "app.updateInstalling": "Markra {version} 설치 중...",
+  "app.updateReadyToRestart": "업데이트를 다운로드했습니다. 완료하려면 Markra를 다시 시작하세요.",
+  "app.updateRestartNow": "지금 다시 시작",
   "app.updateRestarting": "업데이트를 설치했습니다. Markra를 다시 시작하는 중...",
   "app.updateFailed": "Markra 업데이트에 실패했습니다.",
   "app.openMarkdownOrFolder": "Markdown 또는 폴더 열기",

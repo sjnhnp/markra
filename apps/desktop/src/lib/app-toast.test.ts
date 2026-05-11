@@ -29,6 +29,7 @@ describe("appToast", () => {
     showAppToast({ message: "Saved", status: "success" });
     showAppToast({ action, id: "update-test", message: "Downloading", status: "loading" });
     showAppToast({ id: "provider-test", message: "Failed", status: "error" });
+    showAppToast({ duration: Infinity, id: "update-ready", message: "Ready", status: "success" });
     dismissAppToast("provider-test");
 
     expect(mockedToast.success).toHaveBeenCalledWith("Saved", {
@@ -43,6 +44,10 @@ describe("appToast", () => {
     expect(mockedToast.error).toHaveBeenCalledWith("Failed", {
       duration: Infinity,
       id: "provider-test"
+    });
+    expect(mockedToast.success).toHaveBeenCalledWith("Ready", {
+      duration: Infinity,
+      id: "update-ready"
     });
     expect(mockedToast.dismiss).toHaveBeenCalledWith("provider-test");
   });

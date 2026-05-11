@@ -125,6 +125,8 @@ const messages: LocaleMessages = {
   "app.updateDownloading": "正在下载 Markra {version}...",
   "app.updateDownloadingProgress": "正在下载 Markra {version}（{progress}%）。",
   "app.updateInstalling": "正在安装 Markra {version}...",
+  "app.updateReadyToRestart": "更新已下载，重启 Markra 以完成。",
+  "app.updateRestartNow": "立即重启",
   "app.updateRestarting": "更新已安装，正在重启 Markra...",
   "app.updateFailed": "Markra 更新失败。",
   "app.openMarkdownOrFolder": "打开 Markdown 或文件夹",
