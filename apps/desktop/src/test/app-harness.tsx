@@ -299,6 +299,13 @@ export function renderApp() {
 }
 
 export function installAppTestHarness() {
+  afterAll(async () => {
+    // Milkdown ctx leaves 3s listener cleanup timers pending after editor teardown.
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 3200);
+    });
+  });
+
   beforeEach(() => {
     window.history.pushState({}, "", "/");
     mockedConsumeWelcomeDocumentState.mockReset();
