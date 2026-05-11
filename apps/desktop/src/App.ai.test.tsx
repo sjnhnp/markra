@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import {
-  AI_EDITOR_PREVIEW_ACTION_EVENT,
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
+  dispatchAiEditorPreviewAction,
   installAppTestHarness,
   mockFolderPath,
   mockNativePath,
@@ -136,22 +136,21 @@ describe("Markra AI workspace", () => {
 
     await screen.findByText("Original text");
 
-    window.dispatchEvent(
-      new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, {
-        detail: {
-          action: "apply",
-          result: {
-            from: 1,
-            original: "Original",
-            replacement: "Improved",
-            to: 9,
-            type: "replace"
-          }
-        }
-      })
-    );
+    const eventDetail = {
+      action: "apply",
+      result: {
+        from: 1,
+        original: "Original",
+        replacement: "Improved",
+        to: 9,
+        type: "replace"
+      }
+    } as const;
 
-    await waitFor(() => expect(screen.getByText("Improved text")).toBeInTheDocument());
+    await waitFor(() => {
+      dispatchAiEditorPreviewAction(eventDetail);
+      expect(screen.getByText("Improved text")).toBeInTheDocument();
+    });
   });
 
   it("ignores repeated apply events for the same AI insert preview", async () => {
@@ -183,16 +182,12 @@ describe("Markra AI workspace", () => {
       }
     } as const;
 
-    const dispatchApplyEvent = () => {
-      fireEvent(window, new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail: eventDetail }));
-    };
-
     await waitFor(() => {
-      dispatchApplyEvent();
+      dispatchAiEditorPreviewAction(eventDetail);
       expect(screen.getByText("Original improved text")).toBeInTheDocument();
     });
 
-    dispatchApplyEvent();
+    dispatchAiEditorPreviewAction(eventDetail);
     expect(screen.queryByText("Original improved improved text")).not.toBeInTheDocument();
   });
 

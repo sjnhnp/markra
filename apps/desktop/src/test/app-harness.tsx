@@ -1,4 +1,5 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
+import { AI_EDITOR_PREVIEW_ACTION_EVENT, type AiEditorPreviewActionDetail } from "@markra/editor";
 import App from "../App";
 import {
   confirmNativeMarkdownFileDelete,
@@ -299,6 +300,10 @@ export { AI_EDITOR_PREVIEW_ACTION_EVENT, AI_EDITOR_PREVIEW_RESTORE_EVENT } from 
 
 export function renderApp() {
   return render(<App />);
+}
+
+export function dispatchAiEditorPreviewAction(detail: Partial<AiEditorPreviewActionDetail>) {
+  fireEvent(window, new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, { detail }));
 }
 
 export function installAppTestHarness() {

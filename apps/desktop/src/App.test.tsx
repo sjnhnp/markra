@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import {
-  AI_EDITOR_PREVIEW_ACTION_EVENT,
+  dispatchAiEditorPreviewAction,
   installAppTestHarness,
   mockDroppedPath,
   mockFolderPath,
@@ -738,21 +738,21 @@ describe("Markra workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "test1.md" }));
     expect(await screen.findByText("Original synthetic text")).toBeInTheDocument();
 
-    window.dispatchEvent(
-      new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, {
-        detail: {
-          action: "apply",
-          result: {
-            from: 1,
-            original: "Original",
-            replacement: "Edited",
-            to: 9,
-            type: "replace"
-          }
-        }
-      })
-    );
-    expect(await screen.findByText("Edited synthetic text")).toBeInTheDocument();
+    const eventDetail = {
+      action: "apply",
+      result: {
+        from: 1,
+        original: "Original",
+        replacement: "Edited",
+        to: 9,
+        type: "replace"
+      }
+    } as const;
+
+    await waitFor(() => {
+      dispatchAiEditorPreviewAction(eventDetail);
+      expect(screen.getByText("Edited synthetic text")).toBeInTheDocument();
+    });
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "test1.md" }));
     const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
@@ -852,22 +852,21 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Original synthetic text")).toBeInTheDocument();
 
-    window.dispatchEvent(
-      new CustomEvent(AI_EDITOR_PREVIEW_ACTION_EVENT, {
-        detail: {
-          action: "apply",
-          result: {
-            from: 1,
-            original: "Original",
-            replacement: "Edited",
-            to: 9,
-            type: "replace"
-          }
-        }
-      })
-    );
+    const eventDetail = {
+      action: "apply",
+      result: {
+        from: 1,
+        original: "Original",
+        replacement: "Edited",
+        to: 9,
+        type: "replace"
+      }
+    } as const;
 
-    expect(await screen.findByText("Edited synthetic text")).toBeInTheDocument();
+    await waitFor(() => {
+      dispatchAiEditorPreviewAction(eventDetail);
+      expect(screen.getByText("Edited synthetic text")).toBeInTheDocument();
+    });
     mockedOpenNativeMarkdownPath.mockResolvedValue({
       kind: "file",
       file: {
