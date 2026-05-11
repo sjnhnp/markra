@@ -13,6 +13,7 @@ import {
   mockedConsumeWelcomeDocumentState,
   mockedCreateAiAgentSessionId,
   mockedCreateNativeMarkdownTreeFile,
+  mockedCheckNativeAppUpdate,
   mockedDeleteNativeMarkdownTreeFile,
   mockedFetchAiProviderModels,
   mockedGetStoredLanguage,
@@ -243,7 +244,7 @@ describe("Markra workspace", () => {
     expect(settingsGroups.length).toBeGreaterThan(0);
     settingsGroups.forEach((group) => expect(group).not.toHaveClass("border-y"));
     expect(settingsGroups[0]).not.toHaveClass("divide-y");
-    expect(settingsGroups.at(-1)).toHaveClass("divide-y");
+    expect(settingsGroups.some((group) => group.classList.contains("divide-y"))).toBe(true);
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
     expect(categoryButtons).toHaveLength(5);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
@@ -424,6 +425,19 @@ describe("Markra workspace", () => {
 
     await waitFor(() => expect(mockedResetWelcomeDocumentState).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("checks for updates from the settings window", async () => {
+    window.history.pushState({}, "", "/?settings=1");
+
+    renderApp();
+
+    const checkUpdatesButton = await screen.findByRole("button", { name: "Check for updates" });
+
+    fireEvent.click(checkUpdatesButton);
+
+    await waitFor(() => expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Markra is up to date."));
   });
 
   it("opens a folder markdown tree from the lower-left file list button", async () => {

@@ -18,6 +18,8 @@ export function AppToaster({ language }: { language: AppLanguage }) {
         className:
           "app-toast app-toast-centered relative flex min-h-10 w-fit min-w-40 max-w-[calc(100vw-3rem)] items-center gap-2.5 rounded-md border border-(--border-default) bg-(--bg-primary) py-2 pr-9 pl-3 text-[12px] leading-5 font-[650] text-(--text-heading) shadow-[0_14px_34px_rgba(15,23,42,0.14)] sm:max-w-80",
         classNames: {
+          actionButton:
+            "shrink-0 cursor-pointer rounded border border-(--accent) bg-(--accent) px-2 py-1 text-[11px] leading-4 font-[700] text-white transition-opacity duration-150 ease-out hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
           content: "min-w-0 flex-1",
           icon: "shrink-0",
           title: "truncate",

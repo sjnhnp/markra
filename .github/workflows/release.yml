@@ -30,6 +30,7 @@ env:
   NODE_VERSION: 24
   PNPM_VERSION: 10.30.3
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+  TAURI_UPDATER_ENDPOINT: https://github.com/murongg/markra/releases/latest/download/latest.json
 
 jobs:
   build:
@@ -142,12 +143,58 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare updater config
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+
+          node <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+
+          const desktopDir = process.env.DESKTOP_DIR;
+          const endpoint = process.env.TAURI_UPDATER_ENDPOINT;
+          const privateKey = process.env.TAURI_SIGNING_PRIVATE_KEY?.trim();
+          const publicKey = process.env.TAURI_UPDATER_PUBLIC_KEY?.trim();
+
+          if (!privateKey) {
+            throw new Error("Missing TAURI_SIGNING_PRIVATE_KEY repository secret for signed updater artifacts.");
+          }
+
+          if (!publicKey) {
+            throw new Error("Missing TAURI_UPDATER_PUBLIC_KEY repository secret for updater verification.");
+          }
+
+          const updaterConfig = {
+            bundle: {
+              createUpdaterArtifacts: true
+            },
+            plugins: {
+              updater: {
+                endpoints: [endpoint],
+                pubkey: publicKey,
+                windows: {
+                  installMode: "passive"
+                }
+              }
+            }
+          };
+
+          fs.writeFileSync(path.join(desktopDir, "tauri.updater.conf.json"), `${JSON.stringify(updaterConfig, null, 2)}\n`);
+          NODE
+
       - name: Build and bundle app
         id: tauri_build
         uses: tauri-apps/tauri-action@v0.6.0
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: ${{ env.DESKTOP_DIR }}
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --config tauri.updater.conf.json
 
       - name: Collect bundle paths
         id: bundle_paths
@@ -166,24 +213,20 @@ jobs:
           const desktopDir = process.env.DESKTOP_DIR;
           const target = process.env.TARGET;
           const bundleRoot = path.join(desktopDir, "src-tauri", "target", target, "release", "bundle");
-          let artifactPaths = [];
+          const artifactPaths = [];
+          const seen = new Set();
 
-          try {
-            const parsed = JSON.parse(artifactPathsJson);
-            if (Array.isArray(parsed)) {
-              artifactPaths = parsed.flatMap((candidate) => {
-                if (fs.existsSync(candidate)) return [candidate];
+          function addArtifact(filePath) {
+            if (seen.has(filePath) || !fs.existsSync(filePath)) return;
 
-                const desktopRelativePath = path.join(desktopDir, candidate);
-                return fs.existsSync(desktopRelativePath) ? [desktopRelativePath] : [];
-              });
-            }
-          } catch {
-            artifactPaths = [];
+            seen.add(filePath);
+            artifactPaths.push(filePath);
           }
 
-          if (artifactPaths.length === 0 && fs.existsSync(bundleRoot)) {
-            const stack = [bundleRoot];
+          function collectBundleFiles(root) {
+            if (!fs.existsSync(root)) return;
+
+            const stack = [root];
 
             while (stack.length > 0) {
               const current = stack.pop();
@@ -199,10 +242,28 @@ jobs:
                   continue;
                 }
 
-                artifactPaths.push(entryPath);
+                addArtifact(entryPath);
               }
             }
           }
+
+          try {
+            const parsed = JSON.parse(artifactPathsJson);
+            if (Array.isArray(parsed)) {
+              for (const candidate of parsed) {
+                if (fs.existsSync(candidate)) {
+                  addArtifact(candidate);
+                  continue;
+                }
+
+                addArtifact(path.join(desktopDir, candidate));
+              }
+            }
+          } catch {
+            // Fall back to walking the Tauri bundle directory below.
+          }
+
+          collectBundleFiles(bundleRoot);
 
           if (artifactPaths.length === 0) {
             throw new Error("No release bundle artifacts were found.");

@@ -8,6 +8,7 @@ import {
 } from "./SettingsSections";
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
 import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
+import { useAutoUpdater } from "../hooks/useAutoUpdater";
 
 export function SettingsWindow() {
   const settingsState = useSettingsWindowState();
@@ -33,6 +34,9 @@ export function SettingsWindow() {
     webSearchSettings,
     welcomeReset
   } = settingsState;
+  const updater = useAutoUpdater(appLanguage.language, appLanguage.ready, {
+    autoCheck: false
+  });
 
   return (
     <main
@@ -54,6 +58,7 @@ export function SettingsWindow() {
               language={appLanguage.language}
               translate={translate}
               welcomeReset={welcomeReset}
+              onCheckForUpdates={updater.checkForUpdates}
               onResetWelcomeDocument={handleResetWelcomeDocument}
               onSelectLanguage={appLanguage.selectLanguage}
               onUpdatePreferences={handleUpdateEditorPreferences}

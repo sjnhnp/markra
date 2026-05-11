@@ -3,6 +3,7 @@ import {
   Languages,
   Monitor,
   Moon,
+  RefreshCw,
   RotateCcw,
   Sun,
   type LucideIcon
@@ -243,6 +244,7 @@ function ThemeSegmentedControl({
 
 export function GeneralSettings({
   language,
+  onCheckForUpdates,
   onResetWelcomeDocument,
   onSelectLanguage,
   onUpdatePreferences,
@@ -251,6 +253,7 @@ export function GeneralSettings({
   welcomeReset
 }: {
   language: AppLanguage;
+  onCheckForUpdates: () => unknown;
   onResetWelcomeDocument: () => unknown;
   onSelectLanguage: (language: AppLanguage) => unknown;
   onUpdatePreferences: (preferences: EditorPreferences) => unknown;
@@ -308,6 +311,19 @@ export function GeneralSettings({
           {translate("settings.welcome.status")}
         </p>
       ) : null}
+
+      <SettingsSection label={translate("settings.sections.updates")}>
+        <SettingsRow
+          title={translate("settings.update.title")}
+          description={translate("settings.update.description")}
+          action={
+            <SettingsButton label={translate("settings.update.check")} onClick={onCheckForUpdates}>
+              <RefreshCw aria-hidden="true" size={13} />
+              {translate("settings.update.check")}
+            </SettingsButton>
+          }
+        />
+      </SettingsSection>
     </>
   );
 }

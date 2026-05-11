@@ -18,6 +18,7 @@ import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
+import { useAutoUpdater } from "./hooks/useAutoUpdater";
 import { useWebSearchSettings } from "./hooks/useWebSearchSettings";
 import {
   useApplicationShortcuts,
@@ -622,6 +623,9 @@ export default function App() {
 
   useNativeMarkdownDrop(handleDroppedMarkdownPath);
   useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null);
+  useAutoUpdater(appLanguage.language, appLanguage.ready, {
+    confirmInstall: confirmCanDiscardCurrentDocument
+  });
   useApplicationShortcuts({
     openDocument: handleOpenMarkdownFile,
     openFolder: handleOpenMarkdownFolder,

@@ -24,6 +24,7 @@ import {
   installNativeEditorContextMenu
 } from "../lib/tauri";
 import { openNativeExternalUrl, openSettingsWindow } from "../lib/tauri";
+import { checkNativeAppUpdate } from "../lib/tauri/updater";
 import {
   createAiAgentSessionId,
   consumeWelcomeDocumentState,
@@ -91,6 +92,10 @@ vi.mock("../lib/tauri", () => ({
   openNativeExternalUrl: vi.fn(),
   openSettingsWindow: vi.fn(),
   setNativeWindowTitle: vi.fn()
+}));
+
+vi.mock("../lib/tauri/updater", () => ({
+  checkNativeAppUpdate: vi.fn()
 }));
 
 vi.mock("../lib/settings/app-settings", () => ({
@@ -207,6 +212,7 @@ export const mockedInstallNativeApplicationMenu = vi.mocked(installNativeApplica
 export const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEditorContextMenu);
 export const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
 export const mockedOpenNativeExternalUrl = vi.mocked(openNativeExternalUrl);
+export const mockedCheckNativeAppUpdate = vi.mocked(checkNativeAppUpdate);
 export const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 export const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
 export const mockedDeleteStoredAiAgentSession = vi.mocked(deleteStoredAiAgentSession);
@@ -338,6 +344,7 @@ export function installAppTestHarness() {
     mockedInstallNativeApplicationMenu.mockReset();
     mockedInstallNativeEditorContextMenu.mockReset();
     mockedOpenNativeExternalUrl.mockReset();
+    mockedCheckNativeAppUpdate.mockReset();
     mockedOpenSettingsWindow.mockReset();
     mockedGetStoredLanguage.mockReset();
     mockedGetStoredAiSettings.mockReset();
@@ -378,6 +385,7 @@ export function installAppTestHarness() {
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenNativeExternalUrl.mockResolvedValue(undefined);
+    mockedCheckNativeAppUpdate.mockResolvedValue(null);
     mockedOpenSettingsWindow.mockResolvedValue(undefined);
     mockedReadNativeMarkdownImageFile.mockResolvedValue({
       dataUrl: "data:image/png;base64,aGVsbG8=",
