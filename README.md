@@ -1,5 +1,3 @@
-# Markra
-
 <p align="center">
   <img src="apps/desktop/app-icon.svg" width="96" alt="Markra logo" />
 </p>
