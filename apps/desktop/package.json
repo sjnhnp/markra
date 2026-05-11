@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.app.json && vite build",
+    "build": "tsc -p tsconfig.app.json && vite build && pnpm verify:chunks",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
+    "verify:chunks": "node scripts/verify-vendor-chunks.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

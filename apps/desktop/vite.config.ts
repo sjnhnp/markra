@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
 import { stripDebugPlugin } from "./scripts/vite/strip-debug";
 
-const chunkSizeLimit = 450 * 1024;
+const chunkSizeWarningLimitKb = 1200;
 const imageAssetPattern = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i;
 
 function outputAssetFileName(asset: { names?: string[]; originalFileNames?: string[] }) {
@@ -53,7 +53,7 @@ const aiSdkDependencies = dependencyPattern([
 
 function vendorChunkName(id: string) {
   if (reactDependencies.test(id)) return "react-vendor";
-  if (milkdownDependencies.test(id)) return null;
+  if (milkdownDependencies.test(id)) return "milkdown-vendor";
   if (tauriDependencies.test(id)) return "tauri-vendor";
   if (iconDependencies.test(id)) return "icons-vendor";
   if (piAgentDependencies.test(id)) return "pi-agent-vendor";
@@ -69,6 +69,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [react(), tailwindcss(), ...(mode === "production" ? [stripDebugPlugin()] : [])],
   build: {
+    chunkSizeWarningLimit: chunkSizeWarningLimitKb,
     assetsInlineLimit: (filePath) => {
       // Keep provider SVG logos as standalone assets instead of embedding them into JS chunks.
       if (filePath.toLowerCase().endsWith(".svg")) return false;
@@ -81,15 +82,9 @@ export default defineConfig(({ mode }) => ({
         codeSplitting: {
           groups: [
             {
-              // Keep Milkdown's unified/remark/prosemirror graph in one chunk; maxSize
-              // splitting can break circular CommonJS wrapper initialization.
-              name: "milkdown-vendor",
-              test: (id) => milkdownDependencies.test(id),
-              priority: 10
-            },
-            {
-              name: vendorChunkName,
-              maxSize: chunkSizeLimit
+              // Keep each dependency family intact; size-based splitting can break
+              // circular CommonJS wrapper initialization across vendor chunks.
+              name: vendorChunkName
             }
           ]
         }
