@@ -779,6 +779,51 @@ describe("Markra workspace", () => {
     expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
   });
 
+  it("switches away from a clean file with normalized markdown without asking to discard changes", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    const notesPath = "/mock-files/vault/docs/notes.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" },
+      { name: "notes.md", path: notesPath, relativePath: "docs/notes.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === guidePath) {
+        return {
+          content: "Guide\n=====\n\nRead-only content.",
+          name: "guide.md",
+          path: guidePath
+        };
+      }
+
+      return {
+        content: "# Notes\n\nSecond read-only content.",
+        name: "notes.md",
+        path: notesPath
+      };
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/notes.md" }));
+    expect(await screen.findByText("Notes")).toBeInTheDocument();
+
+    expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
+  });
+
   it("clears a selected folder file after deleting it from the file tree", async () => {
     const test1Path = "/mock-files/vault/test1.md";
     const test2Path = "/mock-files/vault/test2.md";
@@ -1377,6 +1422,31 @@ describe("Markra workspace", () => {
     expect(await screen.findByText("Source edit")).toBeInTheDocument();
     expect(screen.getByText("Updated from source mode.")).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "milkdown");
+  });
+
+  it("keeps a clean file unmodified when toggling markdown source mode without edits", async () => {
+    const originalContent = "Native file\n===========\n\nOpened from disk.";
+    mockOpenMarkdownFile({
+      content: originalContent,
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+
+    expect(await screen.findByRole("textbox", { name: "Markdown source" })).toHaveValue(originalContent);
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to visual mode" }));
+
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
   });
 
   it("saves markdown source mode edits through the native file API", async () => {

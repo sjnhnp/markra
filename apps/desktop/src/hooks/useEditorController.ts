@@ -25,6 +25,13 @@ const defaultMarkdownTable = [
   "|  |  |"
 ].join("\n");
 
+function comparableSerializedMarkdown(markdown: string) {
+  return markdown
+    .replace(/\r\n?/gu, "\n")
+    .replace(/[ \t]+$/gmu, "")
+    .trim();
+}
+
 type EditorReadyOptions = {
   autoFocus?: boolean;
 };
@@ -229,6 +236,24 @@ export function useEditorController() {
       }) ?? fallbackContent;
     } catch {
       return fallbackContent;
+    }
+  }, []);
+
+  const isCurrentMarkdownEquivalent = useCallback((markdown: string) => {
+    try {
+      return editorRef.current?.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const parseMarkdown = ctx.get(parserCtx);
+        const serializer = ctx.get(serializerCtx);
+        const link = linkSchema.type(ctx);
+        const image = imageSchema.type(ctx);
+        const currentMarkdown = serializeLinkImageLiveMarkdown(view.state.doc, serializer, link, image);
+        const parsedMarkdown = serializeLinkImageLiveMarkdown(parseMarkdown(markdown), serializer, link, image);
+
+        return comparableSerializedMarkdown(currentMarkdown) === comparableSerializedMarkdown(parsedMarkdown);
+      }) ?? true;
+    } catch {
+      return false;
     }
   }, []);
 
@@ -548,6 +573,7 @@ export function useEditorController() {
     getDocumentEndPosition,
     getHeadingAnchors,
     getCurrentMarkdown,
+    isCurrentMarkdownEquivalent,
     getSelection,
     getSectionAnchors,
     getTableAnchors,

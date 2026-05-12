@@ -178,6 +178,7 @@ export default function App() {
   const markdownDocument = useMarkdownDocument({
     confirmDiscardUnsavedChanges,
     getCurrentMarkdown: editor.getCurrentMarkdown,
+    isCurrentMarkdownEquivalent: editor.isCurrentMarkdownEquivalent,
     onMarkdownTreeChange: refreshMarkdownFileTree,
     onTreeRootFromFolderPath: openFolderPath,
     onTreeRootFromFilePath: setRootFromMarkdownFilePath,
@@ -752,15 +753,11 @@ export default function App() {
       return;
     }
 
-    handleMarkdownChange(editor.getCurrentMarkdown(document.content));
     updateActiveAiSelection(null);
     handleAiCommandClose();
     setEditorMode("source");
   }, [
-    document.content,
-    editor,
     handleAiCommandClose,
-    handleMarkdownChange,
     sourceMode,
     sourceModeAvailable,
     updateActiveAiSelection
