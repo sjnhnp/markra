@@ -47,6 +47,14 @@ function menuItemById(items: TestMenuItem[], id: string) {
   return item as TestActionMenuItem;
 }
 
+function menuItemChildren(item: TestActionMenuItem) {
+  if (!("items" in item) || !Array.isArray(item.items)) {
+    throw new Error(`Expected menu item ${item.id ?? "unknown"} to contain child items.`);
+  }
+
+  return item.items as TestMenuItem[];
+}
+
 function findMenuItemById(items: TestMenuItem[], id: string): TestActionMenuItem | null {
   for (const candidate of items) {
     if ("id" in candidate && candidate.id === id) return candidate as TestActionMenuItem;
@@ -130,6 +138,18 @@ describe("native menu", () => {
     expect(menuItemById(latestMenuItems(), "insertTable")).toMatchObject({
       accelerator: "CmdOrCtrl+Alt+T"
     });
+    const exportMenu = menuItemById(latestMenuItems(), "markra:file:export");
+    expect(exportMenu).toMatchObject({
+      text: "Exporter"
+    });
+    expect(menuItemById(menuItemChildren(exportMenu), "exportPdf")).toMatchObject({
+      accelerator: "CmdOrCtrl+P",
+      text: "Exporter en PDF"
+    });
+    expect(menuItemById(menuItemChildren(exportMenu), "exportHtml")).toMatchObject({
+      accelerator: "CmdOrCtrl+Shift+E",
+      text: "Exporter en HTML"
+    });
     expect(setAsAppMenu).toHaveBeenCalledTimes(1);
   });
 
@@ -190,6 +210,8 @@ describe("native menu", () => {
     const target = document.createElement("main");
     const paper = document.createElement("article");
     const handlers: NativeMenuHandlers = {
+      exportHtml: vi.fn(),
+      exportPdf: vi.fn(),
       formatBold: vi.fn(),
       formatCodeBlock: vi.fn(),
       formatHeading2: vi.fn(),
@@ -219,14 +241,22 @@ describe("native menu", () => {
     expect(menuItemById(items, "markra:context:quote")).toMatchObject({ text: "Quote" });
     expect(menuItemById(items, "markra:context:code-block")).toMatchObject({ text: "Code Block" });
     expect(menuItemById(items, "markra:context:image")).toMatchObject({ text: "Image" });
+    const exportMenu = menuItemById(items, "markra:context:export");
+    expect(exportMenu).toMatchObject({ text: "Export" });
+    expect(menuItemById(menuItemChildren(exportMenu), "markra:context:export-pdf")).toMatchObject({ text: "Export PDF" });
+    expect(menuItemById(menuItemChildren(exportMenu), "markra:context:export-html")).toMatchObject({ text: "Export HTML" });
 
     menuItemById(items, "markra:context:strikethrough").action?.("markra:context:strikethrough");
     menuItemById(items, "markra:context:code-block").action?.("markra:context:code-block");
     menuItemById(items, "markra:context:image").action?.("markra:context:image");
+    menuItemById(items, "markra:context:export-pdf").action?.("markra:context:export-pdf");
+    menuItemById(items, "markra:context:export-html").action?.("markra:context:export-html");
 
     expect(handlers.formatStrikethrough).toHaveBeenCalledTimes(1);
     expect(handlers.formatCodeBlock).toHaveBeenCalledTimes(1);
     expect(handlers.insertImage).toHaveBeenCalledTimes(1);
+    expect(handlers.exportPdf).toHaveBeenCalledTimes(1);
+    expect(handlers.exportHtml).toHaveBeenCalledTimes(1);
   });
 
   it("shows editor AI context actions only when an AI target is available", async () => {

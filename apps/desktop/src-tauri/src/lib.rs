@@ -12,7 +12,7 @@ use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat
 use external_urls::open_external_url;
 use markdown_files::{
     create_markdown_tree_file, create_markdown_tree_folder, delete_markdown_tree_file,
-    list_markdown_files_for_path, open_markdown_file_in_new_window,
+    export_pdf_file, list_markdown_files_for_path, open_markdown_file_in_new_window,
     open_markdown_folder_in_new_window, open_markdown_path, read_markdown_file,
     read_markdown_image_file, rename_markdown_tree_file, resolve_markdown_path,
     save_clipboard_image, write_markdown_file,
@@ -94,6 +94,7 @@ pub fn run() {
             request_native_chat_stream,
             request_web_resource,
             write_markdown_file,
+            export_pdf_file,
             watch_markdown_file,
             unwatch_markdown_file
         ])

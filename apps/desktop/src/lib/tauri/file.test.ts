@@ -19,6 +19,8 @@ import {
   readNativeMarkdownFile,
   resolveNativeMarkdownPath,
   saveNativeClipboardImage,
+  saveNativeHtmlFile,
+  saveNativePdfFile,
   renameNativeMarkdownTreeFile,
   saveNativeMarkdownFile,
   watchNativeMarkdownFile
@@ -377,6 +379,80 @@ describe("native file access", () => {
       path: mockUntitledPath,
       contents: "# Untitled"
     });
+  });
+
+  it("exports rendered HTML through the native save dialog", async () => {
+    mockedSave.mockResolvedValue("/mock-files/draft.html");
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await expect(
+      saveNativeHtmlFile({
+        suggestedName: "draft.html",
+        contents: "<!doctype html><html><body><h1>Draft</h1></body></html>"
+      })
+    ).resolves.toEqual({
+      path: "/mock-files/draft.html",
+      name: "draft.html"
+    });
+
+    expect(mockedSave).toHaveBeenCalledWith({
+      defaultPath: "draft.html",
+      filters: [{ name: "HTML", extensions: ["html", "htm"] }]
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("write_markdown_file", {
+      path: "/mock-files/draft.html",
+      contents: "<!doctype html><html><body><h1>Draft</h1></body></html>"
+    });
+  });
+
+  it("does not write an HTML export when the save dialog is canceled", async () => {
+    mockedSave.mockResolvedValue(null);
+
+    await expect(
+      saveNativeHtmlFile({
+        suggestedName: "draft.html",
+        contents: "<!doctype html><html></html>"
+      })
+    ).resolves.toBeNull();
+
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
+  it("exports rendered PDF HTML through the native save dialog", async () => {
+    mockedSave.mockResolvedValue("/mock-files/draft.pdf");
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await expect(
+      saveNativePdfFile({
+        suggestedName: "draft.pdf",
+        contents: "<!doctype html><html><body><h1>Draft</h1></body></html>"
+      })
+    ).resolves.toEqual({
+      path: "/mock-files/draft.pdf",
+      name: "draft.pdf"
+    });
+
+    expect(mockedSave).toHaveBeenCalledWith({
+      defaultPath: "draft.pdf",
+      filters: [{ name: "PDF", extensions: ["pdf"] }]
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("export_pdf_file", {
+      path: "/mock-files/draft.pdf",
+      html: "<!doctype html><html><body><h1>Draft</h1></body></html>"
+    });
+  });
+
+  it("does not write a PDF export when the save dialog is canceled", async () => {
+    mockedSave.mockResolvedValue(null);
+
+    await expect(
+      saveNativePdfFile({
+        suggestedName: "draft.pdf",
+        contents: "<!doctype html><html></html>"
+      })
+    ).resolves.toBeNull();
+
+    expect(mockedInvoke).not.toHaveBeenCalled();
   });
 
   it("saves a clipboard image next to the current markdown file through Tauri", async () => {

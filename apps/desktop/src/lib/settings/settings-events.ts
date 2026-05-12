@@ -3,10 +3,12 @@ import { normalizeAiSettings } from "@markra/providers";
 import {
   isAppTheme,
   normalizeEditorPreferences,
+  normalizeExportSettings,
   normalizeWebSearchSettings,
   type AiProviderSettings,
   type AppTheme,
   type EditorPreferences,
+  type ExportSettings,
   type WebSearchSettings
 } from "./app-settings";
 import { isAppLanguage, type AppLanguage } from "@markra/shared";
@@ -15,6 +17,7 @@ import { hasTauriRuntime } from "@markra/shared";
 const themeChangedEvent = "markra://theme-changed";
 const languageChangedEvent = "markra://language-changed";
 const editorPreferencesChangedEvent = "markra://editor-preferences-changed";
+const exportSettingsChangedEvent = "markra://export-settings-changed";
 const webSearchSettingsChangedEvent = "markra://web-search-settings-changed";
 const aiSettingsChangedEvent = "markra://ai-settings-changed";
 
@@ -28,6 +31,10 @@ type LanguageChangedPayload = {
 
 type EditorPreferencesChangedPayload = {
   preferences: EditorPreferences;
+};
+
+type ExportSettingsChangedPayload = {
+  settings: ExportSettings;
 };
 
 type WebSearchSettingsChangedPayload = {
@@ -91,6 +98,22 @@ export async function listenAppEditorPreferencesChanged(
     ) {
       onPreferencesChanged(preferences);
     }
+  });
+}
+
+export async function notifyAppExportSettingsChanged(settings: ExportSettings) {
+  if (!hasTauriRuntime()) return;
+
+  await emit(exportSettingsChangedEvent, { settings });
+}
+
+export async function listenAppExportSettingsChanged(
+  onSettingsChanged: (settings: ExportSettings) => unknown
+) {
+  if (!hasTauriRuntime()) return () => {};
+
+  return listen<ExportSettingsChangedPayload>(exportSettingsChangedEvent, (event) => {
+    onSettingsChanged(normalizeExportSettings(event.payload.settings));
   });
 }
 

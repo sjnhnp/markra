@@ -9,17 +9,20 @@ import {
   getStoredAiSettings,
   listStoredAiAgentSessions,
   getStoredEditorPreferences,
+  getStoredExportSettings,
   getStoredLanguage,
   getStoredTheme,
   getStoredWebSearchSettings,
   getStoredWorkspaceState,
   normalizeWebSearchSettings,
+  normalizeExportSettings,
   resetWelcomeDocumentState,
   saveStoredAiAgentSession,
   saveStoredAiAgentPreferences,
   saveStoredAiAgentSessionTitle,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
+  saveStoredExportSettings,
   saveStoredLanguage,
   saveStoredTheme,
   saveStoredWebSearchSettings,
@@ -155,6 +158,76 @@ describe("app settings", () => {
     expect(store.get).toHaveBeenCalledWith("webSearch");
   });
 
+  it("loads the default export settings", async () => {
+    store.get.mockResolvedValue(undefined);
+
+    await expect(getStoredExportSettings()).resolves.toEqual({
+      pdfAuthor: "",
+      pdfFooter: "",
+      pdfHeader: "",
+      pdfHeightMm: 297,
+      pdfMarginMm: 18,
+      pdfMarginPreset: "default",
+      pdfPageBreakOnH1: false,
+      pdfPageSize: "default",
+      pdfWidthMm: 210
+    });
+
+    expect(store.get).toHaveBeenCalledWith("exportSettings");
+  });
+
+  it("normalizes persisted export settings", () => {
+    expect(normalizeExportSettings({
+      pdfAuthor: " Ada Lovelace ",
+      pdfFooter: "Page footer",
+      pdfHeader: "Draft header",
+      pdfHeightMm: 279,
+      pdfMarginMm: 24,
+      pdfMarginPreset: "custom",
+      pdfPageBreakOnH1: true,
+      pdfPageSize: "letter",
+      pdfWidthMm: 216
+    })).toEqual({
+      pdfAuthor: "Ada Lovelace",
+      pdfFooter: "Page footer",
+      pdfHeader: "Draft header",
+      pdfHeightMm: 279,
+      pdfMarginMm: 24,
+      pdfMarginPreset: "custom",
+      pdfPageBreakOnH1: true,
+      pdfPageSize: "letter",
+      pdfWidthMm: 216
+    });
+    expect(normalizeExportSettings({
+      pdfHeightMm: 9999,
+      pdfMarginMm: 999,
+      pdfMarginPreset: "custom",
+      pdfPageSize: "custom",
+      pdfWidthMm: 10
+    })).toEqual({
+      pdfAuthor: "",
+      pdfFooter: "",
+      pdfHeader: "",
+      pdfHeightMm: 2000,
+      pdfMarginMm: 60,
+      pdfMarginPreset: "custom",
+      pdfPageBreakOnH1: false,
+      pdfPageSize: "custom",
+      pdfWidthMm: 50
+    });
+    expect(normalizeExportSettings({ pdfMarginMm: 24 })).toEqual({
+      pdfAuthor: "",
+      pdfFooter: "",
+      pdfHeader: "",
+      pdfHeightMm: 297,
+      pdfMarginMm: 24,
+      pdfMarginPreset: "custom",
+      pdfPageBreakOnH1: false,
+      pdfPageSize: "default",
+      pdfWidthMm: 210
+    });
+  });
+
   it("normalizes persisted web search settings", () => {
     expect(normalizeWebSearchSettings({
       contentMaxChars: 999999,
@@ -199,6 +272,33 @@ describe("app settings", () => {
       maxResults: 8,
       providerId: "searxng",
       searxngApiHost: "http://localhost:8888"
+    });
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists normalized export settings", async () => {
+    await saveStoredExportSettings({
+      pdfAuthor: "Ada",
+      pdfFooter: "Footer",
+      pdfHeader: "Header",
+      pdfHeightMm: 279,
+      pdfMarginMm: 72,
+      pdfMarginPreset: "custom",
+      pdfPageBreakOnH1: true,
+      pdfPageSize: "letter",
+      pdfWidthMm: 216
+    });
+
+    expect(store.set).toHaveBeenCalledWith("exportSettings", {
+      pdfAuthor: "Ada",
+      pdfFooter: "Footer",
+      pdfHeader: "Header",
+      pdfHeightMm: 279,
+      pdfMarginMm: 60,
+      pdfMarginPreset: "custom",
+      pdfPageBreakOnH1: true,
+      pdfPageSize: "letter",
+      pdfWidthMm: 216
     });
     expect(store.save).toHaveBeenCalledTimes(1);
   });

@@ -45,6 +45,11 @@ pub(crate) fn create_application_menu<R: tauri::Runtime>(
         labels.save_document_as,
         "CmdOrCtrl+Shift+S",
     )?;
+    let export_pdf = app_menu_item(app, "exportPdf", labels.export_pdf, "CmdOrCtrl+P")?;
+    let export_html = app_menu_item(app, "exportHtml", labels.export_html, "CmdOrCtrl+Shift+E")?;
+    let export_menu = SubmenuBuilder::with_id(app, "markra:file:export", labels.export)
+        .items(&[&export_pdf, &export_html])
+        .build()?;
     let settings = app_menu_item(app, SETTINGS_WINDOW_COMMAND, labels.settings, "CmdOrCtrl+,")?;
 
     let bold = app_menu_item(app, "formatBold", labels.bold, "CmdOrCtrl+B")?;
@@ -97,6 +102,8 @@ pub(crate) fn create_application_menu<R: tauri::Runtime>(
         .separator()
         .items(&[&save, &save_as])
         .separator()
+        .items(&[&export_menu])
+        .separator()
         .close_window_with_text(labels.close_window)
         .build()?;
 
@@ -143,6 +150,8 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
         "openDocument"
             | "saveDocument"
             | "saveDocumentAs"
+            | "exportPdf"
+            | "exportHtml"
             | "formatBold"
             | "formatItalic"
             | "formatStrikethrough"
@@ -180,6 +189,8 @@ mod tests {
         assert!(is_frontend_menu_command("openDocument"));
         assert!(!is_frontend_menu_command("openFolder"));
         assert!(is_frontend_menu_command("saveDocument"));
+        assert!(is_frontend_menu_command("exportPdf"));
+        assert!(is_frontend_menu_command("exportHtml"));
         assert!(is_frontend_menu_command("formatBold"));
         assert!(is_frontend_menu_command("insertImage"));
         assert!(!is_frontend_menu_command("markra:file"));

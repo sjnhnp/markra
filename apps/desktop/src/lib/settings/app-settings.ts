@@ -26,12 +26,15 @@ const languageKey = "language";
 const aiProvidersKey = "aiProviders";
 const aiAgentPreferencesKey = "aiAgentPreferences";
 const editorPreferencesKey = "editorPreferences";
+const exportSettingsKey = "exportSettings";
 const webSearchKey = "webSearch";
 const workspaceKey = "workspace";
 
 export type AppTheme = "light" | "dark" | "system";
 export type ResolvedAppTheme = "light" | "dark";
 export type EditorContentWidth = "narrow" | "default" | "wide";
+export type PdfMarginPreset = "custom" | "default" | "narrow" | "none" | "normal" | "wide";
+export type PdfPageSize = "a4" | "custom" | "default" | "letter";
 export type AiAgentPreferences = {
   thinkingEnabled: boolean;
   webSearchEnabled: boolean;
@@ -45,6 +48,17 @@ export type EditorPreferences = {
   lineHeight: number;
   restoreWorkspaceOnStartup: boolean;
   showWordCount: boolean;
+};
+export type ExportSettings = {
+  pdfAuthor: string;
+  pdfFooter: string;
+  pdfHeader: string;
+  pdfHeightMm: number;
+  pdfMarginMm: number;
+  pdfMarginPreset: PdfMarginPreset;
+  pdfPageBreakOnH1: boolean;
+  pdfPageSize: PdfPageSize;
+  pdfWidthMm: number;
 };
 export type StoredWorkspaceState = {
   aiAgentSessionId: string | null;
@@ -67,6 +81,18 @@ export const defaultEditorPreferences: EditorPreferences = {
   showWordCount: true
 };
 
+export const defaultExportSettings: ExportSettings = {
+  pdfAuthor: "",
+  pdfFooter: "",
+  pdfHeader: "",
+  pdfHeightMm: 297,
+  pdfMarginMm: 18,
+  pdfMarginPreset: "default",
+  pdfPageBreakOnH1: false,
+  pdfPageSize: "default",
+  pdfWidthMm: 210
+};
+
 export const defaultAiAgentPreferences: AiAgentPreferences = {
   thinkingEnabled: false,
   webSearchEnabled: false
@@ -83,6 +109,20 @@ export const defaultWebSearchSettings: WebSearchSettings = {
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorContentWidthOptions: EditorContentWidth[] = ["narrow", "default", "wide"];
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
+const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
+const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
+const exportPageSizeDimensions: Record<Exclude<PdfPageSize, "custom">, { heightMm: number; widthMm: number }> = {
+  a4: { heightMm: 297, widthMm: 210 },
+  default: { heightMm: 297, widthMm: 210 },
+  letter: { heightMm: 279, widthMm: 216 }
+};
+const exportMarginPresetMm: Record<Exclude<PdfMarginPreset, "custom">, number> = {
+  default: 18,
+  narrow: 10,
+  none: 0,
+  normal: 18,
+  wide: 25
+};
 
 export const defaultWorkspaceState: StoredWorkspaceState = {
   aiAgentSessionId: null,
@@ -368,6 +408,20 @@ export async function saveStoredEditorPreferences(preferences: EditorPreferences
   await store.save();
 }
 
+export async function getStoredExportSettings(): Promise<ExportSettings> {
+  const store = await loadSettingsStore();
+  const settings = await store.get<Partial<ExportSettings>>(exportSettingsKey);
+
+  return normalizeExportSettings(settings);
+}
+
+export async function saveStoredExportSettings(settings: ExportSettings) {
+  const store = await loadSettingsStore();
+
+  await store.set(exportSettingsKey, normalizeExportSettings(settings));
+  await store.save();
+}
+
 export async function getStoredWebSearchSettings(): Promise<WebSearchSettings> {
   const store = await loadSettingsStore();
   const settings = await store.get<Partial<WebSearchSettings>>(webSearchKey);
@@ -464,6 +518,35 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   };
 }
 
+export function normalizeExportSettings(value: unknown): ExportSettings {
+  if (typeof value !== "object" || value === null) return defaultExportSettings;
+
+  const settings = value as Partial<ExportSettings>;
+  const pdfPageSize = exportPageSizeOptions.includes(settings.pdfPageSize as PdfPageSize)
+    ? (settings.pdfPageSize as PdfPageSize)
+    : defaultExportSettings.pdfPageSize;
+  const pdfMarginMm = normalizeExportMarginMm(settings.pdfMarginMm);
+  const pdfMarginPreset = normalizeExportMarginPreset(settings.pdfMarginPreset, pdfMarginMm);
+  const dimensions = pdfPageSize === "custom"
+    ? {
+        heightMm: normalizeExportPageDimension(settings.pdfHeightMm, defaultExportSettings.pdfHeightMm),
+        widthMm: normalizeExportPageDimension(settings.pdfWidthMm, defaultExportSettings.pdfWidthMm)
+      }
+    : exportPageSizeDimensions[pdfPageSize];
+
+  return {
+    pdfAuthor: normalizeExportText(settings.pdfAuthor),
+    pdfFooter: normalizeExportText(settings.pdfFooter),
+    pdfHeader: normalizeExportText(settings.pdfHeader),
+    pdfHeightMm: dimensions.heightMm,
+    pdfMarginMm: pdfMarginPreset === "custom" ? pdfMarginMm : exportMarginPresetMm[pdfMarginPreset],
+    pdfMarginPreset,
+    pdfPageBreakOnH1: typeof settings.pdfPageBreakOnH1 === "boolean" ? settings.pdfPageBreakOnH1 : false,
+    pdfPageSize,
+    pdfWidthMm: dimensions.widthMm
+  };
+}
+
 export function normalizeClipboardImageFolder(value: unknown) {
   if (typeof value !== "string") return defaultEditorPreferences.clipboardImageFolder;
 
@@ -483,6 +566,32 @@ export function normalizeClipboardImageFolder(value: unknown) {
   }
 
   return parts.join("/");
+}
+
+function normalizeExportMarginMm(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return defaultExportSettings.pdfMarginMm;
+
+  return Math.min(Math.max(Math.round(value), 0), 60);
+}
+
+function normalizeExportMarginPreset(value: unknown, marginMm: number): PdfMarginPreset {
+  if (exportMarginPresetOptions.includes(value as PdfMarginPreset)) {
+    return value as PdfMarginPreset;
+  }
+
+  return marginMm === defaultExportSettings.pdfMarginMm ? "default" : "custom";
+}
+
+function normalizeExportPageDimension(value: unknown, fallback: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+
+  return Math.min(Math.max(Math.round(value), 50), 2000);
+}
+
+function normalizeExportText(value: unknown) {
+  if (typeof value !== "string") return "";
+
+  return value.trim().slice(0, 200);
 }
 
 export function normalizeWebSearchSettings(value: unknown): WebSearchSettings {

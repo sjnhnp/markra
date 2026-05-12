@@ -4,6 +4,11 @@ import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { AiAgentPanel } from "./components/AiAgentPanel";
 import { ImagePreview } from "./components/ImagePreview";
+import {
+  MarkdownExportDocument,
+  type RenderedMarkdownExport,
+  type MarkdownExportSnapshot
+} from "./components/MarkdownExportDocument";
 import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
 import { MarkdownSourceEditor } from "./components/MarkdownSourceEditor";
@@ -21,6 +26,7 @@ import { useAiAgentSessionList } from "./hooks/useAiAgentSessionList";
 import { useAiAgentSession } from "./hooks/useAiAgentSession";
 import { useAiSettings } from "./hooks/useAiSettings";
 import { useEditorPreferences } from "./hooks/useEditorPreferences";
+import { useExportSettings } from "./hooks/useExportSettings";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
@@ -36,6 +42,7 @@ import {
 import { aiTranslationLanguageName, t, type I18nKey } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
+import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
 import type { AiDiffResult, AiEditIntent, AiSelectionContext } from "@markra/ai";
 import {
@@ -59,6 +66,8 @@ import {
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
   saveNativeClipboardImage,
+  saveNativeHtmlFile,
+  saveNativePdfFile,
   type NativeMarkdownFolderFile
 } from "./lib/tauri";
 import { debug } from "@markra/shared";
@@ -105,6 +114,7 @@ export default function App() {
   const appLanguage = useAppLanguage();
   const aiSettings = useAiSettings();
   const editorPreferences = useEditorPreferences();
+  const exportSettings = useExportSettings();
   const webSearchSettings = useWebSearchSettings();
   const [aiAgentSessionId, setAiAgentSessionId] = useState<string | null>(null);
   const [aiAgentOpen, setAiAgentOpen] = useState(false);
@@ -115,11 +125,19 @@ export default function App() {
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
   const [aiContextMenuActionPending, setAiContextMenuActionPending] = useState(false);
   const [editorMode, setEditorMode] = useState<"source" | "visual">("visual");
+  const [exportSnapshot, setExportSnapshot] = useState<MarkdownExportSnapshot | null>(null);
   const sourceMode = editorMode === "source";
   const aiResultsRef = useRef<AiDiffResult[]>([]);
   const appliedAiPreviewKeysRef = useRef(new Set<string>());
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
   const aiContextMenuActionIdRef = useRef(0);
+  const exportRequestIdRef = useRef(0);
+  const exportContextRef = useRef({
+    activeImageFile: false,
+    content: "",
+    hasOpenDocument: false,
+    name: "Untitled.md"
+  });
   const reconciledAiWorkspaceKeyRef = useRef<string | null | undefined>(undefined);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const editor = useEditorController();
@@ -190,6 +208,10 @@ export default function App() {
   const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
   const aiResult = aiResults.at(-1) ?? null;
   const resolveImageSrc = useMemo(() => createMarkdownImageSrcResolver(document.path), [document.path]);
+  const resolveExportImageSrc = useMemo(
+    () => createMarkdownImageSrcResolver(document.path, { convertFileSrc: localFileUrlFromPath }),
+    [document.path]
+  );
   const imagePreviewSrc = useMemo(() => {
     if (!activeImageFile) return "";
 
@@ -714,6 +736,14 @@ export default function App() {
   const titleDocumentKind = activeImageFile ? "image" : hasOpenDocument ? "file" : "folder";
   const sourceModeAvailable = hasOpenDocument && !activeImageFile;
   const supportsAiThinking = selectedInlineAiModel?.capabilities.includes("reasoning") ?? false;
+  useEffect(() => {
+    exportContextRef.current = {
+      activeImageFile: Boolean(activeImageFile),
+      content: document.content,
+      hasOpenDocument,
+      name: document.name || "Untitled.md"
+    };
+  }, [activeImageFile, document.content, document.name, hasOpenDocument]);
   const handleEditorModeToggle = useCallback(() => {
     if (!sourceModeAvailable) return;
 
@@ -745,6 +775,59 @@ export default function App() {
       clearOpenDocument();
     }
   }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder]);
+  const clearExportSnapshot = useCallback((id: number) => {
+    setExportSnapshot((current) => current?.id === id ? null : current);
+  }, []);
+  const getCurrentMarkdown = editor.getCurrentMarkdown;
+  const beginDocumentExport = useCallback((kind: MarkdownExportSnapshot["kind"]) => {
+    const context = exportContextRef.current;
+    if (!context.hasOpenDocument || context.activeImageFile) return;
+
+    exportRequestIdRef.current += 1;
+    setExportSnapshot({
+      id: exportRequestIdRef.current,
+      kind,
+      markdown: getCurrentMarkdown(context.content),
+      title: context.name
+    });
+  }, [getCurrentMarkdown]);
+  const handleRenderedExport = useCallback((exported: RenderedMarkdownExport) => {
+    if (exportSnapshot?.id !== exported.id) return;
+
+    const pdfSettings = exported.kind === "pdf" ? exportSettings.settings : null;
+    const contents = buildMarkdownHtmlDocument({
+      bodyHtml: exported.bodyHtml,
+      language: appLanguage.language,
+      pdfAuthor: pdfSettings?.pdfAuthor,
+      pdfFooter: pdfSettings?.pdfFooter,
+      pdfHeader: pdfSettings?.pdfHeader,
+      pdfHeightMm: pdfSettings?.pdfHeightMm,
+      pdfMarginMm: pdfSettings?.pdfMarginMm,
+      pdfPageBreakOnH1: pdfSettings?.pdfPageBreakOnH1,
+      pdfWidthMm: pdfSettings?.pdfWidthMm,
+      title: exported.title
+    });
+    const suggestedName = exportDocumentFileName(exported.title, exported.kind);
+
+    if (exported.kind === "html") {
+      saveNativeHtmlFile({
+        contents,
+        suggestedName
+      }).catch(() => {}).finally(() => {
+        clearExportSnapshot(exported.id);
+      });
+      return;
+    }
+
+    saveNativePdfFile({
+      contents,
+      suggestedName
+    }).catch(() => {}).finally(() => {
+      clearExportSnapshot(exported.id);
+    });
+  }, [appLanguage.language, clearExportSnapshot, exportSettings.settings, exportSnapshot?.id]);
+  const exportHtmlDocument = useCallback(() => beginDocumentExport("html"), [beginDocumentExport]);
+  const exportPdfDocument = useCallback(() => beginDocumentExport("pdf"), [beginDocumentExport]);
   useEffect(() => {
     if (sourceModeAvailable) return;
 
@@ -769,6 +852,8 @@ export default function App() {
     outlineItems.length
   ]);
   const nativeMenuHandlers = useNativeMenuHandlers({
+    exportHtml: exportHtmlDocument,
+    exportPdf: exportPdfDocument,
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
     insertMarkdownTable: editor.insertMarkdownTable,
     language: appLanguage.language,
@@ -787,6 +872,8 @@ export default function App() {
     confirmRestart: confirmCanDiscardCurrentDocument
   });
   useApplicationShortcuts({
+    exportHtml: exportHtmlDocument,
+    exportPdf: exportPdfDocument,
     openDocument: handleOpenMarkdownFile,
     openFolder: handleOpenMarkdownFolder,
     saveDocument: handleSaveClick,
@@ -1047,6 +1134,11 @@ export default function App() {
           onSubmit={aiCommand.submitPrompt}
         />
       </main>
+      <MarkdownExportDocument
+        snapshot={exportSnapshot}
+        resolveImageSrc={resolveExportImageSrc}
+        onRendered={handleRenderedExport}
+      />
     </>
   );
 }

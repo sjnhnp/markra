@@ -12,7 +12,9 @@ import {
   openNativeMarkdownPath,
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
+  saveNativeHtmlFile,
   saveNativeMarkdownFile,
+  saveNativePdfFile,
   showNativeMarkdownFileTreeContextMenu,
   installNativeMarkdownFileDrop,
   listNativeMarkdownFilesForPath,
@@ -34,6 +36,7 @@ import {
   getStoredAiAgentSessionSummary,
   getStoredAiSettings,
   getStoredEditorPreferences,
+  getStoredExportSettings,
   getStoredLanguage,
   getStoredTheme,
   getStoredWebSearchSettings,
@@ -45,6 +48,7 @@ import {
   saveStoredAiAgentSessionTitle,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
+  saveStoredExportSettings,
   saveStoredLanguage,
   saveStoredTheme,
   saveStoredWorkspaceState,
@@ -53,11 +57,13 @@ import {
 import {
   listenAppAiSettingsChanged,
   listenAppEditorPreferencesChanged,
+  listenAppExportSettingsChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
   listenAppWebSearchSettingsChanged,
   notifyAppAiSettingsChanged,
   notifyAppEditorPreferencesChanged,
+  notifyAppExportSettingsChanged,
   notifyAppLanguageChanged,
   notifyAppThemeChanged,
   notifyAppWebSearchSettingsChanged
@@ -84,7 +90,9 @@ vi.mock("../lib/tauri", () => ({
   requestNativeWebResource: vi.fn(),
   renameNativeMarkdownTreeFile: vi.fn(),
   saveNativeClipboardImage: vi.fn(),
+  saveNativeHtmlFile: vi.fn(),
   saveNativeMarkdownFile: vi.fn(),
+  saveNativePdfFile: vi.fn(),
   showNativeMarkdownFileTreeContextMenu: vi.fn(),
   watchNativeMarkdownFile: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn(),
@@ -129,11 +137,23 @@ vi.mock("../lib/settings/app-settings", () => ({
     providerId: "local-bing",
     searxngApiHost: ""
   },
+  defaultExportSettings: {
+    pdfAuthor: "",
+    pdfFooter: "",
+    pdfHeader: "",
+    pdfHeightMm: 297,
+    pdfMarginMm: 18,
+    pdfMarginPreset: "default",
+    pdfPageBreakOnH1: false,
+    pdfPageSize: "default",
+    pdfWidthMm: 210
+  },
   getStoredAiAgentSession: vi.fn(),
   getStoredAiAgentSessionSummary: vi.fn(),
   getStoredAiAgentPreferences: vi.fn(),
   getStoredAiSettings: vi.fn(),
   getStoredEditorPreferences: vi.fn(),
+  getStoredExportSettings: vi.fn(),
   getStoredLanguage: vi.fn(),
   getStoredTheme: vi.fn(),
   getStoredWebSearchSettings: vi.fn(),
@@ -151,6 +171,18 @@ vi.mock("../lib/settings/app-settings", () => ({
     showWordCount: true,
     ...preferences
   })),
+  normalizeExportSettings: vi.fn((settings) => ({
+    pdfAuthor: "",
+    pdfFooter: "",
+    pdfHeader: "",
+    pdfHeightMm: 297,
+    pdfMarginMm: 18,
+    pdfMarginPreset: "default",
+    pdfPageBreakOnH1: false,
+    pdfPageSize: "default",
+    pdfWidthMm: 210,
+    ...settings
+  })),
   normalizeWebSearchSettings: vi.fn((settings) => ({
     contentMaxChars: 12000,
     enabled: true,
@@ -165,6 +197,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   saveStoredAiAgentSessionTitle: vi.fn(),
   saveStoredAiSettings: vi.fn(),
   saveStoredEditorPreferences: vi.fn(),
+  saveStoredExportSettings: vi.fn(),
   saveStoredLanguage: vi.fn(),
   saveStoredTheme: vi.fn(),
   saveStoredWorkspaceState: vi.fn(),
@@ -174,11 +207,13 @@ vi.mock("../lib/settings/app-settings", () => ({
 vi.mock("../lib/settings/settings-events", () => ({
   listenAppAiSettingsChanged: vi.fn(),
   listenAppEditorPreferencesChanged: vi.fn(),
+  listenAppExportSettingsChanged: vi.fn(),
   listenAppLanguageChanged: vi.fn(),
   listenAppThemeChanged: vi.fn(),
   listenAppWebSearchSettingsChanged: vi.fn(),
   notifyAppAiSettingsChanged: vi.fn(),
   notifyAppEditorPreferencesChanged: vi.fn(),
+  notifyAppExportSettingsChanged: vi.fn(),
   notifyAppLanguageChanged: vi.fn(),
   notifyAppThemeChanged: vi.fn(),
   notifyAppWebSearchSettingsChanged: vi.fn()
@@ -214,7 +249,9 @@ export const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkd
 export const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
 export const mockedReadNativeMarkdownImageFile = vi.mocked(readNativeMarkdownImageFile);
 export const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
+export const mockedSaveNativeHtmlFile = vi.mocked(saveNativeHtmlFile);
 export const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
+export const mockedSaveNativePdfFile = vi.mocked(saveNativePdfFile);
 export const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
 export const mockedInstallNativeMarkdownFileDrop = vi.mocked(installNativeMarkdownFileDrop);
 export const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
@@ -234,6 +271,7 @@ export const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
 export const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
 export const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
 export const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPreferences);
+export const mockedGetStoredExportSettings = vi.mocked(getStoredExportSettings);
 export const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
 export const mockedGetStoredTheme = vi.mocked(getStoredTheme);
 export const mockedGetStoredWebSearchSettings = vi.mocked(getStoredWebSearchSettings);
@@ -245,17 +283,20 @@ export const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession
 export const mockedSaveStoredAiAgentSessionTitle = vi.mocked(saveStoredAiAgentSessionTitle);
 export const mockedSaveStoredAiSettings = vi.mocked(saveStoredAiSettings);
 export const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences);
+export const mockedSaveStoredExportSettings = vi.mocked(saveStoredExportSettings);
 export const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
 export const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
 export const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 export const mockedSetStoredAiAgentSessionArchived = vi.mocked(setStoredAiAgentSessionArchived);
 export const mockedListenAppAiSettingsChanged = vi.mocked(listenAppAiSettingsChanged);
 export const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
+export const mockedListenAppExportSettingsChanged = vi.mocked(listenAppExportSettingsChanged);
 export const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
 export const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
 export const mockedListenAppWebSearchSettingsChanged = vi.mocked(listenAppWebSearchSettingsChanged);
 export const mockedNotifyAppAiSettingsChanged = vi.mocked(notifyAppAiSettingsChanged);
 export const mockedNotifyAppEditorPreferencesChanged = vi.mocked(notifyAppEditorPreferencesChanged);
+export const mockedNotifyAppExportSettingsChanged = vi.mocked(notifyAppExportSettingsChanged);
 export const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
 export const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
 export const mockedNotifyAppWebSearchSettingsChanged = vi.mocked(notifyAppWebSearchSettingsChanged);
@@ -349,6 +390,8 @@ export function installAppTestHarness() {
     mockedOpenNativeMarkdownPath.mockReset();
     mockedReadNativeMarkdownImageFile.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
+    mockedSaveNativeHtmlFile.mockReset();
+    mockedSaveNativePdfFile.mockReset();
     mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
     mockedShowNativeMarkdownFileTreeContextMenu.mockReset();
@@ -366,6 +409,7 @@ export function installAppTestHarness() {
     mockedGetStoredAiAgentSession.mockReset();
     mockedGetStoredAiAgentSessionSummary.mockReset();
     mockedGetStoredEditorPreferences.mockReset();
+    mockedGetStoredExportSettings.mockReset();
     mockedGetStoredTheme.mockReset();
     mockedGetStoredWorkspaceState.mockReset();
     mockedInitializeStoredAiAgentSession.mockReset();
@@ -375,16 +419,19 @@ export function installAppTestHarness() {
     mockedSaveStoredAiAgentSessionTitle.mockReset();
     mockedSaveStoredAiSettings.mockReset();
     mockedSaveStoredEditorPreferences.mockReset();
+    mockedSaveStoredExportSettings.mockReset();
     mockedSaveStoredLanguage.mockReset();
     mockedSaveStoredTheme.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
     mockedSetStoredAiAgentSessionArchived.mockReset();
     mockedListenAppAiSettingsChanged.mockReset();
     mockedListenAppEditorPreferencesChanged.mockReset();
+    mockedListenAppExportSettingsChanged.mockReset();
     mockedListenAppLanguageChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
     mockedNotifyAppAiSettingsChanged.mockReset();
     mockedNotifyAppEditorPreferencesChanged.mockReset();
+    mockedNotifyAppExportSettingsChanged.mockReset();
     mockedNotifyAppLanguageChanged.mockReset();
     mockedNotifyAppThemeChanged.mockReset();
     mockedFetchAiProviderModels.mockReset();
@@ -409,9 +456,19 @@ export function installAppTestHarness() {
       src: "assets/image.png"
     });
     mockedSaveStoredEditorPreferences.mockResolvedValue(undefined);
+    mockedSaveStoredExportSettings.mockResolvedValue(undefined);
+    mockedSaveNativeHtmlFile.mockResolvedValue({
+      name: "Untitled.html",
+      path: "/mock-files/Untitled.html"
+    });
+    mockedSaveNativePdfFile.mockResolvedValue({
+      name: "Untitled.pdf",
+      path: "/mock-files/Untitled.pdf"
+    });
     mockedShowNativeMarkdownFileTreeContextMenu.mockResolvedValue(undefined);
     mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
+    mockedListenAppExportSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppWebSearchSettingsChanged.mockResolvedValue(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(true);
     mockedCreateAiAgentSessionId.mockReturnValue("session-app");
@@ -459,6 +516,17 @@ export function installAppTestHarness() {
       lineHeight: 1.65,
       restoreWorkspaceOnStartup: true,
       showWordCount: true
+    });
+    mockedGetStoredExportSettings.mockResolvedValue({
+      pdfAuthor: "",
+      pdfFooter: "",
+      pdfHeader: "",
+      pdfHeightMm: 297,
+      pdfMarginMm: 18,
+      pdfMarginPreset: "default",
+      pdfPageBreakOnH1: false,
+      pdfPageSize: "default",
+      pdfWidthMm: 210
     });
     mockedGetStoredAiSettings.mockResolvedValue({
       defaultModelId: "gpt-5.5",

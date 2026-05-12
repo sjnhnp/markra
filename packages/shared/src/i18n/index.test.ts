@@ -1,5 +1,6 @@
 import { supportedLanguages, t } from "./index";
 import deMessages from "./locales/de";
+import enMessages from "./locales/en";
 import esMessages from "./locales/es";
 import frMessages from "./locales/fr";
 import itMessages from "./locales/it";
@@ -24,11 +25,15 @@ const nonEnglishLocaleMessages: Record<Exclude<AppLanguage, "en">, LocaleMessage
   "zh-TW": zhTwMessages
 };
 
-const sourceModeKeys: I18nKey[] = [
-  "app.switchToSourceMode",
-  "app.switchToVisualMode",
-  "app.markdownSource"
-];
+const sourceKeys = Object.keys(enMessages) as I18nKey[];
+
+function untranslatedKeys(messages: LocaleMessages) {
+  return sourceKeys.filter((key) => {
+    const message = messages[key];
+
+    return typeof message !== "string" || message.trim().length === 0;
+  });
+}
 
 describe("i18n", () => {
   it("ships common app languages with English as the first default", () => {
@@ -51,12 +56,13 @@ describe("i18n", () => {
     expect(t("ru", "missing.key")).toBe("missing.key");
   });
 
-  it("ships source mode labels in every supported locale", () => {
+  it("ships non-empty English labels for every translation key", () => {
+    expect(untranslatedKeys(enMessages)).toEqual([]);
+  });
+
+  it("ships every English translation key in every supported locale", () => {
     for (const [language, messages] of Object.entries(nonEnglishLocaleMessages)) {
-      for (const key of sourceModeKeys) {
-        expect(messages[key], `${language} should define ${key}`).toEqual(expect.any(String));
-        expect(messages[key]?.trim(), `${language} should not leave ${key} empty`).not.toBe("");
-      }
+      expect(untranslatedKeys(messages), `${language} should define every English i18n key`).toEqual([]);
     }
   });
 });
