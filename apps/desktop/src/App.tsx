@@ -11,6 +11,10 @@ import { SettingsWindow } from "./components/SettingsWindow";
 import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useAiCommandUi } from "./hooks/useAiCommandUi";
+import {
+  shouldCloseAiCommandOnAgentPanelOpen,
+  shouldHideAiCommandForAiAgentPanel
+} from "./hooks/ai-agent-panel-visibility";
 import { useAiAgentSessionList } from "./hooks/useAiAgentSessionList";
 import { useAiAgentSession } from "./hooks/useAiAgentSession";
 import { useAiSettings } from "./hooks/useAiSettings";
@@ -350,18 +354,49 @@ export default function App() {
     aiCommand.closeAiCommand();
     editor.clearAiSelection();
   }, [aiCommand, editor]);
+  const shouldCloseAiCommandForAiAgentOpen = useCallback(
+    (nextOpen: boolean) => shouldCloseAiCommandOnAgentPanelOpen({
+      closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
+      currentOpen: aiAgentOpen,
+      nextOpen
+    }),
+    [aiAgentOpen, editorPreferences.preferences.closeAiCommandOnAgentPanelOpen]
+  );
+  const setAiAgentPanelOpen = useCallback((nextOpen: boolean) => {
+    if (shouldCloseAiCommandForAiAgentOpen(nextOpen)) handleAiCommandClose();
+    setAiAgentOpen(nextOpen);
+  }, [handleAiCommandClose, shouldCloseAiCommandForAiAgentOpen]);
+  const openAiAgentPanel = useCallback(() => {
+    setAiAgentPanelOpen(true);
+  }, [setAiAgentPanelOpen]);
+  const closeAiAgentPanel = useCallback(() => {
+    setAiAgentPanelOpen(false);
+  }, [setAiAgentPanelOpen]);
+  const toggleAiAgentPanel = useCallback(() => {
+    setAiAgentPanelOpen(!aiAgentOpen);
+  }, [aiAgentOpen, setAiAgentPanelOpen]);
+  useEffect(() => {
+    if (!shouldHideAiCommandForAiAgentPanel({
+      aiAgentOpen,
+      closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen
+    })) {
+      return;
+    }
+
+    aiCommand.closeAiCommand();
+  }, [aiAgentOpen, aiCommand.closeAiCommand, editorPreferences.preferences.closeAiCommandOnAgentPanelOpen]);
   const handleCreateAiAgentSession = useCallback(() => {
     const sessionId = createWorkspaceSession();
 
-    setAiAgentOpen(true);
+    openAiAgentPanel();
     initializeStoredAiAgentSession(sessionId, workspaceKey, createAiAgentInitialSessionOptions()).then(() => {
       aiAgentSessions.refresh().catch(() => {});
     }).catch(() => {});
-  }, [aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, workspaceKey]);
+  }, [aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, openAiAgentPanel, workspaceKey]);
   const handleSelectAiAgentSession = useCallback((sessionId: string) => {
     selectWorkspaceSession(sessionId);
-    setAiAgentOpen(true);
-  }, [selectWorkspaceSession]);
+    openAiAgentPanel();
+  }, [openAiAgentPanel, selectWorkspaceSession]);
   const handleRenameAiAgentSession = useCallback(async (sessionId: string, title: string) => {
     await saveStoredAiAgentSessionTitle(sessionId, title, {
       source: "manual",
@@ -386,8 +421,8 @@ export default function App() {
     }
 
     await aiAgentSessions.refresh();
-    setAiAgentOpen(true);
-  }, [activeAiAgentSessionId, aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
+    openAiAgentPanel();
+  }, [activeAiAgentSessionId, aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, openAiAgentPanel, selectWorkspaceSession, workspaceKey]);
   const handleArchiveAiAgentSession = useCallback(async (sessionId: string, archived: boolean) => {
     const remainingSessions = aiAgentSessions.sessions.filter(
       (session) => session.id !== sessionId && session.archivedAt === null
@@ -405,8 +440,8 @@ export default function App() {
     }
 
     await aiAgentSessions.refresh();
-    setAiAgentOpen(true);
-  }, [activeAiAgentSessionId, aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
+    openAiAgentPanel();
+  }, [activeAiAgentSessionId, aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, openAiAgentPanel, selectWorkspaceSession, workspaceKey]);
   const handleTextSelectionChange = useCallback((selection: AiSelectionContext | null) => {
     updateActiveAiSelection(selection);
 
@@ -424,10 +459,25 @@ export default function App() {
 
     editor.holdAiSelection(selection);
 
+    if (shouldHideAiCommandForAiAgentPanel({
+      aiAgentOpen,
+      closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen
+    })) {
+      aiCommand.closeAiCommand();
+      return;
+    }
+
     if (!editorPreferences.preferences.autoOpenAiOnSelection || aiCommand.open || aiCommand.submitting) return;
 
     aiCommand.openAiCommand(selection);
-  }, [aiCommand, editor, editorPreferences.preferences.autoOpenAiOnSelection, updateActiveAiSelection]);
+  }, [
+    aiAgentOpen,
+    aiCommand,
+    editor,
+    editorPreferences.preferences.autoOpenAiOnSelection,
+    editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
+    updateActiveAiSelection
+  ]);
   const saveDocumentAs = useCallback(() => saveCurrentDocument(true), [saveCurrentDocument]);
   const handleApplyAiResult = useCallback((restoredResult?: AiDiffResult | null, previewId?: string) => {
     const result = restoredResult ?? aiResults.at(-1) ?? null;
@@ -570,8 +620,8 @@ export default function App() {
   }, [openMarkdownFile]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
   const handleAiAgentToggle = useCallback(() => {
-    setAiAgentOpen((open) => !open);
-  }, []);
+    toggleAiAgentPanel();
+  }, [toggleAiAgentPanel]);
   const handleOpenSettings = useCallback(() => {
     openSettingsWindow().catch(() => {});
   }, []);
@@ -830,7 +880,7 @@ export default function App() {
                 onArchiveSession={(sessionId, archived) => {
                   handleArchiveAiAgentSession(sessionId, archived).catch(() => {});
                 }}
-                onClose={() => setAiAgentOpen(false)}
+                onClose={closeAiAgentPanel}
                 onCreateSession={handleCreateAiAgentSession}
                 onDeleteSession={(sessionId) => {
                   handleDeleteAiAgentSession(sessionId).catch(() => {});

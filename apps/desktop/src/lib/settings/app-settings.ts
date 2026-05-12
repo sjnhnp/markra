@@ -40,6 +40,7 @@ export type EditorPreferences = {
   autoOpenAiOnSelection: boolean;
   bodyFontSize: number;
   clipboardImageFolder: string;
+  closeAiCommandOnAgentPanelOpen: boolean;
   contentWidth: EditorContentWidth;
   lineHeight: number;
   restoreWorkspaceOnStartup: boolean;
@@ -59,6 +60,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   autoOpenAiOnSelection: true,
   bodyFontSize: 16,
   clipboardImageFolder: "assets",
+  closeAiCommandOnAgentPanelOpen: false,
   contentWidth: "default",
   lineHeight: 1.65,
   restoreWorkspaceOnStartup: true,
@@ -443,6 +445,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       ? Number(preferences.bodyFontSize)
       : defaultEditorPreferences.bodyFontSize,
     clipboardImageFolder: normalizeClipboardImageFolder(preferences.clipboardImageFolder),
+    closeAiCommandOnAgentPanelOpen:
+      typeof preferences.closeAiCommandOnAgentPanelOpen === "boolean"
+        ? preferences.closeAiCommandOnAgentPanelOpen
+        : defaultEditorPreferences.closeAiCommandOnAgentPanelOpen,
     contentWidth: editorContentWidthOptions.includes(preferences.contentWidth as EditorContentWidth)
       ? (preferences.contentWidth as EditorContentWidth)
       : defaultEditorPreferences.contentWidth,

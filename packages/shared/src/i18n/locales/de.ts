@@ -24,6 +24,8 @@ const messages: LocaleMessages = {
   "settings.theme.dark": "Dunkel",
   "settings.editor.autoOpenAiOnSelection": "KI bei Textauswahl anzeigen",
   "settings.editor.autoOpenAiOnSelectionDescription": "Öffnet den Inline-KI-Befehl, sobald ausgewählter Text bearbeitet werden kann.",
+  "settings.editor.closeAiCommandOnAgentPanelOpen": "Inline-KI beim Öffnen von Markra AI schließen",
+  "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "Blendet die untere KI-Befehlseingabe aus, wenn das rechte KI-Panel geöffnet wird.",
   "settings.ai.addProvider": "Anbieter hinzufügen",
   "settings.ai.deleteProvider": "Anbieter löschen",
   "settings.ai.providerDeleted": "Anbieter gelöscht.",

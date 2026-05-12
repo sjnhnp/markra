@@ -24,6 +24,8 @@ const messages: LocaleMessages = {
   "settings.theme.dark": "Тёмная",
   "settings.editor.autoOpenAiOnSelection": "Показывать ИИ при выделении текста",
   "settings.editor.autoOpenAiOnSelectionDescription": "Открывает встроенную команду ИИ, когда выделенный текст готов к редактированию.",
+  "settings.editor.closeAiCommandOnAgentPanelOpen": "Закрывать встроенный ИИ при открытии Markra AI",
+  "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "Скрывает нижнее поле команды ИИ, когда открывается правая панель ИИ.",
   "settings.ai.addProvider": "Добавить провайдера",
   "settings.ai.deleteProvider": "Удалить провайдера",
   "settings.ai.providerDeleted": "Провайдер удалён.",

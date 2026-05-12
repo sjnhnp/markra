@@ -29,6 +29,8 @@ const messages: LocaleMessages = {
   "settings.theme.dark": "ダーク",
   "settings.editor.autoOpenAiOnSelection": "テキスト選択時に AI を表示",
   "settings.editor.autoOpenAiOnSelectionDescription": "選択したテキストを編集できる状態になると、インライン AI コマンドを開きます。",
+  "settings.editor.closeAiCommandOnAgentPanelOpen": "Markra AI を開くときにインライン AI を閉じる",
+  "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "右側の AI パネルを開くと、下部の AI コマンド入力を隠します。",
   "settings.ai.addProvider": "プロバイダーを追加",
   "settings.ai.deleteProvider": "プロバイダーを削除",
   "settings.ai.providerDeleted": "プロバイダーを削除しました。",

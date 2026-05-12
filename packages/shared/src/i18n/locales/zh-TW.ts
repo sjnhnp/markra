@@ -29,6 +29,8 @@ const messages: LocaleMessages = {
   "settings.theme.dark": "深色",
   "settings.editor.autoOpenAiOnSelection": "選中文字時顯示 AI",
   "settings.editor.autoOpenAiOnSelectionDescription": "選中文本後自動開啟底部 AI 命令輸入框。",
+  "settings.editor.closeAiCommandOnAgentPanelOpen": "開啟 Markra AI 時關閉快捷輸入框",
+  "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "開啟右側 AI 面板時隱藏底部 AI 命令輸入框。",
   "settings.ai.addProvider": "新增服務商",
   "settings.ai.deleteProvider": "刪除服務商",
   "settings.ai.providerDeleted": "服務商已刪除。",

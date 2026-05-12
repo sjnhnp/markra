@@ -47,6 +47,8 @@ const messages: BaseLocaleMessages = {
   "settings.editor.showWordCount": "Show word count",
   "settings.editor.showWordCountDescription": "Show document word count in the editor status line.",
   "settings.editor.autoOpenAiOnSelectionDescription": "Open the inline AI command when selected text is ready to edit.",
+  "settings.editor.closeAiCommandOnAgentPanelOpen": "Close inline AI when opening Markra AI",
+  "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "Hide the bottom AI command input when the right-side AI panel opens.",
   "settings.editor.bodyFontSize": "Body font size",
   "settings.editor.bodyFontSizeDescription": "Editing size for normal paragraphs.",
   "settings.ai.addProvider": "Add provider",
