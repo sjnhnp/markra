@@ -5,12 +5,17 @@ import {
   installNativeEditorContextMenu,
   type NativeMenuHandlers
 } from "../lib/tauri";
-import type { AppLanguage } from "@markra/shared";
+import type { AiEditIntent } from "@markra/ai";
+import { t, type AppLanguage, type I18nKey } from "@markra/shared";
+
+type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
 type NativeMenuHandlerOptions = {
   insertMarkdownSnippet: (open: string, close: string, placeholder: string) => unknown;
   insertMarkdownTable: () => unknown;
+  language?: AppLanguage;
   openDocument: () => unknown | Promise<unknown>;
+  runAiQuickAction?: (intent: NativeAiQuickActionIntent, prompt: string) => unknown | Promise<unknown>;
   runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "shiftKey">) => unknown;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
@@ -26,7 +31,9 @@ type ApplicationShortcutOptions = {
 export function useNativeMenuHandlers({
   insertMarkdownSnippet,
   insertMarkdownTable,
+  language = "en",
   openDocument,
+  runAiQuickAction,
   runEditorShortcut,
   saveDocument,
   saveDocumentAs
@@ -50,10 +57,33 @@ export function useNativeMenuHandlers({
       formatCodeBlock: () => runEditorShortcut("c", { altKey: true }),
       insertLink: () => insertMarkdownSnippet("[", "](https://)", "text"),
       insertImage: () => insertMarkdownSnippet("![", "](https://)", "alt"),
-      insertTable: insertMarkdownTable
+      insertTable: insertMarkdownTable,
+      aiPolish: aiQuickAction(runAiQuickAction, "polish", "app.aiPolish", language),
+      aiRewrite: aiQuickAction(runAiQuickAction, "rewrite", "app.aiRewrite", language),
+      aiContinueWriting: aiQuickAction(runAiQuickAction, "continue", "app.aiContinueWriting", language),
+      aiSummarize: aiQuickAction(runAiQuickAction, "summarize", "app.aiSummarize", language),
+      aiTranslate: aiQuickAction(runAiQuickAction, "translate", "app.aiTranslate", language)
     }),
-    [insertMarkdownSnippet, insertMarkdownTable, openDocument, runEditorShortcut, saveDocument, saveDocumentAs]
+    [
+      insertMarkdownSnippet,
+      insertMarkdownTable,
+      language,
+      openDocument,
+      runAiQuickAction,
+      runEditorShortcut,
+      saveDocument,
+      saveDocumentAs
+    ]
   );
+}
+
+function aiQuickAction(
+  runAiQuickAction: NativeMenuHandlerOptions["runAiQuickAction"],
+  intent: NativeAiQuickActionIntent,
+  labelKey: I18nKey,
+  language: AppLanguage
+) {
+  return () => runAiQuickAction?.(intent, t(language, labelKey));
 }
 
 export function useNativeMarkdownDrop(onDrop: (target: NativeMarkdownDroppedTarget) => unknown | Promise<unknown>) {
@@ -77,7 +107,11 @@ export function useNativeMarkdownDrop(onDrop: (target: NativeMarkdownDroppedTarg
   }, [onDrop]);
 }
 
-export function useNativeMenus(handlers: NativeMenuHandlers, language: AppLanguage | null = "en") {
+export function useNativeMenus(
+  handlers: NativeMenuHandlers,
+  language: AppLanguage | null = "en",
+  options: { getAiCommandsAvailable?: () => boolean } = {}
+) {
   useEffect(() => {
     if (!language) return;
 
@@ -105,7 +139,9 @@ export function useNativeMenus(handlers: NativeMenuHandlers, language: AppLangua
     let active = true;
     let cleanup: (() => unknown) | null = null;
 
-    installNativeEditorContextMenu(globalThis.document, handlers, language).then((removeContextMenu) => {
+    installNativeEditorContextMenu(globalThis.document, handlers, language, {
+      getAiCommandsAvailable: options.getAiCommandsAvailable
+    }).then((removeContextMenu) => {
       if (!active) {
         removeContextMenu();
         return;
@@ -118,7 +154,7 @@ export function useNativeMenus(handlers: NativeMenuHandlers, language: AppLangua
       active = false;
       cleanup?.();
     };
-  }, [handlers, language]);
+  }, [handlers, language, options.getAiCommandsAvailable]);
 }
 
 export function useApplicationShortcuts({

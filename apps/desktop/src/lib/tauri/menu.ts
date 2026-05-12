@@ -19,6 +19,10 @@ export type NativeMarkdownFileTreeContextMenuHandlers = {
   renameFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
 };
 
+export type NativeEditorContextMenuOptions = {
+  getAiCommandsAvailable?: () => boolean;
+};
+
 export type NativeMenuCommand =
   | "openDocument"
   | "saveDocument"
@@ -37,7 +41,12 @@ export type NativeMenuCommand =
   | "formatCodeBlock"
   | "insertLink"
   | "insertImage"
-  | "insertTable";
+  | "insertTable"
+  | "aiPolish"
+  | "aiRewrite"
+  | "aiContinueWriting"
+  | "aiSummarize"
+  | "aiTranslate";
 
 type NativeMenuCommandPayload = {
   command: NativeMenuCommand;
@@ -89,6 +98,14 @@ function separator(): PredefinedMenuItemOptions {
 
 function predefined(item: PredefinedMenuItemOptions["item"], text?: string): PredefinedMenuItemOptions {
   return text ? { item, text } : { item };
+}
+
+function submenu(id: string, text: string, items: SubmenuOptions["items"]): SubmenuOptions {
+  return {
+    id,
+    items,
+    text
+  };
 }
 
 function menuLabel(language: AppLanguage, key: I18nKey) {
@@ -155,7 +172,7 @@ export function createNativeApplicationMenuItems(
   const codeBlock = customItem("formatCodeBlock", label("menu.codeBlock"), "CmdOrCtrl+Alt+C", handlers.formatCodeBlock);
   const link = customItem("insertLink", label("menu.link"), "CmdOrCtrl+K", handlers.insertLink);
   const image = customItem("insertImage", label("menu.image"), "CmdOrCtrl+Shift+I", handlers.insertImage);
-  const table = customItem("insertTable", label("menu.table"), undefined, handlers.insertTable);
+  const table = customItem("insertTable", label("menu.table"), "CmdOrCtrl+Alt+T", handlers.insertTable);
 
   return [
     {
@@ -246,47 +263,127 @@ export async function installNativeApplicationMenu(handlers: NativeMenuHandlers,
   return stopListening;
 }
 
-export function createNativeEditorContextMenuItems(handlers: NativeMenuHandlers, language: AppLanguage = "en") {
+export function createNativeEditorContextMenuItems(
+  handlers: NativeMenuHandlers,
+  language: AppLanguage = "en",
+  options: { aiCommandsAvailable?: boolean } = {}
+) {
   const label = (key: I18nKey) => menuLabel(language, key);
-
-  return [
+  const formatItems = [
+    customItem("markra:context:bold", label("menu.bold"), "CmdOrCtrl+B", handlers.formatBold),
+    customItem("markra:context:italic", label("menu.italic"), "CmdOrCtrl+I", handlers.formatItalic),
+    customItem(
+      "markra:context:strikethrough",
+      label("menu.strikethrough"),
+      "CmdOrCtrl+Shift+X",
+      handlers.formatStrikethrough
+    ),
+    customItem(
+      "markra:context:inline-code",
+      label("menu.inlineCode"),
+      "CmdOrCtrl+E",
+      handlers.formatInlineCode
+    ),
+    separator(),
+    customItem("markra:context:paragraph", label("menu.paragraph"), "CmdOrCtrl+Alt+0", handlers.formatParagraph),
+    customItem("markra:context:heading-1", label("menu.heading1"), "CmdOrCtrl+Alt+1", handlers.formatHeading1),
+    customItem("markra:context:heading-2", label("menu.heading2"), "CmdOrCtrl+Alt+2", handlers.formatHeading2),
+    customItem("markra:context:heading-3", label("menu.heading3"), "CmdOrCtrl+Alt+3", handlers.formatHeading3),
+    separator(),
+    customItem(
+      "markra:context:bullet-list",
+      label("menu.bulletList"),
+      "CmdOrCtrl+Shift+8",
+      handlers.formatBulletList
+    ),
+    customItem(
+      "markra:context:ordered-list",
+      label("menu.orderedList"),
+      "CmdOrCtrl+Shift+7",
+      handlers.formatOrderedList
+    ),
+    customItem("markra:context:quote", label("menu.quote"), "CmdOrCtrl+Shift+B", handlers.formatQuote),
+    customItem(
+      "markra:context:code-block",
+      label("menu.codeBlock"),
+      "CmdOrCtrl+Alt+C",
+      handlers.formatCodeBlock
+    )
+  ];
+  const items: Array<MenuItemOptions | PredefinedMenuItemOptions | SubmenuOptions> = [
     predefined("Cut", label("menu.cut")),
     predefined("Copy", label("menu.copy")),
     predefined("Paste", label("menu.paste")),
     predefined("SelectAll", label("menu.selectAll")),
     separator(),
-    customItem("markra:context:bold", label("menu.bold"), "CmdOrCtrl+B", handlers.formatBold),
-    customItem("markra:context:italic", label("menu.italic"), "CmdOrCtrl+I", handlers.formatItalic),
+    submenu("markra:context:format", label("menu.format"), formatItems),
+    separator(),
     customItem("markra:context:link", label("menu.link"), "CmdOrCtrl+K", handlers.insertLink),
-    customItem("markra:context:table", label("menu.table"), undefined, handlers.insertTable)
+    customItem("markra:context:image", label("menu.image"), "CmdOrCtrl+Shift+I", handlers.insertImage),
+    customItem("markra:context:table", label("menu.table"), "CmdOrCtrl+Alt+T", handlers.insertTable)
   ];
+
+  if (options.aiCommandsAvailable) {
+    items.push(
+      separator(),
+      submenu("markra:context:ai", label("app.aiToolkit"), [
+        customItem("markra:context:ai-polish", label("app.aiPolish"), undefined, handlers.aiPolish),
+        customItem("markra:context:ai-rewrite", label("app.aiRewrite"), undefined, handlers.aiRewrite),
+        customItem(
+          "markra:context:ai-continue-writing",
+          label("app.aiContinueWriting"),
+          undefined,
+          handlers.aiContinueWriting
+        ),
+        customItem("markra:context:ai-summarize", label("app.aiSummarize"), undefined, handlers.aiSummarize),
+        customItem("markra:context:ai-translate", label("app.aiTranslate"), undefined, handlers.aiTranslate)
+      ])
+    );
+  }
+
+  return items;
 }
 
 export async function installNativeEditorContextMenu(
   target: Pick<EventTarget, "addEventListener" | "removeEventListener">,
   handlers: NativeMenuHandlers,
-  language: AppLanguage = "en"
+  language: AppLanguage = "en",
+  options: NativeEditorContextMenuOptions = {}
 ) {
+  const handleContextMenu = (event: Event) => {
+    const element = event.target instanceof Element ? event.target : null;
+    if (!element?.closest(".markdown-paper")) return;
+
+    event.preventDefault();
+    showNativeEditorContextMenu(handlers, language, {
+      aiCommandsAvailable: readAiCommandsAvailable(options)
+    }).catch(() => {});
+  };
+
+  target.addEventListener("contextmenu", handleContextMenu);
+
+  return () => {
+    target.removeEventListener("contextmenu", handleContextMenu);
+  };
+}
+
+async function showNativeEditorContextMenu(
+  handlers: NativeMenuHandlers,
+  language: AppLanguage,
+  options: { aiCommandsAvailable?: boolean }
+) {
+  const menu = await Menu.new({
+    items: createNativeEditorContextMenuItems(handlers, language, options)
+  });
+
+  await menu.popup();
+}
+
+function readAiCommandsAvailable(options: NativeEditorContextMenuOptions) {
   try {
-    const menu = await Menu.new({
-      items: createNativeEditorContextMenuItems(handlers, language)
-    });
-
-    const handleContextMenu = (event: Event) => {
-      const element = event.target instanceof Element ? event.target : null;
-      if (!element?.closest(".markdown-paper")) return;
-
-      event.preventDefault();
-      menu.popup();
-    };
-
-    target.addEventListener("contextmenu", handleContextMenu);
-
-    return () => {
-      target.removeEventListener("contextmenu", handleContextMenu);
-    };
+    return Boolean(options.getAiCommandsAvailable?.());
   } catch {
-    return () => {};
+    return false;
   }
 }
 

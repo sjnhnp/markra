@@ -29,6 +29,7 @@ const mockedGetCurrentWindow = vi.mocked(getCurrentWindow);
 type TestMenuItem = NonNullable<MenuOptions["items"]>[number];
 type TestActionMenuItem = TestMenuItem & {
   action?: (id: string) => unknown;
+  icon?: unknown;
   id?: string;
 };
 
@@ -40,10 +41,27 @@ function latestMenuItems() {
 }
 
 function menuItemById(items: TestMenuItem[], id: string) {
-  const item = items.find((candidate) => "id" in candidate && candidate.id === id);
+  const item = findMenuItemById(items, id);
   if (!item) throw new Error(`Expected menu item ${id}.`);
 
   return item as TestActionMenuItem;
+}
+
+function findMenuItemById(items: TestMenuItem[], id: string): TestActionMenuItem | null {
+  for (const candidate of items) {
+    if ("id" in candidate && candidate.id === id) return candidate as TestActionMenuItem;
+    if ("items" in candidate && Array.isArray(candidate.items)) {
+      const child = findMenuItemById(candidate.items as TestMenuItem[], id);
+      if (child) return child;
+    }
+  }
+
+  return null;
+}
+
+async function flushNativeMenuPopup() {
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 describe("native menu", () => {
@@ -109,6 +127,9 @@ describe("native menu", () => {
         expect.objectContaining({ id: "markra:format" })
       ])
     });
+    expect(menuItemById(latestMenuItems(), "insertTable")).toMatchObject({
+      accelerator: "CmdOrCtrl+Alt+T"
+    });
     expect(setAsAppMenu).toHaveBeenCalledTimes(1);
   });
 
@@ -144,12 +165,16 @@ describe("native menu", () => {
     expect(popup).not.toHaveBeenCalled();
 
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await flushNativeMenuPopup();
 
     expect(mockedMenuNew).toHaveBeenCalledTimes(1);
     expect(popup).toHaveBeenCalledTimes(1);
 
     const table = menuItemById(latestMenuItems(), "markra:context:table");
-    expect(table).toMatchObject({ text: "Table" });
+    expect(table).toMatchObject({
+      accelerator: "CmdOrCtrl+Alt+T",
+      text: "Table"
+    });
 
     table.action?.("markra:context:table");
 
@@ -159,6 +184,102 @@ describe("native menu", () => {
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
 
     expect(popup).toHaveBeenCalledTimes(1);
+  });
+
+  it("groups richer editor formatting actions in the native context menu", async () => {
+    const target = document.createElement("main");
+    const paper = document.createElement("article");
+    const handlers: NativeMenuHandlers = {
+      formatBold: vi.fn(),
+      formatCodeBlock: vi.fn(),
+      formatHeading2: vi.fn(),
+      formatInlineCode: vi.fn(),
+      formatOrderedList: vi.fn(),
+      formatQuote: vi.fn(),
+      formatStrikethrough: vi.fn(),
+      insertImage: vi.fn(),
+      insertLink: vi.fn(),
+      insertTable: vi.fn()
+    };
+    paper.className = "markdown-paper";
+    target.append(paper);
+
+    await installNativeEditorContextMenu(target, handlers);
+
+    paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await flushNativeMenuPopup();
+
+    const items = latestMenuItems();
+
+    expect(menuItemById(items, "markra:context:format")).toMatchObject({ text: "Format" });
+    expect(menuItemById(items, "markra:context:strikethrough")).toMatchObject({ text: "Strikethrough" });
+    expect(menuItemById(items, "markra:context:inline-code")).toMatchObject({ text: "Inline Code" });
+    expect(menuItemById(items, "markra:context:heading-2")).toMatchObject({ text: "Heading 2" });
+    expect(menuItemById(items, "markra:context:ordered-list")).toMatchObject({ text: "Ordered List" });
+    expect(menuItemById(items, "markra:context:quote")).toMatchObject({ text: "Quote" });
+    expect(menuItemById(items, "markra:context:code-block")).toMatchObject({ text: "Code Block" });
+    expect(menuItemById(items, "markra:context:image")).toMatchObject({ text: "Image" });
+
+    menuItemById(items, "markra:context:strikethrough").action?.("markra:context:strikethrough");
+    menuItemById(items, "markra:context:code-block").action?.("markra:context:code-block");
+    menuItemById(items, "markra:context:image").action?.("markra:context:image");
+
+    expect(handlers.formatStrikethrough).toHaveBeenCalledTimes(1);
+    expect(handlers.formatCodeBlock).toHaveBeenCalledTimes(1);
+    expect(handlers.insertImage).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows editor AI context actions only when an AI target is available", async () => {
+    const target = document.createElement("main");
+    const paper = document.createElement("article");
+    const aiPolish = vi.fn();
+    const aiTranslate = vi.fn();
+    let aiCommandsAvailable = false;
+    paper.className = "markdown-paper";
+    target.append(paper);
+
+    await installNativeEditorContextMenu(target, {
+      aiPolish,
+      aiTranslate
+    }, "en", {
+      getAiCommandsAvailable: () => aiCommandsAvailable
+    });
+
+    paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await flushNativeMenuPopup();
+
+    expect(findMenuItemById(latestMenuItems(), "markra:context:ai")).toBeNull();
+
+    mockedMenuNew.mockClear();
+    aiCommandsAvailable = true;
+
+    paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await flushNativeMenuPopup();
+
+    const items = latestMenuItems();
+    const aiMenu = menuItemById(items, "markra:context:ai");
+    expect(aiMenu).toMatchObject({ text: "AI toolkit" });
+    expect(aiMenu).not.toHaveProperty("icon");
+    const aiActionItems = [
+      ["markra:context:ai-polish", "Polish"],
+      ["markra:context:ai-rewrite", "Rewrite"],
+      ["markra:context:ai-continue-writing", "Continue writing"],
+      ["markra:context:ai-summarize", "Summarize"],
+      ["markra:context:ai-translate", "Translate"]
+    ] as const;
+
+    for (const [id, text] of aiActionItems) {
+      const item = menuItemById(items, id);
+
+      expect(item).toMatchObject({ text });
+      expect(item).not.toHaveProperty("icon");
+    }
+
+    menuItemById(items, "markra:context:ai-polish").action?.("markra:context:ai-polish");
+    menuItemById(items, "markra:context:ai-translate").action?.("markra:context:ai-translate");
+
+    expect(aiPolish).toHaveBeenCalledTimes(1);
+    expect(aiTranslate).toHaveBeenCalledTimes(1);
   });
 
   it("shows native markdown file tree actions for a file target", async () => {

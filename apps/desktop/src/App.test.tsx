@@ -20,6 +20,7 @@ import {
   mockedGetStoredTheme,
   mockedGetStoredWorkspaceState,
   mockedInstallNativeApplicationMenu,
+  mockedInstallNativeEditorContextMenu,
   mockedInstallNativeMarkdownFileDrop,
   mockedListNativeMarkdownFilesForPath,
   mockedListenAppLanguageChanged,
@@ -1511,6 +1512,16 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(container.querySelector(".ProseMirror table")).toBeInTheDocument());
     expect(container.querySelector(".ProseMirror table")).toHaveTextContent("Column 1");
     expect(container.querySelector(".ProseMirror table")).toHaveTextContent("Column 2");
+  });
+
+  it("does not expose native editor AI context actions without selected text", async () => {
+    renderApp();
+
+    await screen.findByText("Welcome to Markra");
+    await waitFor(() => expect(mockedInstallNativeEditorContextMenu).toHaveBeenCalledTimes(1));
+    const options = mockedInstallNativeEditorContextMenu.mock.calls[0]?.[3];
+
+    expect(options?.getAiCommandsAvailable?.()).toBe(false);
   });
 
   it("reloads the current file when a native watcher reports an external change", async () => {
