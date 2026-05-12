@@ -5,7 +5,7 @@
 <p align="center">
   <strong>A WYSIWYG Markdown editor with native AI.</strong>
   <br />
-  <strong>Fully open source. Free to use.</strong>
+  <strong>Fully open source. Free to use. Your data stays local.</strong>
 </p>
 
 <p align="center">
@@ -20,7 +20,9 @@
   <img alt="License" src="https://img.shields.io/badge/License-AGPL--3.0-important" />
 </p>
 
-Markra is a fully open-source, free Markdown editor built around a WYSIWYG writing experience. It brings AI directly into the editor, so you can write Markdown like a finished document while keeping the plain-text format open, lightweight, and portable.
+Markra is a fully open-source, free Markdown editor built around a WYSIWYG writing experience. It brings AI directly into the editor, so you can write Markdown like a finished document while keeping the plain-text format open, lightweight, portable, and local.
+
+Your files and workspace data stay on your device by default. Markra does not upload or sync your documents to a Markra server; AI and web search only send the context you choose through the providers you configure.
 
 AI in Markra is not a detached chat window. It is part of the editing workflow. It can understand the current selection, the full document, the heading structure, and nearby Markdown files, then help you polish, rewrite, continue, summarize, or translate content. Write operations are shown as previews first, so you stay in control before anything changes.
 
@@ -70,6 +72,7 @@ AI in Markra is not a detached chat window. It is part of the editing workflow. 
 ### 4. Local Markdown Workspace
 
 - Open a single Markdown file or an entire Markdown folder.
+- Keep documents and workspace data local by default, without a Markra cloud account or hosted document sync.
 - Browse, create, rename, and delete documents from the file tree.
 - Jump through the current document with the outline view.
 - Preview images and resolve Markdown image paths locally.
@@ -104,7 +107,7 @@ Markra supports cloud models, local models, and OpenAI-compatible providers. You
 
 ### Local First
 
-Your Markdown files stay on your disk. Markra opens, edits, saves, and organizes them without locking your writing into a proprietary format.
+Your Markdown files and workspace data stay on your disk. Markra opens, edits, saves, and organizes them locally without locking your writing into a proprietary format or hosted storage service.
 
 ### Open Source and Free
 
