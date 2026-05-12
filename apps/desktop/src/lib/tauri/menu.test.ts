@@ -1,4 +1,5 @@
 import { Menu, type MenuOptions } from "@tauri-apps/api/menu";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -15,6 +16,10 @@ vi.mock("@tauri-apps/api/menu", () => ({
   }
 }));
 
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn()
+}));
+
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn()
 }));
@@ -24,6 +29,7 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 const mockedMenuNew = vi.mocked(Menu.new);
+const mockedInvoke = vi.mocked(invoke);
 const mockedListen = vi.mocked(listen);
 const mockedGetCurrentWindow = vi.mocked(getCurrentWindow);
 type TestMenuItem = NonNullable<MenuOptions["items"]>[number];
@@ -80,6 +86,7 @@ describe("native menu", () => {
 
   beforeEach(() => {
     mockedMenuNew.mockReset();
+    mockedInvoke.mockReset();
     mockedListen.mockReset();
     mockedGetCurrentWindow.mockReset();
     setAsAppMenu.mockReset();
@@ -90,6 +97,7 @@ describe("native menu", () => {
       popup,
       setAsAppMenu
     } as unknown as Awaited<ReturnType<typeof Menu.new>>);
+    mockedInvoke.mockResolvedValue(undefined);
     mockedListen.mockResolvedValue(unlisten);
     mockedGetCurrentWindow.mockReturnValue({
       isFocused
@@ -121,7 +129,7 @@ describe("native menu", () => {
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
-  it("installs the application menu while keeping command listeners", async () => {
+  it("asks Rust to install the application menu while keeping command listeners", async () => {
     const handlers: NativeMenuHandlers = {
       saveDocument: vi.fn()
     };
@@ -129,28 +137,25 @@ describe("native menu", () => {
     await installNativeApplicationMenu(handlers, "fr");
 
     expect(mockedListen).toHaveBeenCalledWith("markra://menu-command", expect.any(Function));
-    expect(mockedMenuNew).toHaveBeenCalledWith({
-      items: expect.arrayContaining([
-        expect.objectContaining({ id: "markra:file" }),
-        expect.objectContaining({ id: "markra:format" })
-      ])
+    expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
+      language: "fr"
     });
-    expect(menuItemById(latestMenuItems(), "insertTable")).toMatchObject({
-      accelerator: "CmdOrCtrl+Alt+T"
-    });
-    const exportMenu = menuItemById(latestMenuItems(), "markra:file:export");
-    expect(exportMenu).toMatchObject({
-      text: "Exporter"
-    });
-    expect(menuItemById(menuItemChildren(exportMenu), "exportPdf")).toMatchObject({
-      accelerator: "CmdOrCtrl+P",
-      text: "Exporter en PDF"
-    });
-    expect(menuItemById(menuItemChildren(exportMenu), "exportHtml")).toMatchObject({
-      accelerator: "CmdOrCtrl+Shift+E",
-      text: "Exporter en HTML"
-    });
-    expect(setAsAppMenu).toHaveBeenCalledTimes(1);
+    expect(mockedMenuNew).not.toHaveBeenCalled();
+    expect(setAsAppMenu).not.toHaveBeenCalled();
+  });
+
+  it("routes Rust application menu commands once after Rust installs the menu", async () => {
+    const handlers: NativeMenuHandlers = {
+      openDocument: vi.fn()
+    };
+
+    await installNativeApplicationMenu(handlers, "en");
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await listener?.({ payload: { command: "openDocument" } } as Parameters<NonNullable<typeof listener>>[0]);
+
+    expect(mockedMenuNew).not.toHaveBeenCalled();
+    expect(handlers.openDocument).toHaveBeenCalledTimes(1);
   });
 
   it("ignores native application menu commands in unfocused windows", async () => {

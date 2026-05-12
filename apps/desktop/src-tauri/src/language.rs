@@ -40,7 +40,7 @@ impl AppLanguage {
         }
     }
 
-    fn from_code(value: &str) -> Option<Self> {
+    pub(crate) fn from_code(value: &str) -> Option<Self> {
         match value {
             "en" => Some(Self::En),
             "zh-CN" => Some(Self::ZhCn),

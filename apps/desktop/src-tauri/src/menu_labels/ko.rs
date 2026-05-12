@@ -39,4 +39,5 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     code_block: "코드 블록",
     link: "링크",
     image: "이미지",
+    table: "표",
 };

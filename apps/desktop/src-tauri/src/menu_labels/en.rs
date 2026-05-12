@@ -39,4 +39,5 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     code_block: "Code Block",
     link: "Link",
     image: "Image",
+    table: "Table",
 };

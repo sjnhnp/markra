@@ -52,6 +52,7 @@ pub(crate) struct MenuLabels {
     pub(crate) code_block: &'static str,
     pub(crate) link: &'static str,
     pub(crate) image: &'static str,
+    pub(crate) table: &'static str,
 }
 
 pub(crate) fn for_language(language: AppLanguage) -> MenuLabels {

@@ -39,4 +39,5 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     code_block: "代码块",
     link: "链接",
     image: "图片",
+    table: "表格",
 };
