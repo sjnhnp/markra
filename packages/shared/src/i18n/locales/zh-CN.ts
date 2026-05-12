@@ -47,6 +47,8 @@ const messages: LocaleMessages = {
   "settings.editor.showWordCount": "显示字数统计",
   "settings.editor.showWordCountDescription": "在编辑器状态栏显示当前文档字数。",
   "settings.editor.autoOpenAiOnSelectionDescription": "选中文本后自动打开底部 AI 命令输入框。",
+  "settings.editor.closeAiCommandOnAgentPanelOpen": "打开 Markra AI 时关闭快捷输入框",
+  "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "打开右侧 AI 面板时隐藏底部 AI 命令输入框。",
   "settings.editor.bodyFontSize": "正文字号",
   "settings.editor.bodyFontSizeDescription": "普通段落的编辑字号。",
   "settings.ai.addProvider": "添加服务商",

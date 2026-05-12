@@ -86,7 +86,8 @@ export async function listenAppEditorPreferencesChanged(
     if (
       typeof event.payload.preferences === "object" &&
       event.payload.preferences !== null &&
-      preferences.autoOpenAiOnSelection === event.payload.preferences.autoOpenAiOnSelection
+      preferences.autoOpenAiOnSelection === event.payload.preferences.autoOpenAiOnSelection &&
+      preferences.closeAiCommandOnAgentPanelOpen === event.payload.preferences.closeAiCommandOnAgentPanelOpen
     ) {
       onPreferencesChanged(preferences);
     }

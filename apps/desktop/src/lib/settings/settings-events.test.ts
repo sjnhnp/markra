@@ -88,6 +88,7 @@ describe("settings events", () => {
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
       clipboardImageFolder: "images",
+      closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide" as const,
       lineHeight: 1.8,
       restoreWorkspaceOnStartup: false,

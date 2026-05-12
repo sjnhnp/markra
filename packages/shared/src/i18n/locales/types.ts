@@ -47,6 +47,8 @@ export type I18nKey =
   | "settings.theme.dark"
   | "settings.editor.autoOpenAiOnSelection"
   | "settings.editor.autoOpenAiOnSelectionDescription"
+  | "settings.editor.closeAiCommandOnAgentPanelOpen"
+  | "settings.editor.closeAiCommandOnAgentPanelOpenDescription"
   | "settings.editor.bodyFontSize"
   | "settings.editor.bodyFontSizeDescription"
   | "settings.editor.lineHeight"

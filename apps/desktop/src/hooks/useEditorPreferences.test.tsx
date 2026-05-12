@@ -8,6 +8,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
+    closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     lineHeight: 1.65,
     restoreWorkspaceOnStartup: true,
@@ -36,6 +37,7 @@ describe("useEditorPreferences", () => {
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
+      closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       lineHeight: 1.65,
       restoreWorkspaceOnStartup: true,
@@ -57,6 +59,7 @@ describe("useEditorPreferences", () => {
         autoOpenAiOnSelection: false,
         bodyFontSize: 18,
         clipboardImageFolder: "images",
+        closeAiCommandOnAgentPanelOpen: true,
         contentWidth: "wide",
         lineHeight: 1.8,
         restoreWorkspaceOnStartup: false,
@@ -66,6 +69,7 @@ describe("useEditorPreferences", () => {
 
     expect(result.current.preferences.autoOpenAiOnSelection).toBe(false);
     expect(result.current.preferences.bodyFontSize).toBe(18);
+    expect(result.current.preferences.closeAiCommandOnAgentPanelOpen).toBe(true);
     expect(result.current.preferences.contentWidth).toBe("wide");
   });
 });

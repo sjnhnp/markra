@@ -24,6 +24,7 @@ import {
   mockedListNativeMarkdownFilesForPath,
   mockedListenAppLanguageChanged,
   mockedListenAppThemeChanged,
+  mockedNotifyAppEditorPreferencesChanged,
   mockedNotifyAppLanguageChanged,
   mockedNotifyAppThemeChanged,
   mockedOpenNativeMarkdownFileInNewWindow,
@@ -36,6 +37,7 @@ import {
   mockedResolveDesktopPlatform,
   mockedSaveNativeMarkdownFile,
   mockedSaveStoredAiSettings,
+  mockedSaveStoredEditorPreferences,
   mockedSaveStoredLanguage,
   mockedSaveStoredTheme,
   mockedShowNativeMarkdownFileTreeContextMenu,
@@ -290,6 +292,26 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".settings-sidebar-header")).toHaveClass("h-14", "items-center");
     expect(container.querySelector(".settings-sidebar-header")).not.toHaveClass("pt-14");
     expect(container.querySelector(".settings-sidebar-title")).toBeInTheDocument();
+  });
+
+  it("stores the preference for closing inline AI when the Markra AI panel opens", async () => {
+    window.history.pushState({}, "", "/?settings=1");
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Editor" }));
+    const closeInlineAiSwitch = screen.getByRole("switch", { name: "Close inline AI when opening Markra AI" });
+
+    expect(closeInlineAiSwitch).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(closeInlineAiSwitch);
+
+    await waitFor(() => expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(expect.objectContaining({
+      closeAiCommandOnAgentPanelOpen: true
+    })));
+    await waitFor(() => expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith(expect.objectContaining({
+      closeAiCommandOnAgentPanelOpen: true
+    })));
   });
 
   it("edits and stores AI provider settings from the settings window", async () => {

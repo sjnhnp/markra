@@ -452,22 +452,38 @@ export function EditorSettings({
       </SettingsSection>
 
       <SettingsSection label={translate("settings.sections.aiAssistance")}>
-      <SettingsRow
-        title={translate("settings.editor.autoOpenAiOnSelection")}
-        description={translate("settings.editor.autoOpenAiOnSelectionDescription")}
-        action={
-          <SettingsSwitch
-            checked={preferences.autoOpenAiOnSelection}
-            label={translate("settings.editor.autoOpenAiOnSelection")}
-            onChange={() =>
-              onUpdatePreferences({
-                ...preferences,
-                autoOpenAiOnSelection: !preferences.autoOpenAiOnSelection
-              })
-            }
-          />
-        }
-      />
+        <SettingsRow
+          title={translate("settings.editor.autoOpenAiOnSelection")}
+          description={translate("settings.editor.autoOpenAiOnSelectionDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.autoOpenAiOnSelection}
+              label={translate("settings.editor.autoOpenAiOnSelection")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  autoOpenAiOnSelection: !preferences.autoOpenAiOnSelection
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.closeAiCommandOnAgentPanelOpen")}
+          description={translate("settings.editor.closeAiCommandOnAgentPanelOpenDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.closeAiCommandOnAgentPanelOpen}
+              label={translate("settings.editor.closeAiCommandOnAgentPanelOpen")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  closeAiCommandOnAgentPanelOpen: !preferences.closeAiCommandOnAgentPanelOpen
+                })
+              }
+            />
+          }
+        />
       </SettingsSection>
     </>
   );

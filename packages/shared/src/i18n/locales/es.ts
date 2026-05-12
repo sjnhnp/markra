@@ -24,6 +24,8 @@ const messages: LocaleMessages = {
   "settings.theme.dark": "Oscuro",
   "settings.editor.autoOpenAiOnSelection": "Mostrar IA al seleccionar texto",
   "settings.editor.autoOpenAiOnSelectionDescription": "Abre el comando de IA en línea cuando el texto seleccionado esté listo para editar.",
+  "settings.editor.closeAiCommandOnAgentPanelOpen": "Cerrar IA en línea al abrir Markra AI",
+  "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "Oculta la entrada de comandos de IA inferior cuando se abre el panel de IA derecho.",
   "settings.ai.addProvider": "Añadir proveedor",
   "settings.ai.deleteProvider": "Eliminar proveedor",
   "settings.ai.providerDeleted": "Proveedor eliminado.",
