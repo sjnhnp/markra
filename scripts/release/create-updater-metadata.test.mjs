@@ -33,8 +33,8 @@ function runMetadataScript(env) {
 
 test("create-updater-metadata prefers the Windows setup updater bundle", () => {
   const rootDir = makeTempDir();
-  const [, msiSignature] = writeBundle(rootDir, "Markra_0.0.8_x64_en-US.msi");
-  const [setupBundle, setupSignature] = writeBundle(rootDir, "Markra_0.0.8_x64-setup.exe");
+  const [, msiSignature] = writeBundle(rootDir, "Markra_0.0.8_windows_x64_en-US.msi");
+  const [setupBundle, setupSignature] = writeBundle(rootDir, "Markra_0.0.8_windows_x64_setup.exe");
   const outputPath = path.join(rootDir, "release-metadata.json");
 
   const result = runMetadataScript({
@@ -53,7 +53,7 @@ test("create-updater-metadata prefers the Windows setup updater bundle", () => {
 
 test("create-updater-metadata selects AppImage bundles for Linux updater metadata", () => {
   const rootDir = makeTempDir();
-  const [bundlePath, signaturePath] = writeBundle(rootDir, "Markra_0.0.8_amd64.AppImage");
+  const [bundlePath, signaturePath] = writeBundle(rootDir, "Markra_0.0.8_linux_x64.AppImage");
   const outputPath = path.join(rootDir, "release-metadata.json");
 
   const result = runMetadataScript({
@@ -72,7 +72,7 @@ test("create-updater-metadata selects AppImage bundles for Linux updater metadat
 
 test("create-updater-metadata selects renamed macOS updater tarballs", () => {
   const rootDir = makeTempDir();
-  const [bundlePath, signaturePath] = writeBundle(rootDir, "markra_0.0.8_aarch64.app.tar.gz");
+  const [bundlePath, signaturePath] = writeBundle(rootDir, "Markra_0.0.8_macos_arm64_updater.app.tar.gz");
   const outputPath = path.join(rootDir, "release-metadata.json");
 
   const result = runMetadataScript({

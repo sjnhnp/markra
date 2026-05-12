@@ -48,10 +48,10 @@ test("generate-updater-manifest writes latest.json for every updater platform", 
   const rootDir = makeTempDir();
   const notesPath = path.join(rootDir, "release-notes.md");
 
-  writeArtifact(rootDir, "darwin-aarch64", "markra_0.0.8_aarch64.app.tar.gz", "mac-arm-signature");
-  writeArtifact(rootDir, "darwin-x86_64", "markra_0.0.8_x64.app.tar.gz", "mac-intel-signature");
-  writeArtifact(rootDir, "linux-x86_64", "Markra_0.0.8_amd64.AppImage", "linux-signature");
-  writeArtifact(rootDir, "windows-x86_64", "Markra_0.0.8_x64-setup.exe", "windows-signature");
+  writeArtifact(rootDir, "darwin-aarch64", "Markra_0.0.8_macos_arm64_updater.app.tar.gz", "mac-arm-signature");
+  writeArtifact(rootDir, "darwin-x86_64", "Markra_0.0.8_macos_x64_updater.app.tar.gz", "mac-intel-signature");
+  writeArtifact(rootDir, "linux-x86_64", "Markra_0.0.8_linux_x64.AppImage", "linux-signature");
+  writeArtifact(rootDir, "windows-x86_64", "Markra_0.0.8_windows_x64_setup.exe", "windows-signature");
   fs.writeFileSync(notesPath, "Release notes");
 
   const result = runManifestScript({
@@ -70,19 +70,19 @@ test("generate-updater-manifest writes latest.json for every updater platform", 
   assert.deepEqual(manifest.platforms, {
     "darwin-aarch64": {
       signature: "mac-arm-signature",
-      url: "https://github.com/murongg/markra/releases/latest/download/markra_0.0.8_aarch64.app.tar.gz",
+      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_macos_arm64_updater.app.tar.gz",
     },
     "darwin-x86_64": {
       signature: "mac-intel-signature",
-      url: "https://github.com/murongg/markra/releases/latest/download/markra_0.0.8_x64.app.tar.gz",
+      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_macos_x64_updater.app.tar.gz",
     },
     "linux-x86_64": {
       signature: "linux-signature",
-      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_amd64.AppImage",
+      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_linux_x64.AppImage",
     },
     "windows-x86_64": {
       signature: "windows-signature",
-      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_x64-setup.exe",
+      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_windows_x64_setup.exe",
     },
   });
 });
@@ -93,14 +93,14 @@ test("generate-updater-manifest fails when metadata points at a missing bundle",
   const notesPath = path.join(rootDir, "release-notes.md");
 
   fs.mkdirSync(artifactDir, { recursive: true });
-  fs.writeFileSync(path.join(artifactDir, "Markra_0.0.8_x64-setup.exe.sig"), "signature");
+  fs.writeFileSync(path.join(artifactDir, "Markra_0.0.8_windows_x64_setup.exe.sig"), "signature");
   fs.writeFileSync(
     path.join(artifactDir, "release-metadata.json"),
     `${JSON.stringify(
       {
         updaterPlatform: "windows-x86_64",
-        bundleName: "Markra_0.0.8_x64-setup.exe",
-        signatureName: "Markra_0.0.8_x64-setup.exe.sig",
+        bundleName: "Markra_0.0.8_windows_x64_setup.exe",
+        signatureName: "Markra_0.0.8_windows_x64_setup.exe.sig",
       },
       null,
       2,
@@ -123,7 +123,7 @@ test("generate-updater-manifest fails when an expected platform is missing", () 
   const rootDir = makeTempDir();
   const notesPath = path.join(rootDir, "release-notes.md");
 
-  writeArtifact(rootDir, "windows-x86_64", "Markra_0.0.8_x64-setup.exe", "windows-signature");
+  writeArtifact(rootDir, "windows-x86_64", "Markra_0.0.8_windows_x64_setup.exe", "windows-signature");
   fs.writeFileSync(notesPath, "Release notes");
 
   const result = runManifestScript({
