@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { AiAgentPanel } from "./components/AiAgentPanel";
@@ -36,7 +37,7 @@ import { aiTranslationLanguageName, t, type I18nKey } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
-import type { AiDiffResult, AiSelectionContext } from "@markra/ai";
+import type { AiDiffResult, AiEditIntent, AiSelectionContext } from "@markra/ai";
 import {
   AI_EDITOR_PREVIEW_APPLIED_EVENT,
   AI_EDITOR_PREVIEW_ACTION_EVENT,
@@ -67,6 +68,7 @@ const aiAgentPanelDefaultWidth = 384;
 const aiAgentPanelMinWidth = 320;
 const aiAgentPanelMaxWidth = 760;
 const aiResultSignatureSeparator = "\u001f";
+type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
 function isSettingsWindowRoute() {
   return new URLSearchParams(window.location.search).has("settings");
@@ -88,6 +90,12 @@ function aiPreviewActionKey(result: AiDiffResult, previewId?: string) {
   return previewId ? `preview${aiResultSignatureSeparator}${previewId}` : `result${aiResultSignatureSeparator}${aiResultSignature(result)}`;
 }
 
+function explicitAiTextSelection(selection: AiSelectionContext | null | undefined) {
+  if (selection?.source !== "selection" || !selection.text.trim()) return null;
+
+  return selection;
+}
+
 export default function App() {
   if (isSettingsWindowRoute()) {
     return <SettingsWindow />;
@@ -105,11 +113,13 @@ export default function App() {
   const [aiResults, setAiResults] = useState<AiDiffResult[]>([]);
   const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
+  const [aiContextMenuActionPending, setAiContextMenuActionPending] = useState(false);
   const [editorMode, setEditorMode] = useState<"source" | "visual">("visual");
   const sourceMode = editorMode === "source";
   const aiResultsRef = useRef<AiDiffResult[]>([]);
   const appliedAiPreviewKeysRef = useRef(new Set<string>());
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
+  const aiContextMenuActionIdRef = useRef(0);
   const reconciledAiWorkspaceKeyRef = useRef<string | null | undefined>(undefined);
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const editor = useEditorController();
@@ -355,6 +365,8 @@ export default function App() {
   }, [activeAiAgentSessionId, aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
   const restoreAiCommand = aiCommand.restoreAiCommand;
   const handleAiCommandClose = useCallback(() => {
+    aiContextMenuActionIdRef.current += 1;
+    setAiContextMenuActionPending(false);
     aiCommand.closeAiCommand();
     editor.clearAiSelection();
   }, [aiCommand, editor]);
@@ -482,6 +494,67 @@ export default function App() {
     editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
     updateActiveAiSelection
   ]);
+  const getEditorSelection = editor.getSelection;
+  const holdAiSelection = editor.holdAiSelection;
+  const interruptAiCommandPrompt = aiCommand.interruptPrompt;
+  const openAiCommand = aiCommand.openAiCommand;
+  const submitAiCommandPrompt = aiCommand.submitPrompt;
+  const updateAiCommandPrompt = aiCommand.updatePrompt;
+  const aiContextMenuActionRef = useRef<((intent: AiQuickActionIntent, prompt: string) => unknown) | null>(null);
+  useEffect(() => {
+    aiContextMenuActionRef.current = (intent: AiQuickActionIntent, prompt: string) => {
+      const selection = explicitAiTextSelection(getActiveAiSelection()) ?? explicitAiTextSelection(getEditorSelection());
+      if (!selection) return;
+
+      holdAiSelection(selection);
+      const actionId = aiContextMenuActionIdRef.current + 1;
+      let opened = false;
+      aiContextMenuActionIdRef.current = actionId;
+
+      flushSync(() => {
+        updateActiveAiSelection(selection);
+        setAiContextMenuActionPending(true);
+        opened = openAiCommand(selection);
+        updateAiCommandPrompt(prompt);
+      });
+
+      if (!opened) {
+        setAiContextMenuActionPending(false);
+        return;
+      }
+
+      window.setTimeout(() => {
+        if (aiContextMenuActionIdRef.current !== actionId) return;
+
+        Promise.resolve(submitAiCommandPrompt(prompt, intent)).finally(() => {
+          if (aiContextMenuActionIdRef.current !== actionId) return;
+
+          setAiContextMenuActionPending(false);
+        });
+      }, 0);
+    };
+  }, [
+    getEditorSelection,
+    getActiveAiSelection,
+    holdAiSelection,
+    openAiCommand,
+    submitAiCommandPrompt,
+    updateActiveAiSelection,
+    updateAiCommandPrompt
+  ]);
+  const handleAiContextMenuAction = useCallback((intent: AiQuickActionIntent, prompt: string) => {
+    return aiContextMenuActionRef.current?.(intent, prompt);
+  }, []);
+  const getAiContextMenuAvailable = useCallback(() => {
+    const selection = explicitAiTextSelection(getActiveAiSelection()) ?? explicitAiTextSelection(getEditorSelection());
+
+    return Boolean(selection);
+  }, [getActiveAiSelection, getEditorSelection]);
+  const handleAiCommandInterrupt = useCallback(() => {
+    aiContextMenuActionIdRef.current += 1;
+    setAiContextMenuActionPending(false);
+    interruptAiCommandPrompt();
+  }, [interruptAiCommandPrompt]);
   const saveDocumentAs = useCallback(() => saveCurrentDocument(true), [saveCurrentDocument]);
   const handleApplyAiResult = useCallback((restoredResult?: AiDiffResult | null, previewId?: string) => {
     const result = restoredResult ?? aiResults.at(-1) ?? null;
@@ -698,14 +771,18 @@ export default function App() {
   const nativeMenuHandlers = useNativeMenuHandlers({
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
     insertMarkdownTable: editor.insertMarkdownTable,
+    language: appLanguage.language,
     openDocument: handleOpenMarkdownFile,
+    runAiQuickAction: handleAiContextMenuAction,
     runEditorShortcut: editor.runEditorShortcut,
     saveDocument: handleSaveClick,
     saveDocumentAs
   });
 
   useNativeMarkdownDrop(handleDroppedMarkdownPath);
-  useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null);
+  useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null, {
+    getAiCommandsAvailable: getAiContextMenuAvailable
+  });
   useAutoUpdater(appLanguage.language, appLanguage.ready, {
     confirmRestart: confirmCanDiscardCurrentDocument
   });
@@ -955,15 +1032,16 @@ export default function App() {
           availableModels={aiSettings.availableTextModels}
           editorLeftInset={fileTreeOpen ? `${fileTreeWidth}px` : "0px"}
           editorRightInset={aiAgentInset}
+          externalActionPending={aiContextMenuActionPending}
           language={appLanguage.language}
-          open={aiCommand.open && (hasActiveAiSelection || Boolean(aiResult))}
+          open={aiCommand.open && (hasActiveAiSelection || Boolean(aiResult) || aiContextMenuActionPending)}
           prompt={aiCommand.prompt}
           selectedModelId={aiSettings.inlineModelId}
           selectedProviderId={aiSettings.inlineProviderId}
           submitting={aiCommand.submitting}
           supportsThinking={supportsAiThinking}
           onClose={handleAiCommandClose}
-          onInterrupt={aiCommand.interruptPrompt}
+          onInterrupt={handleAiCommandInterrupt}
           onPromptChange={aiCommand.updatePrompt}
           onSelectModel={aiSettings.selectInlineModel}
           onSubmit={aiCommand.submitPrompt}

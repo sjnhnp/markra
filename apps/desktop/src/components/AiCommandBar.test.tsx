@@ -114,6 +114,31 @@ describe("AiCommandBar", () => {
     expect(screen.queryByText("Generating suggestion")).not.toBeInTheDocument();
   });
 
+  it("shows expanded thinking feedback for an external AI context action before submission starts", () => {
+    render(
+      <AiCommandBar
+        externalActionPending
+        language="zh-CN"
+        open
+        prompt="润色"
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    const input = screen.getByRole("textbox", { name: "AI 命令" });
+    const status = screen.getByRole("status");
+    const commandBox = input.closest(".ai-command-box");
+
+    expect(input).toHaveAttribute("readonly");
+    expect(input).toHaveAttribute("aria-busy", "true");
+    expect(status).toHaveTextContent(/^正在思考$/);
+    expect(commandBox).toHaveClass("min-h-21", "rounded-lg", "border-(--accent)");
+    expect(commandBox).not.toHaveClass("h-14", "rounded-xl");
+  });
+
   it("submits with Enter instead of inserting a newline", () => {
     const onPromptChange = vi.fn();
     const onSubmit = vi.fn();

@@ -86,6 +86,7 @@ type AiCommandBarProps = {
   availableModels?: AiCommandModelOption[];
   editorLeftInset?: string;
   editorRightInset?: string;
+  externalActionPending?: boolean;
   language?: AppLanguage;
   open: boolean;
   prompt: string;
@@ -105,6 +106,7 @@ export function AiCommandBar({
   availableModels = [],
   editorLeftInset = "0px",
   editorRightInset = "0px",
+  externalActionPending = false,
   language = "en",
   open,
   prompt,
@@ -134,8 +136,9 @@ export function AiCommandBar({
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const previousSubmittingRef = useRef(submitting);
   const { handleCompositionEnd, handleCompositionStart, isComposingEnter } = useImeInputGuard();
+  const busy = submitting || externalActionPending;
   const label = (key: I18nKey) => t(language, key);
-  const canSubmit = prompt.trim().length > 0 && !submitting;
+  const canSubmit = prompt.trim().length > 0 && !busy;
   const closing = commandState === "closing";
   const expanded = commandState === "expanded";
   const showingExpandedSurface = commandState === "expanded" || commandState === "collapsing" || (closing && closingFromExpanded);
@@ -206,9 +209,9 @@ export function AiCommandBar({
   }, [clearCollapseTimer, clearExitTimer, open, setCommandStateValue]);
 
   useEffect(() => {
-    if (previousSubmittingRef.current && !submitting) setActiveQuickActionIntent(null);
-    previousSubmittingRef.current = submitting;
-  }, [submitting]);
+    if (previousSubmittingRef.current && !busy) setActiveQuickActionIntent(null);
+    previousSubmittingRef.current = busy;
+  }, [busy]);
 
   useEffect(() => {
     if (supportsThinking) return;
@@ -324,7 +327,7 @@ export function AiCommandBar({
   };
 
   const handlePromptChange = (nextPrompt: string) => {
-    if (submitting) return;
+    if (busy) return;
     if (nextPrompt.trim().length > 0) {
       setActiveQuickActionIntent(null);
       setQuickActionsVisible(false);
@@ -333,7 +336,7 @@ export function AiCommandBar({
   };
 
   const insertPromptNewline = (input: HTMLTextAreaElement) => {
-    if (submitting) return;
+    if (busy) return;
 
     const start = input.selectionStart ?? prompt.length;
     const end = input.selectionEnd ?? start;
@@ -362,7 +365,7 @@ export function AiCommandBar({
   };
 
   const handleQuickAction = (action: AiCommandAction) => {
-    if (submitting) return;
+    if (busy) return;
 
     const quickPrompt = label(action.labelKey);
     setActiveQuickActionIntent(action.intent);
@@ -371,10 +374,10 @@ export function AiCommandBar({
     submitPromptOverride(quickPrompt, action.intent);
   };
 
-  const quickActionSubmitting = submitting && activeQuickActionIntent !== null;
-  const activeExpandedSurface = showingExpandedSurface || (submitting && !quickActionSubmitting);
+  const quickActionSubmitting = busy && activeQuickActionIntent !== null;
+  const activeExpandedSurface = showingExpandedSurface || (busy && !quickActionSubmitting);
   const unifiedExpandedSurface = quickActionSubmitting ? false : activeExpandedSurface || Boolean(aiResult);
-  const showQuickActions = showingExpandedSurface && !aiResult && quickActionsVisible && !submitting;
+  const showQuickActions = showingExpandedSurface && !aiResult && quickActionsVisible && !busy;
   const showExpandedInput = unifiedExpandedSurface;
   const showCompactLoading = quickActionSubmitting && !showExpandedInput;
   const commandWidthClassName = showExpandedInput ? "max-w-205" : "max-w-176";
@@ -389,7 +392,7 @@ export function AiCommandBar({
         ? label("app.aiCommandPlaceholder")
         : label("app.aiCommandCompactPlaceholder");
   const showModelSelector = showExpandedInput && availableModels.length > 1 && Boolean(onSelectModel);
-  const showAgentStatus = showExpandedInput && submitting;
+  const showAgentStatus = showExpandedInput && busy;
   const showThinkingToggle = showExpandedInput && supportsThinking;
   const compactLoadingText = activeQuickActionIntent
     ? label(aiCommandLoadingLabelKeys[activeQuickActionIntent])
@@ -397,12 +400,12 @@ export function AiCommandBar({
   const renderSubmitButton = (compactSize: boolean) => (
     <RoundIconButton
       size={compactSize ? "md" : "lg"}
-      type={submitting ? "button" : "submit"}
-      disabled={!submitting && !canSubmit}
-      label={submitting ? label("app.aiCommandStop") : label("app.aiCommandSend")}
-      onClick={submitting ? onInterrupt : undefined}
+      type={busy ? "button" : "submit"}
+      disabled={!busy && !canSubmit}
+      label={busy ? label("app.aiCommandStop") : label("app.aiCommandSend")}
+      onClick={busy ? onInterrupt : undefined}
     >
-      {submitting ? (
+      {busy ? (
         <span className="relative inline-flex items-center justify-center">
           <LoaderCircle aria-hidden="true" className="ai-command-loading-icon animate-spin" size={17} />
           <Square aria-hidden="true" className="absolute" size={7} fill="currentColor" strokeWidth={0} />
@@ -454,8 +457,8 @@ export function AiCommandBar({
             }
             value={prompt}
             placeholder={inputPlaceholder}
-            readOnly={submitting}
-            aria-busy={submitting}
+            readOnly={busy}
+            aria-busy={busy}
             rows={showExpandedInput ? 2 : 1}
             onClick={expandCommand}
             onChange={(event) => handlePromptChange(event.target.value)}
@@ -484,7 +487,7 @@ export function AiCommandBar({
               label={label("app.aiDeepThinking")}
               pressed={thinkingEnabled}
               size="sm"
-              disabled={submitting}
+              disabled={busy}
               onClick={() => setThinkingEnabled((enabled) => !enabled)}
             >
               <BrainCircuit aria-hidden="true" size={14} />
@@ -495,7 +498,7 @@ export function AiCommandBar({
             {showModelSelector ? (
               <AiModelPicker
                 ariaLabel={label("app.aiModelSelector")}
-                disabled={submitting}
+                disabled={busy}
                 models={availableModels}
                 selectedModelId={selectedModelId}
                 selectedProviderId={selectedProviderId}
