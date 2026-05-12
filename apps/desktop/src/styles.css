@@ -818,6 +818,11 @@
     @apply text-(--text-heading) font-[760];
   }
 
+  .markdown-paper em {
+    @apply italic;
+    font-synthesis: style;
+  }
+
   .markdown-paper .markra-md-delimiter {
     @apply text-(--text-md-char);
   }

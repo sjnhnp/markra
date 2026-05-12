@@ -18,8 +18,9 @@ use markdown_files::{
     save_clipboard_image, write_markdown_file,
 };
 use menu::{
-    create_application_menu, is_frontend_menu_command, is_native_new_window_command,
-    is_native_settings_window_command, NativeMenuCommand, NATIVE_MENU_COMMAND_EVENT,
+    create_application_menu, install_application_menu, is_frontend_menu_command,
+    is_native_new_window_command, is_native_settings_window_command, NativeMenuCommand,
+    NATIVE_MENU_COMMAND_EVENT,
 };
 use tauri::Emitter;
 use watcher::{unwatch_markdown_file, watch_markdown_file, MarkdownWatcherState};
@@ -77,6 +78,7 @@ pub fn run() {
             list_markdown_files_for_path,
             create_markdown_tree_file,
             create_markdown_tree_folder,
+            install_application_menu,
             rename_markdown_tree_file,
             delete_markdown_tree_file,
             open_markdown_file_in_new_window,

@@ -51,6 +51,14 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("font-weight: inherit");
   });
 
+  it("styles finalized emphasis marks in the editor", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain(".markdown-paper em");
+    expect(styles).toContain("@apply italic");
+    expect(styles).toContain("font-synthesis: style");
+  });
+
   it("keeps AI diff action controls visually quiet until interaction", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

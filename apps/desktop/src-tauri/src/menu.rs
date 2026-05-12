@@ -1,4 +1,4 @@
-use crate::language::resolve_startup_language;
+use crate::language::{resolve_startup_language, AppLanguage};
 use tauri::{
     menu::{AboutMetadata, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     Manager,
@@ -29,6 +29,13 @@ pub(crate) fn create_application_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> tauri::Result<Menu<R>> {
     let language = resolve_startup_language(&app.config().identifier);
+    create_application_menu_for_language(app, language)
+}
+
+fn create_application_menu_for_language<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    language: AppLanguage,
+) -> tauri::Result<Menu<R>> {
     let labels = crate::menu_labels::for_language(language);
 
     let new = app_menu_item(
@@ -81,6 +88,7 @@ pub(crate) fn create_application_menu<R: tauri::Runtime>(
     let code_block = app_menu_item(app, "formatCodeBlock", labels.code_block, "CmdOrCtrl+Alt+C")?;
     let link = app_menu_item(app, "insertLink", labels.link, "CmdOrCtrl+K")?;
     let image = app_menu_item(app, "insertImage", labels.image, "CmdOrCtrl+Shift+I")?;
+    let table = app_menu_item(app, "insertTable", labels.table, "CmdOrCtrl+Alt+T")?;
 
     let app_menu = SubmenuBuilder::with_id(app, "markra:app", "Markra")
         .about(Some(AboutMetadata {
@@ -124,7 +132,7 @@ pub(crate) fn create_application_menu<R: tauri::Runtime>(
         .separator()
         .items(&[&bullet_list, &ordered_list, &quote, &code_block])
         .separator()
-        .items(&[&link, &image])
+        .items(&[&link, &image, &table])
         .build()?;
 
     let view_menu = SubmenuBuilder::with_id(app, "markra:view", labels.view)
@@ -134,6 +142,21 @@ pub(crate) fn create_application_menu<R: tauri::Runtime>(
     MenuBuilder::new(app)
         .items(&[&app_menu, &file_menu, &edit_menu, &format_menu, &view_menu])
         .build()
+}
+
+#[tauri::command]
+pub(crate) fn install_application_menu(
+    app: tauri::AppHandle,
+    language: String,
+) -> Result<(), String> {
+    let language = AppLanguage::from_code(&language)
+        .ok_or_else(|| format!("Unsupported application menu language: {language}"))?;
+    let menu =
+        create_application_menu_for_language(&app, language).map_err(|error| error.to_string())?;
+
+    app.set_menu(menu)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 pub(crate) fn is_native_new_window_command(command: &str) -> bool {
@@ -166,6 +189,7 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
             | "formatCodeBlock"
             | "insertLink"
             | "insertImage"
+            | "insertTable"
     )
 }
 
@@ -193,6 +217,7 @@ mod tests {
         assert!(is_frontend_menu_command("exportHtml"));
         assert!(is_frontend_menu_command("formatBold"));
         assert!(is_frontend_menu_command("insertImage"));
+        assert!(is_frontend_menu_command("insertTable"));
         assert!(!is_frontend_menu_command("markra:file"));
         assert!(!is_frontend_menu_command("copy"));
     }
