@@ -18,6 +18,7 @@
     "@markra/ai": "workspace:*",
     "@markra/shared": "workspace:*",
     "@milkdown/kit": "^7.20.0",
+    "katex": "0.16.45",
     "prosemirror-tables": "1.8.5"
   },
   "devDependencies": {

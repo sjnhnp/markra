@@ -280,6 +280,22 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".paper-scroll")).toHaveClass("h-full", "min-h-0", "overflow-auto");
   });
 
+  it("renders block and inline math formulas with KaTeX while preserving markdown source", async () => {
+    const blockFormula = String.raw`$$ A = P \left(1 + \frac{r}{n}\right)^{nt} $$`;
+    const source = [blockFormula, "", "Where $A$ is the final amount."].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+
+    expect(container.querySelector(".ProseMirror .markra-math-render-display .katex")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-render-inline .katex")).toBeInTheDocument();
+    expect(
+      Array.from(container.querySelectorAll(".ProseMirror .markra-math-source-hidden")).map((node) => node.textContent)
+    ).toEqual([blockFormula, "$A$"]);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain(blockFormula);
+    expect(serializeMarkdown(view.state.doc)).toContain("Where $A$ is the final amount.");
+  });
+
   it("saves pasted clipboard images and inserts markdown image references", async () => {
     const onMarkdownChange = vi.fn();
     const onSaveClipboardImage = vi.fn().mockResolvedValue({
