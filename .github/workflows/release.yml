@@ -233,6 +233,20 @@ jobs:
             mv "${SOURCE_BUNDLE}.sig" "${TARGET_BUNDLE}.sig"
           fi
 
+      - name: Add macOS open helper to DMG
+        if: startsWith(matrix.os, 'macos-')
+        shell: bash
+        env:
+          APP_PRODUCT_NAME: ${{ env.APP_PRODUCT_NAME }}
+          DMG_DIR: ${{ env.DESKTOP_DIR }}/src-tauri/target/${{ matrix.target }}/release/bundle/dmg
+          HELPER_PATH: ${{ runner.temp }}/Markra-macOS-Open-Anyway.command
+          MACOS_BUNDLE_DIR: ${{ env.DESKTOP_DIR }}/src-tauri/target/${{ matrix.target }}/release/bundle/macos
+        run: |
+          set -euo pipefail
+
+          OUTPUT_PATH="${HELPER_PATH}" node .release-scripts/scripts/release/create-macos-open-helper.mjs
+          node .release-scripts/scripts/release/rebuild-macos-dmg-with-helper.mjs
+
       - name: Collect bundle paths
         id: bundle_paths
         shell: bash
@@ -403,6 +417,9 @@ jobs:
               echo "- Release ${RELEASE_TAG}"
             } > release-notes.md
           fi
+
+      - name: Add macOS unsigned app notice
+        run: node .release-scripts/scripts/release/prepend-macos-unsigned-notice.mjs
 
       - name: Download bundled artifacts
         uses: actions/download-artifact@v4
