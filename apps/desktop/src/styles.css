@@ -878,6 +878,82 @@
     @apply border-0 bg-transparent p-0;
   }
 
+  .markdown-paper .markra-code-block {
+    @apply relative mt-5 mb-7 grid overflow-hidden rounded border border-(--border-default) bg-(--bg-code);
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .markdown-paper .markra-code-language-control {
+    @apply absolute top-2 right-2 z-[1] flex items-center;
+  }
+
+  .markdown-paper .markra-code-language-select {
+    @apply h-9 min-w-40 rounded-md border border-(--border-default) bg-(--bg-primary)/96 px-3 text-[0.82rem] font-medium text-(--text-secondary) outline-none transition-[border-color,color,background-color,box-shadow];
+    max-width: min(18rem, calc(100vw - 4rem));
+    font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    line-height: 1;
+  }
+
+  .markdown-paper .markra-code-language-select:focus {
+    @apply border-(--border-focus) bg-(--bg-primary) text-(--text-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-focus) 18%, transparent);
+  }
+
+  .markdown-paper .markra-code-line-numbers {
+    @apply border-r border-(--border-default) px-3 py-4 text-right text-[0.9em] leading-[1.65] text-(--text-secondary);
+    background: color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-code));
+    font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    user-select: none;
+  }
+
+  .markdown-paper .markra-code-line-number {
+    display: block;
+    min-width: 2ch;
+  }
+
+  .markdown-paper .markra-code-block pre {
+    @apply m-0 min-w-0 overflow-auto rounded-none border-0 bg-transparent px-4 py-4;
+  }
+
+  .markdown-paper .markra-code-block code {
+    @apply block border-0 bg-transparent p-0 text-[0.9em];
+    color: var(--text-primary);
+    font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    line-height: 1.65;
+    white-space: pre;
+  }
+
+  .markdown-paper .hljs-keyword,
+  .markdown-paper .hljs-selector-tag,
+  .markdown-paper .hljs-literal {
+    color: oklch(43% 0.17 283);
+    font-weight: 650;
+  }
+
+  .markdown-paper .hljs-string,
+  .markdown-paper .hljs-regexp,
+  .markdown-paper .hljs-addition {
+    color: oklch(42% 0.13 151);
+  }
+
+  .markdown-paper .hljs-number,
+  .markdown-paper .hljs-attr,
+  .markdown-paper .hljs-variable {
+    color: oklch(47% 0.16 42);
+  }
+
+  .markdown-paper .hljs-title,
+  .markdown-paper .hljs-function,
+  .markdown-paper .hljs-built_in {
+    color: oklch(44% 0.15 247);
+  }
+
+  .markdown-paper .hljs-comment,
+  .markdown-paper .hljs-quote {
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
   .markdown-paper hr {
     @apply my-8 border-0 border-t border-(--border-default);
   }

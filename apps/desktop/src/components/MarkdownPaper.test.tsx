@@ -82,6 +82,18 @@ function insertTextDirectly(view: EditorView, text: string) {
   view.dispatch(view.state.tr.insertText(text, from, to).scrollIntoView());
 }
 
+function insertTextThroughInputHandler(view: EditorView, text: string) {
+  const { from, to } = view.state.selection;
+  const insertText = () => view.state.tr.insertText(text, from, to).scrollIntoView();
+  const handled = view.someProp("handleTextInput", (handler) => handler(view, from, to, text, insertText));
+
+  if (!handled) {
+    view.dispatch(insertText());
+  }
+
+  return Boolean(handled);
+}
+
 function moveCursor(view: EditorView, position: number) {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, position)));
 }
@@ -92,6 +104,10 @@ function selectNode(view: EditorView, position: number) {
 
 function selectText(view: EditorView, from: number, to: number) {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+}
+
+function splitCurrentTextBlockDirectly(view: EditorView) {
+  view.dispatch(view.state.tr.split(view.state.selection.from).scrollIntoView());
 }
 
 function findTextPosition(view: EditorView, text: string, offset = 0) {
@@ -278,6 +294,158 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelector(".paper-scroll")).toHaveClass("overscroll-none");
     expect(container.querySelector(".paper-scroll")).toHaveClass("h-full", "min-h-0", "overflow-auto");
+  });
+
+  it("renders fenced code blocks with syntax highlighting and line numbers", async () => {
+    const source = ["```ts", "const answer = 42;", "return answer;", "```"].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+
+    expect(container.querySelector(".ProseMirror .markra-code-block")).toHaveAttribute("data-language", "ts");
+    expect(
+      Array.from(container.querySelectorAll(".ProseMirror .markra-code-line-number")).map((node) => node.textContent)
+    ).toEqual(["1", "2"]);
+    expect(container.querySelector(".ProseMirror .hljs-keyword")).toHaveTextContent("const");
+    expect(container.querySelector(".ProseMirror .hljs-number")).toHaveTextContent("42");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain(source);
+  });
+
+  it("updates a code block language from the inline language selector", async () => {
+    const source = ["```ts", "const answer = 42;", "```"].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const languageSelect = container.querySelector<HTMLSelectElement>(
+      ".ProseMirror .markra-code-language-select"
+    );
+
+    expect(languageSelect).toHaveValue("ts");
+    expect(Array.from(languageSelect!.options).map((option) => option.value)).toEqual(
+      expect.arrayContaining(["", "json", "ts", "tsx", "python"])
+    );
+
+    fireEvent.change(languageSelect!, { target: { value: "json" } });
+
+    await waitFor(() => expect(view.state.doc.child(0).attrs.language).toBe("json"));
+    expect(container.querySelector(".ProseMirror .markra-code-block")).toHaveAttribute("data-language", "json");
+    expect(container.querySelector(".ProseMirror .markra-code-content")).toHaveClass("language-json");
+    expect(serializeMarkdown(view.state.doc)).toContain(["```json", "const answer = 42;", "```"].join("\n"));
+  });
+
+  it("keeps uncommon code block languages available in the inline selector", async () => {
+    const source = ["```custom-lang", "alpha", "```"].join("\n");
+    const { container } = await renderEditor(source);
+    const languageSelect = container.querySelector<HTMLSelectElement>(
+      ".ProseMirror .markra-code-language-select"
+    );
+
+    expect(languageSelect).toHaveValue("custom-lang");
+    expect(Array.from(languageSelect!.options).map((option) => option.value)).toContain("custom-lang");
+  });
+
+  it("turns typed triple backticks into a code block when pressing Enter", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "```");
+
+    expect(pressEnter(view)).toBe(true);
+    expect(container.querySelector(".ProseMirror .markra-code-block")).toBeInTheDocument();
+    expect(view.state.doc.child(0).type.name).toBe("code_block");
+    expect(view.state.doc.textContent).toBe("");
+  });
+
+  it("turns typed language fences into a code block when pressing Enter", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "```json");
+
+    expect(pressEnter(view)).toBe(true);
+    expect(container.querySelector(".ProseMirror .markra-code-block")).toHaveAttribute("data-language", "json");
+    expect(view.state.doc.child(0).type.name).toBe("code_block");
+    expect(view.state.doc.child(0).attrs.language).toBe("json");
+    expect(view.state.doc.textContent).toBe("");
+  });
+
+  it("normalizes a language fence even if Enter first inserts a new paragraph", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "```json");
+    splitCurrentTextBlockDirectly(view);
+
+    expect(container.querySelector(".ProseMirror .markra-code-block")).toHaveAttribute("data-language", "json");
+    expect(view.state.doc.child(0).type.name).toBe("code_block");
+    expect(view.state.doc.child(0).attrs.language).toBe("json");
+    expect(view.state.doc.textContent).toBe("");
+  });
+
+  it("turns typed triple backticks into a code block after existing text", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "Before");
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "```");
+    expect(pressEnter(view)).toBe(true);
+
+    expect(container.querySelector(".ProseMirror .markra-code-block")).toBeInTheDocument();
+    expect(view.state.doc.child(0).type.name).toBe("paragraph");
+    expect(view.state.doc.child(0).textContent).toBe("Before");
+    expect(view.state.doc.child(1).type.name).toBe("code_block");
+  });
+
+  it("turns typed triple backticks into a code block when pressing Space", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "``` ");
+
+    expect(container.querySelector(".ProseMirror .markra-code-block")).toBeInTheDocument();
+    expect(view.state.doc.child(0).type.name).toBe("code_block");
+    expect(view.state.doc.textContent).toBe("");
+  });
+
+  it("turns a single triple-backtick text insertion into a code block", async () => {
+    const { container, view } = await renderEditor();
+
+    expect(insertTextThroughInputHandler(view, "```")).toBe(true);
+
+    expect(container.querySelector(".ProseMirror .markra-code-block")).toBeInTheDocument();
+    expect(view.state.doc.child(0).type.name).toBe("code_block");
+    expect(view.state.doc.textContent).toBe("");
+  });
+
+  it("closes a code block when typing a trailing triple backtick fence", async () => {
+    const { editor, view } = await renderEditor();
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "```");
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "const answer = 42;");
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "```");
+    typeText(view, "After");
+
+    expect(view.state.doc.child(0).type.name).toBe("code_block");
+    expect(view.state.doc.child(0).textContent).toBe("const answer = 42;");
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).textContent).toBe("After");
+    expect(serializeMarkdown(view.state.doc)).toContain(["```", "const answer = 42;", "```", "", "After"].join("\n"));
+  });
+
+  it("closes a code block when a trailing triple-backtick fence is inserted at once", async () => {
+    const { editor, view } = await renderEditor();
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "```");
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "const answer = 42;");
+    expect(pressEnter(view)).toBe(true);
+    expect(insertTextThroughInputHandler(view, "```")).toBe(true);
+    typeText(view, "After");
+
+    expect(view.state.doc.child(0).type.name).toBe("code_block");
+    expect(view.state.doc.child(0).textContent).toBe("const answer = 42;");
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).textContent).toBe("After");
+    expect(serializeMarkdown(view.state.doc)).toContain(["```", "const answer = 42;", "```", "", "After"].join("\n"));
   });
 
   it("renders block and inline math formulas with KaTeX while preserving markdown source", async () => {

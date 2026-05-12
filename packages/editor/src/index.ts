@@ -1,4 +1,5 @@
 export * from "./ai-preview.ts";
+export * from "./code-block.ts";
 export * from "./clipboard-images.ts";
 export * from "./input-rules.ts";
 export * from "./link-image-rules.ts";
