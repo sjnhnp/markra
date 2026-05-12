@@ -77,6 +77,36 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("z-index: 60");
   });
 
+  it("reveals the code block language selector below the block without taking layout space", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const codeBlockStart = styles.indexOf(".markdown-paper .markra-code-block {");
+    const codeBlockEnd = styles.indexOf(".markdown-paper .markra-code-language-control");
+    const codeBlockStyles = styles.slice(codeBlockStart, codeBlockEnd);
+    const languageControlStart = styles.indexOf(".markdown-paper .markra-code-language-control {");
+    const languageControlEnd = styles.indexOf(".markdown-paper .markra-code-language-select");
+    const languageControlStyles = styles.slice(languageControlStart, languageControlEnd);
+    const languageRevealStart = styles.indexOf(".markdown-paper .markra-code-block:hover .markra-code-language-control");
+    const languageRevealEnd = styles.indexOf(".markdown-paper .markra-code-language-select");
+    const languageRevealStyles = styles.slice(languageRevealStart, languageRevealEnd);
+    const languageSelectStart = styles.indexOf(".markdown-paper .markra-code-language-select {");
+    const languageSelectEnd = styles.indexOf(".markdown-paper .markra-code-language-select:focus");
+    const languageSelectStyles = styles.slice(languageSelectStart, languageSelectEnd);
+
+    expect(codeBlockStyles).toContain("overflow-visible");
+    expect(languageControlStyles).toContain("absolute");
+    expect(languageControlStyles).toContain("top: 100%");
+    expect(languageControlStyles).toContain("pt-1.5");
+    expect(languageControlStyles).toContain("justify-end");
+    expect(languageControlStyles).toContain("opacity: 0");
+    expect(languageControlStyles).toContain("pointer-events: none");
+    expect(languageControlStyles).not.toContain("border-t");
+    expect(languageControlStyles).not.toContain("grid-column");
+    expect(languageRevealStyles).not.toContain(":focus-within");
+    expect(languageRevealStyles).toContain("opacity: 1");
+    expect(languageRevealStyles).toContain("pointer-events: auto");
+    expect(languageSelectStyles).toContain("border border-(--border-default)");
+  });
+
   it("includes the inline AI loading shimmer used by compact quick actions", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

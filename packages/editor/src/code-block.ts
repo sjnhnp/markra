@@ -338,7 +338,7 @@ class MarkraCodeBlockNodeView implements NodeView {
     this.languageSelect.addEventListener("change", this.handleLanguageChange);
     this.languageControl.append(this.languageSelect);
     pre.append(this.code);
-    this.dom.append(this.languageControl, this.lineNumbers, pre);
+    this.dom.append(this.lineNumbers, pre, this.languageControl);
     this.syncLanguage();
     this.syncLineNumbers();
   }

@@ -332,6 +332,15 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain(["```json", "const answer = 42;", "```"].join("\n"));
   });
 
+  it("places the code block language selector after the code content", async () => {
+    const source = ["```bash", "echo hello", "```"].join("\n");
+    const { container } = await renderEditor(source);
+    const codeBlock = container.querySelector<HTMLElement>(".ProseMirror .markra-code-block");
+    const languageControl = container.querySelector<HTMLElement>(".ProseMirror .markra-code-language-control");
+
+    expect(codeBlock?.lastElementChild).toBe(languageControl);
+  });
+
   it("keeps uncommon code block languages available in the inline selector", async () => {
     const source = ["```custom-lang", "alpha", "```"].join("\n");
     const { container } = await renderEditor(source);
