@@ -24,6 +24,7 @@ import { Plugin } from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
 import { markraLiveMarkdownPlugin } from "@markra/editor";
 import { markraClipboardImagePlugin, type SaveClipboardImage } from "@markra/editor";
+import { markraCodeBlockPlugin } from "@markra/editor";
 import { markraLinkImageLivePlugin } from "@markra/editor";
 import { markraRawHtmlPlugin } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
@@ -304,6 +305,7 @@ function MilkdownSurface({
         .use(markraCommonmark)
         .use(markraGfm)
         .use(markraMarkdownShortcuts)
+        .use(markraCodeBlockPlugin)
         .use(markraMathPlugin)
         .use(markraAiSelectionHoldPlugin)
         .use(markraAiEditorPreviewPlugin)
