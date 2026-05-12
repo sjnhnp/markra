@@ -28,6 +28,7 @@ import { markraLinkImageLivePlugin } from "@markra/editor";
 import { markraRawHtmlPlugin } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
 import { markraMarkdownShortcuts } from "@markra/editor";
+import { markraMathPlugin } from "@markra/editor";
 import { markraTableControlsPlugin } from "@markra/editor";
 import { markraAiEditorPreviewPlugin } from "@markra/editor";
 import { markraAiSelectionHoldPlugin } from "@markra/editor";
@@ -303,6 +304,7 @@ function MilkdownSurface({
         .use(markraCommonmark)
         .use(markraGfm)
         .use(markraMarkdownShortcuts)
+        .use(markraMathPlugin)
         .use(markraAiSelectionHoldPlugin)
         .use(markraAiEditorPreviewPlugin)
         .use(

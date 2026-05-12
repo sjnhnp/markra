@@ -74,6 +74,9 @@ importers:
       codemirror:
         specifier: 6.0.2
         version: 6.0.2
+      katex:
+        specifier: 0.16.45
+        version: 0.16.45
       lucide-react:
         specifier: 1.14.0
         version: 1.14.0(react@19.2.5)
@@ -181,6 +184,9 @@ importers:
       '@milkdown/kit':
         specifier: ^7.20.0
         version: 7.20.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1)(typescript@6.0.3)
+      katex:
+        specifier: 0.16.45
+        version: 0.16.45
       prosemirror-tables:
         specifier: 1.8.5
         version: 1.8.5

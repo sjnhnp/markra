@@ -2,6 +2,7 @@
 @source "../../../packages/ui/src";
 @import "@milkdown/kit/prose/view/style/prosemirror.css";
 @import "@milkdown/kit/prose/tables/style/tables.css";
+@import "katex/dist/katex.css";
 
 @keyframes markra-ai-float-in {
   from {
@@ -677,6 +678,42 @@
 
   .markdown-paper .markra-live-image-preview {
     @apply my-6 block max-w-full rounded-[3px] border border-(--border-default);
+  }
+
+  .markdown-paper .markra-math-render {
+    color: var(--text-primary);
+    letter-spacing: 0;
+    user-select: text;
+  }
+
+  .markdown-paper .markra-math-render .katex {
+    font-size: 1em;
+  }
+
+  .markdown-paper .markra-math-render-inline {
+    display: inline-flex;
+    margin: 0 0.08em;
+    vertical-align: -0.08em;
+  }
+
+  .markdown-paper .markra-math-render-display {
+    display: block;
+    max-width: 100%;
+    margin: 0.85em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    text-align: center;
+  }
+
+  .markdown-paper .markra-math-render-display .katex-display {
+    margin: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .markdown-paper .markra-math-render-invalid {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    color: var(--text-secondary);
   }
 
   .markdown-paper strong {
