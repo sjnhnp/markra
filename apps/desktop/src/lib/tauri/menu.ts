@@ -27,6 +27,8 @@ export type NativeMenuCommand =
   | "openDocument"
   | "saveDocument"
   | "saveDocumentAs"
+  | "exportPdf"
+  | "exportHtml"
   | "formatBold"
   | "formatItalic"
   | "formatStrikethrough"
@@ -142,6 +144,9 @@ export function createNativeApplicationMenuItems(
     "CmdOrCtrl+Shift+S",
     handlers.saveDocumentAs
   );
+  const exportPdf = customItem("exportPdf", label("menu.exportPdf"), "CmdOrCtrl+P", handlers.exportPdf);
+  const exportHtml = customItem("exportHtml", label("menu.exportHtml"), "CmdOrCtrl+Shift+E", handlers.exportHtml);
+  const exportMenu = submenu("markra:file:export", label("menu.export"), [exportPdf, exportHtml]);
   const settings = commandItem("openSettings", label("menu.settings"), "CmdOrCtrl+,", "open_settings_window");
   const bold = customItem("formatBold", label("menu.bold"), "CmdOrCtrl+B", handlers.formatBold);
   const italic = customItem("formatItalic", label("menu.italic"), "CmdOrCtrl+I", handlers.formatItalic);
@@ -199,6 +204,8 @@ export function createNativeApplicationMenuItems(
         separator(),
         saveDocument,
         saveDocumentAs,
+        separator(),
+        exportMenu,
         separator(),
         predefined("CloseWindow", label("menu.closeWindow"))
       ]
@@ -320,7 +327,12 @@ export function createNativeEditorContextMenuItems(
     separator(),
     customItem("markra:context:link", label("menu.link"), "CmdOrCtrl+K", handlers.insertLink),
     customItem("markra:context:image", label("menu.image"), "CmdOrCtrl+Shift+I", handlers.insertImage),
-    customItem("markra:context:table", label("menu.table"), "CmdOrCtrl+Alt+T", handlers.insertTable)
+    customItem("markra:context:table", label("menu.table"), "CmdOrCtrl+Alt+T", handlers.insertTable),
+    separator(),
+    submenu("markra:context:export", label("menu.export"), [
+      customItem("markra:context:export-pdf", label("menu.exportPdf"), "CmdOrCtrl+P", handlers.exportPdf),
+      customItem("markra:context:export-html", label("menu.exportHtml"), "CmdOrCtrl+Shift+E", handlers.exportHtml)
+    ])
   ];
 
   if (options.aiCommandsAvailable) {

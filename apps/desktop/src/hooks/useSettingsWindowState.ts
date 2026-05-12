@@ -9,30 +9,36 @@ import { t, type I18nKey } from "@markra/shared";
 import {
   getStoredAiSettings,
   getStoredEditorPreferences,
+  getStoredExportSettings,
   getStoredWebSearchSettings,
   defaultEditorPreferences,
+  defaultExportSettings,
   defaultWebSearchSettings,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
   saveStoredEditorPreferences,
+  saveStoredExportSettings,
   saveStoredWebSearchSettings,
+  normalizeExportSettings,
   normalizeWebSearchSettings,
   type AiProviderConfig,
   type AiProviderModel,
   type AiProviderSettings,
   type EditorPreferences,
+  type ExportSettings,
   type WebSearchSettings
 } from "../lib/settings/app-settings";
 import {
   notifyAppAiSettingsChanged,
   notifyAppEditorPreferencesChanged,
+  notifyAppExportSettingsChanged,
   notifyAppWebSearchSettingsChanged
 } from "../lib/settings/settings-events";
 import { requestNativeAiJson } from "../lib/tauri";
 import { useAppLanguage } from "./useAppLanguage";
 import { useAppTheme } from "./useAppTheme";
 
-export type SettingsCategory = "general" | "ai" | "web" | "appearance" | "editor";
+export type SettingsCategory = "general" | "ai" | "web" | "appearance" | "editor" | "export";
 
 export function useSettingsWindowState() {
   const appTheme = useAppTheme();
@@ -41,6 +47,7 @@ export function useSettingsWindowState() {
   const [aiSettings, setAiSettings] = useState<AiProviderSettings>(() => createDefaultAiSettings());
   const [aiSettingsSaved, setAiSettingsSaved] = useState(false);
   const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
+  const [exportSettings, setExportSettings] = useState<ExportSettings>(defaultExportSettings);
   const [webSearchSettings, setWebSearchSettings] = useState<WebSearchSettings>(defaultWebSearchSettings);
   const [selectedAiProviderId, setSelectedAiProviderId] = useState<string | undefined>(
     () => createDefaultAiSettings().defaultProviderId
@@ -83,6 +90,18 @@ export function useSettingsWindowState() {
 
     getStoredWebSearchSettings().then((settings) => {
       if (!cancelled) setWebSearchSettings(settings);
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getStoredExportSettings().then((settings) => {
+      if (!cancelled) setExportSettings(settings);
     }).catch(() => {});
 
     return () => {
@@ -154,6 +173,14 @@ export function useSettingsWindowState() {
       .catch(() => {});
   }, []);
 
+  const handleUpdateExportSettings = useCallback((settings: ExportSettings) => {
+    const normalizedSettings = normalizeExportSettings(settings);
+    setExportSettings(normalizedSettings);
+    saveStoredExportSettings(normalizedSettings)
+      .then(() => notifyAppExportSettingsChanged(normalizedSettings))
+      .catch(() => {});
+  }, []);
+
   const handleUpdateWebSearchSettings = useCallback((settings: WebSearchSettings) => {
     const normalizedSettings = normalizeWebSearchSettings(settings);
     setWebSearchSettings(normalizedSettings);
@@ -169,6 +196,7 @@ export function useSettingsWindowState() {
     appLanguage,
     appTheme,
     editorPreferences,
+    exportSettings,
     handleAddAiProvider,
     handleFetchAiProviderModels,
     handleResetWelcomeDocument,
@@ -176,6 +204,7 @@ export function useSettingsWindowState() {
     handleTestAiProvider,
     handleUpdateAiSettings,
     handleUpdateEditorPreferences,
+    handleUpdateExportSettings,
     handleUpdateWebSearchSettings,
     selectedAiProvider,
     setActiveCategory,

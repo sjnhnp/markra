@@ -1,9 +1,11 @@
 import { emit, listen } from "@tauri-apps/api/event";
 import {
   listenAppEditorPreferencesChanged,
+  listenAppExportSettingsChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
   notifyAppEditorPreferencesChanged,
+  notifyAppExportSettingsChanged,
   notifyAppLanguageChanged,
   notifyAppThemeChanged
 } from "./settings-events";
@@ -106,6 +108,38 @@ describe("settings events", () => {
     });
     expect(onPreferencesChanged).toHaveBeenCalledWith(preferences);
     expect(onPreferencesChanged).toHaveBeenCalledTimes(1);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits and listens for export setting changes inside Tauri", async () => {
+    const unlisten = vi.fn();
+    const onSettingsChanged = vi.fn();
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppExportSettingsChanged(onSettingsChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+    const settings = {
+      pdfAuthor: "",
+      pdfFooter: "",
+      pdfHeader: "",
+      pdfHeightMm: 297,
+      pdfMarginMm: 24,
+      pdfMarginPreset: "custom" as const,
+      pdfPageBreakOnH1: false,
+      pdfPageSize: "default" as const,
+      pdfWidthMm: 210
+    };
+
+    await notifyAppExportSettingsChanged(settings);
+    listener?.({ payload: { settings } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://export-settings-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://export-settings-changed", {
+      settings
+    });
+    expect(onSettingsChanged).toHaveBeenCalledWith(settings);
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 });

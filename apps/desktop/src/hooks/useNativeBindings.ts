@@ -11,6 +11,8 @@ import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
 type NativeMenuHandlerOptions = {
+  exportHtml?: () => unknown | Promise<unknown>;
+  exportPdf?: () => unknown | Promise<unknown>;
   insertMarkdownSnippet: (open: string, close: string, placeholder: string) => unknown;
   insertMarkdownTable: () => unknown;
   language?: AppLanguage;
@@ -22,6 +24,8 @@ type NativeMenuHandlerOptions = {
 };
 
 type ApplicationShortcutOptions = {
+  exportHtml?: () => unknown | Promise<unknown>;
+  exportPdf?: () => unknown | Promise<unknown>;
   openDocument: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
   saveDocument: () => unknown | Promise<unknown>;
@@ -29,6 +33,8 @@ type ApplicationShortcutOptions = {
 };
 
 export function useNativeMenuHandlers({
+  exportHtml,
+  exportPdf,
   insertMarkdownSnippet,
   insertMarkdownTable,
   language = "en",
@@ -43,6 +49,8 @@ export function useNativeMenuHandlers({
       openDocument,
       saveDocument,
       saveDocumentAs,
+      exportPdf,
+      exportHtml,
       formatBold: () => runEditorShortcut("b"),
       formatItalic: () => runEditorShortcut("i"),
       formatStrikethrough: () => runEditorShortcut("x", { shiftKey: true }),
@@ -69,6 +77,8 @@ export function useNativeMenuHandlers({
       insertMarkdownTable,
       language,
       openDocument,
+      exportHtml,
+      exportPdf,
       runAiQuickAction,
       runEditorShortcut,
       saveDocument,
@@ -158,6 +168,8 @@ export function useNativeMenus(
 }
 
 export function useApplicationShortcuts({
+  exportHtml,
+  exportPdf,
   openDocument,
   openFolder,
   saveDocument,
@@ -181,6 +193,12 @@ export function useApplicationShortcuts({
       } else if (key === "o") {
         event.preventDefault();
         openDocument();
+      } else if (key === "p" && !event.shiftKey && exportPdf) {
+        event.preventDefault();
+        exportPdf();
+      } else if (key === "e" && event.shiftKey && exportHtml) {
+        event.preventDefault();
+        exportHtml();
       }
     };
 
@@ -188,5 +206,5 @@ export function useApplicationShortcuts({
     return () => {
       window.removeEventListener("keydown", handleApplicationShortcut);
     };
-  }, [openDocument, openFolder, saveDocument, saveDocumentAs]);
+  }, [exportHtml, exportPdf, openDocument, openFolder, saveDocument, saveDocumentAs]);
 }

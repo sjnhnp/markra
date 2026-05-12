@@ -3,6 +3,7 @@ import { AiProviderSettingsPanel } from "./AiProviderSettingsPanel";
 import {
   AppearanceSettings,
   EditorSettings,
+  ExportSettings,
   GeneralSettings,
   WebSearchSettings
 } from "./SettingsSections";
@@ -22,6 +23,7 @@ export function SettingsWindow() {
     appLanguage,
     appTheme,
     editorPreferences,
+    exportSettings,
     handleAddAiProvider,
     handleFetchAiProviderModels,
     handleResetWelcomeDocument,
@@ -29,6 +31,7 @@ export function SettingsWindow() {
     handleTestAiProvider,
     handleUpdateAiSettings,
     handleUpdateEditorPreferences,
+    handleUpdateExportSettings,
     handleUpdateWebSearchSettings,
     selectedAiProvider,
     setActiveCategory,
@@ -112,6 +115,13 @@ export function SettingsWindow() {
               preferences={editorPreferences}
               translate={translate}
               onUpdatePreferences={handleUpdateEditorPreferences}
+            />
+          ) : null}
+          {activeCategory === "export" ? (
+            <ExportSettings
+              settings={exportSettings}
+              translate={translate}
+              onUpdateSettings={handleUpdateExportSettings}
             />
           ) : null}
         </SettingsContent>

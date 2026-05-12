@@ -1,5 +1,6 @@
 import {
   Bot,
+  Download,
   Globe2,
   Palette,
   PenLine,
@@ -44,6 +45,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: PenLine,
     id: "editor",
     labelKey: "settings.categories.editor"
+  },
+  {
+    icon: Download,
+    id: "export",
+    labelKey: "settings.categories.export"
   }
 ];
 

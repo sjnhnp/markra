@@ -14,6 +14,9 @@ import type {
   AppTheme,
   EditorContentWidth,
   EditorPreferences,
+  ExportSettings as ExportSettingsValue,
+  PdfMarginPreset,
+  PdfPageSize,
   WebSearchProviderId,
   WebSearchSettings
 } from "../lib/settings/app-settings";
@@ -49,8 +52,24 @@ const themeOptions: Array<{
 
 const bodyFontSizeOptions = [14, 15, 16, 17, 18, 20];
 const contentWidthOptions: EditorContentWidth[] = ["narrow", "default", "wide"];
+const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
+const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
 const lineHeightOptions = [1.5, 1.65, 1.8];
 const webSearchProviderOptions: WebSearchProviderId[] = ["local-bing", "searxng"];
+
+const exportPageSizeDimensions: Record<Exclude<PdfPageSize, "custom">, { heightMm: number; widthMm: number }> = {
+  a4: { heightMm: 297, widthMm: 210 },
+  default: { heightMm: 297, widthMm: 210 },
+  letter: { heightMm: 279, widthMm: 216 }
+};
+
+const exportMarginPresetMm: Record<Exclude<PdfMarginPreset, "custom">, number> = {
+  default: 18,
+  narrow: 10,
+  none: 0,
+  normal: 18,
+  wide: 25
+};
 
 function SettingsSection({ children, label }: { children: ReactNode; label: string }) {
   const sectionId = `settings-section-${label.replace(/\s+/g, "-")}`;
@@ -143,16 +162,18 @@ function SettingsTextInput({
   label,
   onChange,
   placeholder,
-  value
+  value,
+  widthClassName = "w-44"
 }: {
   label: string;
   onChange: (value: string) => unknown;
   placeholder?: string;
   value: string;
+  widthClassName?: string;
 }) {
   return (
     <input
-      className="h-8 w-44 rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out placeholder:text-(--text-secondary) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+      className={`h-8 ${widthClassName} rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out placeholder:text-(--text-secondary) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)`}
       type="text"
       aria-label={label}
       value={value}
@@ -160,6 +181,107 @@ function SettingsTextInput({
       onChange={(event) => onChange(event.currentTarget.value)}
     />
   );
+}
+
+function SettingsNumberInput({
+  label,
+  max,
+  min,
+  onChange,
+  step = 1,
+  unit,
+  value
+}: {
+  label: string;
+  max?: number;
+  min?: number;
+  onChange: (value: number) => unknown;
+  step?: number;
+  unit?: string;
+  value: number;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2">
+      <input
+        className="h-8 w-24 rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+        type="number"
+        aria-label={label}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.currentTarget.value))}
+      />
+      {unit ? (
+        <span className="text-[12px] leading-5 font-[560] text-(--text-secondary)" aria-hidden="true">
+          {unit}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function SettingsCheckbox({
+  checked,
+  label,
+  onChange
+}: {
+  checked: boolean;
+  label: string;
+  onChange: () => unknown;
+}) {
+  return (
+    <label className="inline-flex h-8 items-center gap-2 text-[12px] leading-5 font-[560] text-(--text-heading)">
+      <input
+        className="size-4 rounded border-(--border-default) accent-(--accent)"
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+function exportPageSizeLabelKey(pageSize: PdfPageSize) {
+  return `settings.export.pageSize.${pageSize}` as I18nKey;
+}
+
+function exportMarginPresetLabelKey(preset: PdfMarginPreset) {
+  return `settings.export.margin.${preset}` as I18nKey;
+}
+
+function applyExportPageSize(settings: ExportSettingsValue, pageSize: PdfPageSize): ExportSettingsValue {
+  if (pageSize === "custom") {
+    return {
+      ...settings,
+      pdfPageSize: pageSize
+    };
+  }
+
+  const dimensions = exportPageSizeDimensions[pageSize];
+
+  return {
+    ...settings,
+    pdfHeightMm: dimensions.heightMm,
+    pdfPageSize: pageSize,
+    pdfWidthMm: dimensions.widthMm
+  };
+}
+
+function applyExportMarginPreset(settings: ExportSettingsValue, preset: PdfMarginPreset): ExportSettingsValue {
+  if (preset === "custom") {
+    return {
+      ...settings,
+      pdfMarginPreset: preset
+    };
+  }
+
+  return {
+    ...settings,
+    pdfMarginMm: exportMarginPresetMm[preset],
+    pdfMarginPreset: preset
+  };
 }
 
 function SettingsButton({
@@ -479,6 +601,182 @@ export function EditorSettings({
                 onUpdatePreferences({
                   ...preferences,
                   closeAiCommandOnAgentPanelOpen: !preferences.closeAiCommandOnAgentPanelOpen
+                })
+              }
+            />
+          }
+        />
+      </SettingsSection>
+    </>
+  );
+}
+
+export function ExportSettings({
+  onUpdateSettings,
+  settings,
+  translate
+}: {
+  onUpdateSettings: (settings: ExportSettingsValue) => unknown;
+  settings: ExportSettingsValue;
+  translate: Translate;
+}) {
+  return (
+    <>
+      <SettingsSection label={translate("settings.sections.pdfExport")}>
+        <SettingsRow
+          title={translate("settings.export.pageSize")}
+          description={translate("settings.export.pageSizeDescription")}
+          action={
+            <SettingsSelect
+              label={translate("settings.export.pageSize")}
+              value={settings.pdfPageSize}
+              options={exportPageSizeOptions.map((pageSize) => ({
+                label: translate(exportPageSizeLabelKey(pageSize)),
+                value: pageSize
+              }))}
+              onChange={(value) => onUpdateSettings(applyExportPageSize(settings, value as PdfPageSize))}
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.export.pageMargin")}
+          description={translate("settings.export.pageMarginDescription")}
+          action={
+            <SettingsSelect
+              label={translate("settings.export.pageMargin")}
+              value={settings.pdfMarginPreset}
+              options={exportMarginPresetOptions.map((preset) => ({
+                label: translate(exportMarginPresetLabelKey(preset)),
+                value: preset
+              }))}
+              onChange={(value) => onUpdateSettings(applyExportMarginPreset(settings, value as PdfMarginPreset))}
+            />
+          }
+        />
+        {settings.pdfMarginPreset === "custom" ? (
+          <SettingsRow
+            title={translate("settings.export.pdfMargin")}
+            description={translate("settings.export.pdfMarginDescription")}
+            action={
+              <SettingsNumberInput
+                label={translate("settings.export.pdfMargin")}
+                min={0}
+                max={60}
+                unit={translate("settings.export.pdfMarginUnit")}
+                value={settings.pdfMarginMm}
+                onChange={(value) =>
+                  onUpdateSettings({
+                    ...settings,
+                    pdfMarginMm: value,
+                    pdfMarginPreset: "custom"
+                  })
+                }
+              />
+            }
+          />
+        ) : null}
+        <SettingsRow
+          title={translate("settings.export.pageDimensions")}
+          description={translate("settings.export.pageDimensionsDescription")}
+          action={
+            <div className="inline-flex items-center gap-2">
+              <SettingsNumberInput
+                label={translate("settings.export.pageWidth")}
+                min={50}
+                max={2000}
+                unit={translate("settings.export.pdfMarginUnit")}
+                value={settings.pdfWidthMm}
+                onChange={(value) =>
+                  onUpdateSettings({
+                    ...settings,
+                    pdfPageSize: "custom",
+                    pdfWidthMm: value
+                  })
+                }
+              />
+              <span className="text-[12px] leading-5 font-[560] text-(--text-secondary)" aria-hidden="true">x</span>
+              <SettingsNumberInput
+                label={translate("settings.export.pageHeight")}
+                min={50}
+                max={2000}
+                unit={translate("settings.export.pdfMarginUnit")}
+                value={settings.pdfHeightMm}
+                onChange={(value) =>
+                  onUpdateSettings({
+                    ...settings,
+                    pdfHeightMm: value,
+                    pdfPageSize: "custom"
+                  })
+                }
+              />
+            </div>
+          }
+        />
+        <SettingsRow
+          title={translate("settings.export.pageBreakOnH1")}
+          description={translate("settings.export.pageBreakOnH1Description")}
+          action={
+            <SettingsCheckbox
+              checked={settings.pdfPageBreakOnH1}
+              label={translate("settings.export.pageBreakOnH1")}
+              onChange={() =>
+                onUpdateSettings({
+                  ...settings,
+                  pdfPageBreakOnH1: !settings.pdfPageBreakOnH1
+                })
+              }
+            />
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection label={translate("settings.sections.pdfMetadata")}>
+        <SettingsRow
+          title={translate("settings.export.header")}
+          description={translate("settings.export.headerDescription")}
+          action={
+            <SettingsTextInput
+              label={translate("settings.export.header")}
+              value={settings.pdfHeader}
+              widthClassName="w-64"
+              onChange={(value) =>
+                onUpdateSettings({
+                  ...settings,
+                  pdfHeader: value
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.export.footer")}
+          description={translate("settings.export.footerDescription")}
+          action={
+            <SettingsTextInput
+              label={translate("settings.export.footer")}
+              value={settings.pdfFooter}
+              widthClassName="w-64"
+              onChange={(value) =>
+                onUpdateSettings({
+                  ...settings,
+                  pdfFooter: value
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.export.author")}
+          description={translate("settings.export.authorDescription")}
+          action={
+            <SettingsTextInput
+              label={translate("settings.export.author")}
+              value={settings.pdfAuthor}
+              widthClassName="w-64"
+              onChange={(value) =>
+                onUpdateSettings({
+                  ...settings,
+                  pdfAuthor: value
                 })
               }
             />

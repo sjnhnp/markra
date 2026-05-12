@@ -16,6 +16,7 @@ import {
   mockedCheckNativeAppUpdate,
   mockedDeleteNativeMarkdownTreeFile,
   mockedFetchAiProviderModels,
+  mockedGetStoredExportSettings,
   mockedGetStoredLanguage,
   mockedGetStoredTheme,
   mockedGetStoredWorkspaceState,
@@ -26,6 +27,7 @@ import {
   mockedListenAppLanguageChanged,
   mockedListenAppThemeChanged,
   mockedNotifyAppEditorPreferencesChanged,
+  mockedNotifyAppExportSettingsChanged,
   mockedNotifyAppLanguageChanged,
   mockedNotifyAppThemeChanged,
   mockedOpenNativeMarkdownFileInNewWindow,
@@ -36,9 +38,12 @@ import {
   mockedReadNativeMarkdownFile,
   mockedResetWelcomeDocumentState,
   mockedResolveDesktopPlatform,
+  mockedSaveNativeHtmlFile,
   mockedSaveNativeMarkdownFile,
+  mockedSaveNativePdfFile,
   mockedSaveStoredAiSettings,
   mockedSaveStoredEditorPreferences,
+  mockedSaveStoredExportSettings,
   mockedSaveStoredLanguage,
   mockedSaveStoredTheme,
   mockedShowNativeMarkdownFileTreeContextMenu,
@@ -251,7 +256,7 @@ describe("Markra workspace", () => {
     expect(settingsGroups[0]).not.toHaveClass("divide-y");
     expect(settingsGroups.some((group) => group.classList.contains("divide-y"))).toBe(true);
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
-    expect(categoryButtons).toHaveLength(5);
+    expect(categoryButtons).toHaveLength(6);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
     expect(categoryButtons[1]).not.toHaveAttribute("aria-current");
     const languageSelect = container.querySelector("select");
@@ -1496,6 +1501,172 @@ describe("Markra workspace", () => {
     );
 
     expect(screen.getByRole("heading", { name: "native-menu.md" })).toBeInTheDocument();
+  });
+
+  it("exports the current markdown document as standalone HTML from the native menu", async () => {
+    mockOpenMarkdownFile({
+      content: "# Exportable\n\nRendered from markdown.",
+      name: "exportable.md",
+      path: mockNativePath
+    });
+    mockedSaveNativeHtmlFile.mockResolvedValue({
+      name: "exportable.html",
+      path: "/mock-files/exportable.html"
+    });
+
+    renderApp();
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.openDocument?.();
+    });
+    expect(await screen.findByText("Exportable")).toBeInTheDocument();
+
+    await act(async () => {
+      await menuHandlers.exportHtml?.();
+    });
+
+    await waitFor(() =>
+      expect(mockedSaveNativeHtmlFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          suggestedName: "exportable.html",
+          contents: expect.stringContaining("<h1>Exportable</h1>")
+        })
+      )
+    );
+    const exportedHtml = mockedSaveNativeHtmlFile.mock.calls.at(-1)?.[0].contents ?? "";
+    expect(exportedHtml).toContain("<p>Rendered from markdown.</p>");
+    expect(exportedHtml).toContain("<title>exportable.md</title>");
+  });
+
+  it("exports the current markdown document as PDF from the native menu", async () => {
+    const print = vi.spyOn(window, "print").mockImplementation(() => {});
+    mockedSaveNativePdfFile.mockResolvedValue({
+      name: "printable.pdf",
+      path: "/mock-files/printable.pdf"
+    });
+    mockedGetStoredExportSettings.mockResolvedValue({
+      pdfAuthor: "Ada & Co",
+      pdfFooter: "Footer",
+      pdfHeader: "Header",
+      pdfHeightMm: 210,
+      pdfMarginMm: 12,
+      pdfMarginPreset: "custom",
+      pdfPageBreakOnH1: true,
+      pdfPageSize: "custom",
+      pdfWidthMm: 148
+    });
+    mockOpenMarkdownFile({
+      content: "# Printable\n\nReady for PDF with $x^2$.",
+      name: "printable.md",
+      path: mockNativePath
+    });
+
+    try {
+      renderApp();
+
+      await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
+      const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
+
+      await act(async () => {
+        await menuHandlers.openDocument?.();
+      });
+      expect(await screen.findByText("Printable")).toBeInTheDocument();
+
+      await act(async () => {
+        await menuHandlers.exportPdf?.();
+      });
+
+      await waitFor(() =>
+        expect(mockedSaveNativePdfFile).toHaveBeenCalledWith(
+          expect.objectContaining({
+            contents: expect.stringContaining("<h1>Printable</h1>"),
+            suggestedName: "printable.pdf"
+          })
+        )
+      );
+      const exportedHtml = mockedSaveNativePdfFile.mock.calls.at(-1)?.[0].contents ?? "";
+      expect(exportedHtml).toContain("Ready for PDF with");
+      expect(exportedHtml).toContain("katex");
+      expect(exportedHtml).toContain("@page {\n  size: 148mm 210mm;\n  margin: 12mm;\n}");
+      expect(exportedHtml).toContain('<meta name="author" content="Ada &amp; Co">');
+      expect(exportedHtml).toContain('<header class="markdown-export-page-header">Header</header>');
+      expect(exportedHtml).toContain('<footer class="markdown-export-page-footer">Footer</footer>');
+      expect(exportedHtml).toContain("break-before: page;");
+      expect(exportedHtml).toContain("<title>printable.md</title>");
+      expect(print).not.toHaveBeenCalled();
+    } finally {
+      print.mockRestore();
+    }
+  });
+
+  it("saves the PDF export margin from the settings export page", async () => {
+    window.history.pushState({}, "", "/?settings");
+    mockedGetStoredExportSettings.mockResolvedValue({
+      pdfAuthor: "",
+      pdfFooter: "",
+      pdfHeader: "",
+      pdfHeightMm: 297,
+      pdfMarginMm: 18,
+      pdfMarginPreset: "default",
+      pdfPageBreakOnH1: false,
+      pdfPageSize: "default",
+      pdfWidthMm: 210
+    });
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Export" }));
+    expect(screen.queryByLabelText("Export theme")).not.toBeInTheDocument();
+
+    fireEvent.change(await screen.findByLabelText("Page size"), { target: { value: "letter" } });
+
+    await waitFor(() =>
+      expect(mockedSaveStoredExportSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pdfHeightMm: 279,
+          pdfPageSize: "letter",
+          pdfWidthMm: 216
+        })
+      )
+    );
+
+    fireEvent.change(screen.getByLabelText("Page width"), { target: { value: "180" } });
+    fireEvent.change(screen.getByLabelText("Page height"), { target: { value: "240" } });
+    fireEvent.change(screen.getByLabelText("Page margin"), { target: { value: "custom" } });
+    fireEvent.change(await screen.findByLabelText("PDF margin"), { target: { value: "24" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Page break on level 1 headings" }));
+    fireEvent.change(screen.getByLabelText("Header"), { target: { value: "Draft" } });
+    fireEvent.change(screen.getByLabelText("Footer"), { target: { value: "Page" } });
+    fireEvent.change(screen.getByLabelText("Author"), { target: { value: "Ada" } });
+
+    await waitFor(() =>
+      expect(mockedSaveStoredExportSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pdfAuthor: "Ada",
+          pdfFooter: "Page",
+          pdfHeader: "Draft",
+          pdfHeightMm: 240,
+          pdfMarginMm: 24,
+          pdfMarginPreset: "custom",
+          pdfPageBreakOnH1: true,
+          pdfPageSize: "custom",
+          pdfWidthMm: 180
+        })
+      )
+    );
+    expect(mockedNotifyAppExportSettingsChanged).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pdfAuthor: "Ada",
+        pdfFooter: "Page",
+        pdfHeader: "Draft",
+        pdfMarginMm: 24,
+        pdfMarginPreset: "custom",
+        pdfPageBreakOnH1: true
+      })
+    );
   });
 
   it("inserts a markdown table from the native editor menu handler", async () => {

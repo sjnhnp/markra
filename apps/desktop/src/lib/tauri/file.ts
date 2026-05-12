@@ -71,7 +71,27 @@ export type SaveNativeMarkdownFileInput = {
   contents: string;
 };
 
+export type SaveNativeHtmlFileInput = {
+  suggestedName: string;
+  contents: string;
+};
+
+export type SaveNativePdfFileInput = {
+  suggestedName: string;
+  contents: string;
+};
+
 export type SavedNativeMarkdownFile = {
+  path: string;
+  name: string;
+};
+
+export type SavedNativeHtmlFile = {
+  path: string;
+  name: string;
+};
+
+export type SavedNativePdfFile = {
   path: string;
   name: string;
 };
@@ -129,6 +149,20 @@ const markdownFilters = [
   {
     name: "Markdown",
     extensions: ["md", "markdown", "txt"]
+  }
+];
+
+const htmlFilters = [
+  {
+    name: "HTML",
+    extensions: ["html", "htm"]
+  }
+];
+
+const pdfFilters = [
+  {
+    name: "PDF",
+    extensions: ["pdf"]
   }
 ];
 
@@ -379,6 +413,50 @@ export async function saveNativeMarkdownFile({
   await invoke("write_markdown_file", {
     path: targetPath,
     contents
+  });
+
+  return {
+    path: targetPath,
+    name: fileNameFromPath(targetPath)
+  };
+}
+
+export async function saveNativeHtmlFile({
+  suggestedName,
+  contents
+}: SaveNativeHtmlFileInput): Promise<SavedNativeHtmlFile | null> {
+  const targetPath = await save({
+    defaultPath: suggestedName,
+    filters: htmlFilters
+  });
+
+  if (!targetPath) return null;
+
+  await invoke("write_markdown_file", {
+    path: targetPath,
+    contents
+  });
+
+  return {
+    path: targetPath,
+    name: fileNameFromPath(targetPath)
+  };
+}
+
+export async function saveNativePdfFile({
+  suggestedName,
+  contents
+}: SaveNativePdfFileInput): Promise<SavedNativePdfFile | null> {
+  const targetPath = await save({
+    defaultPath: suggestedName,
+    filters: pdfFilters
+  });
+
+  if (!targetPath) return null;
+
+  await invoke("export_pdf_file", {
+    path: targetPath,
+    html: contents
   });
 
   return {

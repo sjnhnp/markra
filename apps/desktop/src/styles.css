@@ -109,6 +109,51 @@
   }
 }
 
+@media screen {
+  .markdown-export-document {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    background: #ffffff;
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .markdown-export-document,
+  .markdown-export-document * {
+    visibility: visible !important;
+  }
+
+  .markdown-export-document {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .markdown-export-paper {
+    max-width: none !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #111111 !important;
+  }
+}
+
 @layer base {
   :root {
     --bg-primary: #ffffff;
