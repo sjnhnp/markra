@@ -1,5 +1,7 @@
 import {
   Bot,
+  Code2,
+  Eye,
   FileText,
   FolderOpen,
   ImageIcon,
@@ -31,12 +33,15 @@ type NativeTitleBarProps = {
   platform?: DesktopPlatform;
   quickCreateMarkdownFileVisible?: boolean;
   saveDisabled?: boolean;
+  sourceMode?: boolean;
+  sourceModeDisabled?: boolean;
   theme: ResolvedAppTheme;
   onCreateMarkdownFile?: () => unknown;
   onOpenMarkdown: () => unknown;
   onSaveMarkdown: () => unknown;
   onToggleAiAgent: () => unknown;
   onToggleMarkdownFiles: () => unknown;
+  onToggleSourceMode?: () => unknown;
   onToggleTheme: () => unknown;
 };
 
@@ -57,12 +62,15 @@ export function NativeTitleBar({
   platform = resolveDesktopPlatform(),
   quickCreateMarkdownFileVisible = false,
   saveDisabled = false,
+  sourceMode = false,
+  sourceModeDisabled = false,
   theme,
   onCreateMarkdownFile,
   onOpenMarkdown,
   onSaveMarkdown,
   onToggleAiAgent,
   onToggleMarkdownFiles,
+  onToggleSourceMode,
   onToggleTheme
 }: NativeTitleBarProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
@@ -85,6 +93,26 @@ export function NativeTitleBar({
       >
         <Bot aria-hidden="true" size={15} />
       </IconButton>
+      {onToggleSourceMode && sourceMode ? (
+        <IconButton
+          className="bg-(--bg-active) text-(--text-heading) opacity-100 disabled:opacity-35"
+          disabled={sourceModeDisabled}
+          label={label("app.switchToVisualMode")}
+          onClick={onToggleSourceMode}
+        >
+          <Eye aria-hidden="true" size={15} />
+        </IconButton>
+      ) : null}
+      {onToggleSourceMode && !sourceMode ? (
+        <IconButton
+          className="disabled:opacity-35"
+          disabled={sourceModeDisabled}
+          label={label("app.switchToSourceMode")}
+          onClick={onToggleSourceMode}
+        >
+          <Code2 aria-hidden="true" size={15} />
+        </IconButton>
+      ) : null}
       <IconButton
         label={label("app.openMarkdownOrFolder")}
         onClick={onOpenMarkdown}
