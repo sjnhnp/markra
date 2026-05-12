@@ -49,9 +49,49 @@ function isPristineUntitledDocument(document: DocumentState) {
   return document.open && document.path === null && document.content === "" && !document.dirty && document.revision === 0;
 }
 
+function normalizeComparableMarkdownHeadings(content: string) {
+  const lines = content.replace(/\r\n?/gu, "\n").split("\n");
+  const normalized: string[] = [];
+  let fencedMarker: "`" | "~" | null = null;
+
+  for (const line of lines) {
+    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/u);
+    if (fenceMatch) {
+      const marker = fenceMatch[1]!.startsWith("~") ? "~" : "`";
+      if (!fencedMarker) {
+        fencedMarker = marker;
+      } else if (fencedMarker === marker) {
+        fencedMarker = null;
+      }
+
+      normalized.push(line);
+      continue;
+    }
+
+    if (!fencedMarker) {
+      const atxHeadingMatch = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/u);
+      if (atxHeadingMatch) {
+        normalized.push(`${atxHeadingMatch[1]} ${atxHeadingMatch[2]!.trim()}`);
+        continue;
+      }
+
+      const setextHeadingMatch = line.match(/^\s*(=+|-+)\s*$/u);
+      const previousLine = normalized.at(-1);
+      if (setextHeadingMatch && previousLine?.trim()) {
+        const level = setextHeadingMatch[1]!.startsWith("=") ? 1 : 2;
+        normalized[normalized.length - 1] = `${"#".repeat(level)} ${previousLine.trim()}`;
+        continue;
+      }
+    }
+
+    normalized.push(line);
+  }
+
+  return normalized.join("\n");
+}
+
 function comparableMarkdown(content: string) {
-  return content
-    .replace(/\r\n?/gu, "\n")
+  return normalizeComparableMarkdownHeadings(content)
     .replace(/[ \t]+$/gmu, "")
     .trim();
 }
@@ -63,6 +103,7 @@ function isEquivalentEditorMarkdown(left: string, right: string) {
 type UseMarkdownDocumentOptions = {
   confirmDiscardUnsavedChanges?: (document: DocumentState) => boolean | Promise<boolean>;
   getCurrentMarkdown: (fallbackContent: string) => string;
+  isCurrentMarkdownEquivalent?: (markdown: string) => boolean;
   onMarkdownTreeChange?: (path: string) => unknown | Promise<unknown>;
   onTreeRootFromFolderPath: (path: string, name: string, sessionId?: string | null) => unknown;
   onTreeRootFromFilePath: (path: string) => unknown;
@@ -78,6 +119,7 @@ function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState
 export function useMarkdownDocument({
   confirmDiscardUnsavedChanges,
   getCurrentMarkdown,
+  isCurrentMarkdownEquivalent,
   onMarkdownTreeChange,
   onTreeRootFromFolderPath,
   onTreeRootFromFilePath,
@@ -133,14 +175,19 @@ export function useMarkdownDocument({
     if (!current.open) return false;
     if (current.path === null && current.content.trim().length === 0) return false;
 
-    const editorMarkdown = currentMarkdown();
     if (!current.dirty) {
+      const editorContentEquivalent = isCurrentMarkdownEquivalent?.(current.content);
+      if (editorContentEquivalent) return false;
+      if (editorContentEquivalent === false && current.path !== null) return true;
+
+      const editorMarkdown = currentMarkdown();
       return !isEquivalentEditorMarkdown(editorMarkdown, current.content) && (current.path !== null || editorMarkdown.trim().length > 0);
     }
     if (current.path) return true;
 
+    const editorMarkdown = currentMarkdown();
     return editorMarkdown.trim().length > 0;
-  }, [currentMarkdown]);
+  }, [currentMarkdown, isCurrentMarkdownEquivalent]);
 
   const confirmCanDiscardCurrentDocument = useCallback(() => {
     if (!hasDiscardableUnsavedChanges()) return true;

@@ -132,6 +132,52 @@ describe("useMarkdownDocument", () => {
     expect(result.current.document.name).toBe("second.md");
   });
 
+  it("does not ask to discard a clean file only because the editor serialized markdown differently", async () => {
+    let editorMarkdown = "";
+    const confirmDiscardUnsavedChanges = vi.fn(() => true);
+    mockedOpenNativeMarkdownPath
+      .mockResolvedValueOnce({
+        kind: "file",
+        file: {
+          content: "First file\n==========\n\n- Clean content.",
+          name: "first.md",
+          path: "/mock-files/first.md"
+        }
+      })
+      .mockResolvedValueOnce({
+        kind: "file",
+        file: {
+          content: "# Second file\n\nClean content.",
+          name: "second.md",
+          path: "/mock-files/second.md"
+        }
+      });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        getCurrentMarkdown: () => editorMarkdown,
+        isCurrentMarkdownEquivalent: () => true,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openMarkdownFile();
+    });
+
+    editorMarkdown = "# First file\n\n* Clean content.";
+
+    await act(async () => {
+      await result.current.openMarkdownFile();
+    });
+
+    expect(confirmDiscardUnsavedChanges).not.toHaveBeenCalled();
+    expect(result.current.document.name).toBe("second.md");
+  });
+
   it("forwards native folder tree changes while watching an opened markdown file", async () => {
     const onMarkdownTreeChange = vi.fn();
     let emitTreeChange: (path: string) => unknown = () => {};
