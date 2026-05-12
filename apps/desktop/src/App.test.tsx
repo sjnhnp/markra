@@ -1347,6 +1347,67 @@ describe("Markra workspace", () => {
     );
   });
 
+  it("switches between the visual editor and markdown source mode", async () => {
+    renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    expect((sourceEditor as HTMLTextAreaElement).value).toContain("# Welcome to Markra");
+    expect(screen.queryByRole("heading", { name: "Welcome to Markra" })).not.toBeInTheDocument();
+
+    fireEvent.change(sourceEditor, {
+      target: {
+        value: "# Source edit\n\nUpdated from source mode."
+      }
+    });
+
+    expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to visual mode" }));
+
+    expect(await screen.findByText("Source edit")).toBeInTheDocument();
+    expect(screen.getByText("Updated from source mode.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "milkdown");
+  });
+
+  it("saves markdown source mode edits through the native file API", async () => {
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Markdown source" }), {
+      target: {
+        value: "# Source save\n\nSaved from source mode."
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Markdown" }));
+
+    await waitFor(() =>
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: "# Source save\n\nSaved from source mode.",
+          path: mockNativePath,
+          suggestedName: "native.md"
+        })
+      )
+    );
+  });
+
   it("saves expanded link source as markdown instead of escaped text", async () => {
     mockOpenMarkdownFile({
       content: "[关于我们](https://m.techflowpost.com/article/9424)",

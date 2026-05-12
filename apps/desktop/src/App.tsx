@@ -5,6 +5,7 @@ import { AiAgentPanel } from "./components/AiAgentPanel";
 import { ImagePreview } from "./components/ImagePreview";
 import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
+import { MarkdownSourceEditor } from "./components/MarkdownSourceEditor";
 import { NativeTitleBar } from "./components/NativeTitleBar";
 import { QuietStatus } from "./components/QuietStatus";
 import { SettingsWindow } from "./components/SettingsWindow";
@@ -104,6 +105,8 @@ export default function App() {
   const [aiResults, setAiResults] = useState<AiDiffResult[]>([]);
   const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
+  const [editorMode, setEditorMode] = useState<"source" | "visual">("visual");
+  const sourceMode = editorMode === "source";
   const aiResultsRef = useRef<AiDiffResult[]>([]);
   const appliedAiPreviewKeysRef = useRef(new Set<string>());
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
@@ -209,7 +212,8 @@ export default function App() {
     setAiResults(results);
   }, []);
   const getPendingAiResult = useCallback(() => aiResultsRef.current.at(-1) ?? null, []);
-  const hasActiveAiSelection = activeAiSelection?.source === "selection" && Boolean(activeAiSelection.text.trim());
+  const hasActiveAiSelection =
+    !sourceMode && activeAiSelection?.source === "selection" && Boolean(activeAiSelection.text.trim());
   const selectedInlineAiModel =
     aiSettings.availableTextModels.find(
       (model) => model.providerId === aiSettings.inlineProvider?.id && model.id === aiSettings.inlineModelId
@@ -635,7 +639,29 @@ export default function App() {
   const hasOpenDocument = document.open;
   const titleDocumentName = activeImageFile ? activeImageFile.name : hasOpenDocument ? document.name : fileTreeRootName;
   const titleDocumentKind = activeImageFile ? "image" : hasOpenDocument ? "file" : "folder";
+  const sourceModeAvailable = hasOpenDocument && !activeImageFile;
   const supportsAiThinking = selectedInlineAiModel?.capabilities.includes("reasoning") ?? false;
+  const handleEditorModeToggle = useCallback(() => {
+    if (!sourceModeAvailable) return;
+
+    if (sourceMode) {
+      setEditorMode("visual");
+      return;
+    }
+
+    handleMarkdownChange(editor.getCurrentMarkdown(document.content));
+    updateActiveAiSelection(null);
+    handleAiCommandClose();
+    setEditorMode("source");
+  }, [
+    document.content,
+    editor,
+    handleAiCommandClose,
+    handleMarkdownChange,
+    sourceMode,
+    sourceModeAvailable,
+    updateActiveAiSelection
+  ]);
   const handleOpenMarkdownFolder = useCallback(async () => {
     const canDiscard = await confirmCanDiscardCurrentDocument();
     if (!canDiscard) return;
@@ -646,6 +672,11 @@ export default function App() {
       clearOpenDocument();
     }
   }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder]);
+  useEffect(() => {
+    if (sourceModeAvailable) return;
+
+    setEditorMode("visual");
+  }, [sourceModeAvailable]);
   const aiAgentContext = useMemo(() => ({
     documentName: titleDocumentName,
     headingCount: outlineItems.length,
@@ -781,12 +812,15 @@ export default function App() {
           markdownFilesWidth={fileTreeWidth}
           quickCreateMarkdownFileVisible={!fileTreeOpen}
           saveDisabled={!hasOpenDocument || Boolean(activeImageFile)}
+          sourceMode={sourceMode}
+          sourceModeDisabled={!sourceModeAvailable}
           theme={appTheme.resolvedTheme}
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
           onOpenMarkdown={handleOpenMarkdownFile}
           onSaveMarkdown={handleSaveClick}
           onToggleAiAgent={handleAiAgentToggle}
           onToggleMarkdownFiles={handleFileTreeToggle}
+          onToggleSourceMode={handleEditorModeToggle}
           onToggleTheme={appTheme.toggleTheme}
         />
 
@@ -831,21 +865,33 @@ export default function App() {
                 />
               ) : hasOpenDocument ? (
                 <>
-                  <MarkdownPaper
-                    autoFocus={shouldFocusEditorOnReady(document.content)}
-                    bodyFontSize={editorPreferences.preferences.bodyFontSize}
-                    contentWidth={editorPreferences.preferences.contentWidth}
-                    initialContent={document.content}
-                    language={appLanguage.language}
-                    lineHeight={editorPreferences.preferences.lineHeight}
-                    onEditorReady={editor.handleEditorReady}
-                    onMarkdownChange={handleMarkdownChange}
-                    onSaveClipboardImage={handleSaveClipboardImage}
-                    openExternalUrl={openNativeExternalUrl}
-                    onTextSelectionChange={handleTextSelectionChange}
-                    resolveImageSrc={resolveImageSrc}
-                    revision={document.revision}
-                  />
+                  {sourceMode ? (
+                    <MarkdownSourceEditor
+                      autoFocus
+                      bodyFontSize={editorPreferences.preferences.bodyFontSize}
+                      content={document.content}
+                      contentWidth={editorPreferences.preferences.contentWidth}
+                      language={appLanguage.language}
+                      lineHeight={editorPreferences.preferences.lineHeight}
+                      onChange={handleMarkdownChange}
+                    />
+                  ) : (
+                    <MarkdownPaper
+                      autoFocus={shouldFocusEditorOnReady(document.content)}
+                      bodyFontSize={editorPreferences.preferences.bodyFontSize}
+                      contentWidth={editorPreferences.preferences.contentWidth}
+                      initialContent={document.content}
+                      language={appLanguage.language}
+                      lineHeight={editorPreferences.preferences.lineHeight}
+                      onEditorReady={editor.handleEditorReady}
+                      onMarkdownChange={handleMarkdownChange}
+                      onSaveClipboardImage={handleSaveClipboardImage}
+                      openExternalUrl={openNativeExternalUrl}
+                      onTextSelectionChange={handleTextSelectionChange}
+                      resolveImageSrc={resolveImageSrc}
+                      revision={document.revision}
+                    />
+                  )}
                   <QuietStatus
                     dirty={document.dirty}
                     language={appLanguage.language}

@@ -245,6 +245,58 @@
     @apply outline-none;
   }
 
+  .markdown-source-highlight code {
+    font-family: inherit;
+  }
+
+  .markdown-source-input {
+    -webkit-text-fill-color: transparent;
+    caret-color: var(--accent);
+  }
+
+  .markdown-source-input::selection {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    -webkit-text-fill-color: transparent;
+  }
+
+  .markdown-source-token-muted {
+    color: color-mix(in srgb, var(--text-secondary) 62%, transparent);
+  }
+
+  .markdown-source-token-heading-marker,
+  .markdown-source-token-list-marker,
+  .markdown-source-token-quote-marker {
+    color: var(--text-md-char);
+    font-weight: 720;
+  }
+
+  .markdown-source-token-heading {
+    color: var(--text-heading);
+    font-weight: 680;
+  }
+
+  .markdown-source-token-code-fence,
+  .markdown-source-token-code-info,
+  .markdown-source-token-inline-code {
+    color: oklch(45% 0.15 258);
+  }
+
+  .markdown-source-token-code {
+    color: oklch(43% 0.13 151);
+  }
+
+  .markdown-source-token-link {
+    color: var(--accent-hover);
+  }
+
+  .markdown-source-token-emphasis {
+    color: oklch(42% 0.14 29);
+  }
+
+  .markdown-source-token-rule {
+    color: var(--text-md-char);
+  }
+
   .markdown-paper h1,
   .markdown-paper h2,
   .markdown-paper h3,

@@ -71,7 +71,7 @@ type MarkdownPaperProps = {
   revision: number;
 };
 
-const editorContentWidths: Record<EditorContentWidth, string> = {
+export const editorContentWidths: Record<EditorContentWidth, string> = {
   default: "860px",
   narrow: "720px",
   wide: "1040px"

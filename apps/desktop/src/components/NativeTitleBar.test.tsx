@@ -60,6 +60,59 @@ describe("NativeTitleBar", () => {
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
   });
 
+  it("uses separate source and visual editor mode action buttons", () => {
+    const toggleSourceMode = vi.fn();
+    const visualModeCase = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleSourceMode={toggleSourceMode}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    const sourceButton = screen.getByRole("button", { name: "Switch to source mode" });
+    expect(sourceButton).toContainElement(visualModeCase.container.querySelector(".lucide-code-xml"));
+    expect(sourceButton).not.toHaveAttribute("aria-pressed");
+    expect(screen.queryByRole("button", { name: "Switch to visual mode" })).not.toBeInTheDocument();
+
+    fireEvent.click(sourceButton);
+
+    expect(toggleSourceMode).toHaveBeenCalledTimes(1);
+
+    visualModeCase.unmount();
+
+    const sourceModeCase = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        sourceMode
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleSourceMode={toggleSourceMode}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    const visualButton = screen.getByRole("button", { name: "Switch to visual mode" });
+    expect(visualButton).toContainElement(sourceModeCase.container.querySelector(".lucide-eye"));
+    expect(visualButton).not.toHaveAttribute("aria-pressed");
+    expect(screen.queryByRole("button", { name: "Switch to source mode" })).not.toBeInTheDocument();
+    expect(sourceModeCase.container.querySelector(".lucide-code-xml")).not.toBeInTheDocument();
+  });
+
   it("centers the document title inside the editor area when the Markra AI panel is open", () => {
     const { container } = render(
       <NativeTitleBar
