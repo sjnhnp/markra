@@ -464,6 +464,111 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("Where $A$ is the final amount.");
   });
 
+  it("reveals math source for editing when a rendered formula is clicked", async () => {
+    const source = "Where $A$ is the final amount.";
+    const { container, view } = await renderEditor(source);
+    const inlineFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-inline");
+
+    expect(inlineFormula).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).toHaveTextContent("$A$");
+
+    fireEvent.mouseDown(inlineFormula!);
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).not.toBeInTheDocument();
+    });
+    expect(container.querySelector(".ProseMirror .markra-math-render-inline")).not.toBeInTheDocument();
+    expect(view.state.selection.from).toBeGreaterThan(source.indexOf("$A$") + 1);
+    expect(view.state.selection.from).toBeLessThan(source.indexOf("$A$") + "$A$".length + 1);
+  });
+
+  it("reveals math source for editing from keyboard activation", async () => {
+    const source = String.raw`$$ E = mc^2 $$`;
+    const { container, view } = await renderEditor(source);
+    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
+
+    expect(blockFormula).toBeInTheDocument();
+
+    fireEvent.keyDown(blockFormula!, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).not.toBeInTheDocument();
+    });
+    expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
+    expect(view.state.selection.from).toBeGreaterThan(source.indexOf("E"));
+    expect(view.state.selection.from).toBeLessThan(source.indexOf("$$", 2) + 1);
+  });
+
+  it("keeps math source visible after moving past the closing delimiter until Enter", async () => {
+    const source = String.raw`$$ E = mc^2 $$`;
+    const { container, view } = await renderEditor(source);
+    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
+
+    fireEvent.mouseDown(blockFormula!);
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).not.toBeInTheDocument();
+    });
+
+    moveCursor(view, source.length + 1);
+
+    expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
+
+    expect(pressEnter(view)).toBe(true);
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).toBeInTheDocument();
+    });
+    expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).toHaveTextContent(source);
+  });
+
+  it("deletes a rendered math block from either side", async () => {
+    const source = String.raw`$$ E = mc^2 $$`;
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(container.querySelector(".ProseMirror .markra-math-render-display")).toBeInTheDocument();
+
+    moveCursor(view, 1);
+    expect(pressShortcut(view, "Delete")).toBe(true);
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
+    });
+    expect(serializeMarkdown(view.state.doc)).not.toContain(source);
+
+    insertTextDirectly(view, source);
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).toBeInTheDocument();
+    });
+
+    moveCursor(view, source.length + 1);
+    expect(pressShortcut(view, "Backspace")).toBe(true);
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
+    });
+    expect(serializeMarkdown(view.state.doc)).not.toContain(source);
+  });
+
+  it("deletes a focused rendered math block with Delete", async () => {
+    const source = String.raw`$$ E = mc^2 $$`;
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
+
+    expect(blockFormula).toBeInTheDocument();
+
+    moveCursor(view, source.length + 1);
+    fireEvent.keyDown(blockFormula!, { key: "Delete" });
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
+    });
+    expect(serializeMarkdown(view.state.doc)).not.toContain(source);
+  });
+
   it("saves pasted clipboard images and inserts markdown image references", async () => {
     const onMarkdownChange = vi.fn();
     const onSaveClipboardImage = vi.fn().mockResolvedValue({

@@ -14,7 +14,21 @@ type MathRange = {
   to: number;
 };
 
-const mathRenderKey = new PluginKey("markra-math-render");
+type ActiveMathSource = {
+  from: number;
+  to: number;
+};
+
+type MathRenderMeta =
+  | {
+      range: MathRange;
+      type: "activate";
+    }
+  | {
+      type: "deactivate";
+    };
+
+const mathRenderKey = new PluginKey<ActiveMathSource | null>("markra-math-render");
 
 function isEscaped(text: string, index: number) {
   let slashCount = 0;
@@ -128,6 +142,63 @@ function findActiveMathRange(state: EditorState) {
   return relativeRange ? makeAbsoluteRange(relativeRange, $from.start()) : null;
 }
 
+function findMathRangeByBounds(doc: ProseNode, bounds: ActiveMathSource) {
+  let activeRange: MathRange | null = null;
+
+  doc.descendants((node, position) => {
+    if (activeRange) return false;
+    if (!node.isTextblock || node.type.spec.code) return;
+
+    const blockStart = position + 1;
+    for (const relativeRange of getMathRanges(node.textContent)) {
+      const range = makeAbsoluteRange(relativeRange, blockStart);
+      if (range.from !== bounds.from || range.to !== bounds.to) continue;
+
+      activeRange = range;
+      return false;
+    }
+  });
+
+  return activeRange;
+}
+
+function getActiveMathSource(state: EditorState) {
+  const activeSource = mathRenderKey.getState(state) as ActiveMathSource | null;
+  if (!activeSource) return null;
+
+  return findMathRangeByBounds(state.doc, activeSource);
+}
+
+function getEditableMathRange(state: EditorState) {
+  return getActiveMathSource(state) ?? findActiveMathRange(state);
+}
+
+function findAdjacentMathRange(state: EditorState, direction: "backward" | "forward") {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+  if (getActiveMathSource(state)) return null;
+
+  let adjacentRange: MathRange | null = null;
+  const cursor = selection.from;
+
+  state.doc.descendants((node, position) => {
+    if (adjacentRange) return false;
+    if (!node.isTextblock || node.type.spec.code) return;
+
+    const blockStart = position + 1;
+    for (const relativeRange of getMathRanges(node.textContent)) {
+      const range = makeAbsoluteRange(relativeRange, blockStart);
+      const touchesCursor = direction === "forward" ? range.from === cursor : range.to === cursor;
+      if (!touchesCursor) continue;
+
+      adjacentRange = range;
+      return false;
+    }
+  });
+
+  return adjacentRange;
+}
+
 function renderFormula(range: MathRange) {
   return renderToString(range.tex, {
     displayMode: range.kind === "display",
@@ -137,11 +208,101 @@ function renderFormula(range: MathRange) {
   });
 }
 
+function mathSourceEditPosition(range: MathRange) {
+  const delimiterLength = range.kind === "display" ? 2 : 1;
+  const sourceAfterDelimiter = range.source.slice(delimiterLength);
+  const firstContentOffset = sourceAfterDelimiter.search(/\S/u);
+  const fallbackPosition = range.from + delimiterLength;
+  if (firstContentOffset === -1) return fallbackPosition;
+
+  return Math.min(range.to - 1, fallbackPosition + firstContentOffset);
+}
+
+function revealMathSource(view: EditorView, range: MathRange) {
+  view.dispatch(
+    view.state.tr
+      .setMeta(mathRenderKey, {
+        range,
+        type: "activate"
+      } satisfies MathRenderMeta)
+      .setSelection(TextSelection.create(view.state.doc, mathSourceEditPosition(range)))
+      .scrollIntoView()
+  );
+  view.focus();
+}
+
+function closeActiveMathSource(view: EditorView, event: KeyboardEvent) {
+  if (event.key !== "Enter" || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false;
+
+  const range = getEditableMathRange(view.state);
+  if (!range) return false;
+
+  event.preventDefault();
+  view.dispatch(
+    view.state.tr
+      .setMeta(mathRenderKey, {
+        type: "deactivate"
+      } satisfies MathRenderMeta)
+      .setSelection(TextSelection.create(view.state.doc, range.to))
+      .scrollIntoView()
+  );
+  view.focus();
+  return true;
+}
+
+function deleteMathRange(view: EditorView, range: MathRange) {
+  let transaction = view.state.tr
+    .setMeta(mathRenderKey, {
+      type: "deactivate"
+    } satisfies MathRenderMeta)
+    .delete(range.from, range.to);
+  const cursor = Math.min(range.from, transaction.doc.content.size);
+  transaction = transaction.setSelection(TextSelection.create(transaction.doc, cursor)).scrollIntoView();
+  view.dispatch(transaction);
+  view.focus();
+}
+
+function deleteAdjacentMathSource(view: EditorView, event: KeyboardEvent) {
+  if (event.key !== "Backspace" && event.key !== "Delete") return false;
+
+  const range = findAdjacentMathRange(view.state, event.key === "Delete" ? "forward" : "backward");
+  if (!range) return false;
+
+  event.preventDefault();
+  deleteMathRange(view, range);
+  return true;
+}
+
+function handleMathKeyDown(view: EditorView, event: KeyboardEvent) {
+  return closeActiveMathSource(view, event) || deleteAdjacentMathSource(view, event);
+}
+
 function createMathWidget(range: MathRange) {
   return (view: EditorView) => {
     const element = view.dom.ownerDocument.createElement("span");
     element.className = `markra-math-render markra-math-render-${range.kind}`;
     element.setAttribute("aria-label", range.kind === "display" ? "Math formula" : "Inline math formula");
+    element.tabIndex = 0;
+
+    element.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      revealMathSource(view, range);
+    });
+    element.addEventListener("keydown", (event) => {
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteMathRange(view, range);
+        return;
+      }
+
+      if (event.key !== "Enter" && event.key !== " ") return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      revealMathSource(view, range);
+    });
 
     try {
       element.innerHTML = renderFormula(range);
@@ -190,8 +351,32 @@ function buildMathDecorations(doc: ProseNode, activeRange: MathRange | null) {
 export const markraMathPlugin = $prose(() => {
   return new Plugin({
     key: mathRenderKey,
+    state: {
+      init: (): ActiveMathSource | null => null,
+      apply(transaction, activeSource: ActiveMathSource | null, _oldState, newState): ActiveMathSource | null {
+        const meta = transaction.getMeta(mathRenderKey) as MathRenderMeta | undefined;
+        if (meta?.type === "deactivate") return null;
+        if (meta?.type === "activate") {
+          return {
+            from: meta.range.from,
+            to: meta.range.to
+          } satisfies ActiveMathSource;
+        }
+
+        if (!activeSource) return null;
+
+        const mappedSource = {
+          from: transaction.mapping.map(activeSource.from, 1),
+          to: transaction.mapping.map(activeSource.to, -1)
+        } satisfies ActiveMathSource;
+        if (mappedSource.from >= mappedSource.to) return null;
+
+        return findMathRangeByBounds(newState.doc, mappedSource) ? mappedSource : null;
+      }
+    },
     props: {
-      decorations: (state) => buildMathDecorations(state.doc, findActiveMathRange(state))
+      decorations: (state) => buildMathDecorations(state.doc, getEditableMathRange(state)),
+      handleKeyDown: handleMathKeyDown
     }
   });
 });

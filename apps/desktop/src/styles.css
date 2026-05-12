@@ -683,6 +683,7 @@
   .markdown-paper .markra-math-render {
     color: var(--text-primary);
     letter-spacing: 0;
+    cursor: text;
     user-select: text;
   }
 
