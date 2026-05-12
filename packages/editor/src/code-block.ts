@@ -329,6 +329,10 @@ class MarkraCodeBlockNodeView implements NodeView {
     this.lineNumbers.contentEditable = "false";
     this.lineNumbers.setAttribute("aria-hidden", "true");
     this.code.className = "markra-code-content";
+    this.code.spellcheck = false;
+    this.code.setAttribute("spellcheck", "false");
+    this.code.setAttribute("autocorrect", "off");
+    this.code.setAttribute("autocapitalize", "off");
 
     this.populateLanguageOptions();
     this.languageSelect.addEventListener("change", this.handleLanguageChange);

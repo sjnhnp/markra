@@ -343,6 +343,16 @@ describe("MarkdownPaper editing", () => {
     expect(Array.from(languageSelect!.options).map((option) => option.value)).toContain("custom-lang");
   });
 
+  it("disables text substitutions inside editable code blocks", async () => {
+    const source = ["```python", "print('')", "```"].join("\n");
+    const { container } = await renderEditor(source);
+    const codeContent = container.querySelector<HTMLElement>(".ProseMirror .markra-code-content");
+
+    expect(codeContent).toHaveAttribute("spellcheck", "false");
+    expect(codeContent).toHaveAttribute("autocorrect", "off");
+    expect(codeContent).toHaveAttribute("autocapitalize", "off");
+  });
+
   it("turns typed triple backticks into a code block when pressing Enter", async () => {
     const { container, view } = await renderEditor();
 
