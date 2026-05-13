@@ -33,6 +33,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       toggleSourceMode: "Mod+Alt+S"
     },
     restoreWorkspaceOnStartup: true,
+    showDocumentTabs: true,
     showWordCount: true
   },
   getStoredEditorPreferences: vi.fn()
@@ -83,6 +84,7 @@ describe("useEditorPreferences", () => {
         toggleSourceMode: "Mod+Alt+S"
       },
       restoreWorkspaceOnStartup: true,
+      showDocumentTabs: true,
       showWordCount: true
     });
     mockedListenAppEditorPreferencesChanged.mockImplementation(async (listener) => {
@@ -126,6 +128,7 @@ describe("useEditorPreferences", () => {
           toggleSourceMode: "Mod+Alt+S"
         },
         restoreWorkspaceOnStartup: false,
+        showDocumentTabs: false,
         showWordCount: false
       });
     });

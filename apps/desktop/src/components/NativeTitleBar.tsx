@@ -12,7 +12,7 @@ import {
   SquarePen,
   Sun
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Button, IconButton, PopoverSurface } from "@markra/ui";
 import type { ResolvedAppTheme } from "../lib/settings/app-settings";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
@@ -36,6 +36,7 @@ type NativeTitleBarProps = {
   sourceMode?: boolean;
   sourceModeDisabled?: boolean;
   theme: ResolvedAppTheme;
+  titleContent?: ReactNode;
   onCreateMarkdownFile?: () => unknown;
   onOpenMarkdown: () => unknown;
   onOpenMarkdownFolder?: () => unknown;
@@ -66,6 +67,7 @@ export function NativeTitleBar({
   sourceMode = false,
   sourceModeDisabled = false,
   theme,
+  titleContent,
   onCreateMarkdownFile,
   onOpenMarkdown,
   onOpenMarkdownFolder,
@@ -220,8 +222,46 @@ export function NativeTitleBar({
       ? "transition-none"
       : "transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
   }`;
+  const titlebarSurfaceClassName = "bg-(--bg-primary)";
+  const titlebarSurfaceStyle: CSSProperties | undefined = markdownFilesOpen
+    ? {
+      background: `linear-gradient(to right, var(--bg-secondary) 0 ${markdownFilesWidth}px, var(--bg-primary) ${markdownFilesWidth}px 100%)`
+    }
+    : undefined;
+
+  const renderTitleContent = (className: string, style?: CSSProperties) => (
+    <div className={className} style={style}>
+      {titleContent}
+    </div>
+  );
+  const renderMarkdownFilesDivider = () => markdownFilesOpen ? (
+    <span
+      aria-hidden="true"
+      className="native-titlebar-sidebar-divider pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-(--border-default)"
+      style={{ left: markdownFilesWidth }}
+    />
+  ) : null;
 
   if (platform === "windows") {
+    if (titleContent) {
+      return (
+        <header
+          className={`native-titlebar group/titlebar fixed inset-x-0 top-0 z-10 grid h-10 grid-cols-[minmax(0,1fr)_164px] select-none items-center ${titlebarSurfaceClassName} [-webkit-user-select:none]`}
+          style={titlebarSurfaceStyle}
+          aria-label={label("app.windowDragRegion")}
+          data-tauri-drag-region
+        >
+          {renderMarkdownFilesDivider()}
+          {renderTitleContent(
+            "native-title-slot min-w-0 h-10 px-3"
+          )}
+          {renderDocumentActions(
+            "document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100"
+          )}
+        </header>
+      );
+    }
+
     return (
       <header
         className="native-titlebar fixed top-0 right-3.5 z-10 flex h-10 w-auto select-none items-center justify-end [-webkit-user-select:none]"
@@ -239,6 +279,11 @@ export function NativeTitleBar({
   const editorRightInset = aiAgentOpen ? aiAgentWidth : 0;
   const titleOffset = (editorLeftInset - editorRightInset) / 2;
   const titleTransform = titleOffset === 0 ? undefined : `translateX(${titleOffset}px)`;
+  const titleSlotStyle: CSSProperties = {
+    transform: titleTransform,
+    ...(titleOffset > 0 ? { marginRight: titleOffset } : {}),
+    ...(titleOffset < 0 ? { marginLeft: -titleOffset } : {})
+  };
   const titleResizing = aiAgentResizing || markdownFilesResizing;
   const showQuickCreateMarkdownFile =
     quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
@@ -249,10 +294,12 @@ export function NativeTitleBar({
 
   return (
     <header
-      className="native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[164px_minmax(0,1fr)_164px] select-none items-center [-webkit-user-select:none]"
+      className={`native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[164px_minmax(0,1fr)_164px] select-none items-center ${titlebarSurfaceClassName} [-webkit-user-select:none]`}
+      style={titlebarSurfaceStyle}
       aria-label={label("app.windowDragRegion")}
       data-tauri-drag-region
     >
+      {renderMarkdownFilesDivider()}
       <div
         className={`titlebar-spacer relative z-20 flex h-10 items-center gap-1 ${titlebarLeftPaddingClassName}`}
         data-tauri-drag-region
@@ -276,21 +323,30 @@ export function NativeTitleBar({
           </IconButton>
         ) : null}
       </div>
-      <h1
-        className={`native-title pointer-events-none m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary) motion-reduce:transition-none ${
-          titleResizing ? "transition-none" : "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
-        }`}
-        data-tauri-drag-region
-        style={{ transform: titleTransform }}
-      >
-        <TitleIcon aria-hidden="true" size={15} />
-        <span className="min-w-0 truncate" data-tauri-drag-region>
-          {documentName}
-        </span>
-        {dirty ? (
-          <span className="save-mark size-1.25 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
-        ) : null}
-      </h1>
+      {titleContent ? (
+        renderTitleContent(
+          `native-title-slot flex h-10 min-w-0 items-center justify-center motion-reduce:transition-none ${
+            titleResizing ? "transition-none" : "transition-[margin,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          }`,
+          titleSlotStyle
+        )
+      ) : (
+        <h1
+          className={`native-title pointer-events-none m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary) motion-reduce:transition-none ${
+            titleResizing ? "transition-none" : "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          }`}
+          data-tauri-drag-region
+          style={{ transform: titleTransform }}
+        >
+          <TitleIcon aria-hidden="true" size={15} />
+          <span className="min-w-0 truncate" data-tauri-drag-region>
+            {documentName}
+          </span>
+          {dirty ? (
+            <span className="save-mark size-1.25 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
+          ) : null}
+        </h1>
+      )}
       {renderDocumentActions(documentActionsClassName, { transform: aiAgentOpen ? `translateX(-${aiAgentWidth}px)` : undefined })}
     </header>
   );

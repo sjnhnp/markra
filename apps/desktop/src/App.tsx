@@ -12,6 +12,7 @@ import {
 import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
 import { MarkdownSourceEditor } from "./components/MarkdownSourceEditor";
+import { MarkdownTabsBar, type MarkdownTabsBarItem } from "./components/MarkdownTabsBar";
 import { NativeTitleBar } from "./components/NativeTitleBar";
 import { QuietStatus } from "./components/QuietStatus";
 import { SettingsWindow } from "./components/SettingsWindow";
@@ -77,6 +78,32 @@ const aiAgentPanelDefaultWidth = 384;
 const aiAgentPanelMinWidth = 320;
 const aiAgentPanelMaxWidth = 760;
 const aiResultSignatureSeparator = "\u001f";
+
+type ImageDocumentTab = NativeMarkdownFolderFile & {
+  id: string;
+};
+
+function imageDocumentTabId(path: string) {
+  return `image:${path}`;
+}
+
+function createImageDocumentTab(file: NativeMarkdownFolderFile): ImageDocumentTab {
+  return {
+    ...file,
+    id: imageDocumentTabId(file.path)
+  };
+}
+
+function documentTabAsFolderFile(tab: MarkdownTabsBarItem): NativeMarkdownFolderFile | null {
+  if (!tab.path) return null;
+
+  return {
+    ...(tab.displayKind === "image" ? { kind: "asset" as const } : {}),
+    name: tab.name || "Untitled.md",
+    path: tab.path,
+    relativePath: tab.path
+  };
+}
 type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
 function isSettingsWindowRoute() {
@@ -128,6 +155,7 @@ export default function App() {
   const [aiAgentPanelResizing, setAiAgentPanelResizing] = useState(false);
   const [aiResults, setAiResults] = useState<AiDiffResult[]>([]);
   const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
+  const [imageTabs, setImageTabs] = useState<ImageDocumentTab[]>([]);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
   const [aiContextMenuActionPending, setAiContextMenuActionPending] = useState(false);
   const [editorMode, setEditorMode] = useState<"source" | "visual">("visual");
@@ -183,6 +211,7 @@ export default function App() {
   }, [translate]);
   const markdownDocument = useMarkdownDocument({
     confirmDiscardUnsavedChanges,
+    documentTabsEnabled: editorPreferences.preferences.showDocumentTabs,
     getCurrentMarkdown: editor.getCurrentMarkdown,
     isCurrentMarkdownEquivalent: editor.isCurrentMarkdownEquivalent,
     onMarkdownTreeChange: refreshMarkdownFileTree,
@@ -199,6 +228,9 @@ export default function App() {
     confirmCanDiscardCurrentDocument,
     detachDeletedDocumentFile,
     document,
+    tabs: documentTabs,
+    activeTabId,
+    closeMarkdownTab,
     handleDroppedMarkdownPath,
     handleMarkdownChange,
     handleSaveClick,
@@ -207,6 +239,7 @@ export default function App() {
     outlineItems,
     replaceOpenDocumentFile,
     saveCurrentDocument,
+    selectMarkdownTab,
     selectWorkspaceSession,
     workspaceSessionId,
     wordCount
@@ -702,6 +735,22 @@ export default function App() {
     setActiveImageFile(null);
     createBlankDocument().catch(() => {});
   }, [createBlankDocument]);
+  const openImageTab = useCallback((file: NativeMarkdownFolderFile) => {
+    const tab = createImageDocumentTab(file);
+    setImageTabs((currentTabs) =>
+      currentTabs.some((currentTab) => currentTab.id === tab.id)
+        ? currentTabs.map((currentTab) => currentTab.id === tab.id ? tab : currentTab)
+        : [...currentTabs, tab]
+    );
+    setActiveImageFile(file);
+  }, []);
+  const applyRenamedTreeFile = useCallback((previousPath: string, renamedFile: NativeMarkdownFolderFile) => {
+    replaceOpenDocumentFile(previousPath, renamedFile);
+    setImageTabs((currentTabs) => currentTabs.map((tab) =>
+      tab.path === previousPath ? createImageDocumentTab(renamedFile) : tab
+    ));
+    setActiveImageFile((currentFile) => currentFile?.path === previousPath ? renamedFile : currentFile);
+  }, [replaceOpenDocumentFile]);
   const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string) => {
     try {
       await createMarkdownTreeFolder(folderName);
@@ -712,11 +761,11 @@ export default function App() {
   const handleRenameMarkdownTreeFile = useCallback(async (file: NativeMarkdownFolderFile, fileName: string) => {
     try {
       const renamedFile = await renameMarkdownTreeFile(file, fileName);
-      if (renamedFile) replaceOpenDocumentFile(file.path, renamedFile);
+      if (renamedFile) applyRenamedTreeFile(file.path, renamedFile);
     } catch {
       // Keep the existing tree state if the native rename fails.
     }
-  }, [renameMarkdownTreeFile, replaceOpenDocumentFile]);
+  }, [applyRenamedTreeFile, renameMarkdownTreeFile]);
   const handleDeleteMarkdownTreeFile = useCallback(async (file: NativeMarkdownFolderFile) => {
     const confirmed = await confirmNativeMarkdownFileDelete(file.name, {
       cancelLabel: translate("app.cancelDeleteMarkdownFile"),
@@ -734,20 +783,31 @@ export default function App() {
   }, [deleteMarkdownTreeFile, detachDeletedDocumentFile, translate]);
   const handleOpenTreeFile = useCallback(async (file: NativeMarkdownFolderFile) => {
     if (file.kind === "asset") {
-      setActiveImageFile(file);
+      openImageTab(file);
       return;
     }
 
     setActiveImageFile(null);
     await openTreeMarkdownFile(file);
-  }, [openTreeMarkdownFile]);
+  }, [openImageTab, openTreeMarkdownFile]);
   const handleOpenMarkdownFile = useCallback(async () => {
     setActiveImageFile(null);
     await openMarkdownFile();
   }, [openMarkdownFile]);
   const handleCloseCurrentFile = useCallback(async () => {
     if (activeImageFile) {
+      const closingTabId = imageDocumentTabId(activeImageFile.path);
+      setImageTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== closingTabId));
       setActiveImageFile(null);
+      return;
+    }
+
+    if (activeTabId) {
+      const closed = await closeMarkdownTab(activeTabId);
+      if (!closed) return;
+
+      updateActiveAiSelection(null);
+      handleAiCommandClose();
       return;
     }
 
@@ -759,7 +819,9 @@ export default function App() {
     clearOpenDocument();
   }, [
     activeImageFile,
+    activeTabId,
     clearOpenDocument,
+    closeMarkdownTab,
     confirmCanDiscardCurrentDocument,
     handleAiCommandClose,
     updateActiveAiSelection
@@ -779,6 +841,21 @@ export default function App() {
         ? translate("app.files")
         : rawFileTreeRootName;
   const hasOpenDocument = document.open;
+  const titlebarTabs = useMemo<MarkdownTabsBarItem[]>(() => [
+    ...documentTabs,
+    ...imageTabs.map((tab) => ({
+      dirty: false,
+      displayKind: "image" as const,
+      id: tab.id,
+      name: tab.name,
+      path: tab.path
+    }))
+  ], [documentTabs, imageTabs]);
+  const activeTitlebarTabId = activeImageFile ? imageDocumentTabId(activeImageFile.path) : activeTabId;
+  const documentTabsVisible =
+    editorPreferences.preferences.showDocumentTabs &&
+    (hasOpenDocument || Boolean(activeImageFile)) &&
+    titlebarTabs.some((tab) => titlebarTabs.length > 1 || tab.path !== null || tab.dirty);
   const titleDocumentName = activeImageFile ? activeImageFile.name : hasOpenDocument ? document.name : fileTreeRootName;
   const titleDocumentKind = activeImageFile ? "image" : hasOpenDocument ? "file" : "folder";
   const sourceModeAvailable = hasOpenDocument && !activeImageFile;
@@ -1016,6 +1093,78 @@ export default function App() {
     };
   }, [editor, restoreAiCommand, updateAiResults]);
 
+  const handleCloseTitlebarTab = useCallback((tabId: string) => {
+    const imageTab = imageTabs.find((tab) => tab.id === tabId);
+    if (imageTab) {
+      const closingActiveImage = activeImageFile ? imageDocumentTabId(activeImageFile.path) === tabId : false;
+      setImageTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
+      if (closingActiveImage) setActiveImageFile(null);
+      updateActiveAiSelection(null);
+      handleAiCommandClose();
+      return;
+    }
+
+    closeMarkdownTab(tabId).then((closed) => {
+      if (!closed) return;
+
+      updateActiveAiSelection(null);
+      handleAiCommandClose();
+    }).catch(() => {});
+  }, [
+    activeImageFile,
+    closeMarkdownTab,
+    handleAiCommandClose,
+    imageTabs,
+    updateActiveAiSelection
+  ]);
+
+  const handleSelectTitlebarTab = useCallback((tabId: string) => {
+    const imageTab = imageTabs.find((tab) => tab.id === tabId);
+    if (imageTab) {
+      setActiveImageFile(imageTab);
+      updateActiveAiSelection(null);
+      handleAiCommandClose();
+      return;
+    }
+
+    setActiveImageFile(null);
+    updateActiveAiSelection(null);
+    handleAiCommandClose();
+    selectMarkdownTab(tabId);
+  }, [
+    handleAiCommandClose,
+    imageTabs,
+    selectMarkdownTab,
+    updateActiveAiSelection
+  ]);
+  const handleRenameTitlebarTab = useCallback(async (tab: MarkdownTabsBarItem, fileName: string) => {
+    const file = documentTabAsFolderFile(tab);
+    if (!file) return;
+
+    try {
+      const renamedFile = await renameMarkdownTreeFile(file, fileName);
+      if (renamedFile) applyRenamedTreeFile(file.path, renamedFile);
+    } catch {
+      // Keep the existing tab state if the native rename fails.
+    }
+  }, [applyRenamedTreeFile, renameMarkdownTreeFile]);
+
+  const titlebarDocumentTabs = documentTabsVisible ? (
+    <MarkdownTabsBar
+      activeTabId={activeTitlebarTabId}
+      language={appLanguage.language}
+      placement="titlebar"
+      tabs={titlebarTabs}
+      onCloseTab={handleCloseTitlebarTab}
+      onNewTab={() => {
+        setActiveImageFile(null);
+        createBlankDocument().catch(() => {});
+      }}
+      onRenameTab={handleRenameTitlebarTab}
+      onSelectTab={handleSelectTitlebarTab}
+    />
+  ) : null;
+
   return (
     <>
       <AppToaster language={appLanguage.language} />
@@ -1036,6 +1185,7 @@ export default function App() {
           sourceMode={sourceMode}
           sourceModeDisabled={!sourceModeAvailable}
           theme={appTheme.resolvedTheme}
+          titleContent={titlebarDocumentTabs}
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
           onOpenMarkdown={handleOpenMarkdownFile}
           onOpenMarkdownFolder={handleOpenMarkdownFolder}
@@ -1096,6 +1246,7 @@ export default function App() {
                       language={appLanguage.language}
                       lineHeight={editorPreferences.preferences.lineHeight}
                       onChange={handleMarkdownChange}
+                      topInset="titlebar"
                     />
                   ) : (
                     <MarkdownPaper
@@ -1113,6 +1264,7 @@ export default function App() {
                       onTextSelectionChange={handleTextSelectionChange}
                       resolveImageSrc={resolveImageSrc}
                       revision={document.revision}
+                      topInset="titlebar"
                     />
                   )}
                   <QuietStatus

@@ -49,6 +49,7 @@ export type EditorPreferences = {
   lineHeight: number;
   markdownShortcuts: MarkdownShortcutBindings;
   restoreWorkspaceOnStartup: boolean;
+  showDocumentTabs: boolean;
   showWordCount: boolean;
 };
 export type ExportSettings = {
@@ -81,6 +82,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   lineHeight: 1.65,
   markdownShortcuts: defaultMarkdownShortcuts,
   restoreWorkspaceOnStartup: true,
+  showDocumentTabs: true,
   showWordCount: true
 };
 
@@ -517,6 +519,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       typeof preferences.restoreWorkspaceOnStartup === "boolean"
         ? preferences.restoreWorkspaceOnStartup
         : defaultEditorPreferences.restoreWorkspaceOnStartup,
+    showDocumentTabs:
+      typeof preferences.showDocumentTabs === "boolean"
+        ? preferences.showDocumentTabs
+        : defaultEditorPreferences.showDocumentTabs,
     showWordCount:
       typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount
   };

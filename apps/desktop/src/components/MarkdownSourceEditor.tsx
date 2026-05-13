@@ -11,6 +11,7 @@ type MarkdownSourceEditorProps = {
   language?: AppLanguage;
   lineHeight?: number;
   onChange: (content: string) => unknown;
+  topInset?: "tabs" | "titlebar";
 };
 
 type FenceState = {
@@ -132,7 +133,8 @@ export function MarkdownSourceEditor({
   contentWidth = "default",
   language = "en",
   lineHeight = 1.65,
-  onChange
+  onChange,
+  topInset = "titlebar"
 }: MarkdownSourceEditorProps) {
   const paperStyle = {
     fontSize: `${bodyFontSize}px`,
@@ -142,6 +144,7 @@ export function MarkdownSourceEditor({
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     onChange(event.currentTarget.value);
   };
+  const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";
 
   return (
     <section
@@ -149,7 +152,7 @@ export function MarkdownSourceEditor({
       aria-label={t(language, "app.writingSurface")}
     >
       <article
-        className="markdown-source-paper mx-auto min-h-screen w-full max-w-215 px-18 pb-30 pt-14 text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25 max-[900px]:pt-10"
+        className={`markdown-source-paper mx-auto min-h-screen w-full max-w-215 px-18 pb-30 ${topInsetClassName} text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25`}
         style={paperStyle}
         aria-label={t(language, "app.markdownEditor")}
         data-editor-engine="source"

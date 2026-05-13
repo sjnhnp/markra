@@ -20,6 +20,28 @@ describe("EditorSettings", () => {
 
     expect(screen.queryByRole("heading", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
   });
+
+  it("toggles document tabs from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          showDocumentTabs: true
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("switch", { name: "Show document tabs" }));
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      showDocumentTabs: false
+    });
+  });
 });
 
 describe("KeyboardShortcutsSettings", () => {

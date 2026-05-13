@@ -141,6 +141,7 @@ describe("app settings", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      showDocumentTabs: true,
       showWordCount: true
     });
 
@@ -335,6 +336,7 @@ describe("app settings", () => {
         bold: "Mod+Alt+B"
       },
       restoreWorkspaceOnStartup: false,
+      showDocumentTabs: true,
       showWordCount: false
     });
   });
@@ -397,6 +399,7 @@ describe("app settings", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      showDocumentTabs: true,
       showWordCount: true
     });
   });
@@ -414,6 +417,7 @@ describe("app settings", () => {
         bold: "Mod+Alt+B"
       },
       restoreWorkspaceOnStartup: false,
+      showDocumentTabs: false,
       showWordCount: false
     });
 
@@ -429,6 +433,7 @@ describe("app settings", () => {
         bold: "Mod+Alt+B"
       },
       restoreWorkspaceOnStartup: false,
+      showDocumentTabs: false,
       showWordCount: false
     });
     expect(store.save).toHaveBeenCalledTimes(1);

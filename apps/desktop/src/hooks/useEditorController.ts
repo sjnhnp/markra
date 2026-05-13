@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { editorViewCtx, parserCtx, serializerCtx, type Editor } from "@milkdown/kit/core";
-import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
+import { headingSchema, imageSchema, linkSchema, paragraphSchema } from "@milkdown/kit/preset/commonmark";
 import { Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
@@ -15,6 +15,7 @@ import {
   type AiEditorPreviewLabels
 } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
+import { normalizeHeadingSourceDocument } from "@markra/editor";
 import { clearAiSelectionHold, showAiSelectionHold } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 
@@ -227,8 +228,14 @@ export function useEditorController() {
     try {
       return editorRef.current?.action((ctx) => {
         const view = ctx.get(editorViewCtx);
+        const normalizedDoc = normalizeHeadingSourceDocument(
+          view.state,
+          paragraphSchema.type(ctx),
+          headingSchema.type(ctx),
+          ctx.get(parserCtx)
+        );
         return serializeLinkImageLiveMarkdown(
-          view.state.doc,
+          normalizedDoc,
           ctx.get(serializerCtx),
           linkSchema.type(ctx),
           imageSchema.type(ctx)
@@ -241,17 +248,26 @@ export function useEditorController() {
 
   const isCurrentMarkdownEquivalent = useCallback((markdown: string) => {
     try {
-      return editorRef.current?.action((ctx) => {
+      const editor = editorRef.current;
+      if (!editor) return undefined;
+
+      return editor.action((ctx) => {
         const view = ctx.get(editorViewCtx);
         const parseMarkdown = ctx.get(parserCtx);
         const serializer = ctx.get(serializerCtx);
         const link = linkSchema.type(ctx);
         const image = imageSchema.type(ctx);
-        const currentMarkdown = serializeLinkImageLiveMarkdown(view.state.doc, serializer, link, image);
+        const normalizedDoc = normalizeHeadingSourceDocument(
+          view.state,
+          paragraphSchema.type(ctx),
+          headingSchema.type(ctx),
+          parseMarkdown
+        );
+        const currentMarkdown = serializeLinkImageLiveMarkdown(normalizedDoc, serializer, link, image);
         const parsedMarkdown = serializeLinkImageLiveMarkdown(parseMarkdown(markdown), serializer, link, image);
 
         return comparableSerializedMarkdown(currentMarkdown) === comparableSerializedMarkdown(parsedMarkdown);
-      }) ?? true;
+      });
     } catch {
       return false;
     }

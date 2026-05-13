@@ -96,6 +96,7 @@ describe("settings events", () => {
       lineHeight: 1.8,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: false,
+      showDocumentTabs: true,
       showWordCount: false
     };
 

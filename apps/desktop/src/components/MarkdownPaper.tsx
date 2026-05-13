@@ -1,13 +1,15 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
-import { defaultValueCtx, Editor, editorViewOptionsCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
+import { defaultValueCtx, Editor, editorViewCtx, editorViewOptionsCtx, parserCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
 import { history } from "@milkdown/kit/plugin/history";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import {
   commands as commonmarkCommands,
   imageSchema,
+  headingSchema,
   inputRules as commonmarkInputRules,
   keymap as commonmarkKeymap,
   linkSchema,
+  paragraphSchema,
   plugins as commonmarkPlugins,
   schema as commonmarkSchema
 } from "@milkdown/kit/preset/commonmark";
@@ -26,6 +28,7 @@ import { markraLiveMarkdownPlugin } from "@markra/editor";
 import { markraClipboardImagePlugin, type SaveClipboardImage } from "@markra/editor";
 import { markraCodeBlockPlugin } from "@markra/editor";
 import { markraHeadingSourcePlugin } from "@markra/editor";
+import { normalizeHeadingSourceDocument } from "@markra/editor";
 import { markraLinkImageLivePlugin } from "@markra/editor";
 import { markraRawHtmlPlugin } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
@@ -77,6 +80,7 @@ type MarkdownPaperProps = {
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
   resolveImageSrc?: (src: string) => string;
   revision: number;
+  topInset?: "tabs" | "titlebar";
 };
 
 export const editorContentWidths: Record<EditorContentWidth, string> = {
@@ -297,9 +301,16 @@ function MilkdownSurface({
           }));
           ctx.get(listenerCtx).updated((editorCtx, doc) => {
             try {
+              const view = editorCtx.get(editorViewCtx);
+              const normalizedDoc = normalizeHeadingSourceDocument(
+                view.state,
+                paragraphSchema.type(editorCtx),
+                headingSchema.type(editorCtx),
+                editorCtx.get(parserCtx)
+              );
               onMarkdownChange(
                 serializeLinkImageLiveMarkdown(
-                  doc,
+                  normalizedDoc === view.state.doc ? doc : normalizedDoc,
                   editorCtx.get(serializerCtx),
                   linkSchema.type(editorCtx),
                   imageSchema.type(editorCtx)
@@ -375,7 +386,8 @@ export function MarkdownPaper({
   openExternalUrl,
   onTextSelectionChange,
   resolveImageSrc,
-  revision
+  revision,
+  topInset = "titlebar"
 }: MarkdownPaperProps) {
   const paperStyle = {
     fontSize: `${bodyFontSize}px`,
@@ -387,6 +399,7 @@ export function MarkdownPaper({
     () => normalizeMarkdownShortcuts(markdownShortcuts),
     [shortcutsSignature]
   );
+  const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";
 
   return (
     <section
@@ -395,7 +408,7 @@ export function MarkdownPaper({
     >
       <article
         key={revision}
-        className="markdown-paper mx-auto min-h-screen w-full max-w-215 px-18 pb-30 pt-14 text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25 max-[900px]:pt-10"
+        className={`markdown-paper mx-auto min-h-screen w-full max-w-215 px-18 pb-30 ${topInsetClassName} text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25`}
         style={paperStyle}
         aria-label={t(language, "app.markdownEditor")}
         data-editor-engine="milkdown"

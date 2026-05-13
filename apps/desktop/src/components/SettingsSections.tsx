@@ -776,6 +776,22 @@ export function EditorSettings({
           }
         />
         <SettingsRow
+          title={translate("settings.editor.showDocumentTabs")}
+          description={translate("settings.editor.showDocumentTabsDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.showDocumentTabs}
+              label={translate("settings.editor.showDocumentTabs")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  showDocumentTabs: !preferences.showDocumentTabs
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.editor.showWordCount")}
           description={translate("settings.editor.showWordCountDescription")}
           action={
