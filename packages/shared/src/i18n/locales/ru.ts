@@ -110,6 +110,8 @@ const messages: LocaleMessages = {
   "app.updateRestarting": "Обновление установлено. Markra перезапускается...",
   "app.updateFailed": "Не удалось обновить Markra.",
   "app.openMarkdownOrFolder": "Открыть Markdown или папку",
+  "app.openMarkdownFile": "Открыть файл Markdown",
+  "app.openFolder": "Открыть папку",
   "app.saveMarkdown": "Сохранить Markdown",
   "app.switchToLightTheme": "Переключить на светлую тему",
   "app.switchToDarkTheme": "Переключить на тёмную тему",

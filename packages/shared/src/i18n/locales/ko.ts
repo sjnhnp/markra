@@ -110,6 +110,8 @@ const messages: LocaleMessages = {
   "app.updateRestarting": "업데이트를 설치했습니다. Markra를 다시 시작하는 중...",
   "app.updateFailed": "Markra 업데이트에 실패했습니다.",
   "app.openMarkdownOrFolder": "Markdown 또는 폴더 열기",
+  "app.openMarkdownFile": "Markdown 파일 열기",
+  "app.openFolder": "폴더 열기",
   "app.saveMarkdown": "Markdown 저장",
   "app.switchToLightTheme": "라이트 테마로 전환",
   "app.switchToDarkTheme": "다크 테마로 전환",

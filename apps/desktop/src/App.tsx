@@ -1016,6 +1016,7 @@ export default function App() {
           theme={appTheme.resolvedTheme}
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
           onOpenMarkdown={handleOpenMarkdownFile}
+          onOpenMarkdownFolder={handleOpenMarkdownFolder}
           onSaveMarkdown={handleSaveClick}
           onToggleAiAgent={handleAiAgentToggle}
           onToggleMarkdownFiles={handleFileTreeToggle}

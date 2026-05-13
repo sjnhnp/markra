@@ -12,8 +12,8 @@ import {
   SquarePen,
   Sun
 } from "lucide-react";
-import type { CSSProperties } from "react";
-import { IconButton } from "@markra/ui";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { Button, IconButton, PopoverSurface } from "@markra/ui";
 import type { ResolvedAppTheme } from "../lib/settings/app-settings";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import { t, type AppLanguage } from "@markra/shared";
@@ -38,6 +38,7 @@ type NativeTitleBarProps = {
   theme: ResolvedAppTheme;
   onCreateMarkdownFile?: () => unknown;
   onOpenMarkdown: () => unknown;
+  onOpenMarkdownFolder?: () => unknown;
   onSaveMarkdown: () => unknown;
   onToggleAiAgent: () => unknown;
   onToggleMarkdownFiles: () => unknown;
@@ -67,14 +68,97 @@ export function NativeTitleBar({
   theme,
   onCreateMarkdownFile,
   onOpenMarkdown,
+  onOpenMarkdownFolder,
   onSaveMarkdown,
   onToggleAiAgent,
   onToggleMarkdownFiles,
   onToggleSourceMode,
   onToggleTheme
 }: NativeTitleBarProps) {
+  const openMenuRef = useRef<HTMLDivElement | null>(null);
+  const [openMenuVisible, setOpenMenuVisible] = useState(false);
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
+  const splitOpenChoiceAvailable = platform !== "macos" && Boolean(onOpenMarkdownFolder);
+
+  useEffect(() => {
+    if (!openMenuVisible) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!openMenuRef.current?.contains(event.target as Node)) setOpenMenuVisible(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenMenuVisible(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openMenuVisible]);
+
+  const runOpenAction = (action: () => unknown) => {
+    setOpenMenuVisible(false);
+    action();
+  };
+
+  const renderOpenAction = () => {
+    if (!splitOpenChoiceAvailable || !onOpenMarkdownFolder) {
+      return (
+        <IconButton
+          label={label("app.openMarkdownOrFolder")}
+          onClick={onOpenMarkdown}
+        >
+          <FolderOpen aria-hidden="true" size={15} />
+        </IconButton>
+      );
+    }
+
+    return (
+      <div className="relative" ref={openMenuRef}>
+        <IconButton
+          className={openMenuVisible ? "bg-(--bg-active) text-(--text-heading)" : ""}
+          label={label("app.openMarkdownOrFolder")}
+          aria-expanded={openMenuVisible}
+          aria-haspopup="menu"
+          onClick={() => setOpenMenuVisible((current) => !current)}
+        >
+          <FolderOpen aria-hidden="true" size={15} />
+        </IconButton>
+        {openMenuVisible ? (
+          <PopoverSurface
+            className="absolute top-[calc(100%+6px)] right-0 z-40 grid w-52 gap-1 rounded-lg p-1"
+            open
+            role="menu"
+            aria-label={label("app.openMarkdownOrFolder")}
+          >
+            <Button
+              className="w-full justify-start rounded-md text-left"
+              size="sm"
+              role="menuitem"
+              onClick={() => runOpenAction(onOpenMarkdown)}
+            >
+              <FileText aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
+              <span className="truncate">{label("app.openMarkdownFile")}</span>
+            </Button>
+            <Button
+              className="w-full justify-start rounded-md text-left"
+              size="sm"
+              role="menuitem"
+              onClick={() => runOpenAction(onOpenMarkdownFolder)}
+            >
+              <FolderOpen aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
+              <span className="truncate">{label("app.openFolder")}</span>
+            </Button>
+          </PopoverSurface>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderDocumentActions = (className: string, style?: CSSProperties) => (
     <div
       className={className}
@@ -113,12 +197,7 @@ export function NativeTitleBar({
           <Code2 aria-hidden="true" size={15} />
         </IconButton>
       ) : null}
-      <IconButton
-        label={label("app.openMarkdownOrFolder")}
-        onClick={onOpenMarkdown}
-      >
-        <FolderOpen aria-hidden="true" size={15} />
-      </IconButton>
+      {renderOpenAction()}
       <IconButton
         className="disabled:opacity-35"
         disabled={saveDisabled}

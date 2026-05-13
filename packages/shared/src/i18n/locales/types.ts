@@ -183,6 +183,8 @@ export type I18nKey =
   | "app.updateRestarting"
   | "app.updateFailed"
   | "app.openMarkdownOrFolder"
+  | "app.openMarkdownFile"
+  | "app.openFolder"
   | "app.saveMarkdown"
   | "app.switchToLightTheme"
   | "app.switchToDarkTheme"

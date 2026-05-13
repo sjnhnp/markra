@@ -676,6 +676,30 @@ describe("Markra workspace", () => {
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
   });
 
+  it("opens a markdown folder from the Windows titlebar open button", async () => {
+    mockedResolveDesktopPlatform.mockReturnValue("windows");
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: mockFolderPath,
+      name: "vault"
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "index.md", path: "/mock-files/vault/index.md", relativePath: "index.md" },
+      { name: "note.md", path: "/mock-files/vault/docs/note.md", relativePath: "docs/note.md" }
+    ]);
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Open Folder" }));
+
+    expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
+    expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
+    expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
+    expect(mockedOpenNativeMarkdownFolder).toHaveBeenCalledTimes(1);
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
+    expect(mockedOpenNativeMarkdownPath).not.toHaveBeenCalled();
+  });
+
   it("opens a markdown folder into the sidebar file tree", async () => {
     mockedOpenNativeMarkdownFolder.mockResolvedValue({
       path: mockFolderPath,

@@ -289,6 +289,64 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".document-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
   });
 
+  it("offers separate Markdown file and folder actions from the Windows open button", () => {
+    const openMarkdown = vi.fn();
+    const openMarkdownFolder = vi.fn();
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        platform="windows"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={openMarkdown}
+        onOpenMarkdownFolder={openMarkdownFolder}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+
+    expect(screen.getByRole("menu", { name: "Open Markdown or Folder" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Open Markdown File" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open Folder" }));
+
+    expect(openMarkdownFolder).toHaveBeenCalledTimes(1);
+    expect(openMarkdown).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menu", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the unified Markdown or folder picker on macOS", () => {
+    const openMarkdown = vi.fn();
+    const openMarkdownFolder = vi.fn();
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        platform="macos"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={openMarkdown}
+        onOpenMarkdownFolder={openMarkdownFolder}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+
+    expect(openMarkdown).toHaveBeenCalledTimes(1);
+    expect(openMarkdownFolder).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menu", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
+  });
+
   it("shows a quick new file button next to the markdown files toggle when the sidebar is collapsed", () => {
     const createMarkdownFile = vi.fn();
     const { container } = render(
