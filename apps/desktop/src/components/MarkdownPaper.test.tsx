@@ -22,7 +22,7 @@ import {
   readAiTableAnchorsFromView
 } from "../hooks/useEditorController";
 import type { AiSelectionContext } from "@markra/ai";
-import { clearAiSelectionHold, showAiSelectionHold } from "@markra/editor";
+import { clearAiSelectionHold, defaultMarkdownShortcuts, showAiSelectionHold, type MarkdownShortcutMap } from "@markra/editor";
 
 async function renderEditor(
   initialContent = "",
@@ -32,6 +32,7 @@ async function renderEditor(
     openExternalUrl?: (url: string) => unknown;
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
     resolveImageSrc?: (src: string) => string;
+    markdownShortcuts?: MarkdownShortcutMap;
   } = {}
 ) {
   let editor: Editor | null = null;
@@ -41,6 +42,7 @@ async function renderEditor(
       onEditorReady={(instance) => {
         editor = instance;
       }}
+      markdownShortcuts={options.markdownShortcuts}
       onMarkdownChange={options.onMarkdownChange ?? (() => {})}
       onSaveClipboardImage={options.onSaveClipboardImage}
       openExternalUrl={options.openExternalUrl}
@@ -1964,6 +1966,65 @@ describe("MarkdownPaper editing", () => {
     expect(pressShortcut(inlineCode.view, "e", { metaKey: true })).toBe(true);
 
     expect(inlineCode.container.querySelector(".ProseMirror code")).toHaveTextContent("code");
+    await settleMarkdownListener();
+  });
+
+  it("supports custom markdown formatting shortcuts", async () => {
+    const strong = await renderEditor("", {
+      markdownShortcuts: {
+        bold: "Mod+Alt+B"
+      }
+    });
+    typeText(strong.view, "bold");
+    selectText(strong.view, 1, 5);
+
+    expect(pressShortcut(strong.view, "b", { metaKey: true, altKey: true })).toBe(true);
+
+    expect(strong.container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
+    await settleMarkdownListener();
+  });
+
+  it("applies markdown shortcut changes to an open editor", async () => {
+    let editor: Editor | null = null;
+    const { container, rerender } = render(
+      <MarkdownPaper
+        initialContent="bold"
+        markdownShortcuts={defaultMarkdownShortcuts}
+        onEditorReady={(instance) => {
+          editor = instance;
+        }}
+        onMarkdownChange={() => {}}
+        revision={0}
+      />
+    );
+
+    await waitFor(() => expect(editor).not.toBeNull());
+    let view = editor!.action((ctx) => ctx.get(editorViewCtx));
+    selectText(view, 1, 5);
+
+    expect(pressShortcut(view, "b", { metaKey: true, altKey: true })).not.toBe(true);
+
+    rerender(
+      <MarkdownPaper
+        initialContent="bold"
+        markdownShortcuts={{
+          ...defaultMarkdownShortcuts,
+          bold: "Mod+Alt+B"
+        }}
+        onEditorReady={(instance) => {
+          editor = instance;
+        }}
+        onMarkdownChange={() => {}}
+        revision={0}
+      />
+    );
+
+    await waitFor(() => expect(editor).not.toBeNull());
+    view = editor!.action((ctx) => ctx.get(editorViewCtx));
+    selectText(view, 1, 5);
+
+    expect(pressShortcut(view, "b", { metaKey: true, altKey: true })).toBe(true);
+    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
     await settleMarkdownListener();
   });
 

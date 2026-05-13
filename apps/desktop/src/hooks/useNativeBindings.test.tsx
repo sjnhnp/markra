@@ -1,5 +1,5 @@
-import { renderHook } from "@testing-library/react";
-import { useNativeMenuHandlers } from "./useNativeBindings";
+import { fireEvent, renderHook } from "@testing-library/react";
+import { useApplicationShortcuts, useNativeMenuHandlers } from "./useNativeBindings";
 
 describe("useNativeMenuHandlers", () => {
   const baseOptions = {
@@ -48,5 +48,120 @@ describe("useNativeMenuHandlers", () => {
     expect(runAiQuickAction).toHaveBeenNthCalledWith(1, "polish", "润色");
     expect(runAiQuickAction).toHaveBeenNthCalledWith(2, "continue", "续写");
     expect(runAiQuickAction).toHaveBeenNthCalledWith(3, "translate", "翻译");
+  });
+
+  it("routes native formatting commands through custom markdown shortcuts", () => {
+    const runEditorShortcut = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        markdownShortcuts: {
+          bold: "Mod+Alt+B"
+        },
+        runEditorShortcut
+      })
+    );
+
+    result.current.formatBold?.();
+
+    expect(runEditorShortcut).toHaveBeenCalledWith("B", {
+      altKey: true,
+      shiftKey: false
+    });
+  });
+
+  it("routes native application commands to app toggles", () => {
+    const toggleAiAgent = vi.fn();
+    const toggleAiCommand = vi.fn();
+    const toggleMarkdownFiles = vi.fn();
+    const toggleSourceMode = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        toggleAiAgent,
+        toggleAiCommand,
+        toggleMarkdownFiles,
+        toggleSourceMode
+      })
+    );
+
+    result.current.toggleMarkdownFiles?.();
+    result.current.toggleAiAgent?.();
+    result.current.toggleAiCommand?.();
+    result.current.toggleSourceMode?.();
+
+    expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
+    expect(toggleAiAgent).toHaveBeenCalledTimes(1);
+    expect(toggleAiCommand).toHaveBeenCalledTimes(1);
+    expect(toggleSourceMode).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useApplicationShortcuts", () => {
+  const baseOptions = {
+    openDocument: vi.fn(),
+    openFolder: vi.fn(),
+    saveDocument: vi.fn(),
+    saveDocumentAs: vi.fn()
+  };
+
+  it("routes configurable app shortcuts to panel toggles", () => {
+    const toggleAiAgent = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        markdownShortcuts: {
+          toggleAiAgent: "Mod+Alt+A"
+        },
+        toggleAiAgent
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      key: "a",
+      altKey: true,
+      metaKey: true
+    });
+
+    expect(toggleAiAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes the configurable inline AI command shortcut", () => {
+    const toggleAiCommand = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        markdownShortcuts: {
+          toggleAiCommand: "Mod+Alt+U"
+        },
+        toggleAiCommand
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      key: "u",
+      altKey: true,
+      metaKey: true
+    });
+
+    expect(toggleAiCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes the default source mode shortcut", () => {
+    const toggleSourceMode = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        toggleSourceMode
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      key: "s",
+      altKey: true,
+      metaKey: true
+    });
+
+    expect(toggleSourceMode).toHaveBeenCalledTimes(1);
   });
 });

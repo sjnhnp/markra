@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { defaultMarkdownShortcuts } from "@markra/editor";
 import {
   dispatchAiEditorPreviewAction,
   installAppTestHarness,
@@ -17,6 +18,7 @@ import {
   mockedDeleteNativeMarkdownTreeFile,
   mockedFetchAiProviderModels,
   mockedGetStoredExportSettings,
+  mockedGetStoredEditorPreferences,
   mockedGetStoredLanguage,
   mockedGetStoredTheme,
   mockedGetStoredWorkspaceState,
@@ -70,7 +72,7 @@ describe("Markra workspace", () => {
     expect(container.querySelector("[data-milkdown-root]")).toBeInTheDocument();
     expect(screen.queryByText("文件")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toBeInTheDocument();
     expect(container.querySelector(".quiet-status")?.closest(".editor-content-slot")).toBeInTheDocument();
     expect(container.querySelector(".editor-content-slot")).toHaveClass("h-full", "min-h-0", "overflow-hidden");
     expect(container.querySelector(".quiet-status")).not.toHaveClass("fixed");
@@ -129,7 +131,7 @@ describe("Markra workspace", () => {
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true")
+      expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "true")
     );
     expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
@@ -256,9 +258,10 @@ describe("Markra workspace", () => {
     expect(settingsGroups[0]).not.toHaveClass("divide-y");
     expect(settingsGroups.some((group) => group.classList.contains("divide-y"))).toBe(true);
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
-    expect(categoryButtons).toHaveLength(6);
+    expect(categoryButtons).toHaveLength(7);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
     expect(categoryButtons[1]).not.toHaveAttribute("aria-current");
+    expect(categoryButtons[5]).toHaveTextContent("Keyboard shortcuts");
     const languageSelect = container.querySelector("select");
     expect(languageSelect).toHaveValue("en");
     expect(container.querySelector('[role="group"]')).not.toBeInTheDocument();
@@ -317,6 +320,53 @@ describe("Markra workspace", () => {
     })));
     await waitFor(() => expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith(expect.objectContaining({
       closeAiCommandOnAgentPanelOpen: true
+    })));
+  });
+
+  it("updates markdown shortcuts from the dedicated settings tab", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue({
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "assets",
+      closeAiCommandOnAgentPanelOpen: false,
+      contentWidth: "default",
+      lineHeight: 1.65,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bold: "Mod+Alt+B"
+      },
+      restoreWorkspaceOnStartup: true,
+      showWordCount: true
+    });
+    window.history.pushState({}, "", "/?settings=1");
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Keyboard shortcuts" }));
+
+    const boldShortcut = await screen.findByRole("button", { name: "Bold shortcut" });
+    await waitFor(() => expect(boldShortcut).toHaveTextContent("⌘+⌥+B"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset keyboard shortcuts" }));
+
+    await waitFor(() => expect(boldShortcut).toHaveTextContent("⌘+B"));
+    await waitFor(() => expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(expect.objectContaining({
+      markdownShortcuts: defaultMarkdownShortcuts
+    })));
+
+    fireEvent.click(boldShortcut);
+    fireEvent.keyDown(boldShortcut, {
+      altKey: true,
+      key: "b",
+      metaKey: true
+    });
+
+    await waitFor(() => expect(boldShortcut).toHaveTextContent("⌘+⌥+B"));
+    await waitFor(() => expect(mockedSaveStoredEditorPreferences).toHaveBeenLastCalledWith(expect.objectContaining({
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bold: "Mod+Alt+B"
+      }
     })));
   });
 
@@ -521,10 +571,10 @@ describe("Markra workspace", () => {
     expect(await screen.findByText("Native file")).toBeInTheDocument();
     await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockNativePath));
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("complementary", { name: "Markdown file tree" })).not.toHaveClass("fixed");
     expect(container.querySelector(".workspace-layout")).toHaveStyle({
       gridTemplateColumns: "288px minmax(0,1fr)"
@@ -553,7 +603,7 @@ describe("Markra workspace", () => {
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
 
     const resizeHandle = await screen.findByRole("separator", { name: "Resize Markdown files" });
 
@@ -587,7 +637,7 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
 
-    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+    const toggle = screen.getByRole("button", { name: "Toggle file list" });
     fireEvent.click(toggle);
     expect(screen.getByRole("complementary", { name: "Markdown file tree" })).toHaveAttribute("aria-hidden", "false");
 
@@ -616,7 +666,7 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "vault" })).toBeInTheDocument();
@@ -641,7 +691,7 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "docs" })).toHaveAttribute("aria-expanded", "false");
@@ -677,7 +727,7 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
     fireEvent.click(await screen.findByRole("button", { name: "docs" }));
     fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
 
@@ -716,7 +766,7 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
     fireEvent.click(await screen.findByRole("button", { name: "assets" }));
     fireEvent.click(await screen.findByRole("button", { name: "assets/pasted-image.png" }));
 
@@ -910,7 +960,7 @@ describe("Markra workspace", () => {
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(screen.getByRole("button", { name: "New file" }));
 
@@ -1024,13 +1074,13 @@ describe("Markra workspace", () => {
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
     fireEvent.click(await screen.findByRole("button", { name: "Show outline" }));
 
     expect(screen.getByText("Outline")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Document outline" })).toHaveTextContent("Native file");
     expect(screen.getByRole("list", { name: "Document outline" })).toHaveTextContent("Details");
-    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("focuses the editor when an outline heading is selected", async () => {
@@ -1044,7 +1094,7 @@ describe("Markra workspace", () => {
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
     fireEvent.click(await screen.findByRole("button", { name: "Show outline" }));
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
 
@@ -1097,7 +1147,7 @@ describe("Markra workspace", () => {
       toJSON: () => ({})
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
     fireEvent.click(await screen.findByRole("button", { name: "Show outline" }));
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
 
@@ -1171,7 +1221,7 @@ describe("Markra workspace", () => {
       toJSON: () => ({})
     }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Markdown files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
     fireEvent.click(await screen.findByRole("button", { name: "Show outline" }));
     fireEvent.click(screen.getByRole("button", { name: "B" }));
     fireEvent.click(screen.getByRole("button", { name: "A" }));
@@ -1317,7 +1367,7 @@ describe("Markra workspace", () => {
     });
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "docs" })).toHaveAttribute("aria-expanded", "false");
@@ -1422,6 +1472,21 @@ describe("Markra workspace", () => {
     expect(await screen.findByText("Source edit")).toBeInTheDocument();
     expect(screen.getByText("Updated from source mode.")).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "milkdown");
+  });
+
+  it("switches source mode from the keyboard shortcut", async () => {
+    renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "s", altKey: true, metaKey: true });
+
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    expect((sourceEditor as HTMLTextAreaElement).value).toContain("# Welcome to Markra");
+
+    fireEvent.keyDown(window, { key: "s", altKey: true, metaKey: true });
+
+    expect(await screen.findByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "milkdown");
   });
 
   it("keeps a clean file unmodified when toggling markdown source mode without edits", async () => {

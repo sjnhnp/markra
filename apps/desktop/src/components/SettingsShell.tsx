@@ -2,6 +2,7 @@ import {
   Bot,
   Download,
   Globe2,
+  Keyboard,
   Palette,
   PenLine,
   SlidersHorizontal,
@@ -45,6 +46,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: PenLine,
     id: "editor",
     labelKey: "settings.categories.editor"
+  },
+  {
+    icon: Keyboard,
+    id: "keyboardShortcuts",
+    labelKey: "settings.sections.keyboardShortcuts"
   },
   {
     icon: Download,

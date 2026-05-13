@@ -10,6 +10,7 @@ import {
   type StoredAiAgentSessionSummary,
   type StoredAiAgentSessionState
 } from "@markra/ai";
+import { defaultMarkdownShortcuts, normalizeMarkdownShortcuts, type MarkdownShortcutBindings } from "@markra/editor";
 import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "@markra/providers";
 import { isAppLanguage, type AppLanguage } from "@markra/shared";
 import { normalizeNullableString } from "@markra/shared";
@@ -46,6 +47,7 @@ export type EditorPreferences = {
   closeAiCommandOnAgentPanelOpen: boolean;
   contentWidth: EditorContentWidth;
   lineHeight: number;
+  markdownShortcuts: MarkdownShortcutBindings;
   restoreWorkspaceOnStartup: boolean;
   showWordCount: boolean;
 };
@@ -77,6 +79,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   closeAiCommandOnAgentPanelOpen: false,
   contentWidth: "default",
   lineHeight: 1.65,
+  markdownShortcuts: defaultMarkdownShortcuts,
   restoreWorkspaceOnStartup: true,
   showWordCount: true
 };
@@ -509,6 +512,7 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     lineHeight: editorLineHeightOptions.includes(preferences.lineHeight as typeof editorLineHeightOptions[number])
       ? Number(preferences.lineHeight)
       : defaultEditorPreferences.lineHeight,
+    markdownShortcuts: normalizeMarkdownShortcuts(preferences.markdownShortcuts),
     restoreWorkspaceOnStartup:
       typeof preferences.restoreWorkspaceOnStartup === "boolean"
         ? preferences.restoreWorkspaceOnStartup

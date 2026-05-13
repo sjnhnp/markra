@@ -25,7 +25,7 @@ describe("NativeTitleBar", () => {
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle Markdown files" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toBeInTheDocument();
     expect(titlebar).toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
     expect(titlebar).toHaveClass("h-10");
     expect(container.querySelector(".document-actions")).toHaveClass("h-10");
@@ -237,7 +237,7 @@ describe("NativeTitleBar", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+    const toggle = screen.getByRole("button", { name: "Toggle file list" });
     const controls = container.querySelector(".mac-window-controls");
 
     expect(controls).toBeInTheDocument();
@@ -279,7 +279,7 @@ describe("NativeTitleBar", () => {
     expect(titlebar).not.toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
     expect(container.querySelector(".mac-window-controls")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Draft.md" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Markdown or Folder" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeInTheDocument();
@@ -309,7 +309,7 @@ describe("NativeTitleBar", () => {
     );
 
     const button = screen.getByRole("button", { name: "New file" });
-    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+    const toggle = screen.getByRole("button", { name: "Toggle file list" });
 
     expect(toggle).toContainElement(container.querySelector(".lucide-panel-right"));
     expect(button.closest(".titlebar-spacer")).toHaveClass("gap-1");

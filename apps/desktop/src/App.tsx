@@ -105,6 +105,12 @@ function explicitAiTextSelection(selection: AiSelectionContext | null | undefine
   return selection;
 }
 
+function aiCommandTextSelection(selection: AiSelectionContext | null | undefined) {
+  if (!selection?.text.trim()) return null;
+
+  return selection;
+}
+
 export default function App() {
   if (isSettingsWindowRoute()) {
     return <SettingsWindow />;
@@ -245,8 +251,7 @@ export default function App() {
     setAiResults(results);
   }, []);
   const getPendingAiResult = useCallback(() => aiResultsRef.current.at(-1) ?? null, []);
-  const hasActiveAiSelection =
-    !sourceMode && activeAiSelection?.source === "selection" && Boolean(activeAiSelection.text.trim());
+  const hasAiCommandContext = !sourceMode && Boolean(activeAiSelection?.text.trim());
   const selectedInlineAiModel =
     aiSettings.availableTextModels.find(
       (model) => model.providerId === aiSettings.inlineProvider?.id && model.id === aiSettings.inlineModelId
@@ -386,13 +391,14 @@ export default function App() {
       aiAgentSessions.refresh().catch(() => {});
     }).catch(() => {});
   }, [activeAiAgentSessionId, aiAgentSessions, createAiAgentInitialSessionOptions, createWorkspaceSession, selectWorkspaceSession, workspaceKey]);
+  const closeAiCommand = aiCommand.closeAiCommand;
   const restoreAiCommand = aiCommand.restoreAiCommand;
   const handleAiCommandClose = useCallback(() => {
     aiContextMenuActionIdRef.current += 1;
     setAiContextMenuActionPending(false);
-    aiCommand.closeAiCommand();
+    closeAiCommand();
     editor.clearAiSelection();
-  }, [aiCommand, editor]);
+  }, [closeAiCommand, editor]);
   const shouldCloseAiCommandForAiAgentOpen = useCallback(
     (nextOpen: boolean) => shouldCloseAiCommandOnAgentPanelOpen({
       closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
@@ -573,6 +579,27 @@ export default function App() {
 
     return Boolean(selection);
   }, [getActiveAiSelection, getEditorSelection]);
+  const handleAiCommandToggle = useCallback(() => {
+    if (aiCommand.open) {
+      handleAiCommandClose();
+      return;
+    }
+
+    const selection = aiCommandTextSelection(getActiveAiSelection()) ?? aiCommandTextSelection(getEditorSelection());
+    if (!selection) return;
+
+    holdAiSelection(selection);
+    updateActiveAiSelection(selection);
+    openAiCommand(selection);
+  }, [
+    aiCommand.open,
+    getActiveAiSelection,
+    getEditorSelection,
+    handleAiCommandClose,
+    holdAiSelection,
+    openAiCommand,
+    updateActiveAiSelection
+  ]);
   const handleAiCommandInterrupt = useCallback(() => {
     aiContextMenuActionIdRef.current += 1;
     setAiContextMenuActionPending(false);
@@ -854,16 +881,22 @@ export default function App() {
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
     insertMarkdownTable: editor.insertMarkdownTable,
     language: appLanguage.language,
+    markdownShortcuts: editorPreferences.preferences.markdownShortcuts,
     openDocument: handleOpenMarkdownFile,
     runAiQuickAction: handleAiContextMenuAction,
     runEditorShortcut: editor.runEditorShortcut,
     saveDocument: handleSaveClick,
-    saveDocumentAs
+    saveDocumentAs,
+    toggleAiAgent: handleAiAgentToggle,
+    toggleAiCommand: handleAiCommandToggle,
+    toggleMarkdownFiles: handleFileTreeToggle,
+    toggleSourceMode: handleEditorModeToggle
   });
 
   useNativeMarkdownDrop(handleDroppedMarkdownPath);
   useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null, {
-    getAiCommandsAvailable: getAiContextMenuAvailable
+    getAiCommandsAvailable: getAiContextMenuAvailable,
+    markdownShortcuts: editorPreferences.preferences.markdownShortcuts
   });
   useAutoUpdater(appLanguage.language, appLanguage.ready, {
     confirmRestart: confirmCanDiscardCurrentDocument
@@ -871,10 +904,15 @@ export default function App() {
   useApplicationShortcuts({
     exportHtml: exportHtmlDocument,
     exportPdf: exportPdfDocument,
+    markdownShortcuts: editorPreferences.preferences.markdownShortcuts,
     openDocument: handleOpenMarkdownFile,
     openFolder: handleOpenMarkdownFolder,
     saveDocument: handleSaveClick,
-    saveDocumentAs
+    saveDocumentAs,
+    toggleAiAgent: handleAiAgentToggle,
+    toggleAiCommand: handleAiCommandToggle,
+    toggleMarkdownFiles: handleFileTreeToggle,
+    toggleSourceMode: handleEditorModeToggle
   });
 
   useEffect(() => {
@@ -1044,6 +1082,7 @@ export default function App() {
                       initialContent={document.content}
                       language={appLanguage.language}
                       lineHeight={editorPreferences.preferences.lineHeight}
+                      markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
                       onEditorReady={editor.handleEditorReady}
                       onMarkdownChange={handleMarkdownChange}
                       onSaveClipboardImage={handleSaveClipboardImage}
@@ -1118,7 +1157,7 @@ export default function App() {
           editorRightInset={aiAgentInset}
           externalActionPending={aiContextMenuActionPending}
           language={appLanguage.language}
-          open={aiCommand.open && (hasActiveAiSelection || Boolean(aiResult) || aiContextMenuActionPending)}
+          open={aiCommand.open && (hasAiCommandContext || Boolean(aiResult) || aiContextMenuActionPending)}
           prompt={aiCommand.prompt}
           selectedModelId={aiSettings.inlineModelId}
           selectedProviderId={aiSettings.inlineProviderId}

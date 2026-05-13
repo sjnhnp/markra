@@ -37,7 +37,7 @@ describe("MarkdownFileTreeDrawer", () => {
 
     const settings = screen.getByRole("button", { name: "Settings" });
 
-    expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
     expect(settings).toHaveClass("fixed", "bottom-3", "left-3");
     expect(settings).toContainElement(container.querySelector(".lucide-settings"));
     expect(container.querySelector(".markdown-file-tree")).toHaveClass("opacity-0", "-translate-x-4");
@@ -63,7 +63,7 @@ describe("MarkdownFileTreeDrawer", () => {
 
     const outlineSwitch = screen.getByRole("button", { name: "Show outline" });
 
-    expect(screen.queryByRole("button", { name: "Toggle Markdown files" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
     expect(outlineSwitch.closest(".markdown-file-tree")).toBeInTheDocument();
     expect(outlineSwitch).toContainElement(container.querySelector(".lucide-table-of-contents"));
   });
@@ -85,7 +85,7 @@ describe("MarkdownFileTreeDrawer", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+    const toggle = screen.getByRole("button", { name: "Toggle file list" });
 
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(toggle).toHaveClass("fixed", "bottom-3");
@@ -116,7 +116,7 @@ describe("MarkdownFileTreeDrawer", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: "Toggle Markdown files" });
+    const toggle = screen.getByRole("button", { name: "Toggle file list" });
 
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     expect(toggle).toHaveStyle({ left: "48px" });

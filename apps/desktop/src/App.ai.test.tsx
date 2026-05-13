@@ -67,6 +67,31 @@ describe("Markra AI workspace", () => {
     );
   });
 
+  it("toggles the Markra AI panel from the keyboard shortcut", async () => {
+    renderApp();
+
+    await screen.findByText("Welcome to Markra");
+
+    fireEvent.keyDown(window, { key: "j", altKey: true, metaKey: true });
+
+    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("complementary", { name: "Markra AI" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "j", altKey: true, metaKey: true });
+
+    expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("opens the inline AI command from the keyboard shortcut at the current block", async () => {
+    renderApp();
+
+    await screen.findByText("Welcome to Markra");
+
+    fireEvent.keyDown(window, { key: "j", metaKey: true, shiftKey: true });
+
+    expect(await screen.findByRole("textbox", { name: "AI command" })).toBeInTheDocument();
+  });
+
   it("does not allow agent messages until a markdown document is open", async () => {
     mockedOpenNativeMarkdownPath.mockResolvedValue({
       kind: "folder",

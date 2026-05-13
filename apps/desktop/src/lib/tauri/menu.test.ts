@@ -134,10 +134,15 @@ describe("native menu", () => {
       saveDocument: vi.fn()
     };
 
-    await installNativeApplicationMenu(handlers, "fr");
+    await installNativeApplicationMenu(handlers, "fr", {
+      bold: "Mod+Alt+B"
+    });
 
     expect(mockedListen).toHaveBeenCalledWith("markra://menu-command", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
+      accelerators: {
+        formatBold: "CmdOrCtrl+Alt+B"
+      },
       language: "fr"
     });
     expect(mockedMenuNew).not.toHaveBeenCalled();
@@ -183,6 +188,10 @@ describe("native menu", () => {
     const cleanup = await installNativeEditorContextMenu(target, {
       formatBold: vi.fn(),
       insertTable
+    }, "en", {
+      markdownShortcuts: {
+        bold: "Mod+Alt+B"
+      }
     });
 
     outside.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
@@ -209,6 +218,92 @@ describe("native menu", () => {
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
 
     expect(popup).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows customized markdown shortcuts in the native context menu", async () => {
+    const target = document.createElement("main");
+    const paper = document.createElement("article");
+    paper.className = "markdown-paper";
+    target.append(paper);
+
+    await installNativeEditorContextMenu(target, {
+      formatBold: vi.fn()
+    }, "en", {
+      markdownShortcuts: {
+        bold: "Mod+Alt+B"
+      }
+    });
+
+    paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await flushNativeMenuPopup();
+
+    expect(menuItemById(latestMenuItems(), "markra:context:bold")).toMatchObject({
+      accelerator: "CmdOrCtrl+Alt+B",
+      text: "Bold"
+    });
+  });
+
+  it("shows customized insert shortcuts in native menus", async () => {
+    const target = document.createElement("main");
+    const paper = document.createElement("article");
+    paper.className = "markdown-paper";
+    target.append(paper);
+
+    await installNativeApplicationMenu({}, "en", {
+      link: "Mod+Alt+K",
+      table: "Mod+Shift+T"
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
+      accelerators: {
+        insertLink: "CmdOrCtrl+Alt+K",
+        insertTable: "CmdOrCtrl+Shift+T"
+      },
+      language: "en"
+    });
+
+    await installNativeEditorContextMenu(target, {}, "en", {
+      markdownShortcuts: {
+        image: "Mod+Alt+I",
+        link: "Mod+Alt+K",
+        table: "Mod+Shift+T"
+      }
+    });
+
+    paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await flushNativeMenuPopup();
+
+    expect(menuItemById(latestMenuItems(), "markra:context:link")).toMatchObject({
+      accelerator: "CmdOrCtrl+Alt+K",
+      text: "Link"
+    });
+    expect(menuItemById(latestMenuItems(), "markra:context:image")).toMatchObject({
+      accelerator: "CmdOrCtrl+Alt+I",
+      text: "Image"
+    });
+    expect(menuItemById(latestMenuItems(), "markra:context:table")).toMatchObject({
+      accelerator: "CmdOrCtrl+Shift+T",
+      text: "Table"
+    });
+  });
+
+  it("passes customized app shortcuts to the native application menu", async () => {
+    await installNativeApplicationMenu({}, "en", {
+      toggleAiAgent: "Mod+Shift+Y",
+      toggleAiCommand: "Mod+Alt+J",
+      toggleMarkdownFiles: "Mod+Alt+M",
+      toggleSourceMode: "Mod+Alt+U"
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
+      accelerators: {
+        toggleAiAgent: "CmdOrCtrl+Shift+Y",
+        toggleAiCommand: "CmdOrCtrl+Alt+J",
+        toggleMarkdownFiles: "CmdOrCtrl+Alt+M",
+        toggleSourceMode: "CmdOrCtrl+Alt+U"
+      },
+      language: "en"
+    });
   });
 
   it("groups richer editor formatting actions in the native context menu", async () => {
