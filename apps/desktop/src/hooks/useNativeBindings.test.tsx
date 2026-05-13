@@ -74,6 +74,7 @@ describe("useNativeMenuHandlers", () => {
 
   it("routes native application commands to app toggles", () => {
     const closeDocument = vi.fn();
+    const checkForUpdates = vi.fn();
     const toggleAiAgent = vi.fn();
     const toggleAiCommand = vi.fn();
     const toggleMarkdownFiles = vi.fn();
@@ -81,6 +82,7 @@ describe("useNativeMenuHandlers", () => {
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
         ...baseOptions,
+        checkForUpdates,
         closeDocument,
         toggleAiAgent,
         toggleAiCommand,
@@ -90,12 +92,14 @@ describe("useNativeMenuHandlers", () => {
     );
 
     result.current.closeDocument?.();
+    result.current.checkForUpdates?.();
     result.current.toggleMarkdownFiles?.();
     result.current.toggleAiAgent?.();
     result.current.toggleAiCommand?.();
     result.current.toggleSourceMode?.();
 
     expect(closeDocument).toHaveBeenCalledTimes(1);
+    expect(checkForUpdates).toHaveBeenCalledTimes(1);
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
     expect(toggleAiCommand).toHaveBeenCalledTimes(1);

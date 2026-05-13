@@ -15,6 +15,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     export_pdf: "PDF に書き出す",
     export_html: "HTML に書き出す",
     settings: "設定...",
+    check_updates: "アップデートを確認",
     undo: "取り消す",
     redo: "やり直す",
     cut: "カット",

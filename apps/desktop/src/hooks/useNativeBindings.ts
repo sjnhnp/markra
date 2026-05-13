@@ -18,6 +18,7 @@ import { matchesKeyboardShortcutEvent, t, type AppLanguage, type I18nKey } from 
 type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
 type NativeMenuHandlerOptions = {
+  checkForUpdates?: () => unknown | Promise<unknown>;
   closeDocument?: () => unknown | Promise<unknown>;
   exportHtml?: () => unknown | Promise<unknown>;
   exportPdf?: () => unknown | Promise<unknown>;
@@ -53,6 +54,7 @@ type ApplicationShortcutOptions = {
 };
 
 export function useNativeMenuHandlers({
+  checkForUpdates,
   closeDocument,
   exportHtml,
   exportPdf,
@@ -76,6 +78,7 @@ export function useNativeMenuHandlers({
     [markdownShortcuts]
   );
   const latestOptionsRef = useRef({
+    checkForUpdates,
     exportHtml,
     exportPdf,
     closeDocument,
@@ -95,6 +98,7 @@ export function useNativeMenuHandlers({
     toggleSourceMode
   });
   latestOptionsRef.current = {
+    checkForUpdates,
     exportHtml,
     exportPdf,
     closeDocument,
@@ -118,6 +122,7 @@ export function useNativeMenuHandlers({
     () => ({
       openDocument: () => latestOptionsRef.current.openDocument(),
       openFolder: () => latestOptionsRef.current.openFolder(),
+      checkForUpdates: () => latestOptionsRef.current.checkForUpdates?.(),
       closeDocument: () => latestOptionsRef.current.closeDocument?.(),
       saveDocument: () => latestOptionsRef.current.saveDocument(),
       saveDocumentAs: () => latestOptionsRef.current.saveDocumentAs(),

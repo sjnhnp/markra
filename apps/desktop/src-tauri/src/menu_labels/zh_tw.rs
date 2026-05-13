@@ -15,6 +15,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     export_pdf: "匯出 PDF",
     export_html: "匯出 HTML",
     settings: "設定...",
+    check_updates: "檢查更新",
     undo: "復原",
     redo: "重做",
     cut: "剪下",

@@ -32,6 +32,7 @@ export type NativeEditorContextMenuOptions = {
 };
 
 export type NativeMenuCommand =
+  | "checkForUpdates"
   | "openDocument"
   | "openFolder"
   | "closeDocument"

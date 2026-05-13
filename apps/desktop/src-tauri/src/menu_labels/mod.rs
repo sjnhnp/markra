@@ -28,6 +28,7 @@ pub(crate) struct MenuLabels {
     pub(crate) export_pdf: &'static str,
     pub(crate) export_html: &'static str,
     pub(crate) settings: &'static str,
+    pub(crate) check_updates: &'static str,
     pub(crate) undo: &'static str,
     pub(crate) redo: &'static str,
     pub(crate) cut: &'static str,

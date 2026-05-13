@@ -15,6 +15,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     export_pdf: "PDF 내보내기",
     export_html: "HTML 내보내기",
     settings: "설정...",
+    check_updates: "업데이트 확인",
     undo: "실행 취소",
     redo: "다시 실행",
     cut: "잘라내기",

@@ -9,6 +9,8 @@ pub(crate) const NATIVE_MENU_COMMAND_EVENT: &str = "markra://menu-command";
 
 const NEW_DOCUMENT_COMMAND: &str = "newDocument";
 const SETTINGS_WINDOW_COMMAND: &str = "openSettings";
+const CHECK_FOR_UPDATES_COMMAND: &str = "checkForUpdates";
+const MARKRA_GITHUB_URL: &str = "https://github.com/murongg/markra";
 
 #[derive(Clone, serde::Serialize)]
 pub(crate) struct NativeMenuCommand {
@@ -24,6 +26,25 @@ fn app_menu_item<R: tauri::Runtime, M: Manager<R>>(
     MenuItemBuilder::with_id(id, text)
         .accelerator(accelerator)
         .build(manager)
+}
+
+fn app_menu_item_without_accelerator<R: tauri::Runtime, M: Manager<R>>(
+    manager: &M,
+    id: &str,
+    text: &str,
+) -> tauri::Result<tauri::menu::MenuItem<R>> {
+    MenuItemBuilder::with_id(id, text).build(manager)
+}
+
+fn application_about_metadata() -> AboutMetadata<'static> {
+    AboutMetadata {
+        name: Some("Markra".into()),
+        version: Some(env!("CARGO_PKG_VERSION").into()),
+        website: Some(MARKRA_GITHUB_URL.into()),
+        website_label: Some("GitHub".into()),
+        credits: Some(format!("GitHub: {MARKRA_GITHUB_URL}")),
+        ..Default::default()
+    }
 }
 
 pub(crate) fn create_application_menu<R: tauri::Runtime>(
@@ -62,6 +83,8 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         .items(&[&export_pdf, &export_html])
         .build()?;
     let settings = app_menu_item(app, SETTINGS_WINDOW_COMMAND, labels.settings, "CmdOrCtrl+,")?;
+    let check_updates =
+        app_menu_item_without_accelerator(app, CHECK_FOR_UPDATES_COMMAND, labels.check_updates)?;
 
     let bold = app_menu_item(
         app,
@@ -179,12 +202,9 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
     )?;
 
     let app_menu = SubmenuBuilder::with_id(app, "markra:app", "Markra")
-        .about(Some(AboutMetadata {
-            name: Some("Markra".into()),
-            ..Default::default()
-        }))
+        .about(Some(application_about_metadata()))
         .separator()
-        .items(&[&settings])
+        .items(&[&settings, &check_updates])
         .separator()
         .hide_with_text(labels.hide)
         .hide_others_with_text(labels.hide_others)
@@ -276,7 +296,8 @@ pub(crate) fn is_native_settings_window_command(command: &str) -> bool {
 pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
     matches!(
         command,
-        "openDocument"
+        CHECK_FOR_UPDATES_COMMAND
+            | "openDocument"
             | "openFolder"
             | "closeDocument"
             | "saveDocument"
@@ -322,6 +343,7 @@ mod tests {
     #[test]
     fn recognizes_frontend_menu_commands() {
         assert!(!is_frontend_menu_command("newDocument"));
+        assert!(is_frontend_menu_command("checkForUpdates"));
         assert!(is_frontend_menu_command("openDocument"));
         assert!(is_frontend_menu_command("openFolder"));
         assert!(is_frontend_menu_command("closeDocument"));
@@ -337,6 +359,23 @@ mod tests {
         assert!(is_frontend_menu_command("toggleSourceMode"));
         assert!(!is_frontend_menu_command("markra:file"));
         assert!(!is_frontend_menu_command("copy"));
+    }
+
+    #[test]
+    fn about_metadata_includes_version_and_github_link() {
+        let metadata = application_about_metadata();
+
+        assert_eq!(metadata.name.as_deref(), Some("Markra"));
+        assert_eq!(metadata.version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
+        assert_eq!(
+            metadata.website.as_deref(),
+            Some("https://github.com/murongg/markra")
+        );
+        assert_eq!(metadata.website_label.as_deref(), Some("GitHub"));
+        assert!(metadata
+            .credits
+            .as_deref()
+            .is_some_and(|credits| credits.contains("https://github.com/murongg/markra")));
     }
 
     #[test]
