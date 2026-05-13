@@ -142,6 +142,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       strikethrough: "Mod+Shift+X"
     },
     restoreWorkspaceOnStartup: true,
+    showDocumentTabs: true,
     showWordCount: true
   },
   defaultWebSearchSettings: {
@@ -196,6 +197,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       strikethrough: "Mod+Shift+X"
     },
     restoreWorkspaceOnStartup: true,
+    showDocumentTabs: true,
     showWordCount: true,
     ...preferences
   })),
@@ -544,6 +546,7 @@ export function installAppTestHarness() {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      showDocumentTabs: true,
       showWordCount: true
     });
     mockedGetStoredExportSettings.mockResolvedValue({

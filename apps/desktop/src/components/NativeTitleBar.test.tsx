@@ -31,6 +31,36 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".document-actions")).toHaveClass("h-10");
   });
 
+  it("uses custom titlebar content instead of the centered document title", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen
+        markdownFilesWidth={220}
+        theme="light"
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(screen.queryByRole("heading", { name: "Draft.md" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Open documents" })).toBeInTheDocument();
+    expect(container.querySelector(".native-title-slot")).toHaveStyle({
+      marginRight: "110px",
+      transform: "translateX(110px)"
+    });
+  });
+
   it("toggles the right-side Markra AI panel from the file action area", () => {
     const toggleAiAgent = vi.fn();
     const { container } = render(

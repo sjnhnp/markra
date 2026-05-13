@@ -77,6 +77,7 @@ type MarkdownPaperProps = {
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
   resolveImageSrc?: (src: string) => string;
   revision: number;
+  topInset?: "tabs" | "titlebar";
 };
 
 export const editorContentWidths: Record<EditorContentWidth, string> = {
@@ -375,7 +376,8 @@ export function MarkdownPaper({
   openExternalUrl,
   onTextSelectionChange,
   resolveImageSrc,
-  revision
+  revision,
+  topInset = "titlebar"
 }: MarkdownPaperProps) {
   const paperStyle = {
     fontSize: `${bodyFontSize}px`,
@@ -387,6 +389,7 @@ export function MarkdownPaper({
     () => normalizeMarkdownShortcuts(markdownShortcuts),
     [shortcutsSignature]
   );
+  const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";
 
   return (
     <section
@@ -395,7 +398,7 @@ export function MarkdownPaper({
     >
       <article
         key={revision}
-        className="markdown-paper mx-auto min-h-screen w-full max-w-215 px-18 pb-30 pt-14 text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25 max-[900px]:pt-10"
+        className={`markdown-paper mx-auto min-h-screen w-full max-w-215 px-18 pb-30 ${topInsetClassName} text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25`}
         style={paperStyle}
         aria-label={t(language, "app.markdownEditor")}
         data-editor-engine="milkdown"

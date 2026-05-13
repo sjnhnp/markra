@@ -178,6 +178,187 @@ describe("useMarkdownDocument", () => {
     expect(result.current.document.name).toBe("second.md");
   });
 
+  it("opens folder files as tabs and keeps dirty tab content when switching", async () => {
+    const confirmDiscardUnsavedChanges = vi.fn(() => true);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === "/mock-files/guide.md") {
+        return {
+          content: "# Guide\n\nOriginal",
+          name: "guide.md",
+          path
+        };
+      }
+
+      return {
+        content: "# Notes\n\nClean",
+        name: "notes.md",
+        path
+      };
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("# Guide\n\nDraft");
+    });
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "notes.md",
+        path: "/mock-files/notes.md",
+        relativePath: "notes.md"
+      });
+    });
+
+    expect(confirmDiscardUnsavedChanges).not.toHaveBeenCalled();
+    expect(result.current.tabs.map((tab) => tab.name)).toEqual(["guide.md", "notes.md"]);
+    expect(result.current.document.name).toBe("notes.md");
+
+    const guideTab = result.current.tabs.find((tab) => tab.name === "guide.md");
+    expect(guideTab).toBeTruthy();
+
+    act(() => {
+      result.current.selectMarkdownTab(guideTab!.id);
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "# Guide\n\nDraft",
+      dirty: true,
+      name: "guide.md"
+    });
+  });
+
+  it("keeps dirty inactive tabs protected when the document tabs setting is disabled", async () => {
+    const confirmDiscardUnsavedChanges = vi.fn(() => false);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === "/mock-files/guide.md") {
+        return {
+          content: "# Guide\n\nOriginal",
+          name: "guide.md",
+          path
+        };
+      }
+
+      return {
+        content: "# Notes\n\nClean",
+        name: "notes.md",
+        path
+      };
+    });
+    mockedOpenNativeMarkdownPath.mockResolvedValueOnce({
+      kind: "file",
+      file: {
+        content: "# Later\n\nClean",
+        name: "later.md",
+        path: "/mock-files/later.md"
+      }
+    });
+    const { result, rerender } = renderHook(
+      ({ documentTabsEnabled }) =>
+        useMarkdownDocument({
+          confirmDiscardUnsavedChanges,
+          documentTabsEnabled,
+          getCurrentMarkdown: (fallbackContent) => fallbackContent,
+          onTreeRootFromFilePath: vi.fn(),
+          onTreeRootFromFolderPath: vi.fn(),
+          preferencesReady: false,
+          restoreWorkspaceOnStartup: false
+        }),
+      { initialProps: { documentTabsEnabled: true } }
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("# Guide\n\nDraft");
+    });
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "notes.md",
+        path: "/mock-files/notes.md",
+        relativePath: "notes.md"
+      });
+    });
+
+    rerender({ documentTabsEnabled: false });
+
+    expect(result.current.tabs.map((tab) => tab.name)).toEqual(["guide.md", "notes.md"]);
+
+    await act(async () => {
+      await result.current.openMarkdownFile();
+    });
+
+    expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({ name: "guide.md" }));
+    expect(result.current.tabs.map((tab) => tab.name)).toEqual(["guide.md", "notes.md"]);
+    expect(result.current.document.name).toBe("notes.md");
+  });
+
+  it("asks before closing a dirty tab", async () => {
+    const confirmDiscardUnsavedChanges = vi.fn(() => false);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOriginal",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("# Guide\n\nDraft");
+    });
+
+    const guideTab = result.current.tabs.find((tab) => tab.name === "guide.md");
+    expect(guideTab).toBeTruthy();
+
+    await act(async () => {
+      await result.current.closeMarkdownTab(guideTab!.id);
+    });
+
+    expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({ name: "guide.md" }));
+    expect(result.current.tabs.some((tab) => tab.id === guideTab!.id)).toBe(true);
+  });
+
   it("forwards native folder tree changes while watching an opened markdown file", async () => {
     const onMarkdownTreeChange = vi.fn();
     let emitTreeChange: (path: string) => unknown = () => {};

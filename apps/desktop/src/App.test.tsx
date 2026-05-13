@@ -106,11 +106,11 @@ describe("Markra workspace", () => {
       path: mockNativePath
     });
 
-    renderApp();
+    const { container } = renderApp();
 
     expect(await screen.findByText("Restored file")).toBeInTheDocument();
     expect(screen.getByText("Back from last launch.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "native.md" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /native\.md/ })).toBeInTheDocument();
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockNativePath);
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
@@ -128,7 +128,7 @@ describe("Markra workspace", () => {
       { name: "note.md", path: "/mock-files/vault/docs/note.md", relativePath: "docs/note.md" }
     ]);
 
-    renderApp();
+    const { container } = renderApp();
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
     await waitFor(() =>
@@ -167,7 +167,7 @@ describe("Markra workspace", () => {
       return () => {};
     });
 
-    renderApp();
+    const { container } = renderApp();
 
     await waitFor(() => expect(mockedListenAppThemeChanged).toHaveBeenCalledTimes(1));
     act(() => {
@@ -337,6 +337,7 @@ describe("Markra workspace", () => {
         bold: "Mod+Alt+B"
       },
       restoreWorkspaceOnStartup: true,
+      showDocumentTabs: true,
       showWordCount: true
     });
     window.history.pushState({}, "", "/?settings=1");
@@ -617,7 +618,10 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".workspace-layout")).toHaveStyle({
       gridTemplateColumns: "220px minmax(0,1fr)"
     });
-    expect(container.querySelector(".native-title")).toHaveStyle({ transform: "translateX(110px)" });
+    expect(container.querySelector(".native-title-slot")).toHaveStyle({
+      marginRight: "110px",
+      transform: "translateX(110px)"
+    });
     expect(resizeHandle).toHaveAttribute("aria-valuemin", "220");
     expect(resizeHandle).toHaveAttribute("aria-valuemax", "440");
     expect(resizeHandle).toHaveAttribute("aria-valuenow", "220");
@@ -662,7 +666,7 @@ describe("Markra workspace", () => {
       { name: "note.md", path: "/mock-files/vault/docs/note.md", relativePath: "docs/note.md" }
     ]);
 
-    renderApp();
+    const { container } = renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 
@@ -784,7 +788,7 @@ describe("Markra workspace", () => {
 
     expect(await screen.findByText("Guide")).toBeInTheDocument();
     expect(screen.getByText("Opened from the folder tree.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "guide.md" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /guide\.md/ })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "docs" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "native.md" })).toBeInTheDocument();
@@ -844,9 +848,23 @@ describe("Markra workspace", () => {
 
     const previewImage = await screen.findByRole("img", { name: "pasted-image.png" });
     expect(previewImage).toHaveAttribute("src", imagePath);
-    expect(screen.getByRole("heading", { name: "pasted-image.png" })).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Open documents" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /native\.md/ })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: /pasted-image\.png/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("heading", { name: "pasted-image.png" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("tab", { name: /native\.md/ }));
+
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+    expect(screen.getByLabelText("Markdown editor")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "pasted-image.png" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /pasted-image\.png/ }));
+
+    expect(await screen.findByRole("img", { name: "pasted-image.png" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "docs" }));
     fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
@@ -899,6 +917,61 @@ describe("Markra workspace", () => {
     expect(await screen.findByText("Notes")).toBeInTheDocument();
 
     expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
+  });
+
+  it("shows open markdown files in a tab strip when document tabs are enabled", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    const notesPath = "/mock-files/vault/docs/notes.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" },
+      { name: "notes.md", path: notesPath, relativePath: "docs/notes.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === guidePath) {
+        return {
+          content: "# Guide",
+          name: "guide.md",
+          path: guidePath
+        };
+      }
+
+      return {
+        content: "# Notes",
+        name: "notes.md",
+        path: notesPath
+      };
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/notes.md" }));
+    expect(await screen.findByText("Notes")).toBeInTheDocument();
+
+    expect(screen.getByRole("tablist", { name: "Open documents" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: /notes\.md/ })).toHaveAttribute("aria-selected", "true");
+    expect(container.querySelector(".native-title")).not.toBeInTheDocument();
+    expect(container.querySelector(".native-title-slot .document-tabs")).toBeInTheDocument();
+    expect(container.querySelector(".editor-content-slot .document-tabs")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /guide\.md/ }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("switches away from a clean file with normalized markdown without asking to discard changes", async () => {
@@ -1038,7 +1111,7 @@ describe("Markra workspace", () => {
 
     expect(mockedCreateNativeMarkdownTreeFile).not.toHaveBeenCalled();
     expect(mockedSaveNativeMarkdownFile).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: /Untitled\.md/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Untitled\.md/ })).toBeInTheDocument();
     expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
     expect(screen.queryByText("Native file")).not.toBeInTheDocument();
 
@@ -1086,6 +1159,18 @@ describe("Markra workspace", () => {
   });
 
   it("keeps dirty editor content when opening another markdown file is cancelled", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue({
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "assets",
+      closeAiCommandOnAgentPanelOpen: false,
+      contentWidth: "default",
+      lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
+      restoreWorkspaceOnStartup: true,
+      showDocumentTabs: false,
+      showWordCount: true
+    });
     mockOpenMarkdownFile({
       content: "Original synthetic text",
       name: "native.md",
@@ -1361,7 +1446,7 @@ describe("Markra workspace", () => {
     renderApp();
 
     expect(await screen.findByText("Dropped file")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "dropped.md" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /dropped\.md/ })).toBeInTheDocument();
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockDroppedPath);
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
@@ -1402,7 +1487,7 @@ describe("Markra workspace", () => {
     });
 
     expect(await screen.findByText("Dropped file")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "dropped.md" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /dropped\.md/ })).toBeInTheDocument();
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockDroppedPath);
     expect(mockedOpenNativeMarkdownFileInNewWindow).not.toHaveBeenCalled();
   });
@@ -1506,7 +1591,7 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 
     expect(await screen.findByText("Native file")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "native.md" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /native\.md/ })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "s", metaKey: true });
 
@@ -1679,7 +1764,7 @@ describe("Markra workspace", () => {
     });
 
     expect(await screen.findByText("Native menu file")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "native-menu.md" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /native-menu\.md/ })).toBeInTheDocument();
 
     await act(async () => {
       await menuHandlers.saveDocument?.();
@@ -1707,7 +1792,7 @@ describe("Markra workspace", () => {
       )
     );
 
-    expect(screen.getByRole("heading", { name: "native-menu.md" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /native-menu\.md/ })).toBeInTheDocument();
   });
 
   it("exports the current markdown document as standalone HTML from the native menu", async () => {
