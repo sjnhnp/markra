@@ -507,6 +507,17 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain(source);
   });
 
+  it("renders ordinary paragraph line breaks without requiring explicit br tags", async () => {
+    const source = ["First line", "Second line"].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const paragraph = container.querySelector(".ProseMirror p");
+
+    expect(paragraph).toContainHTML("<br");
+    expect(serializeMarkdown(view.state.doc)).toContain(source);
+    expect(serializeMarkdown(view.state.doc)).not.toContain("<br");
+  });
+
   it("creates a paragraph below a rendered display math block when pressing Enter after it", async () => {
     const source = String.raw`$$ E = mc^2 $$`;
     const { container, editor, view } = await renderEditor(source);
