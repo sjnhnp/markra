@@ -39,6 +39,7 @@ import {
   mockedOpenSettingsWindow,
   mockedReadNativeMarkdownFile,
   mockedResetWelcomeDocumentState,
+  mockedRenameNativeMarkdownTreeFile,
   mockedResolveDesktopPlatform,
   mockedSaveNativeHtmlFile,
   mockedSaveNativeMarkdownFile,
@@ -979,6 +980,50 @@ describe("Markra workspace", () => {
 
     expect(await screen.findByText("Guide")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("renames an opened markdown file from a titlebar tab double click", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    const renamedPath = "/mock-files/vault/docs/Renamed.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath
+      .mockResolvedValueOnce([{ name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }])
+      .mockResolvedValue([{ name: "Renamed.md", path: renamedPath, relativePath: "docs/Renamed.md" }]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide",
+      name: "guide.md",
+      path: guidePath
+    });
+    mockedRenameNativeMarkdownTreeFile.mockResolvedValue({
+      name: "Renamed.md",
+      path: renamedPath,
+      relativePath: "docs/Renamed.md"
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+
+    fireEvent.doubleClick(screen.getByRole("tab", { name: /guide\.md/ }));
+    const renameInput = await screen.findByRole("textbox", { name: "Rename file" });
+    fireEvent.change(renameInput, { target: { value: "Renamed.md" } });
+    fireEvent.keyDown(renameInput, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(mockedRenameNativeMarkdownTreeFile).toHaveBeenCalledWith(mockFolderPath, guidePath, "Renamed.md")
+    );
+    expect(await screen.findByRole("tab", { name: /Renamed\.md/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("switches away from a clean file with normalized markdown without asking to discard changes", async () => {

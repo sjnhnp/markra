@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { FileText, ImageIcon, Plus, X } from "lucide-react";
 import { IconButton } from "@markra/ui";
 import { t, type AppLanguage } from "@markra/shared";
@@ -15,6 +16,7 @@ type MarkdownTabsBarProps = {
   tabs: MarkdownTabsBarItem[];
   onCloseTab: (tabId: string) => unknown;
   onNewTab: () => unknown;
+  onRenameTab?: (tab: MarkdownTabsBarItem, name: string) => unknown;
   onSelectTab: (tabId: string) => unknown;
 };
 
@@ -25,12 +27,50 @@ export function MarkdownTabsBar({
   tabs,
   onCloseTab,
   onNewTab,
+  onRenameTab,
   onSelectTab
 }: MarkdownTabsBarProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [renameFileName, setRenameFileName] = useState("");
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
+  const renameCancelledRef = useRef(false);
+
+  useEffect(() => {
+    if (!renameInputRef.current) return;
+
+    renameInputRef.current.focus();
+    renameInputRef.current.select();
+  }, [renamingTabId]);
+
   if (tabs.length === 0) return null;
 
   const titlebarPlacement = placement === "titlebar";
+  const startRenamingTab = (tab: MarkdownTabsBarItem) => {
+    if (!tab.path || !onRenameTab) return;
+
+    renameCancelledRef.current = false;
+    setRenamingTabId(tab.id);
+    setRenameFileName(tab.name || "Untitled.md");
+  };
+  const cancelRenamingTab = () => {
+    renameCancelledRef.current = true;
+    setRenamingTabId(null);
+    setRenameFileName("");
+  };
+  const commitRenamingTab = (tab: MarkdownTabsBarItem, value = renameFileName) => {
+    if (renameCancelledRef.current) {
+      renameCancelledRef.current = false;
+      return;
+    }
+
+    const normalizedName = value.trim();
+    setRenamingTabId(null);
+    setRenameFileName("");
+    if (!normalizedName || normalizedName === tab.name) return;
+
+    onRenameTab?.(tab, normalizedName);
+  };
 
   return (
     <section
@@ -50,6 +90,7 @@ export function MarkdownTabsBar({
       >
         {tabs.map((tab) => {
           const active = tab.id === activeTabId;
+          const renaming = tab.id === renamingTabId;
           const TabIcon = tab.displayKind === "image" ? ImageIcon : FileText;
 
           return (
@@ -63,19 +104,47 @@ export function MarkdownTabsBar({
               }`}
               key={tab.id}
             >
-              <button
-                className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => onSelectTab(tab.id)}
-              >
-                <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
-                <span className="min-w-0 truncate">{tab.name || "Untitled.md"}</span>
-                {tab.dirty ? (
-                  <span className="size-1.25 shrink-0 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
-                ) : null}
-              </button>
+              {renaming ? (
+                <div className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2">
+                  <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
+                  <input
+                    ref={renameInputRef}
+                    aria-label={label("app.renameMarkdownFile")}
+                    className="min-w-0 flex-1 rounded-sm border border-(--accent) bg-(--bg-primary) px-1 text-[12px] leading-5 font-[560] text-(--text-heading) outline-none"
+                    type="text"
+                    value={renameFileName}
+                    onBlur={(event) => commitRenamingTab(tab, event.currentTarget.value)}
+                    onChange={(event) => setRenameFileName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                        return;
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelRenamingTab();
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <button
+                  className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onSelectTab(tab.id)}
+                  onDoubleClick={() => startRenamingTab(tab)}
+                >
+                  <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
+                  <span className="min-w-0 truncate">{tab.name || "Untitled.md"}</span>
+                  {tab.dirty ? (
+                    <span className="size-1.25 shrink-0 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
+                  ) : null}
+                </button>
+              )}
               <button
                 className={`mr-1 flex size-5 items-center justify-center rounded text-(--text-secondary) transition-[opacity,background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
                   active ? "opacity-100" : "opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100"

@@ -93,6 +93,17 @@ function createImageDocumentTab(file: NativeMarkdownFolderFile): ImageDocumentTa
     id: imageDocumentTabId(file.path)
   };
 }
+
+function documentTabAsFolderFile(tab: MarkdownTabsBarItem): NativeMarkdownFolderFile | null {
+  if (!tab.path) return null;
+
+  return {
+    ...(tab.displayKind === "image" ? { kind: "asset" as const } : {}),
+    name: tab.name || "Untitled.md",
+    path: tab.path,
+    relativePath: tab.path
+  };
+}
 type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
 function isSettingsWindowRoute() {
@@ -733,6 +744,13 @@ export default function App() {
     );
     setActiveImageFile(file);
   }, []);
+  const applyRenamedTreeFile = useCallback((previousPath: string, renamedFile: NativeMarkdownFolderFile) => {
+    replaceOpenDocumentFile(previousPath, renamedFile);
+    setImageTabs((currentTabs) => currentTabs.map((tab) =>
+      tab.path === previousPath ? createImageDocumentTab(renamedFile) : tab
+    ));
+    setActiveImageFile((currentFile) => currentFile?.path === previousPath ? renamedFile : currentFile);
+  }, [replaceOpenDocumentFile]);
   const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string) => {
     try {
       await createMarkdownTreeFolder(folderName);
@@ -743,11 +761,11 @@ export default function App() {
   const handleRenameMarkdownTreeFile = useCallback(async (file: NativeMarkdownFolderFile, fileName: string) => {
     try {
       const renamedFile = await renameMarkdownTreeFile(file, fileName);
-      if (renamedFile) replaceOpenDocumentFile(file.path, renamedFile);
+      if (renamedFile) applyRenamedTreeFile(file.path, renamedFile);
     } catch {
       // Keep the existing tree state if the native rename fails.
     }
-  }, [renameMarkdownTreeFile, replaceOpenDocumentFile]);
+  }, [applyRenamedTreeFile, renameMarkdownTreeFile]);
   const handleDeleteMarkdownTreeFile = useCallback(async (file: NativeMarkdownFolderFile) => {
     const confirmed = await confirmNativeMarkdownFileDelete(file.name, {
       cancelLabel: translate("app.cancelDeleteMarkdownFile"),
@@ -1119,6 +1137,17 @@ export default function App() {
     selectMarkdownTab,
     updateActiveAiSelection
   ]);
+  const handleRenameTitlebarTab = useCallback(async (tab: MarkdownTabsBarItem, fileName: string) => {
+    const file = documentTabAsFolderFile(tab);
+    if (!file) return;
+
+    try {
+      const renamedFile = await renameMarkdownTreeFile(file, fileName);
+      if (renamedFile) applyRenamedTreeFile(file.path, renamedFile);
+    } catch {
+      // Keep the existing tab state if the native rename fails.
+    }
+  }, [applyRenamedTreeFile, renameMarkdownTreeFile]);
 
   const titlebarDocumentTabs = documentTabsVisible ? (
     <MarkdownTabsBar
@@ -1131,6 +1160,7 @@ export default function App() {
         setActiveImageFile(null);
         createBlankDocument().catch(() => {});
       }}
+      onRenameTab={handleRenameTitlebarTab}
       onSelectTab={handleSelectTitlebarTab}
     />
   ) : null;
