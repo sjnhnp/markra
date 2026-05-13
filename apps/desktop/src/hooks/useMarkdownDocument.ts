@@ -139,6 +139,10 @@ type UseMarkdownDocumentOptions = {
   restoreWorkspaceOnStartup?: boolean;
 };
 
+type OpenMarkdownFileOptions = {
+  pickerTitle?: string;
+};
+
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
   saveStoredWorkspaceState(patch).catch(() => {});
 }
@@ -433,8 +437,10 @@ export function useMarkdownDocument({
     [applyNativeMarkdownFile]
   );
 
-  const openMarkdownFile = useCallback(async () => {
-    const target = await openNativeMarkdownPath();
+  const openMarkdownFile = useCallback(async (options: OpenMarkdownFileOptions = {}) => {
+    const target = await openNativeMarkdownPath(
+      options.pickerTitle ? { title: options.pickerTitle } : undefined
+    );
     if (!target) return;
 
     if (target.kind === "folder") {

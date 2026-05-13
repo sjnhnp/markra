@@ -59,6 +59,32 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("font-synthesis: style");
   });
 
+  it("positions the native display math caret anchor at the formula block edge", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const anchorStart = styles.indexOf(".markdown-paper img.ProseMirror-separator.markra-math-caret-anchor {");
+    const anchorEnd = styles.indexOf(".markdown-paper .markra-math-render-invalid");
+    const anchorStyles = styles.slice(anchorStart, anchorEnd);
+
+    expect(styles).toContain(".markdown-paper p:has(.markra-math-caret-anchor)");
+    expect(anchorStyles).toContain("position: absolute");
+    expect(anchorStyles).toContain("right: 0");
+    expect(anchorStyles).toContain("width: 1px !important");
+    expect(anchorStyles).not.toContain("opacity: 0");
+  });
+
+  it("keeps hidden display math source available for the native caret", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const sourceStart = styles.indexOf(".markdown-paper .markra-math-source-hidden-display.markra-md-hidden-delimiter {");
+    const sourceEnd = styles.indexOf(".markdown-paper .markra-live-mark-strong");
+    const sourceStyles = styles.slice(sourceStart, sourceEnd);
+
+    expect(sourceStyles).toContain("display: inline-block");
+    expect(sourceStyles).toContain("position: absolute");
+    expect(sourceStyles).toContain("right: 0");
+    expect(sourceStyles).toContain("-webkit-text-fill-color: transparent");
+    expect(sourceStyles).not.toContain("@apply hidden");
+  });
+
   it("keeps AI diff action controls visually quiet until interaction", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 
@@ -105,6 +131,34 @@ describe("editor stylesheet", () => {
     expect(languageRevealStyles).toContain("opacity: 1");
     expect(languageRevealStyles).toContain("pointer-events: auto");
     expect(languageSelectStyles).toContain("border border-(--border-default)");
+  });
+
+  it("wraps code block lines instead of forcing horizontal scrolling", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const codeStart = styles.indexOf(".markdown-paper .markra-code-block code {");
+    const codeEnd = styles.indexOf(".markdown-paper .hljs-keyword");
+    const codeStyles = styles.slice(codeStart, codeEnd);
+
+    expect(codeStyles).toContain("white-space: pre-wrap");
+    expect(codeStyles).toContain("overflow-wrap: anywhere");
+  });
+
+  it("uses a richer palette for inline code and syntax highlights", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const inlineCodeStart = styles.indexOf(".markdown-paper code {");
+    const inlineCodeEnd = styles.indexOf(".markdown-paper pre {");
+    const inlineCodeStyles = styles.slice(inlineCodeStart, inlineCodeEnd);
+    const preCodeStart = styles.indexOf(".markdown-paper pre code {");
+    const preCodeEnd = styles.indexOf(".markdown-paper .markra-code-block");
+    const preCodeStyles = styles.slice(preCodeStart, preCodeEnd);
+
+    expect(inlineCodeStyles).toContain("color: oklch");
+    expect(inlineCodeStyles).toContain("box-shadow");
+    expect(preCodeStyles).toContain("color: inherit");
+    expect(preCodeStyles).toContain("box-shadow: none");
+    expect(styles).toContain(".markdown-paper .hljs-meta");
+    expect(styles).toContain(".markdown-paper .hljs-symbol");
+    expect(styles).toContain(".markdown-paper .hljs-type");
   });
 
   it("includes the inline AI loading shimmer used by compact quick actions", () => {

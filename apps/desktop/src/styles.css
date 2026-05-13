@@ -809,6 +809,24 @@
     overflow-y: hidden;
   }
 
+  .markdown-paper p:has(.markra-math-caret-anchor) {
+    position: relative;
+  }
+
+  .markdown-paper img.ProseMirror-separator.markra-math-caret-anchor {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    width: 1px !important;
+    height: 1.35em !important;
+    max-width: none;
+    margin: 0 !important;
+    padding: 0;
+    border: 0 !important;
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+
   .markdown-paper .markra-math-render-invalid {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     color: var(--text-secondary);
@@ -829,6 +847,25 @@
 
   .markdown-paper .markra-md-hidden-delimiter {
     @apply hidden;
+  }
+
+  .markdown-paper .markra-math-source-hidden-display.markra-md-hidden-delimiter {
+    display: inline-block;
+    position: absolute;
+    top: 50%;
+    right: 0;
+    z-index: 1;
+    width: max-content;
+    max-width: 100%;
+    height: 1.35em;
+    overflow: hidden;
+    color: transparent;
+    line-height: 1.35;
+    pointer-events: none;
+    white-space: pre;
+    transform: translateY(-50%);
+    -webkit-text-fill-color: transparent;
+    caret-color: var(--accent);
   }
 
   .markdown-paper .markra-live-mark-strong {
@@ -971,6 +1008,8 @@
   .markdown-paper code {
     @apply rounded-[3px] border border-(--border-default) bg-(--bg-code) px-[0.28em] py-[0.12em] text-[0.88em] text-(--text-primary);
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    color: oklch(40% 0.13 247);
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, oklch(69.6% 0.17 162.48) 28%, transparent);
   }
 
   .markdown-paper pre {
@@ -979,6 +1018,8 @@
 
   .markdown-paper pre code {
     @apply border-0 bg-transparent p-0;
+    color: inherit;
+    box-shadow: none;
   }
 
   .markdown-paper .markra-code-block {
@@ -1033,7 +1074,8 @@
     color: var(--text-primary);
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
     line-height: 1.65;
-    white-space: pre;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 
   .markdown-paper .hljs-keyword,
@@ -1059,6 +1101,29 @@
   .markdown-paper .hljs-function,
   .markdown-paper .hljs-built_in {
     color: oklch(44% 0.15 247);
+  }
+
+  .markdown-paper .hljs-type,
+  .markdown-paper .hljs-class .hljs-title,
+  .markdown-paper .hljs-tag,
+  .markdown-paper .hljs-name {
+    color: oklch(39% 0.13 210);
+  }
+
+  .markdown-paper .hljs-meta,
+  .markdown-paper .hljs-doctag,
+  .markdown-paper .hljs-section {
+    color: oklch(44% 0.15 330);
+  }
+
+  .markdown-paper .hljs-symbol,
+  .markdown-paper .hljs-bullet,
+  .markdown-paper .hljs-link {
+    color: oklch(40% 0.12 190);
+  }
+
+  .markdown-paper .hljs-deletion {
+    color: oklch(45% 0.17 29);
   }
 
   .markdown-paper .hljs-comment,

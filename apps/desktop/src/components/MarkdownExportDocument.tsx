@@ -1,6 +1,7 @@
 import { Children, isValidElement, useEffect, useRef, type ReactNode } from "react";
 import { renderToString } from "katex";
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import type { ExportDocumentFormat } from "../lib/document-export";
@@ -80,7 +81,7 @@ export function MarkdownExportDocument({
     >
       <article className="markdown-paper markdown-export-paper" ref={articleRef}>
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkMath]}
+          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
           components={{
             a: ({ node: _node, ...props }) => <a {...props} rel="noreferrer" target="_blank" />,
             code: ({ node: _node, className, children, ...props }) => {

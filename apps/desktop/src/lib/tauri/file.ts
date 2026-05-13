@@ -102,6 +102,10 @@ export type SaveNativeClipboardImageInput = {
   image: File;
 };
 
+export type NativeMarkdownPickerLabels = {
+  title: string;
+};
+
 export type SavedNativeClipboardImage = {
   alt: string;
   src: string;
@@ -318,12 +322,18 @@ export async function openNativeMarkdownFolderInNewWindow(path: string) {
   await invoke("open_markdown_folder_in_new_window", { path });
 }
 
-export async function openNativeMarkdownFile(): Promise<NativeMarkdownFile | null> {
+function pickerTitleOption(labels: NativeMarkdownPickerLabels | undefined) {
+  const title = labels?.title.trim();
+  return title ? { title } : {};
+}
+
+export async function openNativeMarkdownFile(labels?: NativeMarkdownPickerLabels): Promise<NativeMarkdownFile | null> {
   // The native dialog gives us a real filesystem path; Rust owns the actual disk read.
   const selectedPath = await open({
     multiple: false,
     fileAccessMode: "scoped",
-    filters: markdownFilters
+    filters: markdownFilters,
+    ...pickerTitleOption(labels)
   });
 
   if (!selectedPath || Array.isArray(selectedPath)) return null;
@@ -331,8 +341,11 @@ export async function openNativeMarkdownFile(): Promise<NativeMarkdownFile | nul
   return readNativeMarkdownFile(selectedPath);
 }
 
-export async function openNativeMarkdownPath(): Promise<NativeMarkdownOpenTarget | null> {
-  const target = await invoke<MarkdownOpenPathResponse | null>("open_markdown_path");
+export async function openNativeMarkdownPath(labels?: NativeMarkdownPickerLabels): Promise<NativeMarkdownOpenTarget | null> {
+  const title = labels?.title.trim();
+  const target = title
+    ? await invoke<MarkdownOpenPathResponse | null>("open_markdown_path", { title })
+    : await invoke<MarkdownOpenPathResponse | null>("open_markdown_path");
   if (!target) return null;
 
   if (target.kind === "folder") {
@@ -379,12 +392,13 @@ async function firstDroppedMarkdownTarget(paths: string[]) {
   return null;
 }
 
-export async function openNativeMarkdownFolder(): Promise<NativeMarkdownFolder | null> {
+export async function openNativeMarkdownFolder(labels?: NativeMarkdownPickerLabels): Promise<NativeMarkdownFolder | null> {
   const selectedPath = await open({
     multiple: false,
     directory: true,
     recursive: true,
-    fileAccessMode: "scoped"
+    fileAccessMode: "scoped",
+    ...pickerTitleOption(labels)
   });
 
   if (!selectedPath || Array.isArray(selectedPath)) return null;

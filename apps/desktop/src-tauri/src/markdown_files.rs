@@ -814,14 +814,24 @@ fn ensure_markdown_tree_parent(root: &Path, parent: &Path) -> Result<(), String>
     Ok(())
 }
 
+fn markdown_open_picker_title(title: Option<String>) -> String {
+    title
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "Open Markdown File or Folder".to_string())
+}
+
 #[cfg(target_os = "macos")]
 fn pick_markdown_path<R: tauri::Runtime>(
     _app: &tauri::AppHandle<R>,
+    title: Option<String>,
 ) -> Result<Option<PathBuf>, String> {
     use dispatch2::run_on_main;
     use objc2::rc::autoreleasepool;
     use objc2_app_kit::{NSModalResponseOK, NSOpenPanel};
     use objc2_foundation::{NSArray, NSString};
+
+    let panel_title = markdown_open_picker_title(title);
 
     Ok(autoreleasepool(|_| {
         run_on_main(|mtm| {
@@ -838,7 +848,7 @@ fn pick_markdown_path<R: tauri::Runtime>(
             panel.setCanChooseDirectories(true);
             panel.setAllowsMultipleSelection(false);
             panel.setCanCreateDirectories(false);
-            panel.setMessage(Some(&NSString::from_str("Open Markdown File or Folder")));
+            panel.setMessage(Some(&NSString::from_str(&panel_title)));
 
             #[allow(deprecated)]
             panel.setAllowedFileTypes(Some(&allowed_file_types));
@@ -857,12 +867,14 @@ fn pick_markdown_path<R: tauri::Runtime>(
 #[cfg(not(target_os = "macos"))]
 fn pick_markdown_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
+    title: Option<String>,
 ) -> Result<Option<PathBuf>, String> {
     use tauri_plugin_dialog::DialogExt;
 
     let Some(path) = app
         .dialog()
         .file()
+        .set_title(markdown_open_picker_title(title))
         .add_filter("Markdown", &["md", "markdown", "txt"])
         .blocking_pick_file()
     else {
@@ -891,8 +903,9 @@ pub(crate) fn read_markdown_file(
 #[tauri::command]
 pub(crate) fn open_markdown_path(
     app: tauri::AppHandle,
+    title: Option<String>,
 ) -> Result<Option<MarkdownOpenPath>, String> {
-    let Some(path) = pick_markdown_path(&app)? else {
+    let Some(path) = pick_markdown_path(&app, title)? else {
         return Ok(None);
     };
 
@@ -1271,6 +1284,22 @@ mod tests {
         assert!(markdown_open_path_for_path(&unsupported).is_err());
 
         fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn localizes_unified_open_picker_title() {
+        assert_eq!(
+            markdown_open_picker_title(Some(" 打开 Markdown 或文件夹 ".to_string())),
+            "打开 Markdown 或文件夹"
+        );
+        assert_eq!(
+            markdown_open_picker_title(Some("   ".to_string())),
+            "Open Markdown File or Folder"
+        );
+        assert_eq!(
+            markdown_open_picker_title(None),
+            "Open Markdown File or Folder"
+        );
     }
 
     #[test]
