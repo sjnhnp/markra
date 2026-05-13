@@ -222,21 +222,36 @@ export function NativeTitleBar({
       ? "transition-none"
       : "transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
   }`;
+  const titlebarSurfaceClassName = "bg-(--bg-primary)";
+  const titlebarSurfaceStyle: CSSProperties | undefined = markdownFilesOpen
+    ? {
+      background: `linear-gradient(to right, var(--bg-secondary) 0 ${markdownFilesWidth}px, var(--bg-primary) ${markdownFilesWidth}px 100%)`
+    }
+    : undefined;
 
   const renderTitleContent = (className: string, style?: CSSProperties) => (
     <div className={className} style={style}>
       {titleContent}
     </div>
   );
+  const renderMarkdownFilesDivider = () => markdownFilesOpen ? (
+    <span
+      aria-hidden="true"
+      className="native-titlebar-sidebar-divider pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-(--border-default)"
+      style={{ left: markdownFilesWidth }}
+    />
+  ) : null;
 
   if (platform === "windows") {
     if (titleContent) {
       return (
         <header
-          className="native-titlebar group/titlebar fixed inset-x-0 top-0 z-10 grid h-10 grid-cols-[minmax(0,1fr)_164px] select-none items-center [-webkit-user-select:none]"
+          className={`native-titlebar group/titlebar fixed inset-x-0 top-0 z-10 grid h-10 grid-cols-[minmax(0,1fr)_164px] select-none items-center ${titlebarSurfaceClassName} [-webkit-user-select:none]`}
+          style={titlebarSurfaceStyle}
           aria-label={label("app.windowDragRegion")}
           data-tauri-drag-region
         >
+          {renderMarkdownFilesDivider()}
           {renderTitleContent(
             "native-title-slot min-w-0 h-10 px-3"
           )}
@@ -279,10 +294,12 @@ export function NativeTitleBar({
 
   return (
     <header
-      className="native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[164px_minmax(0,1fr)_164px] select-none items-center [-webkit-user-select:none]"
+      className={`native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[164px_minmax(0,1fr)_164px] select-none items-center ${titlebarSurfaceClassName} [-webkit-user-select:none]`}
+      style={titlebarSurfaceStyle}
       aria-label={label("app.windowDragRegion")}
       data-tauri-drag-region
     >
+      {renderMarkdownFilesDivider()}
       <div
         className={`titlebar-spacer relative z-20 flex h-10 items-center gap-1 ${titlebarLeftPaddingClassName}`}
         data-tauri-drag-region
