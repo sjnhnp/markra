@@ -159,6 +159,14 @@ export function createFinalizedImageNodeView(
   };
 
   const syncSource = () => {
+    const position = typeof getPos === "function" ? getPos() : undefined;
+    if (source.value.trim().length === 0) {
+      if (typeof position !== "number") return;
+
+      view.dispatch(view.state.tr.delete(position, position + currentNode.nodeSize).scrollIntoView());
+      return;
+    }
+
     const parsed = parseImageMarkdownSource(source.value);
     if (!parsed) {
       dom.classList.add("markra-image-node-source-invalid");
@@ -166,7 +174,6 @@ export function createFinalizedImageNodeView(
     }
 
     dom.classList.remove("markra-image-node-source-invalid");
-    const position = typeof getPos === "function" ? getPos() : undefined;
     if (typeof position !== "number") return;
 
     view.dispatch(

@@ -2887,6 +2887,27 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("![Edited screenshot](assets/edited.png)");
   });
 
+  it("deletes a finalized image when its markdown source is cleared", async () => {
+    const { container, editor, view } = await renderEditor("Intro\n\n![Screenshot](assets/pasted-image.png)");
+
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    expect(image).toBeInTheDocument();
+
+    expect(fireEvent.mouseDown(image!)).toBe(false);
+
+    const source = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
+    expect(source).toHaveValue("![Screenshot](assets/pasted-image.png)");
+
+    fireEvent.change(source!, { target: { value: "" } });
+
+    expect(
+      container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]')
+    ).not.toBeInTheDocument();
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).not.toContain("![Screenshot](assets/pasted-image.png)");
+  });
+
   it("hides finalized image markdown source when another editor area is pressed", async () => {
     const { container } = await renderEditor("Intro\n\n![Screenshot](assets/pasted-image.png)");
 
