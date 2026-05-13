@@ -133,6 +133,7 @@ const messages: LocaleMessages = {
   "app.collapseAiAgent": "Markra AI を折りたたむ",
   "app.closeAiAgent": "Markra AI を閉じる",
   "app.resizeAiAgent": "Markra AI の幅を変更",
+  "app.resizeEditorWidth": "エディター幅を変更",
   "app.resizeMarkdownFiles": "Markdown ファイル欄の幅を変更",
   "app.aiAgentSessions": "セッション",
   "app.aiAgentNewSession": "新しいセッション",

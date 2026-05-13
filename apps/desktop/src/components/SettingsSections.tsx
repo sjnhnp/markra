@@ -19,7 +19,6 @@ import {
 } from "@markra/editor";
 import type {
   AppTheme,
-  EditorContentWidth,
   EditorPreferences,
   ExportSettings as ExportSettingsValue,
   PdfMarginPreset,
@@ -28,7 +27,13 @@ import type {
   WebSearchSettings
 } from "../lib/settings/app-settings";
 import type { DesktopPlatform } from "../lib/platform";
-import { supportedLanguages, type AppLanguage, type I18nKey } from "@markra/shared";
+import { clampNumber, supportedLanguages, type AppLanguage, type I18nKey } from "@markra/shared";
+import {
+  editorContentWidthPixels,
+  editorCustomContentWidthMax,
+  editorCustomContentWidthMin,
+  normalizeEditorContentWidthPx
+} from "../lib/editor-width";
 
 type Translate = (key: I18nKey) => string;
 
@@ -59,7 +64,9 @@ const themeOptions: Array<{
 ];
 
 const bodyFontSizeOptions = [14, 15, 16, 17, 18, 20];
-const contentWidthOptions: EditorContentWidth[] = ["narrow", "default", "wide"];
+const contentWidthRatioSpanPx = editorCustomContentWidthMax - editorCustomContentWidthMin;
+const contentWidthRatioMin = 0;
+const contentWidthRatioMax = 100;
 const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
 const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
 const lineHeightOptions = [1.5, 1.65, 1.8];
@@ -297,6 +304,107 @@ function SettingsNumberInput({
           {unit}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+function contentWidthRatioValue(preferences: EditorPreferences) {
+  const contentWidthPx = preferences.contentWidthPx ?? editorContentWidthPixels[preferences.contentWidth];
+
+  return Math.round(((contentWidthPx - editorCustomContentWidthMin) / contentWidthRatioSpanPx) * 100);
+}
+
+function contentWidthPxFromRatio(value: number) {
+  const ratio = clampNumber(value, contentWidthRatioMin, contentWidthRatioMax);
+  if (ratio === null) return null;
+
+  return normalizeEditorContentWidthPx(Math.round(editorCustomContentWidthMin + (contentWidthRatioSpanPx * ratio) / 100));
+}
+
+function SettingsContentWidthInput({
+  label,
+  onUpdatePreferences,
+  preferences,
+  resetLabel
+}: {
+  label: string;
+  onUpdatePreferences: (preferences: EditorPreferences) => unknown;
+  preferences: EditorPreferences;
+  resetLabel: string;
+}) {
+  const ratio = contentWidthRatioValue(preferences);
+  const [draftRatio, setDraftRatio] = useState(String(ratio));
+
+  useEffect(() => {
+    setDraftRatio(String(ratio));
+  }, [ratio]);
+
+  return (
+    <div className="content-width-ratio-control inline-flex h-8 items-center overflow-hidden rounded-md border border-(--border-default) bg-(--bg-primary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-within:ring-2 focus-within:ring-(--accent)">
+      <div className="relative inline-flex h-full items-center">
+        <input
+          className="h-full w-18 border-0 bg-transparent py-0 pr-7 pl-3 text-[12px] leading-5 font-[560] text-(--text-heading) outline-none"
+          type="text"
+          aria-label={label}
+          inputMode="numeric"
+          min={contentWidthRatioMin}
+          max={contentWidthRatioMax}
+          pattern="[0-9]*"
+          value={draftRatio}
+          onChange={(event) => {
+            const digits = event.currentTarget.value.replace(/\D/g, "");
+            if (!digits) {
+              setDraftRatio("");
+              return;
+            }
+
+            const normalizedDigits = digits.replace(/^0+(?=\d)/, "");
+            const nextRatio = Number(normalizedDigits);
+            if (!Number.isFinite(nextRatio)) return;
+
+            const nextContentWidthPx = contentWidthPxFromRatio(nextRatio);
+            if (nextContentWidthPx === null) return;
+
+            setDraftRatio(String(clampNumber(nextRatio, contentWidthRatioMin, contentWidthRatioMax) ?? ratio));
+            onUpdatePreferences({
+              ...preferences,
+              contentWidth: "default",
+              contentWidthPx: nextContentWidthPx
+            });
+          }}
+          onBlur={() => {
+            if (draftRatio) return;
+
+            setDraftRatio(String(ratio));
+          }}
+        />
+        <span
+          className="pointer-events-none absolute right-2.5 text-[12px] leading-5 font-[560] text-(--text-secondary)"
+          aria-hidden="true"
+        >
+          %
+        </span>
+      </div>
+      <button
+        className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center border-0 border-l border-(--border-default) bg-transparent text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+        type="button"
+        aria-label={resetLabel}
+        title={resetLabel}
+        onClick={() => {
+          setDraftRatio(String(contentWidthRatioValue({
+            ...preferences,
+            contentWidth: "default",
+            contentWidthPx: null
+          })));
+          onUpdatePreferences({
+            ...preferences,
+            contentWidth: "default",
+            contentWidthPx: null
+          });
+        }}
+      >
+        <RotateCcw aria-hidden="true" size={13} />
+      </button>
     </div>
   );
 }
@@ -742,19 +850,11 @@ export function EditorSettings({
           title={translate("settings.editor.contentWidth")}
           description={translate("settings.editor.contentWidthDescription")}
           action={
-            <SettingsSelect
+            <SettingsContentWidthInput
               label={translate("settings.editor.contentWidth")}
-              value={preferences.contentWidth}
-              options={contentWidthOptions.map((width) => ({
-                label: translate(`settings.editor.contentWidth.${width}` as I18nKey),
-                value: width
-              }))}
-              onChange={(value) =>
-                onUpdatePreferences({
-                  ...preferences,
-                  contentWidth: value as EditorContentWidth
-                })
-              }
+              preferences={preferences}
+              resetLabel={`${translate("settings.editor.contentWidth")} ${translate("settings.editor.shortcutsReset")}`}
+              onUpdatePreferences={onUpdatePreferences}
             />
           }
         />

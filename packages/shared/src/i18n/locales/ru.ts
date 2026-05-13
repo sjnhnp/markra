@@ -127,6 +127,7 @@ const messages: LocaleMessages = {
   "app.collapseAiAgent": "Свернуть Markra AI",
   "app.closeAiAgent": "Закрыть Markra AI",
   "app.resizeAiAgent": "Изменить ширину Markra AI",
+  "app.resizeEditorWidth": "Изменить ширину редактора",
   "app.resizeMarkdownFiles": "Изменить ширину панели файлов Markdown",
   "app.aiAgentSessions": "Сессии",
   "app.aiAgentNewSession": "Новая сессия",

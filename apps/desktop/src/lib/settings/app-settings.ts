@@ -15,6 +15,11 @@ import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings }
 import { isAppLanguage, type AppLanguage } from "@markra/shared";
 import { normalizeNullableString } from "@markra/shared";
 import { type WebSearchProviderId, type WebSearchSettings } from "@markra/ai";
+import {
+  editorContentWidthOptions,
+  normalizeEditorContentWidthPx,
+  type EditorContentWidth
+} from "../editor-width";
 
 const settingsStorePath = "settings.json";
 const aiAgentSessionIndexStorePath = "ai-agent-sessions/index.json";
@@ -33,7 +38,6 @@ const workspaceKey = "workspace";
 
 export type AppTheme = "light" | "dark" | "system";
 export type ResolvedAppTheme = "light" | "dark";
-export type EditorContentWidth = "narrow" | "default" | "wide";
 export type PdfMarginPreset = "custom" | "default" | "narrow" | "none" | "normal" | "wide";
 export type PdfPageSize = "a4" | "custom" | "default" | "letter";
 export type AiAgentPreferences = {
@@ -46,6 +50,7 @@ export type EditorPreferences = {
   clipboardImageFolder: string;
   closeAiCommandOnAgentPanelOpen: boolean;
   contentWidth: EditorContentWidth;
+  contentWidthPx: number | null;
   lineHeight: number;
   markdownShortcuts: MarkdownShortcutBindings;
   restoreWorkspaceOnStartup: boolean;
@@ -71,6 +76,7 @@ export type StoredWorkspaceState = {
   folderPath: string | null;
 };
 export type { AppLanguage };
+export type { EditorContentWidth };
 export type { WebSearchProviderId, WebSearchSettings };
 
 export const defaultEditorPreferences: EditorPreferences = {
@@ -79,6 +85,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   clipboardImageFolder: "assets",
   closeAiCommandOnAgentPanelOpen: false,
   contentWidth: "default",
+  contentWidthPx: null,
   lineHeight: 1.65,
   markdownShortcuts: defaultMarkdownShortcuts,
   restoreWorkspaceOnStartup: true,
@@ -112,7 +119,6 @@ export const defaultWebSearchSettings: WebSearchSettings = {
 };
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
-const editorContentWidthOptions: EditorContentWidth[] = ["narrow", "default", "wide"];
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
 const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
 const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
@@ -511,6 +517,7 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     contentWidth: editorContentWidthOptions.includes(preferences.contentWidth as EditorContentWidth)
       ? (preferences.contentWidth as EditorContentWidth)
       : defaultEditorPreferences.contentWidth,
+    contentWidthPx: normalizeEditorContentWidthPx(preferences.contentWidthPx),
     lineHeight: editorLineHeightOptions.includes(preferences.lineHeight as typeof editorLineHeightOptions[number])
       ? Number(preferences.lineHeight)
       : defaultEditorPreferences.lineHeight,

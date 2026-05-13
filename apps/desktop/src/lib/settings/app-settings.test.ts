@@ -138,6 +138,7 @@ describe("app settings", () => {
       clipboardImageFolder: "assets",
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
+      contentWidthPx: null,
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
@@ -330,6 +331,7 @@ describe("app settings", () => {
       clipboardImageFolder: "media/screenshots",
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "default",
+      contentWidthPx: null,
       lineHeight: 1.65,
       markdownShortcuts: {
         ...defaultMarkdownShortcuts,
@@ -355,6 +357,13 @@ describe("app settings", () => {
       bold: "Mod+Alt+B",
       strikethrough: "Mod+Shift+X"
     });
+  });
+
+  it("normalizes custom editor content width pixels", () => {
+    expect(normalizeEditorPreferences({ contentWidthPx: 1120 }).contentWidthPx).toBe(1120);
+    expect(normalizeEditorPreferences({ contentWidthPx: 320 }).contentWidthPx).toBe(640);
+    expect(normalizeEditorPreferences({ contentWidthPx: 2000 }).contentWidthPx).toBe(1280);
+    expect(normalizeEditorPreferences({ contentWidthPx: "wide" }).contentWidthPx).toBeNull();
   });
 
   it("migrates previous app shortcut defaults to the current defaults", () => {
@@ -396,6 +405,7 @@ describe("app settings", () => {
       clipboardImageFolder: "assets",
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
+      contentWidthPx: null,
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
@@ -411,6 +421,7 @@ describe("app settings", () => {
       clipboardImageFolder: "images",
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide",
+      contentWidthPx: 1120,
       lineHeight: 1.8,
       markdownShortcuts: {
         ...defaultMarkdownShortcuts,
@@ -427,6 +438,7 @@ describe("app settings", () => {
       clipboardImageFolder: "images",
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide",
+      contentWidthPx: 1120,
       lineHeight: 1.8,
       markdownShortcuts: {
         ...defaultMarkdownShortcuts,

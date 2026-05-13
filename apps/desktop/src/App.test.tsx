@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import {
   dispatchAiEditorPreviewAction,
@@ -339,6 +339,7 @@ describe("Markra workspace", () => {
       clipboardImageFolder: "assets",
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
+      contentWidthPx: null,
       lineHeight: 1.65,
       markdownShortcuts: {
         ...defaultMarkdownShortcuts,
@@ -633,6 +634,58 @@ describe("Markra workspace", () => {
     expect(resizeHandle).toHaveAttribute("aria-valuemin", "220");
     expect(resizeHandle).toHaveAttribute("aria-valuemax", "440");
     expect(resizeHandle).toHaveAttribute("aria-valuenow", "220");
+  });
+
+  it("resizes the editor writing column and persists the custom width", async () => {
+    renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+    expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
+      maxWidth: "860px"
+    });
+
+    const resizeHandle = await screen.findByRole("separator", { name: "Resize editor width" });
+
+    fireEvent.pointerDown(resizeHandle, { clientX: 860, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 980 });
+    fireEvent.pointerUp(window);
+
+    expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
+      maxWidth: "980px"
+    });
+    await waitFor(() => expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(expect.objectContaining({
+      contentWidth: "default",
+      contentWidthPx: 980
+    })));
+    await waitFor(() => expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith(expect.objectContaining({
+      contentWidth: "default",
+      contentWidthPx: 980
+    })));
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+
+    expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "source");
+    expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
+      maxWidth: "980px"
+    });
+    expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "980");
+  });
+
+  it("keeps editor writing width controls out of the titlebar", async () => {
+    const { container } = renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+    expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
+      maxWidth: "860px"
+    });
+
+    const resizeHandle = screen.getByRole("separator", { name: "Resize editor width" });
+
+    expect(container.querySelector(".editor-width-resizer-indicator")).not.toHaveClass("rounded-full");
+    expect(resizeHandle.closest(".editor-width-resizer-shell")?.querySelector(".editor-width-menu-popover")).not.toBeInTheDocument();
+    expect(container.querySelector(".document-actions")?.querySelector('[data-icon^="editor-width-"]')).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Content width:/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Content width" })).not.toBeInTheDocument();
   });
 
   it("removes the markdown file tree hit area when the sidebar is collapsed", async () => {
@@ -1217,6 +1270,7 @@ describe("Markra workspace", () => {
       clipboardImageFolder: "assets",
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
+      contentWidthPx: null,
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import { t } from "@markra/shared";
 import { defaultEditorPreferences, type EditorPreferences } from "../lib/settings/app-settings";
@@ -40,6 +40,75 @@ describe("EditorSettings", () => {
     expect(onUpdatePreferences).toHaveBeenCalledWith({
       ...defaultEditorPreferences,
       showDocumentTabs: false
+    });
+  });
+
+  it("edits content width as a percentage with a reset button", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          contentWidth: "default",
+          contentWidthPx: 980
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const widthInput = screen.getByRole("textbox", { name: "Content width" });
+    const resetButton = screen.getByRole("button", { name: "Content width Reset" });
+
+    expect(screen.queryByRole("group", { name: "Content width" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Narrow" })).not.toBeInTheDocument();
+    expect(widthInput).toHaveAttribute("inputmode", "numeric");
+    expect(widthInput).toHaveAttribute("min", "0");
+    expect(widthInput).toHaveAttribute("max", "100");
+    expect(widthInput).toHaveValue("53");
+    expect(screen.getByText("%")).toBeInTheDocument();
+    expect(resetButton.querySelector(".lucide-rotate-ccw")).toBeInTheDocument();
+
+    fireEvent.change(widthInput, { target: { value: "0100" } });
+
+    expect(widthInput).toHaveValue("100");
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      contentWidth: "default",
+      contentWidthPx: 1280
+    });
+
+    fireEvent.change(widthInput, { target: { value: "80" } });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      contentWidth: "default",
+      contentWidthPx: 1152
+    });
+
+    fireEvent.change(widthInput, { target: { value: "0" } });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      contentWidth: "default",
+      contentWidthPx: 640
+    });
+
+    fireEvent.change(widthInput, { target: { value: "200" } });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      contentWidth: "default",
+      contentWidthPx: 1280
+    });
+
+    fireEvent.click(resetButton);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      contentWidth: "default",
+      contentWidthPx: null
     });
   });
 });

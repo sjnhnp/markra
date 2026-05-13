@@ -86,6 +86,7 @@ describe("Markra AI workspace", () => {
     renderApp();
 
     await screen.findByText("Welcome to Markra");
+    await screen.findByRole("textbox", { name: "Markdown document" });
 
     fireEvent.keyDown(window, { key: "j", metaKey: true, shiftKey: true });
 
