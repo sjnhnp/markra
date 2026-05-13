@@ -241,7 +241,10 @@ export function useEditorController() {
 
   const isCurrentMarkdownEquivalent = useCallback((markdown: string) => {
     try {
-      return editorRef.current?.action((ctx) => {
+      const editor = editorRef.current;
+      if (!editor) return undefined;
+
+      return editor.action((ctx) => {
         const view = ctx.get(editorViewCtx);
         const parseMarkdown = ctx.get(parserCtx);
         const serializer = ctx.get(serializerCtx);
@@ -251,7 +254,7 @@ export function useEditorController() {
         const parsedMarkdown = serializeLinkImageLiveMarkdown(parseMarkdown(markdown), serializer, link, image);
 
         return comparableSerializedMarkdown(currentMarkdown) === comparableSerializedMarkdown(parsedMarkdown);
-      }) ?? true;
+      });
     } catch {
       return false;
     }

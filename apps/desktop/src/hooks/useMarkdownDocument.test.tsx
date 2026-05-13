@@ -178,6 +178,47 @@ describe("useMarkdownDocument", () => {
     expect(result.current.document.name).toBe("second.md");
   });
 
+  it("keeps a clean tab unmodified when the editor reports an equivalent markdown update", async () => {
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "* Clean content.",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        isCurrentMarkdownEquivalent: () => true,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("- Clean content.");
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "- Clean content.",
+      dirty: false,
+      name: "guide.md"
+    });
+    expect(result.current.tabs).toContainEqual(expect.objectContaining({
+      dirty: false,
+      name: "guide.md"
+    }));
+  });
+
   it("opens folder files as tabs and keeps dirty tab content when switching", async () => {
     const confirmDiscardUnsavedChanges = vi.fn(() => true);
     mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
