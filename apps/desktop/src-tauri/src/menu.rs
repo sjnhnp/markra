@@ -47,12 +47,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         "CmdOrCtrl+N",
     )?;
     let open = app_menu_item(app, "openDocument", labels.open_document, "CmdOrCtrl+O")?;
-    let open_folder = app_menu_item(
-        app,
-        "openFolder",
-        labels.open_folder,
-        "CmdOrCtrl+Shift+O",
-    )?;
+    let open_folder = app_menu_item(app, "openFolder", labels.open_folder, "CmdOrCtrl+Shift+O")?;
     let save = app_menu_item(app, "saveDocument", labels.save_document, "CmdOrCtrl+S")?;
     let save_as = app_menu_item(
         app,
