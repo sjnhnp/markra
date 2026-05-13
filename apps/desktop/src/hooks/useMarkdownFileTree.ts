@@ -23,6 +23,10 @@ type UseMarkdownFileTreeOptions = {
   onWorkspaceSessionChange?: (sessionId: string) => unknown;
 };
 
+type OpenMarkdownFolderOptions = {
+  pickerTitle?: string;
+};
+
 export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFileTreeOptions = {}) {
   const [files, setFiles] = useState<NativeMarkdownFolderFile[]>([]);
   const [rootName, setRootName] = useState("No folder");
@@ -92,8 +96,10 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     });
   }, [onWorkspaceSessionChange]);
 
-  const openMarkdownFolder = useCallback(async () => {
-    const folder = await openNativeMarkdownFolder();
+  const openMarkdownFolder = useCallback(async (options: OpenMarkdownFolderOptions = {}) => {
+    const folder = await openNativeMarkdownFolder(
+      options.pickerTitle ? { title: options.pickerTitle } : undefined
+    );
     if (!folder) return null;
 
     openFolderPath(folder.path, folder.name);

@@ -44,7 +44,7 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
       <p data-testid="tree-resizing">{tree.resizing ? "resizing" : "idle"}</p>
       <p data-testid="layout-class">{tree.workspaceLayoutClassName}</p>
       <p data-testid="layout-columns">{tree.workspaceLayoutStyle.gridTemplateColumns}</p>
-      <button type="button" onClick={tree.openMarkdownFolder}>
+      <button type="button" onClick={() => tree.openMarkdownFolder()}>
         Open folder
       </button>
       <button type="button" onClick={() => tree.toggle(currentPath)}>

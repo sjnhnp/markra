@@ -193,6 +193,7 @@ fn read_settings_object(path: &Path) -> Map<String, Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn stored_language_wins_over_system_locale() {
@@ -220,6 +221,61 @@ mod tests {
         let language = language_for_initial_launch(None, &["nl_NL", "ja_JP"]);
 
         assert_eq!(language, AppLanguage::Ja);
+    }
+
+    #[test]
+    fn macos_bundle_declares_all_supported_localizations() {
+        let expected_localizations = [
+            (AppLanguage::En, "en"),
+            (AppLanguage::ZhCn, "zh-Hans"),
+            (AppLanguage::ZhTw, "zh-Hant"),
+            (AppLanguage::Ja, "ja"),
+            (AppLanguage::Ko, "ko"),
+            (AppLanguage::Fr, "fr"),
+            (AppLanguage::De, "de"),
+            (AppLanguage::Es, "es"),
+            (AppLanguage::PtBr, "pt-BR"),
+            (AppLanguage::It, "it"),
+            (AppLanguage::Ru, "ru"),
+        ];
+        let info_plist = include_str!("../Info.plist");
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("Tauri config should be valid JSON");
+        let bundled_files = config
+            .pointer("/bundle/macOS/files")
+            .and_then(serde_json::Value::as_object)
+            .expect("macOS bundle config should include localized resource files");
+        let resources_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("macos-locales");
+
+        for (language, macos_code) in expected_localizations {
+            assert!(
+                info_plist.contains(&format!("<string>{macos_code}</string>")),
+                "Info.plist should declare {} as {macos_code}",
+                language.as_code()
+            );
+
+            let source = format!("macos-locales/{macos_code}.lproj");
+            let destination = format!("Resources/{macos_code}.lproj");
+            assert_eq!(
+                bundled_files
+                    .get(&destination)
+                    .and_then(serde_json::Value::as_str),
+                Some(source.as_str()),
+                "missing bundle resource mapping for {}",
+                language.as_code()
+            );
+
+            let strings_path = resources_root
+                .join(format!("{macos_code}.lproj"))
+                .join("InfoPlist.strings");
+            let strings = fs::read_to_string(&strings_path)
+                .unwrap_or_else(|error| panic!("{}: {error}", strings_path.display()));
+            assert!(
+                strings.contains("CFBundleDisplayName"),
+                "{} should localize the bundle display name",
+                strings_path.display()
+            );
+        }
     }
 
     #[test]

@@ -792,8 +792,10 @@ export default function App() {
   }, [openImageTab, openTreeMarkdownFile]);
   const handleOpenMarkdownFile = useCallback(async () => {
     setActiveImageFile(null);
-    await openMarkdownFile();
-  }, [openMarkdownFile]);
+    await openMarkdownFile({
+      pickerTitle: translate("app.openMarkdownOrFolder")
+    });
+  }, [openMarkdownFile, translate]);
   const handleCloseCurrentFile = useCallback(async () => {
     if (activeImageFile) {
       const closingTabId = imageDocumentTabId(activeImageFile.path);
@@ -889,12 +891,14 @@ export default function App() {
     const canDiscard = await confirmCanDiscardCurrentDocument();
     if (!canDiscard) return;
 
-    const folder = await openMarkdownFolder();
+    const folder = await openMarkdownFolder({
+      pickerTitle: translate("app.openFolder")
+    });
     if (folder) {
       setActiveImageFile(null);
       clearOpenDocument();
     }
-  }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder]);
+  }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder, translate]);
   const clearExportSnapshot = useCallback((id: number) => {
     setExportSnapshot((current) => current?.id === id ? null : current);
   }, []);

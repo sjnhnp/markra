@@ -46,7 +46,22 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "files": {
+        "Resources/de.lproj": "macos-locales/de.lproj",
+        "Resources/en.lproj": "macos-locales/en.lproj",
+        "Resources/es.lproj": "macos-locales/es.lproj",
+        "Resources/fr.lproj": "macos-locales/fr.lproj",
+        "Resources/it.lproj": "macos-locales/it.lproj",
+        "Resources/ja.lproj": "macos-locales/ja.lproj",
+        "Resources/ko.lproj": "macos-locales/ko.lproj",
+        "Resources/pt-BR.lproj": "macos-locales/pt-BR.lproj",
+        "Resources/ru.lproj": "macos-locales/ru.lproj",
+        "Resources/zh-Hans.lproj": "macos-locales/zh-Hans.lproj",
+        "Resources/zh-Hant.lproj": "macos-locales/zh-Hant.lproj"
+      }
+    }
   },
   "plugins": {
     "updater": {

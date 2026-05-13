@@ -95,6 +95,39 @@ describe("native file access", () => {
     });
   });
 
+  it("passes localized titles to native markdown pickers", async () => {
+    mockedOpen
+      .mockResolvedValueOnce(mockReadmePath)
+      .mockResolvedValueOnce(mockFolderPath);
+    mockedInvoke
+      .mockResolvedValueOnce({
+        path: mockReadmePath,
+        contents: "# Native"
+      })
+      .mockResolvedValueOnce({ kind: "folder", path: mockFolderPath });
+
+    await openNativeMarkdownFile({ title: "打开 Markdown 文件" });
+    await openNativeMarkdownFolder({ title: "打开文件夹" });
+    await openNativeMarkdownPath({ title: "打开 Markdown 或文件夹" });
+
+    expect(mockedOpen).toHaveBeenNthCalledWith(1, {
+      multiple: false,
+      fileAccessMode: "scoped",
+      filters: [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }],
+      title: "打开 Markdown 文件"
+    });
+    expect(mockedOpen).toHaveBeenNthCalledWith(2, {
+      multiple: false,
+      directory: true,
+      recursive: true,
+      fileAccessMode: "scoped",
+      title: "打开文件夹"
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "open_markdown_path", {
+      title: "打开 Markdown 或文件夹"
+    });
+  });
+
   it("does not read from disk when the native open dialog is canceled", async () => {
     mockedOpen.mockResolvedValue(null);
 
