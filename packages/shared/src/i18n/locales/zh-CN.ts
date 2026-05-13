@@ -191,6 +191,7 @@ const messages: LocaleMessages = {
   "app.collapseAiAgent": "折叠 Markra AI",
   "app.closeAiAgent": "关闭 Markra AI",
   "app.resizeAiAgent": "调整 Markra AI 宽度",
+  "app.resizeEditorWidth": "调整编辑器宽度",
   "app.resizeMarkdownFiles": "调整 Markdown 文件栏宽度",
   "app.aiAgentSessions": "会话列表",
   "app.aiAgentNewSession": "新建会话",

@@ -44,6 +44,7 @@ import { aiTranslationLanguageName, t, type I18nKey } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
+import type { EditorContentWidth } from "./lib/editor-width";
 import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
 import type { AiDiffResult, AiEditIntent, AiSelectionContext } from "@markra/ai";
 import {
@@ -58,9 +59,11 @@ import { aiAgentWebSearchAvailable } from "@markra/ai";
 import {
   deleteStoredAiAgentSession,
   initializeStoredAiAgentSession,
+  saveStoredEditorPreferences,
   saveStoredAiAgentSessionTitle,
   setStoredAiAgentSessionArchived
 } from "./lib/settings/app-settings";
+import { notifyAppEditorPreferencesChanged } from "./lib/settings/settings-events";
 import {
   confirmNativeMarkdownFileDelete,
   confirmNativeUnsavedMarkdownDocumentDiscard,
@@ -153,6 +156,8 @@ export default function App() {
   const [aiAgentOpen, setAiAgentOpen] = useState(false);
   const [aiAgentPanelWidth, setAiAgentPanelWidth] = useState(aiAgentPanelDefaultWidth);
   const [aiAgentPanelResizing, setAiAgentPanelResizing] = useState(false);
+  const [editorContentWidth, setEditorContentWidth] = useState<EditorContentWidth>("default");
+  const [editorContentWidthPx, setEditorContentWidthPx] = useState<number | null>(null);
   const [aiResults, setAiResults] = useState<AiDiffResult[]>([]);
   const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [imageTabs, setImageTabs] = useState<ImageDocumentTab[]>([]);
@@ -166,6 +171,7 @@ export default function App() {
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
   const aiContextMenuActionIdRef = useRef(0);
   const exportRequestIdRef = useRef(0);
+  const pendingEditorContentWidthPxRef = useRef<number | null>(null);
   const exportContextRef = useRef({
     activeImageFile: false,
     content: "",
@@ -245,8 +251,11 @@ export default function App() {
     wordCount
   } = markdownDocument;
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
+  const hasOpenDocument = document.open;
   const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
   const aiResult = aiResults.at(-1) ?? null;
+  const activeEditorContentWidth = editorContentWidth;
+  const activeEditorContentWidthPx = editorContentWidthPx ?? editorPreferences.preferences.contentWidthPx ?? null;
   const resolveImageSrc = useMemo(() => createMarkdownImageSrcResolver(document.path), [document.path]);
   const resolveExportImageSrc = useMemo(
     () => createMarkdownImageSrcResolver(document.path, { convertFileSrc: localFileUrlFromPath }),
@@ -720,6 +729,33 @@ export default function App() {
       return null;
     }
   }, [document.path, editorPreferences.preferences.clipboardImageFolder, refreshMarkdownFileTree, translate]);
+
+  useEffect(() => {
+    const storedWidth = editorPreferences.preferences.contentWidthPx ?? null;
+    setEditorContentWidth(editorPreferences.preferences.contentWidth);
+    setEditorContentWidthPx(storedWidth);
+    pendingEditorContentWidthPxRef.current = storedWidth;
+  }, [editorPreferences.preferences.contentWidth, editorPreferences.preferences.contentWidthPx]);
+
+  const handleEditorContentWidthChange = useCallback((width: number) => {
+    pendingEditorContentWidthPxRef.current = width;
+    setEditorContentWidthPx(width);
+  }, []);
+
+  const handleEditorContentWidthResizeEnd = useCallback(() => {
+    const nextWidth = pendingEditorContentWidthPxRef.current;
+    if (nextWidth === null) return;
+
+    const nextPreferences = {
+      ...editorPreferences.preferences,
+      contentWidth: activeEditorContentWidth,
+      contentWidthPx: nextWidth
+    };
+
+    saveStoredEditorPreferences(nextPreferences)
+      .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
+      .catch(() => {});
+  }, [activeEditorContentWidth, editorPreferences.preferences]);
   const handleCreateMarkdownTreeFile = useCallback(async (fileName: string) => {
     try {
       const file = await createMarkdownTreeFile(fileName);
@@ -842,7 +878,6 @@ export default function App() {
       : rawFileTreeRootName === "Files"
         ? translate("app.files")
         : rawFileTreeRootName;
-  const hasOpenDocument = document.open;
   const titlebarTabs = useMemo<MarkdownTabsBarItem[]>(() => [
     ...documentTabs,
     ...imageTabs.map((tab) => ({
@@ -1246,23 +1281,29 @@ export default function App() {
                       autoFocus
                       bodyFontSize={editorPreferences.preferences.bodyFontSize}
                       content={document.content}
-                      contentWidth={editorPreferences.preferences.contentWidth}
+                      contentWidth={activeEditorContentWidth}
+                      contentWidthPx={activeEditorContentWidthPx}
                       language={appLanguage.language}
                       lineHeight={editorPreferences.preferences.lineHeight}
                       onChange={handleMarkdownChange}
+                      onContentWidthChange={handleEditorContentWidthChange}
+                      onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                       topInset="titlebar"
                     />
                   ) : (
                     <MarkdownPaper
                       autoFocus={shouldFocusEditorOnReady(document.content)}
                       bodyFontSize={editorPreferences.preferences.bodyFontSize}
-                      contentWidth={editorPreferences.preferences.contentWidth}
+                      contentWidth={activeEditorContentWidth}
+                      contentWidthPx={activeEditorContentWidthPx}
                       initialContent={document.content}
                       language={appLanguage.language}
                       lineHeight={editorPreferences.preferences.lineHeight}
                       markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
                       onEditorReady={editor.handleEditorReady}
                       onMarkdownChange={handleMarkdownChange}
+                      onContentWidthChange={handleEditorContentWidthChange}
+                      onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                       onSaveClipboardImage={handleSaveClipboardImage}
                       openExternalUrl={openNativeExternalUrl}
                       onTextSelectionChange={handleTextSelectionChange}

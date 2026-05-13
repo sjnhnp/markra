@@ -1,16 +1,27 @@
 import { Fragment, type CSSProperties, type ChangeEvent, type ReactNode } from "react";
 import { t, type AppLanguage } from "@markra/shared";
-import type { EditorContentWidth } from "../lib/settings/app-settings";
-import { editorContentWidths } from "./MarkdownPaper";
+import {
+  editorContentWidthPixels,
+  editorCustomContentWidthMax,
+  editorCustomContentWidthMin,
+  type EditorContentWidth
+} from "../lib/editor-width";
+import { EditorWidthResizer } from "./EditorWidthResizer";
 
 type MarkdownSourceEditorProps = {
   autoFocus?: boolean;
   bodyFontSize?: number;
   content: string;
   contentWidth?: EditorContentWidth;
+  contentWidthMax?: number;
+  contentWidthMin?: number;
+  contentWidthPx?: number | null;
   language?: AppLanguage;
   lineHeight?: number;
   onChange: (content: string) => unknown;
+  onContentWidthChange?: (width: number) => unknown;
+  onContentWidthResizeEnd?: () => unknown;
+  onContentWidthResizeStart?: () => unknown;
   topInset?: "tabs" | "titlebar";
 };
 
@@ -131,15 +142,22 @@ export function MarkdownSourceEditor({
   bodyFontSize = 16,
   content,
   contentWidth = "default",
+  contentWidthMax = editorCustomContentWidthMax,
+  contentWidthMin = editorCustomContentWidthMin,
+  contentWidthPx = null,
   language = "en",
   lineHeight = 1.65,
   onChange,
+  onContentWidthChange,
+  onContentWidthResizeEnd,
+  onContentWidthResizeStart,
   topInset = "titlebar"
 }: MarkdownSourceEditorProps) {
+  const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
   const paperStyle = {
     fontSize: `${bodyFontSize}px`,
     lineHeight,
-    maxWidth: editorContentWidths[contentWidth]
+    maxWidth: `${resolvedContentWidth}px`
   } satisfies CSSProperties;
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     onChange(event.currentTarget.value);
@@ -152,11 +170,20 @@ export function MarkdownSourceEditor({
       aria-label={t(language, "app.writingSurface")}
     >
       <article
-        className={`markdown-source-paper mx-auto min-h-screen w-full max-w-215 px-18 pb-30 ${topInsetClassName} text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25`}
+        className={`markdown-source-paper relative mx-auto min-h-screen w-full max-w-215 px-18 pb-30 ${topInsetClassName} text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25`}
         style={paperStyle}
         aria-label={t(language, "app.markdownEditor")}
         data-editor-engine="source"
       >
+        <EditorWidthResizer
+          language={language}
+          maxWidth={contentWidthMax}
+          minWidth={contentWidthMin}
+          width={resolvedContentWidth}
+          onResize={onContentWidthChange}
+          onResizeEnd={onContentWidthResizeEnd}
+          onResizeStart={onContentWidthResizeStart}
+        />
         <div className="markdown-source-layer relative min-h-[calc(100vh-176px)]">
           <pre
             className="markdown-source-highlight pointer-events-none m-0 min-h-[calc(100vh-176px)] whitespace-pre-wrap wrap-break-word border-0 bg-transparent p-0 font-mono text-[0.94em] leading-[inherit] tracking-normal"

@@ -10,6 +10,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     clipboardImageFolder: "assets",
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
+    contentWidthPx: null,
     lineHeight: 1.65,
     markdownShortcuts: {
       bold: "Mod+B",
@@ -61,6 +62,7 @@ describe("useEditorPreferences", () => {
       clipboardImageFolder: "assets",
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
+      contentWidthPx: null,
       lineHeight: 1.65,
       markdownShortcuts: {
         bold: "Mod+B",
@@ -105,6 +107,7 @@ describe("useEditorPreferences", () => {
         clipboardImageFolder: "images",
         closeAiCommandOnAgentPanelOpen: true,
         contentWidth: "wide",
+        contentWidthPx: 1120,
         lineHeight: 1.8,
         markdownShortcuts: {
           bold: "Mod+Alt+B",

@@ -149,6 +149,29 @@ describe("NativeTitleBar", () => {
     expect(sourceModeCase.container.querySelector(".lucide-code-xml")).not.toBeInTheDocument();
   });
 
+  it("keeps editor width controls out of the titlebar when unavailable", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".document-actions")).not.toContainElement(
+      container.querySelector('[data-icon^="editor-width-"]')
+    );
+    expect(screen.queryByRole("button", { name: /Content width:/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Content width" })).not.toBeInTheDocument();
+  });
+
   it("centers the document title inside the editor area when the Markra AI panel is open", () => {
     const { container } = render(
       <NativeTitleBar
@@ -312,7 +335,7 @@ describe("NativeTitleBar", () => {
     expect(screen.getByLabelText("Window drag region")).toBeInTheDocument();
     expect(titlebar).toHaveClass("fixed", "right-3.5", "w-auto");
     expect(titlebar).not.toHaveClass("inset-x-0");
-    expect(titlebar).not.toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
+    expect(titlebar).not.toHaveClass("grid-cols-[240px_minmax(0,1fr)_240px]");
     expect(container.querySelector(".mac-window-controls")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Draft.md" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();

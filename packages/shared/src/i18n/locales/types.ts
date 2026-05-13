@@ -202,6 +202,7 @@ export type I18nKey =
   | "app.collapseAiAgent"
   | "app.closeAiAgent"
   | "app.resizeAiAgent"
+  | "app.resizeEditorWidth"
   | "app.resizeMarkdownFiles"
   | "app.aiAgentSessions"
   | "app.aiAgentNewSession"

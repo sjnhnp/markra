@@ -191,6 +191,7 @@ const messages: BaseLocaleMessages = {
   "app.collapseAiAgent": "Collapse Markra AI",
   "app.closeAiAgent": "Close Markra AI",
   "app.resizeAiAgent": "Resize Markra AI",
+  "app.resizeEditorWidth": "Resize editor width",
   "app.resizeMarkdownFiles": "Resize Markdown files",
   "app.aiAgentSessions": "Sessions",
   "app.aiAgentNewSession": "New session",

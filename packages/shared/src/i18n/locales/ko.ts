@@ -127,6 +127,7 @@ const messages: LocaleMessages = {
   "app.collapseAiAgent": "Markra AI 접기",
   "app.closeAiAgent": "Markra AI 닫기",
   "app.resizeAiAgent": "Markra AI 너비 조정",
+  "app.resizeEditorWidth": "편집기 너비 조정",
   "app.resizeMarkdownFiles": "Markdown 파일 패널 너비 조정",
   "app.aiAgentSessions": "세션",
   "app.aiAgentNewSession": "새 세션",

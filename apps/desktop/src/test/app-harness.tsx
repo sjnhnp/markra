@@ -126,6 +126,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     clipboardImageFolder: "assets",
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
+    contentWidthPx: null,
     lineHeight: 1.65,
     markdownShortcuts: {
       bold: "Mod+B",
@@ -181,6 +182,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     clipboardImageFolder: "assets",
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
+    contentWidthPx: null,
     lineHeight: 1.65,
     markdownShortcuts: {
       bold: "Mod+B",
@@ -543,6 +545,7 @@ export function installAppTestHarness() {
       clipboardImageFolder: "assets",
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
+      contentWidthPx: null,
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,

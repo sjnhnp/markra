@@ -43,8 +43,14 @@ import { markraAiSelectionHoldPlugin } from "@markra/editor";
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { AiSelectionContext } from "@markra/ai";
 import { t, type AppLanguage } from "@markra/shared";
-import type { EditorContentWidth } from "../lib/settings/app-settings";
+import {
+  editorContentWidthPixels,
+  editorCustomContentWidthMax,
+  editorCustomContentWidthMin,
+  type EditorContentWidth
+} from "../lib/editor-width";
 import { readAiSelectionContextFromView } from "../hooks/useEditorController";
+import { EditorWidthResizer } from "./EditorWidthResizer";
 
 const markraCommonmark = [
   commonmarkSchema,
@@ -71,24 +77,24 @@ type MarkdownPaperProps = {
   autoFocus?: boolean;
   bodyFontSize?: number;
   contentWidth?: EditorContentWidth;
+  contentWidthMax?: number;
+  contentWidthMin?: number;
+  contentWidthPx?: number | null;
   initialContent: string;
   language?: AppLanguage;
   lineHeight?: number;
   markdownShortcuts?: MarkdownShortcutMap;
   onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => unknown;
   onMarkdownChange: (content: string) => unknown;
+  onContentWidthChange?: (width: number) => unknown;
+  onContentWidthResizeEnd?: () => unknown;
+  onContentWidthResizeStart?: () => unknown;
   onSaveClipboardImage?: SaveClipboardImage;
   openExternalUrl?: (url: string) => unknown;
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
   resolveImageSrc?: (src: string) => string;
   revision: number;
   topInset?: "tabs" | "titlebar";
-};
-
-export const editorContentWidths: Record<EditorContentWidth, string> = {
-  default: "860px",
-  narrow: "720px",
-  wide: "1040px"
 };
 
 type MilkdownSurfaceProps = {
@@ -380,12 +386,18 @@ export function MarkdownPaper({
   autoFocus = false,
   bodyFontSize = 16,
   contentWidth = "default",
+  contentWidthMax = editorCustomContentWidthMax,
+  contentWidthMin = editorCustomContentWidthMin,
+  contentWidthPx = null,
   initialContent,
   language = "en",
   lineHeight = 1.65,
   markdownShortcuts,
   onEditorReady,
   onMarkdownChange,
+  onContentWidthChange,
+  onContentWidthResizeEnd,
+  onContentWidthResizeStart,
   onSaveClipboardImage,
   openExternalUrl,
   onTextSelectionChange,
@@ -393,10 +405,11 @@ export function MarkdownPaper({
   revision,
   topInset = "titlebar"
 }: MarkdownPaperProps) {
+  const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
   const paperStyle = {
     fontSize: `${bodyFontSize}px`,
     lineHeight,
-    maxWidth: editorContentWidths[contentWidth]
+    maxWidth: `${resolvedContentWidth}px`
   } satisfies CSSProperties;
   const shortcutsSignature = markdownShortcutSignature(markdownShortcuts);
   const normalizedMarkdownShortcuts = useMemo(
@@ -412,11 +425,20 @@ export function MarkdownPaper({
     >
       <article
         key={revision}
-        className={`markdown-paper mx-auto min-h-screen w-full max-w-215 px-18 pb-30 ${topInsetClassName} text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25`}
+        className={`markdown-paper relative mx-auto min-h-screen w-full max-w-215 px-18 pb-30 ${topInsetClassName} text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25`}
         style={paperStyle}
         aria-label={t(language, "app.markdownEditor")}
         data-editor-engine="milkdown"
       >
+        <EditorWidthResizer
+          language={language}
+          maxWidth={contentWidthMax}
+          minWidth={contentWidthMin}
+          width={resolvedContentWidth}
+          onResize={onContentWidthChange}
+          onResizeEnd={onContentWidthResizeEnd}
+          onResizeStart={onContentWidthResizeStart}
+        />
         <MilkdownProvider>
           <MilkdownSurface
             autoFocus={autoFocus}

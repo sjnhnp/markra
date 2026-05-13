@@ -93,6 +93,7 @@ describe("settings events", () => {
       clipboardImageFolder: "images",
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide" as const,
+      contentWidthPx: 1120,
       lineHeight: 1.8,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: false,
