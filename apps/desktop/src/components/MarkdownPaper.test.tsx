@@ -520,7 +520,7 @@ describe("MarkdownPaper editing", () => {
     expect(view.state.selection.from).toBeLessThan(source.indexOf("$$", 2) + 1);
   });
 
-  it("keeps math source visible after moving past the closing delimiter until Enter", async () => {
+  it("folds math source when the cursor leaves the formula", async () => {
     const source = String.raw`$$ E = mc^2 $$`;
     const { container, view } = await renderEditor(source);
     const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
@@ -532,11 +532,6 @@ describe("MarkdownPaper editing", () => {
     });
 
     moveCursor(view, source.length + 1);
-
-    expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).not.toBeInTheDocument();
-    expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
-
-    expect(pressEnter(view)).toBe(true);
 
     await waitFor(() => {
       expect(container.querySelector(".ProseMirror .markra-math-render-display")).toBeInTheDocument();
@@ -2486,6 +2481,57 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelector(".ProseMirror h2")).toHaveTextContent("Title");
     expect(container.querySelector(".ProseMirror")?.textContent).toBe("Title");
+    await settleMarkdownListener();
+  });
+
+  it("expands a rendered heading back to editable markdown source when clicked", async () => {
+    const { container, editor, view } = await renderEditor("## Title");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    const heading = container.querySelector<HTMLElement>(".ProseMirror h2");
+    expect(heading).toHaveTextContent("Title");
+
+    fireEvent.click(heading!);
+
+    expect(container.querySelector(".ProseMirror h2")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("## Title");
+
+    view.dispatch(view.state.tr.delete(1, view.state.doc.content.size - 1).insertText("### Revised", 1));
+
+    expect(pressEnter(view)).toBe(true);
+
+    expect(container.querySelector(".ProseMirror h3")).toHaveTextContent("Revised");
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("Revised");
+    expect(serializeMarkdown(view.state.doc)).toContain("### Revised");
+    await settleMarkdownListener();
+  });
+
+  it("preserves inline markdown when expanding and finalizing a rendered heading", async () => {
+    const { container, view } = await renderEditor("## **Bold**");
+
+    fireEvent.click(container.querySelector<HTMLElement>(".ProseMirror h2")!);
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("## **Bold**");
+
+    expect(pressEnter(view)).toBe(true);
+
+    expect(container.querySelector(".ProseMirror h2 strong")).toHaveTextContent("Bold");
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("Bold");
+    await settleMarkdownListener();
+  });
+
+  it("finalizes expanded heading source when the cursor leaves the source", async () => {
+    const { container, view } = await renderEditor("## Title\n\nTail");
+
+    fireEvent.click(container.querySelector<HTMLElement>(".ProseMirror h2")!);
+
+    expect(container.querySelector(".ProseMirror h2")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("## TitleTail");
+
+    moveCursor(view, findTextPosition(view, "Tail"));
+
+    expect(container.querySelector(".ProseMirror h2")).toHaveTextContent("Title");
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("TitleTail");
     await settleMarkdownListener();
   });
 
