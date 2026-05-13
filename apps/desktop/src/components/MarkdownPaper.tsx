@@ -25,6 +25,7 @@ import { $prose } from "@milkdown/kit/utils";
 import { markraLiveMarkdownPlugin } from "@markra/editor";
 import { markraClipboardImagePlugin, type SaveClipboardImage } from "@markra/editor";
 import { markraCodeBlockPlugin } from "@markra/editor";
+import { markraHeadingSourcePlugin } from "@markra/editor";
 import { markraLinkImageLivePlugin } from "@markra/editor";
 import { markraRawHtmlPlugin } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
@@ -325,6 +326,7 @@ function MilkdownSurface({
         )
         .use(markraTableControlsPlugin(tableControlLabels))
         .use(markraLinkImageLivePlugin(resolveImageSrc))
+        .use(markraHeadingSourcePlugin)
         .use(
           markraRawHtmlPlugin({
             htmlSourceApplyLabel: t(language, "editor.htmlSourceApply"),

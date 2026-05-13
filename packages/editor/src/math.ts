@@ -277,6 +277,28 @@ function handleMathKeyDown(view: EditorView, event: KeyboardEvent) {
   return closeActiveMathSource(view, event) || deleteAdjacentMathSource(view, event);
 }
 
+function selectionIsInsideMathRange(state: EditorState, range: MathRange) {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection)) return false;
+
+  const from = Math.min(selection.from, selection.to);
+  const to = Math.max(selection.from, selection.to);
+
+  return selection.empty ? range.from < from && from < range.to : range.from <= from && to <= range.to;
+}
+
+function closeInactiveMathSource(state: EditorState) {
+  const activeSource = mathRenderKey.getState(state) as ActiveMathSource | null;
+  if (!activeSource) return null;
+
+  const activeRange = findMathRangeByBounds(state.doc, activeSource);
+  if (activeRange && selectionIsInsideMathRange(state, activeRange)) return null;
+
+  return state.tr.setMeta(mathRenderKey, {
+    type: "deactivate"
+  } satisfies MathRenderMeta);
+}
+
 function createMathWidget(range: MathRange) {
   return (view: EditorView) => {
     const element = view.dom.ownerDocument.createElement("span");
@@ -374,6 +396,7 @@ export const markraMathPlugin = $prose(() => {
         return findMathRangeByBounds(newState.doc, mappedSource) ? mappedSource : null;
       }
     },
+    appendTransaction: (_transactions, _oldState, newState) => closeInactiveMathSource(newState),
     props: {
       decorations: (state) => buildMathDecorations(state.doc, getEditableMathRange(state)),
       handleKeyDown: handleMathKeyDown
