@@ -133,6 +133,34 @@ describe("editor stylesheet", () => {
     expect(languageSelectStyles).toContain("border border-(--border-default)");
   });
 
+  it("wraps code block lines instead of forcing horizontal scrolling", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const codeStart = styles.indexOf(".markdown-paper .markra-code-block code {");
+    const codeEnd = styles.indexOf(".markdown-paper .hljs-keyword");
+    const codeStyles = styles.slice(codeStart, codeEnd);
+
+    expect(codeStyles).toContain("white-space: pre-wrap");
+    expect(codeStyles).toContain("overflow-wrap: anywhere");
+  });
+
+  it("uses a richer palette for inline code and syntax highlights", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const inlineCodeStart = styles.indexOf(".markdown-paper code {");
+    const inlineCodeEnd = styles.indexOf(".markdown-paper pre {");
+    const inlineCodeStyles = styles.slice(inlineCodeStart, inlineCodeEnd);
+    const preCodeStart = styles.indexOf(".markdown-paper pre code {");
+    const preCodeEnd = styles.indexOf(".markdown-paper .markra-code-block");
+    const preCodeStyles = styles.slice(preCodeStart, preCodeEnd);
+
+    expect(inlineCodeStyles).toContain("color: oklch");
+    expect(inlineCodeStyles).toContain("box-shadow");
+    expect(preCodeStyles).toContain("color: inherit");
+    expect(preCodeStyles).toContain("box-shadow: none");
+    expect(styles).toContain(".markdown-paper .hljs-meta");
+    expect(styles).toContain(".markdown-paper .hljs-symbol");
+    expect(styles).toContain(".markdown-paper .hljs-type");
+  });
+
   it("includes the inline AI loading shimmer used by compact quick actions", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 
