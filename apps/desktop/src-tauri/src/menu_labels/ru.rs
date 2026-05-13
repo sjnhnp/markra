@@ -15,6 +15,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     export_pdf: "Экспорт PDF",
     export_html: "Экспорт HTML",
     settings: "Настройки...",
+    check_updates: "Проверить обновления",
     undo: "Отменить",
     redo: "Повторить",
     cut: "Вырезать",

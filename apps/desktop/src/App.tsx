@@ -1010,7 +1010,11 @@ export default function App() {
     editor,
     outlineItems.length
   ]);
+  const appUpdater = useAutoUpdater(appLanguage.language, appLanguage.ready, {
+    confirmRestart: confirmCanDiscardCurrentDocument
+  });
   const nativeMenuHandlers = useNativeMenuHandlers({
+    checkForUpdates: appUpdater.checkForUpdates,
     closeDocument: handleCloseCurrentFile,
     exportHtml: exportHtmlDocument,
     exportPdf: exportPdfDocument,
@@ -1034,9 +1038,6 @@ export default function App() {
   useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null, {
     getAiCommandsAvailable: getAiContextMenuAvailable,
     markdownShortcuts: editorPreferences.preferences.markdownShortcuts
-  });
-  useAutoUpdater(appLanguage.language, appLanguage.ready, {
-    confirmRestart: confirmCanDiscardCurrentDocument
   });
   useApplicationShortcuts({
     closeDocument: handleCloseCurrentFile,

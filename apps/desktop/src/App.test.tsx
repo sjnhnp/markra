@@ -565,6 +565,22 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Markra is up to date."));
   });
 
+  it("checks for updates from the native application menu", async () => {
+    renderApp();
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1));
+    mockedCheckNativeAppUpdate.mockClear();
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.checkForUpdates?.();
+    });
+
+    expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Markra is up to date."));
+  });
+
   it("opens a folder markdown tree from the lower-left file list button", async () => {
     mockOpenMarkdownFile({
       content: "# Native file\n\nOpened from disk.",
