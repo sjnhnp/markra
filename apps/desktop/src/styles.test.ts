@@ -59,6 +59,32 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("font-synthesis: style");
   });
 
+  it("positions the native display math caret anchor at the formula block edge", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const anchorStart = styles.indexOf(".markdown-paper img.ProseMirror-separator.markra-math-caret-anchor {");
+    const anchorEnd = styles.indexOf(".markdown-paper .markra-math-render-invalid");
+    const anchorStyles = styles.slice(anchorStart, anchorEnd);
+
+    expect(styles).toContain(".markdown-paper p:has(.markra-math-caret-anchor)");
+    expect(anchorStyles).toContain("position: absolute");
+    expect(anchorStyles).toContain("right: 0");
+    expect(anchorStyles).toContain("width: 1px !important");
+    expect(anchorStyles).not.toContain("opacity: 0");
+  });
+
+  it("keeps hidden display math source available for the native caret", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const sourceStart = styles.indexOf(".markdown-paper .markra-math-source-hidden-display.markra-md-hidden-delimiter {");
+    const sourceEnd = styles.indexOf(".markdown-paper .markra-live-mark-strong");
+    const sourceStyles = styles.slice(sourceStart, sourceEnd);
+
+    expect(sourceStyles).toContain("display: inline-block");
+    expect(sourceStyles).toContain("position: absolute");
+    expect(sourceStyles).toContain("right: 0");
+    expect(sourceStyles).toContain("-webkit-text-fill-color: transparent");
+    expect(sourceStyles).not.toContain("@apply hidden");
+  });
+
   it("keeps AI diff action controls visually quiet until interaction", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

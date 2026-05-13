@@ -485,6 +485,120 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("Where $A$ is the final amount.");
   });
 
+  it("renders multiline display math without treating minus-led rows as lists", async () => {
+    const source = [
+      "$$",
+      String.raw`\begin{aligned}`,
+      String.raw`x &= a \\`,
+      String.raw`- y &= b`,
+      String.raw`\end{aligned}`,
+      "$$"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const hiddenMathSource = Array.from(container.querySelectorAll(".ProseMirror .markra-math-source-hidden"))
+      .map((node) => node.textContent)
+      .join("");
+
+    expect(container.querySelector(".ProseMirror .markra-math-render-display .katex")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror ul")).not.toBeInTheDocument();
+    expect(hiddenMathSource).toContain("- y &= b");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain(source);
+  });
+
+  it("creates a paragraph below a rendered display math block when pressing Enter after it", async () => {
+    const source = String.raw`$$ E = mc^2 $$`;
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, source.length + 1);
+
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "After formula");
+
+    expect(view.state.doc.child(0).textContent).toBe(source);
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).textContent).toBe("After formula");
+    expect(serializeMarkdown(view.state.doc)).toContain([source, "", "After formula"].join("\n"));
+  });
+
+  it("moves down from text to display math so Enter can create a paragraph below it", async () => {
+    const formula = String.raw`$$ E = mc^2 $$`;
+    const source = ["Before formula", "", formula].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Before formula", "Before formula".length));
+
+    expect(pressArrowDown(view)).toBe(true);
+    expect(view.state.selection.from).toBe(findTextPosition(view, formula, formula.length));
+    expect(container.querySelector(".ProseMirror .markra-math-edge-caret")).not.toBeInTheDocument();
+    const nativeCaretAnchor = container.querySelector<HTMLImageElement>(
+      ".ProseMirror img.ProseMirror-separator.markra-math-caret-anchor"
+    );
+    expect(nativeCaretAnchor).toBeInTheDocument();
+    expect(nativeCaretAnchor).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"));
+
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "After formula");
+
+    expect(view.state.doc.child(0).textContent).toBe("Before formula");
+    expect(view.state.doc.child(1).textContent).toBe(formula);
+    expect(view.state.doc.child(2).textContent).toBe("After formula");
+    expect(serializeMarkdown(view.state.doc)).toContain([formula, "", "After formula"].join("\n"));
+  });
+
+  it("keeps the native caret anchor when leaving display math source at the closing delimiter", async () => {
+    const source = String.raw`$$ E = mc^2 $$`;
+    const { container, view } = await renderEditor(source);
+    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
+
+    fireEvent.mouseDown(blockFormula!);
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
+    });
+
+    moveCursor(view, findTextPosition(view, source, source.length));
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).toBeInTheDocument();
+    });
+
+    const nativeCaretAnchor = container.querySelector<HTMLImageElement>(
+      ".ProseMirror img.ProseMirror-separator.markra-math-caret-anchor"
+    );
+    const domSelection = container.ownerDocument.getSelection();
+    const selectionParent =
+      domSelection?.anchorNode instanceof HTMLElement
+        ? domSelection.anchorNode
+        : domSelection?.anchorNode?.parentElement ?? null;
+
+    expect(view.state.selection.from).toBe(findTextPosition(view, source, source.length));
+    expect(selectionParent).toHaveClass("markra-math-source-hidden-display");
+    expect(nativeCaretAnchor).toBeInTheDocument();
+    expect(nativeCaretAnchor).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"));
+  });
+
+  it("creates a paragraph below display math when confirming active formula editing", async () => {
+    const source = String.raw`$$ E = mc^2 $$`;
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
+
+    fireEvent.mouseDown(blockFormula!);
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
+    });
+
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "After formula");
+
+    expect(view.state.doc.child(0).textContent).toBe(source);
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).textContent).toBe("After formula");
+    expect(serializeMarkdown(view.state.doc)).toContain([source, "", "After formula"].join("\n"));
+  });
+
   it("reveals math source for editing when a rendered formula is clicked", async () => {
     const source = "Where $A$ is the final amount.";
     const { container, view } = await renderEditor(source);

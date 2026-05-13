@@ -809,6 +809,24 @@
     overflow-y: hidden;
   }
 
+  .markdown-paper p:has(.markra-math-caret-anchor) {
+    position: relative;
+  }
+
+  .markdown-paper img.ProseMirror-separator.markra-math-caret-anchor {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    width: 1px !important;
+    height: 1.35em !important;
+    max-width: none;
+    margin: 0 !important;
+    padding: 0;
+    border: 0 !important;
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+
   .markdown-paper .markra-math-render-invalid {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     color: var(--text-secondary);
@@ -829,6 +847,25 @@
 
   .markdown-paper .markra-md-hidden-delimiter {
     @apply hidden;
+  }
+
+  .markdown-paper .markra-math-source-hidden-display.markra-md-hidden-delimiter {
+    display: inline-block;
+    position: absolute;
+    top: 50%;
+    right: 0;
+    z-index: 1;
+    width: max-content;
+    max-width: 100%;
+    height: 1.35em;
+    overflow: hidden;
+    color: transparent;
+    line-height: 1.35;
+    pointer-events: none;
+    white-space: pre;
+    transform: translateY(-50%);
+    -webkit-text-fill-color: transparent;
+    caret-color: var(--accent);
   }
 
   .markdown-paper .markra-live-mark-strong {
