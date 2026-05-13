@@ -745,6 +745,25 @@ export default function App() {
     setActiveImageFile(null);
     await openMarkdownFile();
   }, [openMarkdownFile]);
+  const handleCloseCurrentFile = useCallback(async () => {
+    if (activeImageFile) {
+      setActiveImageFile(null);
+      return;
+    }
+
+    const canDiscard = await confirmCanDiscardCurrentDocument();
+    if (!canDiscard) return;
+
+    updateActiveAiSelection(null);
+    handleAiCommandClose();
+    clearOpenDocument();
+  }, [
+    activeImageFile,
+    clearOpenDocument,
+    confirmCanDiscardCurrentDocument,
+    handleAiCommandClose,
+    updateActiveAiSelection
+  ]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
   const handleAiAgentToggle = useCallback(() => {
     toggleAiAgentPanel();
@@ -876,6 +895,7 @@ export default function App() {
     outlineItems.length
   ]);
   const nativeMenuHandlers = useNativeMenuHandlers({
+    closeDocument: handleCloseCurrentFile,
     exportHtml: exportHtmlDocument,
     exportPdf: exportPdfDocument,
     insertMarkdownSnippet: editor.insertMarkdownSnippet,
@@ -903,6 +923,7 @@ export default function App() {
     confirmRestart: confirmCanDiscardCurrentDocument
   });
   useApplicationShortcuts({
+    closeDocument: handleCloseCurrentFile,
     exportHtml: exportHtmlDocument,
     exportPdf: exportPdfDocument,
     markdownShortcuts: editorPreferences.preferences.markdownShortcuts,

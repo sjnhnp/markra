@@ -73,6 +73,7 @@ describe("useNativeMenuHandlers", () => {
   });
 
   it("routes native application commands to app toggles", () => {
+    const closeDocument = vi.fn();
     const toggleAiAgent = vi.fn();
     const toggleAiCommand = vi.fn();
     const toggleMarkdownFiles = vi.fn();
@@ -80,6 +81,7 @@ describe("useNativeMenuHandlers", () => {
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
         ...baseOptions,
+        closeDocument,
         toggleAiAgent,
         toggleAiCommand,
         toggleMarkdownFiles,
@@ -87,11 +89,13 @@ describe("useNativeMenuHandlers", () => {
       })
     );
 
+    result.current.closeDocument?.();
     result.current.toggleMarkdownFiles?.();
     result.current.toggleAiAgent?.();
     result.current.toggleAiCommand?.();
     result.current.toggleSourceMode?.();
 
+    expect(closeDocument).toHaveBeenCalledTimes(1);
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
     expect(toggleAiCommand).toHaveBeenCalledTimes(1);
@@ -179,5 +183,22 @@ describe("useApplicationShortcuts", () => {
     });
 
     expect(toggleSourceMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the current document from the default close shortcut", () => {
+    const closeDocument = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        closeDocument
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      key: "w",
+      metaKey: true
+    });
+
+    expect(closeDocument).toHaveBeenCalledTimes(1);
   });
 });

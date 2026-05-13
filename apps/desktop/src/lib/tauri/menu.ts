@@ -34,6 +34,7 @@ export type NativeEditorContextMenuOptions = {
 export type NativeMenuCommand =
   | "openDocument"
   | "openFolder"
+  | "closeDocument"
   | "saveDocument"
   | "saveDocumentAs"
   | "exportPdf"
