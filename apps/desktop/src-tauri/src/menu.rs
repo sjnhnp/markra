@@ -47,6 +47,12 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         "CmdOrCtrl+N",
     )?;
     let open = app_menu_item(app, "openDocument", labels.open_document, "CmdOrCtrl+O")?;
+    let open_folder = app_menu_item(
+        app,
+        "openFolder",
+        labels.open_folder,
+        "CmdOrCtrl+Shift+O",
+    )?;
     let save = app_menu_item(app, "saveDocument", labels.save_document, "CmdOrCtrl+S")?;
     let save_as = app_menu_item(
         app,
@@ -192,7 +198,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         .build()?;
 
     let file_menu = SubmenuBuilder::with_id(app, "markra:file", labels.file)
-        .items(&[&new, &open])
+        .items(&[&new, &open, &open_folder])
         .separator()
         .items(&[&save, &save_as])
         .separator()
@@ -277,6 +283,7 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
     matches!(
         command,
         "openDocument"
+            | "openFolder"
             | "saveDocument"
             | "saveDocumentAs"
             | "exportPdf"
@@ -321,7 +328,7 @@ mod tests {
     fn recognizes_frontend_menu_commands() {
         assert!(!is_frontend_menu_command("newDocument"));
         assert!(is_frontend_menu_command("openDocument"));
-        assert!(!is_frontend_menu_command("openFolder"));
+        assert!(is_frontend_menu_command("openFolder"));
         assert!(is_frontend_menu_command("saveDocument"));
         assert!(is_frontend_menu_command("exportPdf"));
         assert!(is_frontend_menu_command("exportHtml"));

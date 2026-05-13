@@ -25,6 +25,7 @@ type NativeMenuHandlerOptions = {
   language?: AppLanguage;
   markdownShortcuts?: MarkdownShortcutMap;
   openDocument: () => unknown | Promise<unknown>;
+  openFolder: () => unknown | Promise<unknown>;
   runAiQuickAction?: (intent: NativeAiQuickActionIntent, prompt: string) => unknown | Promise<unknown>;
   runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "shiftKey">) => unknown;
   saveDocument: () => unknown | Promise<unknown>;
@@ -57,6 +58,7 @@ export function useNativeMenuHandlers({
   language = "en",
   markdownShortcuts,
   openDocument,
+  openFolder,
   runAiQuickAction,
   runEditorShortcut,
   saveDocument,
@@ -78,6 +80,7 @@ export function useNativeMenuHandlers({
     language,
     normalizedMarkdownShortcuts,
     openDocument,
+    openFolder,
     runAiQuickAction,
     runEditorShortcut,
     saveDocument,
@@ -95,6 +98,7 @@ export function useNativeMenuHandlers({
     language,
     normalizedMarkdownShortcuts,
     openDocument,
+    openFolder,
     runAiQuickAction,
     runEditorShortcut,
     saveDocument,
@@ -108,6 +112,7 @@ export function useNativeMenuHandlers({
   return useMemo<NativeMenuHandlers>(
     () => ({
       openDocument: () => latestOptionsRef.current.openDocument(),
+      openFolder: () => latestOptionsRef.current.openFolder(),
       saveDocument: () => latestOptionsRef.current.saveDocument(),
       saveDocumentAs: () => latestOptionsRef.current.saveDocumentAs(),
       exportPdf: () => latestOptionsRef.current.exportPdf?.(),

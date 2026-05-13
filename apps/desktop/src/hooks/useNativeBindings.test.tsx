@@ -6,6 +6,7 @@ describe("useNativeMenuHandlers", () => {
     insertMarkdownSnippet: vi.fn(),
     insertMarkdownTable: vi.fn(),
     openDocument: vi.fn(),
+    openFolder: vi.fn(),
     runEditorShortcut: vi.fn(),
     saveDocument: vi.fn(),
     saveDocumentAs: vi.fn()
@@ -19,6 +20,7 @@ describe("useNativeMenuHandlers", () => {
         insertMarkdownSnippet,
         insertMarkdownTable,
         openDocument: vi.fn(),
+        openFolder: vi.fn(),
         runEditorShortcut: vi.fn(),
         saveDocument: vi.fn(),
         saveDocumentAs: vi.fn()
@@ -94,6 +96,20 @@ describe("useNativeMenuHandlers", () => {
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
     expect(toggleAiCommand).toHaveBeenCalledTimes(1);
     expect(toggleSourceMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes the native open folder menu command to the folder opener", () => {
+    const openFolder = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        openFolder
+      })
+    );
+
+    result.current.openFolder?.();
+
+    expect(openFolder).toHaveBeenCalledTimes(1);
   });
 });
 

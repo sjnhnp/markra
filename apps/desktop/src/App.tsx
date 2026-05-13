@@ -883,6 +883,7 @@ export default function App() {
     language: appLanguage.language,
     markdownShortcuts: editorPreferences.preferences.markdownShortcuts,
     openDocument: handleOpenMarkdownFile,
+    openFolder: handleOpenMarkdownFolder,
     runAiQuickAction: handleAiContextMenuAction,
     runEditorShortcut: editor.runEditorShortcut,
     saveDocument: handleSaveClick,
