@@ -18,6 +18,7 @@ import { matchesKeyboardShortcutEvent, t, type AppLanguage, type I18nKey } from 
 type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
 type NativeMenuHandlerOptions = {
+  closeDocument?: () => unknown | Promise<unknown>;
   exportHtml?: () => unknown | Promise<unknown>;
   exportPdf?: () => unknown | Promise<unknown>;
   insertMarkdownSnippet: (open: string, close: string, placeholder: string) => unknown;
@@ -36,6 +37,7 @@ type NativeMenuHandlerOptions = {
 };
 
 type ApplicationShortcutOptions = {
+  closeDocument?: () => unknown | Promise<unknown>;
   exportHtml?: () => unknown | Promise<unknown>;
   exportPdf?: () => unknown | Promise<unknown>;
   markdownShortcuts?: MarkdownShortcutMap;
@@ -50,6 +52,7 @@ type ApplicationShortcutOptions = {
 };
 
 export function useNativeMenuHandlers({
+  closeDocument,
   exportHtml,
   exportPdf,
   insertMarkdownSnippet,
@@ -73,6 +76,7 @@ export function useNativeMenuHandlers({
   const latestOptionsRef = useRef({
     exportHtml,
     exportPdf,
+    closeDocument,
     insertMarkdownSnippet,
     insertMarkdownTable,
     language,
@@ -90,6 +94,7 @@ export function useNativeMenuHandlers({
   latestOptionsRef.current = {
     exportHtml,
     exportPdf,
+    closeDocument,
     insertMarkdownSnippet,
     insertMarkdownTable,
     language,
@@ -108,6 +113,7 @@ export function useNativeMenuHandlers({
   return useMemo<NativeMenuHandlers>(
     () => ({
       openDocument: () => latestOptionsRef.current.openDocument(),
+      closeDocument: () => latestOptionsRef.current.closeDocument?.(),
       saveDocument: () => latestOptionsRef.current.saveDocument(),
       saveDocumentAs: () => latestOptionsRef.current.saveDocumentAs(),
       exportPdf: () => latestOptionsRef.current.exportPdf?.(),
@@ -248,6 +254,7 @@ export function useNativeMenus(
 }
 
 export function useApplicationShortcuts({
+  closeDocument,
   exportHtml,
   exportPdf,
   markdownShortcuts,
@@ -292,6 +299,9 @@ export function useApplicationShortcuts({
       if (key === "s" && event.shiftKey) {
         event.preventDefault();
         saveDocumentAs();
+      } else if (key === "w" && !event.shiftKey && closeDocument) {
+        event.preventDefault();
+        closeDocument();
       } else if (key === "s") {
         event.preventDefault();
         saveDocument();
@@ -317,6 +327,7 @@ export function useApplicationShortcuts({
   }, [
     exportHtml,
     exportPdf,
+    closeDocument,
     normalizedMarkdownShortcuts,
     openDocument,
     openFolder,

@@ -48,6 +48,7 @@ import {
   mockedSaveStoredExportSettings,
   mockedSaveStoredLanguage,
   mockedSaveStoredTheme,
+  mockedSaveStoredWorkspaceState,
   mockedShowNativeMarkdownFileTreeContextMenu,
   mockedTestAiProviderConnection,
   mockedWatchNativeMarkdownFile,
@@ -739,6 +740,27 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "native.md" })).toBeInTheDocument();
     expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalledWith(guidePath);
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
+  });
+
+  it("closes the current markdown file from Cmd+W without closing the window", async () => {
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
+
+    await waitFor(() => expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument());
+    expect(screen.queryByText("Native file")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "mock-files" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({ filePath: null });
   });
 
   it("previews an image asset from the current folder tree and returns to markdown files", async () => {
