@@ -38,7 +38,7 @@ import { requestNativeAiJson } from "../lib/tauri";
 import { useAppLanguage } from "./useAppLanguage";
 import { useAppTheme } from "./useAppTheme";
 
-export type SettingsCategory = "general" | "ai" | "web" | "appearance" | "editor" | "export";
+export type SettingsCategory = "general" | "ai" | "web" | "appearance" | "editor" | "keyboardShortcuts" | "export";
 
 export function useSettingsWindowState() {
   const appTheme = useAppTheme();

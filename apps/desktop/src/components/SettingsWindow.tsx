@@ -5,6 +5,7 @@ import {
   EditorSettings,
   ExportSettings,
   GeneralSettings,
+  KeyboardShortcutsSettings,
   WebSearchSettings
 } from "./SettingsSections";
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
@@ -112,6 +113,14 @@ export function SettingsWindow() {
           ) : null}
           {activeCategory === "editor" ? (
             <EditorSettings
+              preferences={editorPreferences}
+              translate={translate}
+              onUpdatePreferences={handleUpdateEditorPreferences}
+            />
+          ) : null}
+          {activeCategory === "keyboardShortcuts" ? (
+            <KeyboardShortcutsSettings
+              platform={platform}
               preferences={editorPreferences}
               translate={translate}
               onUpdatePreferences={handleUpdateEditorPreferences}

@@ -14,6 +14,7 @@ import {
   getStoredTheme,
   getStoredWebSearchSettings,
   getStoredWorkspaceState,
+  normalizeEditorPreferences,
   normalizeWebSearchSettings,
   normalizeExportSettings,
   resetWelcomeDocumentState,
@@ -30,6 +31,7 @@ import {
   setStoredAiAgentSessionArchived,
   type AiProviderSettings
 } from "./app-settings";
+import { defaultMarkdownShortcuts } from "@markra/editor";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn()
@@ -137,6 +139,7 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
       showWordCount: true
     });
@@ -311,6 +314,11 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "page",
       lineHeight: 2,
+      markdownShortcuts: {
+        bold: "Mod+Alt+B",
+        italic: "Mod+S",
+        quote: "Shift+B"
+      },
       restoreWorkspaceOnStartup: false,
       showWordCount: false
     });
@@ -322,8 +330,56 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "default",
       lineHeight: 1.65,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bold: "Mod+Alt+B"
+      },
       restoreWorkspaceOnStartup: false,
       showWordCount: false
+    });
+  });
+
+  it("normalizes custom markdown shortcuts while keeping unsafe chords at their defaults", () => {
+    expect(normalizeEditorPreferences({
+      markdownShortcuts: {
+        bold: "mod+alt+b",
+        inlineCode: "Mod+Shift+E",
+        italic: "Mod+S",
+        quote: "Alt+Q",
+        strikethrough: "Mod+Shift+X"
+      }
+    }).markdownShortcuts).toEqual({
+      ...defaultMarkdownShortcuts,
+      bold: "Mod+Alt+B",
+      strikethrough: "Mod+Shift+X"
+    });
+  });
+
+  it("migrates previous app shortcut defaults to the current defaults", () => {
+    expect(normalizeEditorPreferences({
+      markdownShortcuts: {
+        toggleAiAgent: "Mod+Shift+A",
+        toggleSourceMode: "Mod+Alt+V"
+      }
+    }).markdownShortcuts).toEqual(defaultMarkdownShortcuts);
+  });
+
+  it("keeps markdown shortcut mappings unique after normalization", () => {
+    expect(normalizeEditorPreferences({
+      markdownShortcuts: {
+        bold: "Mod+I"
+      }
+    }).markdownShortcuts).toEqual(defaultMarkdownShortcuts);
+
+    expect(normalizeEditorPreferences({
+      markdownShortcuts: {
+        bold: "Mod+I",
+        italic: "Mod+B"
+      }
+    }).markdownShortcuts).toEqual({
+      ...defaultMarkdownShortcuts,
+      bold: "Mod+I",
+      italic: "Mod+B"
     });
   });
 
@@ -339,6 +395,7 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
       showWordCount: true
     });
@@ -352,6 +409,10 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide",
       lineHeight: 1.8,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bold: "Mod+Alt+B"
+      },
       restoreWorkspaceOnStartup: false,
       showWordCount: false
     });
@@ -363,6 +424,10 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide",
       lineHeight: 1.8,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bold: "Mod+Alt+B"
+      },
       restoreWorkspaceOnStartup: false,
       showWordCount: false
     });

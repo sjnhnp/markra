@@ -1,5 +1,5 @@
 import { fireEvent, render } from "@testing-library/react";
-import { AI_EDITOR_PREVIEW_ACTION_EVENT, type AiEditorPreviewActionDetail } from "@markra/editor";
+import { AI_EDITOR_PREVIEW_ACTION_EVENT, defaultMarkdownShortcuts, type AiEditorPreviewActionDetail } from "@markra/editor";
 import App from "../App";
 import {
   confirmNativeMarkdownFileDelete,
@@ -127,6 +127,20 @@ vi.mock("../lib/settings/app-settings", () => ({
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     lineHeight: 1.65,
+    markdownShortcuts: {
+      bold: "Mod+B",
+      bulletList: "Mod+Shift+8",
+      codeBlock: "Mod+Alt+C",
+      heading1: "Mod+Alt+1",
+      heading2: "Mod+Alt+2",
+      heading3: "Mod+Alt+3",
+      inlineCode: "Mod+E",
+      italic: "Mod+I",
+      orderedList: "Mod+Shift+7",
+      paragraph: "Mod+Alt+0",
+      quote: "Mod+Shift+B",
+      strikethrough: "Mod+Shift+X"
+    },
     restoreWorkspaceOnStartup: true,
     showWordCount: true
   },
@@ -167,6 +181,20 @@ vi.mock("../lib/settings/app-settings", () => ({
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     lineHeight: 1.65,
+    markdownShortcuts: {
+      bold: "Mod+B",
+      bulletList: "Mod+Shift+8",
+      codeBlock: "Mod+Alt+C",
+      heading1: "Mod+Alt+1",
+      heading2: "Mod+Alt+2",
+      heading3: "Mod+Alt+3",
+      inlineCode: "Mod+E",
+      italic: "Mod+I",
+      orderedList: "Mod+Shift+7",
+      paragraph: "Mod+Alt+0",
+      quote: "Mod+Shift+B",
+      strikethrough: "Mod+Shift+X"
+    },
     restoreWorkspaceOnStartup: true,
     showWordCount: true,
     ...preferences
@@ -514,6 +542,7 @@ export function installAppTestHarness() {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
       showWordCount: true
     });

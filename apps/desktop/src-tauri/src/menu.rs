@@ -1,4 +1,5 @@
 use crate::language::{resolve_startup_language, AppLanguage};
+use std::collections::HashMap;
 use tauri::{
     menu::{AboutMetadata, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     Manager,
@@ -29,12 +30,13 @@ pub(crate) fn create_application_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> tauri::Result<Menu<R>> {
     let language = resolve_startup_language(&app.config().identifier);
-    create_application_menu_for_language(app, language)
+    create_application_menu_for_language(app, language, None)
 }
 
 fn create_application_menu_for_language<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     language: AppLanguage,
+    accelerators: Option<&HashMap<String, String>>,
 ) -> tauri::Result<Menu<R>> {
     let labels = crate::menu_labels::for_language(language);
 
@@ -59,36 +61,120 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         .build()?;
     let settings = app_menu_item(app, SETTINGS_WINDOW_COMMAND, labels.settings, "CmdOrCtrl+,")?;
 
-    let bold = app_menu_item(app, "formatBold", labels.bold, "CmdOrCtrl+B")?;
-    let italic = app_menu_item(app, "formatItalic", labels.italic, "CmdOrCtrl+I")?;
+    let bold = app_menu_item(
+        app,
+        "formatBold",
+        labels.bold,
+        &menu_accelerator(accelerators, "formatBold", "CmdOrCtrl+B"),
+    )?;
+    let italic = app_menu_item(
+        app,
+        "formatItalic",
+        labels.italic,
+        &menu_accelerator(accelerators, "formatItalic", "CmdOrCtrl+I"),
+    )?;
     let strikethrough = app_menu_item(
         app,
         "formatStrikethrough",
         labels.strikethrough,
-        "CmdOrCtrl+Shift+X",
+        &menu_accelerator(accelerators, "formatStrikethrough", "CmdOrCtrl+Shift+X"),
     )?;
-    let inline_code = app_menu_item(app, "formatInlineCode", labels.inline_code, "CmdOrCtrl+E")?;
-    let paragraph = app_menu_item(app, "formatParagraph", labels.paragraph, "CmdOrCtrl+Alt+0")?;
-    let heading_1 = app_menu_item(app, "formatHeading1", labels.heading_1, "CmdOrCtrl+Alt+1")?;
-    let heading_2 = app_menu_item(app, "formatHeading2", labels.heading_2, "CmdOrCtrl+Alt+2")?;
-    let heading_3 = app_menu_item(app, "formatHeading3", labels.heading_3, "CmdOrCtrl+Alt+3")?;
+    let inline_code = app_menu_item(
+        app,
+        "formatInlineCode",
+        labels.inline_code,
+        &menu_accelerator(accelerators, "formatInlineCode", "CmdOrCtrl+E"),
+    )?;
+    let paragraph = app_menu_item(
+        app,
+        "formatParagraph",
+        labels.paragraph,
+        &menu_accelerator(accelerators, "formatParagraph", "CmdOrCtrl+Alt+0"),
+    )?;
+    let heading_1 = app_menu_item(
+        app,
+        "formatHeading1",
+        labels.heading_1,
+        &menu_accelerator(accelerators, "formatHeading1", "CmdOrCtrl+Alt+1"),
+    )?;
+    let heading_2 = app_menu_item(
+        app,
+        "formatHeading2",
+        labels.heading_2,
+        &menu_accelerator(accelerators, "formatHeading2", "CmdOrCtrl+Alt+2"),
+    )?;
+    let heading_3 = app_menu_item(
+        app,
+        "formatHeading3",
+        labels.heading_3,
+        &menu_accelerator(accelerators, "formatHeading3", "CmdOrCtrl+Alt+3"),
+    )?;
     let bullet_list = app_menu_item(
         app,
         "formatBulletList",
         labels.bullet_list,
-        "CmdOrCtrl+Shift+8",
+        &menu_accelerator(accelerators, "formatBulletList", "CmdOrCtrl+Shift+8"),
     )?;
     let ordered_list = app_menu_item(
         app,
         "formatOrderedList",
         labels.ordered_list,
-        "CmdOrCtrl+Shift+7",
+        &menu_accelerator(accelerators, "formatOrderedList", "CmdOrCtrl+Shift+7"),
     )?;
-    let quote = app_menu_item(app, "formatQuote", labels.quote, "CmdOrCtrl+Shift+B")?;
-    let code_block = app_menu_item(app, "formatCodeBlock", labels.code_block, "CmdOrCtrl+Alt+C")?;
-    let link = app_menu_item(app, "insertLink", labels.link, "CmdOrCtrl+K")?;
-    let image = app_menu_item(app, "insertImage", labels.image, "CmdOrCtrl+Shift+I")?;
-    let table = app_menu_item(app, "insertTable", labels.table, "CmdOrCtrl+Alt+T")?;
+    let quote = app_menu_item(
+        app,
+        "formatQuote",
+        labels.quote,
+        &menu_accelerator(accelerators, "formatQuote", "CmdOrCtrl+Shift+B"),
+    )?;
+    let code_block = app_menu_item(
+        app,
+        "formatCodeBlock",
+        labels.code_block,
+        &menu_accelerator(accelerators, "formatCodeBlock", "CmdOrCtrl+Alt+C"),
+    )?;
+    let link = app_menu_item(
+        app,
+        "insertLink",
+        labels.link,
+        &menu_accelerator(accelerators, "insertLink", "CmdOrCtrl+K"),
+    )?;
+    let image = app_menu_item(
+        app,
+        "insertImage",
+        labels.image,
+        &menu_accelerator(accelerators, "insertImage", "CmdOrCtrl+Shift+I"),
+    )?;
+    let table = app_menu_item(
+        app,
+        "insertTable",
+        labels.table,
+        &menu_accelerator(accelerators, "insertTable", "CmdOrCtrl+Alt+T"),
+    )?;
+    let toggle_file_list = app_menu_item(
+        app,
+        "toggleMarkdownFiles",
+        labels.toggle_file_list,
+        &menu_accelerator(accelerators, "toggleMarkdownFiles", "CmdOrCtrl+Shift+M"),
+    )?;
+    let toggle_markra_ai = app_menu_item(
+        app,
+        "toggleAiAgent",
+        labels.toggle_markra_ai,
+        &menu_accelerator(accelerators, "toggleAiAgent", "CmdOrCtrl+Alt+J"),
+    )?;
+    let ai_writing_command = app_menu_item(
+        app,
+        "toggleAiCommand",
+        labels.ai_writing_command,
+        &menu_accelerator(accelerators, "toggleAiCommand", "CmdOrCtrl+Shift+J"),
+    )?;
+    let toggle_source_mode = app_menu_item(
+        app,
+        "toggleSourceMode",
+        labels.toggle_source_mode,
+        &menu_accelerator(accelerators, "toggleSourceMode", "CmdOrCtrl+Alt+S"),
+    )?;
 
     let app_menu = SubmenuBuilder::with_id(app, "markra:app", "Markra")
         .about(Some(AboutMetadata {
@@ -137,6 +223,13 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
 
     let view_menu = SubmenuBuilder::with_id(app, "markra:view", labels.view)
         .fullscreen_with_text(labels.fullscreen)
+        .separator()
+        .items(&[
+            &toggle_file_list,
+            &toggle_markra_ai,
+            &ai_writing_command,
+            &toggle_source_mode,
+        ])
         .build()?;
 
     MenuBuilder::new(app)
@@ -144,15 +237,28 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         .build()
 }
 
+fn menu_accelerator(
+    accelerators: Option<&HashMap<String, String>>,
+    command: &str,
+    fallback: &str,
+) -> String {
+    accelerators
+        .and_then(|items| items.get(command))
+        .filter(|accelerator| !accelerator.trim().is_empty())
+        .cloned()
+        .unwrap_or_else(|| fallback.to_string())
+}
+
 #[tauri::command]
 pub(crate) fn install_application_menu(
     app: tauri::AppHandle,
     language: String,
+    accelerators: Option<HashMap<String, String>>,
 ) -> Result<(), String> {
     let language = AppLanguage::from_code(&language)
         .ok_or_else(|| format!("Unsupported application menu language: {language}"))?;
-    let menu =
-        create_application_menu_for_language(&app, language).map_err(|error| error.to_string())?;
+    let menu = create_application_menu_for_language(&app, language, accelerators.as_ref())
+        .map_err(|error| error.to_string())?;
 
     app.set_menu(menu)
         .map(|_| ())
@@ -190,6 +296,10 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
             | "insertLink"
             | "insertImage"
             | "insertTable"
+            | "toggleMarkdownFiles"
+            | "toggleAiAgent"
+            | "toggleAiCommand"
+            | "toggleSourceMode"
     )
 }
 
@@ -218,6 +328,10 @@ mod tests {
         assert!(is_frontend_menu_command("formatBold"));
         assert!(is_frontend_menu_command("insertImage"));
         assert!(is_frontend_menu_command("insertTable"));
+        assert!(is_frontend_menu_command("toggleMarkdownFiles"));
+        assert!(is_frontend_menu_command("toggleAiAgent"));
+        assert!(is_frontend_menu_command("toggleAiCommand"));
+        assert!(is_frontend_menu_command("toggleSourceMode"));
         assert!(!is_frontend_menu_command("markra:file"));
         assert!(!is_frontend_menu_command("copy"));
     }

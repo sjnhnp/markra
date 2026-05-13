@@ -8,6 +8,13 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
+import {
+  defaultMarkdownShortcuts,
+  markdownShortcutToNativeAccelerator,
+  normalizeMarkdownShortcuts,
+  type MarkdownShortcutAction,
+  type MarkdownShortcutMap
+} from "@markra/editor";
 import type { NativeMarkdownFolderFile } from "./file";
 
 export type NativeMenuHandlers = Partial<Record<NativeMenuCommand, () => unknown | Promise<unknown>>>;
@@ -21,6 +28,7 @@ export type NativeMarkdownFileTreeContextMenuHandlers = {
 
 export type NativeEditorContextMenuOptions = {
   getAiCommandsAvailable?: () => boolean;
+  markdownShortcuts?: MarkdownShortcutMap;
 };
 
 export type NativeMenuCommand =
@@ -48,11 +56,60 @@ export type NativeMenuCommand =
   | "aiRewrite"
   | "aiContinueWriting"
   | "aiSummarize"
-  | "aiTranslate";
+  | "aiTranslate"
+  | "toggleMarkdownFiles"
+  | "toggleAiAgent"
+  | "toggleAiCommand"
+  | "toggleSourceMode";
 
 type NativeMenuCommandPayload = {
   command: NativeMenuCommand;
 };
+
+type NativeApplicationMenuAccelerators = Partial<Record<NativeMenuCommand, string>>;
+
+const nativeMarkdownShortcutCommands: Partial<Record<MarkdownShortcutAction, NativeMenuCommand>> = {
+  bold: "formatBold",
+  bulletList: "formatBulletList",
+  codeBlock: "formatCodeBlock",
+  heading1: "formatHeading1",
+  heading2: "formatHeading2",
+  heading3: "formatHeading3",
+  image: "insertImage",
+  inlineCode: "formatInlineCode",
+  italic: "formatItalic",
+  link: "insertLink",
+  orderedList: "formatOrderedList",
+  paragraph: "formatParagraph",
+  quote: "formatQuote",
+  strikethrough: "formatStrikethrough",
+  table: "insertTable",
+  toggleAiAgent: "toggleAiAgent",
+  toggleAiCommand: "toggleAiCommand",
+  toggleMarkdownFiles: "toggleMarkdownFiles",
+  toggleSourceMode: "toggleSourceMode"
+};
+
+function shortcutAccelerator(shortcuts: MarkdownShortcutMap | undefined, action: MarkdownShortcutAction): string | undefined {
+  const shortcut = normalizeMarkdownShortcuts(shortcuts ?? defaultMarkdownShortcuts)[action];
+
+  return markdownShortcutToNativeAccelerator(shortcut) ?? markdownShortcutToNativeAccelerator(defaultMarkdownShortcuts[action]) ?? undefined;
+}
+
+function nativeAcceleratorsForMarkdownShortcuts(shortcuts: MarkdownShortcutMap | undefined) {
+  const accelerators: NativeApplicationMenuAccelerators = {};
+
+  if (!shortcuts) return accelerators;
+
+  for (const [action, command] of Object.entries(nativeMarkdownShortcutCommands) as Array<[MarkdownShortcutAction, NativeMenuCommand]>) {
+    const accelerator = shortcutAccelerator(shortcuts, action);
+    if (accelerator && accelerator !== shortcutAccelerator(defaultMarkdownShortcuts, action)) {
+      accelerators[command] = accelerator;
+    }
+  }
+
+  return accelerators;
+}
 
 function runNativeMenuAction(handler: (() => unknown | Promise<unknown>) | undefined) {
   if (!handler) return;
@@ -112,11 +169,18 @@ export async function listenNativeApplicationMenuCommands(handlers: NativeMenuHa
   });
 }
 
-export async function installNativeApplicationMenu(handlers: NativeMenuHandlers, language: AppLanguage = "en") {
+export async function installNativeApplicationMenu(
+  handlers: NativeMenuHandlers,
+  language: AppLanguage = "en",
+  markdownShortcuts?: MarkdownShortcutMap
+) {
   const stopListening = await listenNativeApplicationMenuCommands(handlers);
 
   try {
-    await invoke("install_application_menu", { language });
+    await invoke("install_application_menu", {
+      accelerators: nativeAcceleratorsForMarkdownShortcuts(markdownShortcuts),
+      language
+    });
   } catch {
     // Keep the Rust-installed startup menu working if runtime menu refresh is unavailable.
   }
@@ -127,47 +191,47 @@ export async function installNativeApplicationMenu(handlers: NativeMenuHandlers,
 export function createNativeEditorContextMenuItems(
   handlers: NativeMenuHandlers,
   language: AppLanguage = "en",
-  options: { aiCommandsAvailable?: boolean } = {}
+  options: { aiCommandsAvailable?: boolean; markdownShortcuts?: MarkdownShortcutMap } = {}
 ) {
   const label = (key: I18nKey) => menuLabel(language, key);
   const formatItems = [
-    customItem("markra:context:bold", label("menu.bold"), "CmdOrCtrl+B", handlers.formatBold),
-    customItem("markra:context:italic", label("menu.italic"), "CmdOrCtrl+I", handlers.formatItalic),
+    customItem("markra:context:bold", label("menu.bold"), shortcutAccelerator(options.markdownShortcuts, "bold"), handlers.formatBold),
+    customItem("markra:context:italic", label("menu.italic"), shortcutAccelerator(options.markdownShortcuts, "italic"), handlers.formatItalic),
     customItem(
       "markra:context:strikethrough",
       label("menu.strikethrough"),
-      "CmdOrCtrl+Shift+X",
+      shortcutAccelerator(options.markdownShortcuts, "strikethrough"),
       handlers.formatStrikethrough
     ),
     customItem(
       "markra:context:inline-code",
       label("menu.inlineCode"),
-      "CmdOrCtrl+E",
+      shortcutAccelerator(options.markdownShortcuts, "inlineCode"),
       handlers.formatInlineCode
     ),
     separator(),
-    customItem("markra:context:paragraph", label("menu.paragraph"), "CmdOrCtrl+Alt+0", handlers.formatParagraph),
-    customItem("markra:context:heading-1", label("menu.heading1"), "CmdOrCtrl+Alt+1", handlers.formatHeading1),
-    customItem("markra:context:heading-2", label("menu.heading2"), "CmdOrCtrl+Alt+2", handlers.formatHeading2),
-    customItem("markra:context:heading-3", label("menu.heading3"), "CmdOrCtrl+Alt+3", handlers.formatHeading3),
+    customItem("markra:context:paragraph", label("menu.paragraph"), shortcutAccelerator(options.markdownShortcuts, "paragraph"), handlers.formatParagraph),
+    customItem("markra:context:heading-1", label("menu.heading1"), shortcutAccelerator(options.markdownShortcuts, "heading1"), handlers.formatHeading1),
+    customItem("markra:context:heading-2", label("menu.heading2"), shortcutAccelerator(options.markdownShortcuts, "heading2"), handlers.formatHeading2),
+    customItem("markra:context:heading-3", label("menu.heading3"), shortcutAccelerator(options.markdownShortcuts, "heading3"), handlers.formatHeading3),
     separator(),
     customItem(
       "markra:context:bullet-list",
       label("menu.bulletList"),
-      "CmdOrCtrl+Shift+8",
+      shortcutAccelerator(options.markdownShortcuts, "bulletList"),
       handlers.formatBulletList
     ),
     customItem(
       "markra:context:ordered-list",
       label("menu.orderedList"),
-      "CmdOrCtrl+Shift+7",
+      shortcutAccelerator(options.markdownShortcuts, "orderedList"),
       handlers.formatOrderedList
     ),
-    customItem("markra:context:quote", label("menu.quote"), "CmdOrCtrl+Shift+B", handlers.formatQuote),
+    customItem("markra:context:quote", label("menu.quote"), shortcutAccelerator(options.markdownShortcuts, "quote"), handlers.formatQuote),
     customItem(
       "markra:context:code-block",
       label("menu.codeBlock"),
-      "CmdOrCtrl+Alt+C",
+      shortcutAccelerator(options.markdownShortcuts, "codeBlock"),
       handlers.formatCodeBlock
     )
   ];
@@ -179,9 +243,9 @@ export function createNativeEditorContextMenuItems(
     separator(),
     submenu("markra:context:format", label("menu.format"), formatItems),
     separator(),
-    customItem("markra:context:link", label("menu.link"), "CmdOrCtrl+K", handlers.insertLink),
-    customItem("markra:context:image", label("menu.image"), "CmdOrCtrl+Shift+I", handlers.insertImage),
-    customItem("markra:context:table", label("menu.table"), "CmdOrCtrl+Alt+T", handlers.insertTable),
+    customItem("markra:context:link", label("menu.link"), shortcutAccelerator(options.markdownShortcuts, "link"), handlers.insertLink),
+    customItem("markra:context:image", label("menu.image"), shortcutAccelerator(options.markdownShortcuts, "image"), handlers.insertImage),
+    customItem("markra:context:table", label("menu.table"), shortcutAccelerator(options.markdownShortcuts, "table"), handlers.insertTable),
     separator(),
     submenu("markra:context:export", label("menu.export"), [
       customItem("markra:context:export-pdf", label("menu.exportPdf"), "CmdOrCtrl+P", handlers.exportPdf),
@@ -222,7 +286,8 @@ export async function installNativeEditorContextMenu(
 
     event.preventDefault();
     showNativeEditorContextMenu(handlers, language, {
-      aiCommandsAvailable: readAiCommandsAvailable(options)
+      aiCommandsAvailable: readAiCommandsAvailable(options),
+      markdownShortcuts: options.markdownShortcuts
     }).catch(() => {});
   };
 
@@ -236,7 +301,7 @@ export async function installNativeEditorContextMenu(
 async function showNativeEditorContextMenu(
   handlers: NativeMenuHandlers,
   language: AppLanguage,
-  options: { aiCommandsAvailable?: boolean }
+  options: { aiCommandsAvailable?: boolean; markdownShortcuts?: MarkdownShortcutMap }
 ) {
   const menu = await Menu.new({
     items: createNativeEditorContextMenuItems(handlers, language, options)

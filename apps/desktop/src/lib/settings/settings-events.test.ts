@@ -1,4 +1,5 @@
 import { emit, listen } from "@tauri-apps/api/event";
+import { defaultMarkdownShortcuts } from "@markra/editor";
 import {
   listenAppEditorPreferencesChanged,
   listenAppExportSettingsChanged,
@@ -93,6 +94,7 @@ describe("settings events", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide" as const,
       lineHeight: 1.8,
+      markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: false,
       showWordCount: false
     };

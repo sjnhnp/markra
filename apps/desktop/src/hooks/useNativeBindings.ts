@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { installNativeMarkdownFileDrop, type NativeMarkdownDroppedTarget } from "../lib/tauri";
 import {
   installNativeApplicationMenu,
@@ -6,7 +6,14 @@ import {
   type NativeMenuHandlers
 } from "../lib/tauri";
 import type { AiEditIntent } from "@markra/ai";
-import { t, type AppLanguage, type I18nKey } from "@markra/shared";
+import {
+  defaultMarkdownShortcuts,
+  markdownShortcutToKeyboardEventInit,
+  normalizeMarkdownShortcuts,
+  type MarkdownShortcutAction,
+  type MarkdownShortcutMap
+} from "@markra/editor";
+import { matchesKeyboardShortcutEvent, t, type AppLanguage, type I18nKey } from "@markra/shared";
 
 type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
@@ -16,20 +23,30 @@ type NativeMenuHandlerOptions = {
   insertMarkdownSnippet: (open: string, close: string, placeholder: string) => unknown;
   insertMarkdownTable: () => unknown;
   language?: AppLanguage;
+  markdownShortcuts?: MarkdownShortcutMap;
   openDocument: () => unknown | Promise<unknown>;
   runAiQuickAction?: (intent: NativeAiQuickActionIntent, prompt: string) => unknown | Promise<unknown>;
   runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "shiftKey">) => unknown;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
+  toggleAiAgent?: () => unknown | Promise<unknown>;
+  toggleAiCommand?: () => unknown | Promise<unknown>;
+  toggleMarkdownFiles?: () => unknown | Promise<unknown>;
+  toggleSourceMode?: () => unknown | Promise<unknown>;
 };
 
 type ApplicationShortcutOptions = {
   exportHtml?: () => unknown | Promise<unknown>;
   exportPdf?: () => unknown | Promise<unknown>;
+  markdownShortcuts?: MarkdownShortcutMap;
   openDocument: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
+  toggleAiAgent?: () => unknown | Promise<unknown>;
+  toggleAiCommand?: () => unknown | Promise<unknown>;
+  toggleMarkdownFiles?: () => unknown | Promise<unknown>;
+  toggleSourceMode?: () => unknown | Promise<unknown>;
 };
 
 export function useNativeMenuHandlers({
@@ -38,62 +55,116 @@ export function useNativeMenuHandlers({
   insertMarkdownSnippet,
   insertMarkdownTable,
   language = "en",
+  markdownShortcuts,
   openDocument,
   runAiQuickAction,
   runEditorShortcut,
   saveDocument,
-  saveDocumentAs
+  saveDocumentAs,
+  toggleAiAgent,
+  toggleAiCommand,
+  toggleMarkdownFiles,
+  toggleSourceMode
 }: NativeMenuHandlerOptions) {
+  const normalizedMarkdownShortcuts = useMemo(
+    () => normalizeMarkdownShortcuts(markdownShortcuts ?? defaultMarkdownShortcuts),
+    [markdownShortcuts]
+  );
+  const latestOptionsRef = useRef({
+    exportHtml,
+    exportPdf,
+    insertMarkdownSnippet,
+    insertMarkdownTable,
+    language,
+    normalizedMarkdownShortcuts,
+    openDocument,
+    runAiQuickAction,
+    runEditorShortcut,
+    saveDocument,
+    saveDocumentAs,
+    toggleAiAgent,
+    toggleAiCommand,
+    toggleMarkdownFiles,
+    toggleSourceMode
+  });
+  latestOptionsRef.current = {
+    exportHtml,
+    exportPdf,
+    insertMarkdownSnippet,
+    insertMarkdownTable,
+    language,
+    normalizedMarkdownShortcuts,
+    openDocument,
+    runAiQuickAction,
+    runEditorShortcut,
+    saveDocument,
+    saveDocumentAs,
+    toggleAiAgent,
+    toggleAiCommand,
+    toggleMarkdownFiles,
+    toggleSourceMode
+  };
+
   return useMemo<NativeMenuHandlers>(
     () => ({
-      openDocument,
-      saveDocument,
-      saveDocumentAs,
-      exportPdf,
-      exportHtml,
-      formatBold: () => runEditorShortcut("b"),
-      formatItalic: () => runEditorShortcut("i"),
-      formatStrikethrough: () => runEditorShortcut("x", { shiftKey: true }),
-      formatInlineCode: () => runEditorShortcut("e"),
-      formatParagraph: () => runEditorShortcut("0", { altKey: true }),
-      formatHeading1: () => runEditorShortcut("1", { altKey: true }),
-      formatHeading2: () => runEditorShortcut("2", { altKey: true }),
-      formatHeading3: () => runEditorShortcut("3", { altKey: true }),
-      formatBulletList: () => runEditorShortcut("8", { shiftKey: true }),
-      formatOrderedList: () => runEditorShortcut("7", { shiftKey: true }),
-      formatQuote: () => runEditorShortcut("b", { shiftKey: true }),
-      formatCodeBlock: () => runEditorShortcut("c", { altKey: true }),
-      insertLink: () => insertMarkdownSnippet("[", "](https://)", "text"),
-      insertImage: () => insertMarkdownSnippet("![", "](https://)", "alt"),
-      insertTable: insertMarkdownTable,
-      aiPolish: aiQuickAction(runAiQuickAction, "polish", "app.aiPolish", language),
-      aiRewrite: aiQuickAction(runAiQuickAction, "rewrite", "app.aiRewrite", language),
-      aiContinueWriting: aiQuickAction(runAiQuickAction, "continue", "app.aiContinueWriting", language),
-      aiSummarize: aiQuickAction(runAiQuickAction, "summarize", "app.aiSummarize", language),
-      aiTranslate: aiQuickAction(runAiQuickAction, "translate", "app.aiTranslate", language)
+      openDocument: () => latestOptionsRef.current.openDocument(),
+      saveDocument: () => latestOptionsRef.current.saveDocument(),
+      saveDocumentAs: () => latestOptionsRef.current.saveDocumentAs(),
+      exportPdf: () => latestOptionsRef.current.exportPdf?.(),
+      exportHtml: () => latestOptionsRef.current.exportHtml?.(),
+      formatBold: () => runMarkdownShortcut("bold"),
+      formatItalic: () => runMarkdownShortcut("italic"),
+      formatStrikethrough: () => runMarkdownShortcut("strikethrough"),
+      formatInlineCode: () => runMarkdownShortcut("inlineCode"),
+      formatParagraph: () => runMarkdownShortcut("paragraph"),
+      formatHeading1: () => runMarkdownShortcut("heading1"),
+      formatHeading2: () => runMarkdownShortcut("heading2"),
+      formatHeading3: () => runMarkdownShortcut("heading3"),
+      formatBulletList: () => runMarkdownShortcut("bulletList"),
+      formatOrderedList: () => runMarkdownShortcut("orderedList"),
+      formatQuote: () => runMarkdownShortcut("quote"),
+      formatCodeBlock: () => runMarkdownShortcut("codeBlock"),
+      insertLink: () => latestOptionsRef.current.insertMarkdownSnippet("[", "](https://)", "text"),
+      insertImage: () => latestOptionsRef.current.insertMarkdownSnippet("![", "](https://)", "alt"),
+      insertTable: () => latestOptionsRef.current.insertMarkdownTable(),
+      aiPolish: () => runLatestAiQuickAction("polish", "app.aiPolish"),
+      aiRewrite: () => runLatestAiQuickAction("rewrite", "app.aiRewrite"),
+      aiContinueWriting: () => runLatestAiQuickAction("continue", "app.aiContinueWriting"),
+      aiSummarize: () => runLatestAiQuickAction("summarize", "app.aiSummarize"),
+      aiTranslate: () => runLatestAiQuickAction("translate", "app.aiTranslate"),
+      toggleAiAgent: () => latestOptionsRef.current.toggleAiAgent?.(),
+      toggleAiCommand: () => latestOptionsRef.current.toggleAiCommand?.(),
+      toggleMarkdownFiles: () => latestOptionsRef.current.toggleMarkdownFiles?.(),
+      toggleSourceMode: () => latestOptionsRef.current.toggleSourceMode?.()
     }),
-    [
-      insertMarkdownSnippet,
-      insertMarkdownTable,
-      language,
-      openDocument,
-      exportHtml,
-      exportPdf,
-      runAiQuickAction,
-      runEditorShortcut,
-      saveDocument,
-      saveDocumentAs
-    ]
+    []
   );
+
+  function runMarkdownShortcut(action: MarkdownShortcutAction) {
+    const shortcut = markdownShortcutToKeyboardEventInit(latestOptionsRef.current.normalizedMarkdownShortcuts[action]);
+    if (!shortcut) return;
+
+    latestOptionsRef.current.runEditorShortcut(shortcut.key, {
+      altKey: Boolean(shortcut.altKey),
+      shiftKey: Boolean(shortcut.shiftKey)
+    });
+  }
+
+  function runLatestAiQuickAction(intent: NativeAiQuickActionIntent, labelKey: I18nKey) {
+    const { language: currentLanguage, runAiQuickAction: currentRunAiQuickAction } = latestOptionsRef.current;
+
+    return currentRunAiQuickAction?.(intent, t(currentLanguage, labelKey));
+  }
 }
 
-function aiQuickAction(
-  runAiQuickAction: NativeMenuHandlerOptions["runAiQuickAction"],
-  intent: NativeAiQuickActionIntent,
-  labelKey: I18nKey,
-  language: AppLanguage
-) {
-  return () => runAiQuickAction?.(intent, t(language, labelKey));
+function hasMarkdownShortcutOverrides(shortcuts: MarkdownShortcutMap | undefined) {
+  if (!shortcuts) return false;
+
+  const normalizedShortcuts = normalizeMarkdownShortcuts(shortcuts);
+
+  return (Object.keys(defaultMarkdownShortcuts) as MarkdownShortcutAction[]).some(
+    (action) => normalizedShortcuts[action] !== defaultMarkdownShortcuts[action]
+  );
 }
 
 export function useNativeMarkdownDrop(onDrop: (target: NativeMarkdownDroppedTarget) => unknown | Promise<unknown>) {
@@ -120,15 +191,23 @@ export function useNativeMarkdownDrop(onDrop: (target: NativeMarkdownDroppedTarg
 export function useNativeMenus(
   handlers: NativeMenuHandlers,
   language: AppLanguage | null = "en",
-  options: { getAiCommandsAvailable?: () => boolean } = {}
+  options: { getAiCommandsAvailable?: () => boolean; markdownShortcuts?: MarkdownShortcutMap } = {}
 ) {
+  const markdownShortcuts = hasMarkdownShortcutOverrides(options.markdownShortcuts)
+    ? options.markdownShortcuts
+    : undefined;
+
   useEffect(() => {
     if (!language) return;
 
     let active = true;
     let cleanup: (() => unknown) | null = null;
 
-    installNativeApplicationMenu(handlers, language).then((stopListening) => {
+    const installMenu = markdownShortcuts
+      ? installNativeApplicationMenu(handlers, language, markdownShortcuts)
+      : installNativeApplicationMenu(handlers, language);
+
+    installMenu.then((stopListening) => {
       if (!active) {
         stopListening();
         return;
@@ -141,7 +220,7 @@ export function useNativeMenus(
       active = false;
       cleanup?.();
     };
-  }, [handlers, language]);
+  }, [handlers, language, markdownShortcuts]);
 
   useEffect(() => {
     if (!language) return;
@@ -150,7 +229,8 @@ export function useNativeMenus(
     let cleanup: (() => unknown) | null = null;
 
     installNativeEditorContextMenu(globalThis.document, handlers, language, {
-      getAiCommandsAvailable: options.getAiCommandsAvailable
+      getAiCommandsAvailable: options.getAiCommandsAvailable,
+      markdownShortcuts
     }).then((removeContextMenu) => {
       if (!active) {
         removeContextMenu();
@@ -164,21 +244,49 @@ export function useNativeMenus(
       active = false;
       cleanup?.();
     };
-  }, [handlers, language, options.getAiCommandsAvailable]);
+  }, [handlers, language, options.getAiCommandsAvailable, markdownShortcuts]);
 }
 
 export function useApplicationShortcuts({
   exportHtml,
   exportPdf,
+  markdownShortcuts,
   openDocument,
   openFolder,
   saveDocument,
-  saveDocumentAs
+  saveDocumentAs,
+  toggleAiAgent,
+  toggleAiCommand,
+  toggleMarkdownFiles,
+  toggleSourceMode
 }: ApplicationShortcutOptions) {
+  const normalizedMarkdownShortcuts = useMemo(
+    () => normalizeMarkdownShortcuts(markdownShortcuts ?? defaultMarkdownShortcuts),
+    [markdownShortcuts]
+  );
+
   useEffect(() => {
     const handleApplicationShortcut = (event: KeyboardEvent) => {
       const isModKey = event.metaKey || event.ctrlKey;
-      if (!isModKey || event.altKey) return;
+      if (event.defaultPrevented || !isModKey) return;
+
+      const configurableActions: Array<[string, (() => unknown | Promise<unknown>) | undefined]> = [
+        [normalizedMarkdownShortcuts.toggleMarkdownFiles, toggleMarkdownFiles],
+        [normalizedMarkdownShortcuts.toggleAiAgent, toggleAiAgent],
+        [normalizedMarkdownShortcuts.toggleAiCommand, toggleAiCommand],
+        [normalizedMarkdownShortcuts.toggleSourceMode, toggleSourceMode]
+      ];
+
+      for (const [shortcut, handler] of configurableActions) {
+        if (!handler || !matchesKeyboardShortcutEvent(event, shortcut)) continue;
+
+        event.preventDefault();
+        event.stopPropagation();
+        handler();
+        return;
+      }
+
+      if (event.altKey) return;
 
       const key = event.key.toLowerCase();
       if (key === "s" && event.shiftKey) {
@@ -202,9 +310,21 @@ export function useApplicationShortcuts({
       }
     };
 
-    window.addEventListener("keydown", handleApplicationShortcut);
+    window.addEventListener("keydown", handleApplicationShortcut, true);
     return () => {
-      window.removeEventListener("keydown", handleApplicationShortcut);
+      window.removeEventListener("keydown", handleApplicationShortcut, true);
     };
-  }, [exportHtml, exportPdf, openDocument, openFolder, saveDocument, saveDocumentAs]);
+  }, [
+    exportHtml,
+    exportPdf,
+    normalizedMarkdownShortcuts,
+    openDocument,
+    openFolder,
+    saveDocument,
+    saveDocumentAs,
+    toggleAiAgent,
+    toggleAiCommand,
+    toggleMarkdownFiles,
+    toggleSourceMode
+  ]);
 }

@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useRef } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
 import { defaultValueCtx, Editor, editorViewOptionsCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
 import { history } from "@milkdown/kit/plugin/history";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
@@ -29,10 +29,12 @@ import { markraLinkImageLivePlugin } from "@markra/editor";
 import { markraRawHtmlPlugin } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
 import { markraMarkdownShortcuts } from "@markra/editor";
+import { normalizeMarkdownShortcuts } from "@markra/editor";
 import { markraMathPlugin } from "@markra/editor";
 import { markraTableControlsPlugin } from "@markra/editor";
 import { markraAiEditorPreviewPlugin } from "@markra/editor";
 import { markraAiSelectionHoldPlugin } from "@markra/editor";
+import type { MarkdownShortcutMap } from "@markra/editor";
 import type { AiSelectionContext } from "@markra/ai";
 import { t, type AppLanguage } from "@markra/shared";
 import type { EditorContentWidth } from "../lib/settings/app-settings";
@@ -55,6 +57,10 @@ const markraGfm = [
   gfmPlugins
 ].flat();
 
+function markdownShortcutSignature(shortcuts: MarkdownShortcutMap | undefined) {
+  return JSON.stringify(normalizeMarkdownShortcuts(shortcuts));
+}
+
 type MarkdownPaperProps = {
   autoFocus?: boolean;
   bodyFontSize?: number;
@@ -62,6 +68,7 @@ type MarkdownPaperProps = {
   initialContent: string;
   language?: AppLanguage;
   lineHeight?: number;
+  markdownShortcuts?: MarkdownShortcutMap;
   onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => unknown;
   onMarkdownChange: (content: string) => unknown;
   onSaveClipboardImage?: SaveClipboardImage;
@@ -87,6 +94,7 @@ type MilkdownSurfaceProps = {
   openExternalUrl?: MarkdownPaperProps["openExternalUrl"];
   onTextSelectionChange?: MarkdownPaperProps["onTextSelectionChange"];
   resolveImageSrc?: MarkdownPaperProps["resolveImageSrc"];
+  markdownShortcuts?: MarkdownPaperProps["markdownShortcuts"];
 };
 
 function markraTextSelectionObserverPlugin(
@@ -243,7 +251,8 @@ function MilkdownSurface({
   onSaveClipboardImage,
   openExternalUrl,
   onTextSelectionChange,
-  resolveImageSrc
+  resolveImageSrc,
+  markdownShortcuts
 }: MilkdownSurfaceProps) {
   const initialContentRef = useRef(initialContent);
   const onSaveClipboardImageRef = useRef(onSaveClipboardImage);
@@ -304,7 +313,7 @@ function MilkdownSurface({
         .use(history)
         .use(markraCommonmark)
         .use(markraGfm)
-        .use(markraMarkdownShortcuts)
+        .use(markraMarkdownShortcuts(markdownShortcuts))
         .use(markraCodeBlockPlugin)
         .use(markraMathPlugin)
         .use(markraAiSelectionHoldPlugin)
@@ -337,7 +346,7 @@ function MilkdownSurface({
 
       return editor;
     },
-    [language, markdownDocumentLabel, onMarkdownChange, openExternalUrl, resolveImageSrc]
+    [language, markdownDocumentLabel, markdownShortcuts, onMarkdownChange, openExternalUrl, resolveImageSrc]
   );
 
   useEditor(createEditor, [createEditor]);
@@ -357,6 +366,7 @@ export function MarkdownPaper({
   initialContent,
   language = "en",
   lineHeight = 1.65,
+  markdownShortcuts,
   onEditorReady,
   onMarkdownChange,
   onSaveClipboardImage,
@@ -370,6 +380,11 @@ export function MarkdownPaper({
     lineHeight,
     maxWidth: editorContentWidths[contentWidth]
   } satisfies CSSProperties;
+  const shortcutsSignature = markdownShortcutSignature(markdownShortcuts);
+  const normalizedMarkdownShortcuts = useMemo(
+    () => normalizeMarkdownShortcuts(markdownShortcuts),
+    [shortcutsSignature]
+  );
 
   return (
     <section
@@ -388,6 +403,7 @@ export function MarkdownPaper({
             autoFocus={autoFocus}
             initialContent={initialContent}
             language={language}
+            markdownShortcuts={normalizedMarkdownShortcuts}
             onEditorReady={onEditorReady}
             onMarkdownChange={onMarkdownChange}
             onSaveClipboardImage={onSaveClipboardImage}
