@@ -172,6 +172,8 @@ const messages: LocaleMessages = {
   "app.updateRestarting": "更新已安装，正在重启 Markra...",
   "app.updateFailed": "Markra 更新失败。",
   "app.openMarkdownOrFolder": "打开 Markdown 或文件夹",
+  "app.openMarkdownFile": "打开 Markdown 文件",
+  "app.openFolder": "打开文件夹",
   "app.saveMarkdown": "保存 Markdown",
   "app.switchToLightTheme": "切换到浅色主题",
   "app.switchToDarkTheme": "切换到深色主题",

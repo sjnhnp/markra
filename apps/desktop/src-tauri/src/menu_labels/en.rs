@@ -7,6 +7,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     view: "View",
     new_document: "New",
     open_document: "Open...",
+    open_folder: "Open Folder...",
     close_document: "Close File",
     save_document: "Save",
     save_document_as: "Save As...",

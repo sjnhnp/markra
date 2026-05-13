@@ -20,6 +20,7 @@ pub(crate) struct MenuLabels {
     pub(crate) view: &'static str,
     pub(crate) new_document: &'static str,
     pub(crate) open_document: &'static str,
+    pub(crate) open_folder: &'static str,
     pub(crate) close_document: &'static str,
     pub(crate) save_document: &'static str,
     pub(crate) save_document_as: &'static str,

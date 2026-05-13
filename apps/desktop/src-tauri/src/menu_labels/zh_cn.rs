@@ -7,6 +7,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     view: "视图",
     new_document: "新建",
     open_document: "打开...",
+    open_folder: "打开文件夹...",
     close_document: "关闭文件",
     save_document: "保存",
     save_document_as: "另存为...",

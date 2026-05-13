@@ -172,6 +172,8 @@ const messages: BaseLocaleMessages = {
   "app.updateRestarting": "Update installed. Restarting Markra...",
   "app.updateFailed": "Markra update failed.",
   "app.openMarkdownOrFolder": "Open Markdown or Folder",
+  "app.openMarkdownFile": "Open Markdown File",
+  "app.openFolder": "Open Folder",
   "app.saveMarkdown": "Save Markdown",
   "app.switchToLightTheme": "Switch to light theme",
   "app.switchToDarkTheme": "Switch to dark theme",
