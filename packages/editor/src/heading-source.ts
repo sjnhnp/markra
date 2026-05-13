@@ -2,6 +2,7 @@ import { parserCtx, serializerCtx } from "@milkdown/kit/core";
 import { headingSchema, paragraphSchema } from "@milkdown/kit/preset/commonmark";
 import type { Node as ProseNode, NodeType } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "@milkdown/kit/prose/state";
+import { Transform } from "@milkdown/kit/prose/transform";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 
@@ -301,6 +302,24 @@ function finalizeInactiveHeadingSource(
 
   const headingNode = headingNodeFromSource(state, heading, parsedSource, parseMarkdown);
   return tr.replaceWith(parsedSource.from, parsedSource.to, headingNode);
+}
+
+export function normalizeHeadingSourceDocument(
+  state: EditorState,
+  paragraph: NodeType,
+  heading: NodeType,
+  parseMarkdown: (markdown: string) => ProseNode
+) {
+  const activeSource = headingSourceKey.getState(state);
+  if (!activeSource) return state.doc;
+
+  const parsedSource = findHeadingSourceByRange(state, paragraph, heading, activeSource);
+  if (!parsedSource) return state.doc;
+
+  const headingNode = headingNodeFromSource(state, heading, parsedSource, parseMarkdown);
+  const transform = new Transform(state.doc);
+  transform.replaceWith(parsedSource.from, parsedSource.to, headingNode);
+  return transform.doc;
 }
 
 export const markraHeadingSourcePlugin = $prose((ctx) => {

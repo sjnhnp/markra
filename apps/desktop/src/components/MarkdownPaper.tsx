@@ -1,13 +1,15 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
-import { defaultValueCtx, Editor, editorViewOptionsCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
+import { defaultValueCtx, Editor, editorViewCtx, editorViewOptionsCtx, parserCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
 import { history } from "@milkdown/kit/plugin/history";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import {
   commands as commonmarkCommands,
   imageSchema,
+  headingSchema,
   inputRules as commonmarkInputRules,
   keymap as commonmarkKeymap,
   linkSchema,
+  paragraphSchema,
   plugins as commonmarkPlugins,
   schema as commonmarkSchema
 } from "@milkdown/kit/preset/commonmark";
@@ -26,6 +28,7 @@ import { markraLiveMarkdownPlugin } from "@markra/editor";
 import { markraClipboardImagePlugin, type SaveClipboardImage } from "@markra/editor";
 import { markraCodeBlockPlugin } from "@markra/editor";
 import { markraHeadingSourcePlugin } from "@markra/editor";
+import { normalizeHeadingSourceDocument } from "@markra/editor";
 import { markraLinkImageLivePlugin } from "@markra/editor";
 import { markraRawHtmlPlugin } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
@@ -298,9 +301,16 @@ function MilkdownSurface({
           }));
           ctx.get(listenerCtx).updated((editorCtx, doc) => {
             try {
+              const view = editorCtx.get(editorViewCtx);
+              const normalizedDoc = normalizeHeadingSourceDocument(
+                view.state,
+                paragraphSchema.type(editorCtx),
+                headingSchema.type(editorCtx),
+                editorCtx.get(parserCtx)
+              );
               onMarkdownChange(
                 serializeLinkImageLiveMarkdown(
-                  doc,
+                  normalizedDoc === view.state.doc ? doc : normalizedDoc,
                   editorCtx.get(serializerCtx),
                   linkSchema.type(editorCtx),
                   imageSchema.type(editorCtx)

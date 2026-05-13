@@ -57,6 +57,13 @@ import {
 import type { NativeMenuHandlers } from "./test/app-harness";
 
 installAppTestHarness();
+
+async function settleEditorUpdates() {
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, 300);
+  });
+}
+
 describe("Markra workspace", () => {
   it("renders a Typora-like minimal writing surface", async () => {
     const { container } = renderApp();
@@ -1668,6 +1675,34 @@ describe("Markra workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Switch to visual mode" }));
 
     expect(await screen.findByText("Native file")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+  });
+
+  it("keeps a clean file unmodified when a heading is expanded for source editing", async () => {
+    mockOpenMarkdownFile({
+      content: "### C\n\nSummary content.",
+      name: "test.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    const heading = await screen.findByRole("heading", { name: "C" });
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+
+    fireEvent.click(heading);
+
+    expect(await screen.findByText("### C")).toBeInTheDocument();
+    await settleEditorUpdates();
+
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+
+    expect((await screen.findByRole("textbox", { name: "Markdown source" }) as HTMLTextAreaElement).value.trim()).toBe(
+      "### C\n\nSummary content."
+    );
     expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
   });
 
