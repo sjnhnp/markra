@@ -12,12 +12,41 @@ import {
   SquarePen,
   Sun
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode
+} from "react";
+import {
+  closestCenter,
+  DndContext,
+  MouseSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  type UniqueIdentifier
+} from "@dnd-kit/core";
+import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { Button, IconButton, PopoverSurface } from "@markra/ui";
-import type { ResolvedAppTheme } from "../lib/settings/app-settings";
+import {
+  normalizeTitlebarActions,
+  reorderTitlebarActions,
+  type ResolvedAppTheme,
+  type TitlebarActionId,
+  type TitlebarActionPreference
+} from "../lib/settings/app-settings";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import { t, type AppLanguage } from "@markra/shared";
 import { MacWindowControls } from "./MacWindowControls";
+import {
+  SortableTitlebarAction,
+  type SortableTitlebarActionRenderProps
+} from "./SortableTitlebarAction";
 
 type NativeTitleBarProps = {
   aiAgentOpen: boolean;
@@ -36,11 +65,13 @@ type NativeTitleBarProps = {
   sourceMode?: boolean;
   sourceModeDisabled?: boolean;
   theme: ResolvedAppTheme;
+  titlebarActions?: readonly TitlebarActionPreference[];
   titleContent?: ReactNode;
   onCreateMarkdownFile?: () => unknown;
   onOpenMarkdown: () => unknown;
   onOpenMarkdownFolder?: () => unknown;
   onSaveMarkdown: () => unknown;
+  onTitlebarActionsChange?: (actions: TitlebarActionPreference[]) => unknown;
   onToggleAiAgent: () => unknown;
   onToggleMarkdownFiles: () => unknown;
   onToggleSourceMode?: () => unknown;
@@ -49,6 +80,11 @@ type NativeTitleBarProps = {
 
 const dimTitlebarIconButtonClassName =
   "opacity-55 hover:opacity-100 focus-visible:opacity-100";
+const titlebarActionDragThresholdPx = 4;
+
+function mergeClassNames(...classNames: Array<string | false | null | undefined>) {
+  return classNames.filter(Boolean).join(" ");
+}
 
 export function NativeTitleBar({
   aiAgentOpen,
@@ -67,21 +103,35 @@ export function NativeTitleBar({
   sourceMode = false,
   sourceModeDisabled = false,
   theme,
+  titlebarActions,
   titleContent,
   onCreateMarkdownFile,
   onOpenMarkdown,
   onOpenMarkdownFolder,
   onSaveMarkdown,
+  onTitlebarActionsChange,
   onToggleAiAgent,
   onToggleMarkdownFiles,
   onToggleSourceMode,
   onToggleTheme
 }: NativeTitleBarProps) {
   const openMenuRef = useRef<HTMLDivElement | null>(null);
+  const draggingActionIdRef = useRef<TitlebarActionId | null>(null);
+  const suppressActionClickIdsRef = useRef(new Set<TitlebarActionId>());
   const [openMenuVisible, setOpenMenuVisible] = useState(false);
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
   const splitOpenChoiceAvailable = platform !== "macos" && Boolean(onOpenMarkdownFolder);
+  const normalizedTitlebarActions = useMemo(() => normalizeTitlebarActions(titlebarActions), [titlebarActions]);
+  const visibleTitlebarActionIds = useMemo(
+    () => normalizedTitlebarActions.filter((action) => action.visible).map((action) => action.id),
+    [normalizedTitlebarActions]
+  );
+  const sensors = useSensors(useSensor(MouseSensor, {
+    activationConstraint: {
+      distance: titlebarActionDragThresholdPx
+    }
+  }));
 
   useEffect(() => {
     if (!openMenuVisible) return;
@@ -107,12 +157,65 @@ export function NativeTitleBar({
     action();
   };
 
-  const renderOpenAction = () => {
+  const titlebarActionIdFromDndId = (id: UniqueIdentifier) => {
+    const actionId = id as TitlebarActionId;
+
+    return normalizedTitlebarActions.some((action) => action.id === actionId) ? actionId : null;
+  };
+  const suppressActionClick = (id: TitlebarActionId) => {
+    suppressActionClickIdsRef.current.add(id);
+    window.setTimeout(() => {
+      suppressActionClickIdsRef.current.delete(id);
+    }, 0);
+  };
+  const handleTitlebarActionDragStart = ({ active }: DragStartEvent) => {
+    draggingActionIdRef.current = titlebarActionIdFromDndId(active.id);
+  };
+  const handleTitlebarActionDragEnd = ({ active, over }: DragEndEvent) => {
+    const draggedId = titlebarActionIdFromDndId(active.id);
+    const targetId = over ? titlebarActionIdFromDndId(over.id) : null;
+    draggingActionIdRef.current = null;
+    if (draggedId) suppressActionClick(draggedId);
+    if (targetId) suppressActionClick(targetId);
+    if (!draggedId || !targetId || !onTitlebarActionsChange) return;
+
+    const nextActions = reorderTitlebarActions(normalizedTitlebarActions, draggedId, targetId);
+    const nextOrder = nextActions.map((action) => action.id).join(":");
+    const currentOrder = normalizedTitlebarActions.map((action) => action.id).join(":");
+    if (nextOrder === currentOrder) return;
+
+    onTitlebarActionsChange(nextActions);
+  };
+  const handleTitlebarActionDragCancel = () => {
+    const draggedId = draggingActionIdRef.current;
+    draggingActionIdRef.current = null;
+    if (draggedId) suppressActionClick(draggedId);
+  };
+
+  const handleTitlebarActionClick = (
+    id: TitlebarActionId,
+    event: ReactMouseEvent<HTMLElement>,
+    action: () => unknown
+  ) => {
+    if (suppressActionClickIdsRef.current.has(id)) {
+      suppressActionClickIdsRef.current.delete(id);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    action();
+  };
+
+  const renderOpenAction = (sortable: SortableTitlebarActionRenderProps) => {
     if (!splitOpenChoiceAvailable || !onOpenMarkdownFolder) {
       return (
         <IconButton
           label={label("app.openMarkdownOrFolder")}
-          onClick={onOpenMarkdown}
+          className={sortable.actionClassName}
+          onClick={(event) => handleTitlebarActionClick("open", event, onOpenMarkdown)}
+          {...sortable.actionAttributes}
+          {...sortable.actionListeners}
         >
           <FolderOpen aria-hidden="true" size={15} />
         </IconButton>
@@ -122,11 +225,18 @@ export function NativeTitleBar({
     return (
       <div className="relative" ref={openMenuRef}>
         <IconButton
-          className={openMenuVisible ? "bg-(--bg-active) text-(--text-heading)" : ""}
+          className={mergeClassNames(
+            openMenuVisible ? "bg-(--bg-active) text-(--text-heading)" : "",
+            sortable.actionClassName
+          )}
           label={label("app.openMarkdownOrFolder")}
           aria-expanded={openMenuVisible}
           aria-haspopup="menu"
-          onClick={() => setOpenMenuVisible((current) => !current)}
+          onClick={(event) =>
+            handleTitlebarActionClick("open", event, () => setOpenMenuVisible((current) => !current))
+          }
+          {...sortable.actionAttributes}
+          {...sortable.actionListeners}
         >
           <FolderOpen aria-hidden="true" size={15} />
         </IconButton>
@@ -161,59 +271,126 @@ export function NativeTitleBar({
     );
   };
 
+  const renderTitlebarAction = (id: TitlebarActionId, sortable: SortableTitlebarActionRenderProps) => {
+    if (id === "aiAgent") {
+      return (
+        <IconButton
+          className={mergeClassNames(
+            aiAgentOpen
+              ? "bg-(--bg-active) text-(--text-heading) opacity-100"
+              : "bg-transparent text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading)",
+            sortable.actionClassName
+          )}
+          label={label("app.toggleAiAgent")}
+          pressed={aiAgentOpen}
+          onClick={(event) => handleTitlebarActionClick("aiAgent", event, onToggleAiAgent)}
+          {...sortable.actionAttributes}
+          {...sortable.actionListeners}
+        >
+          <Bot aria-hidden="true" size={15} />
+        </IconButton>
+      );
+    }
+
+    if (id === "sourceMode") {
+      if (!onToggleSourceMode) return null;
+
+      if (sourceMode) {
+        return (
+          <IconButton
+            className={mergeClassNames(
+              "bg-(--bg-active) text-(--text-heading) opacity-100 disabled:opacity-35",
+              sortable.actionClassName
+            )}
+            disabled={sourceModeDisabled}
+            label={label("app.switchToVisualMode")}
+            onClick={(event) => handleTitlebarActionClick("sourceMode", event, onToggleSourceMode)}
+            {...sortable.actionAttributes}
+            {...sortable.actionListeners}
+          >
+            <Eye aria-hidden="true" size={15} />
+          </IconButton>
+        );
+      }
+
+      return (
+        <IconButton
+          className={mergeClassNames("disabled:opacity-35", sortable.actionClassName)}
+          disabled={sourceModeDisabled}
+          label={label("app.switchToSourceMode")}
+          onClick={(event) => handleTitlebarActionClick("sourceMode", event, onToggleSourceMode)}
+          {...sortable.actionAttributes}
+          {...sortable.actionListeners}
+        >
+          <Code2 aria-hidden="true" size={15} />
+        </IconButton>
+      );
+    }
+
+    if (id === "open") return renderOpenAction(sortable);
+
+    if (id === "save") {
+      return (
+        <IconButton
+          className={mergeClassNames("disabled:opacity-35", sortable.actionClassName)}
+          disabled={saveDisabled}
+          label={label("app.saveMarkdown")}
+          onClick={(event) => handleTitlebarActionClick("save", event, onSaveMarkdown)}
+          {...sortable.actionAttributes}
+          {...sortable.actionListeners}
+        >
+          <Save aria-hidden="true" size={15} />
+        </IconButton>
+      );
+    }
+
+    return (
+      <IconButton
+        className={sortable.actionClassName}
+        label={themeActionLabel}
+        onClick={(event) => handleTitlebarActionClick("theme", event, onToggleTheme)}
+        {...sortable.actionAttributes}
+        {...sortable.actionListeners}
+      >
+        {theme === "dark" ? <Sun aria-hidden="true" size={15} /> : <Moon aria-hidden="true" size={15} />}
+      </IconButton>
+    );
+  };
+
   const renderDocumentActions = (className: string, style?: CSSProperties) => (
     <div
       className={className}
       aria-label={label("app.fileActions")}
       style={style}
     >
-      <IconButton
-        className={
-          aiAgentOpen
-            ? "bg-(--bg-active) text-(--text-heading) opacity-100"
-            : "bg-transparent text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading)"
-        }
-        label={label("app.toggleAiAgent")}
-        pressed={aiAgentOpen}
-        onClick={onToggleAiAgent}
+      <DndContext
+        collisionDetection={closestCenter}
+        sensors={sensors}
+        onDragCancel={handleTitlebarActionDragCancel}
+        onDragEnd={handleTitlebarActionDragEnd}
+        onDragStart={handleTitlebarActionDragStart}
       >
-        <Bot aria-hidden="true" size={15} />
-      </IconButton>
-      {onToggleSourceMode && sourceMode ? (
-        <IconButton
-          className="bg-(--bg-active) text-(--text-heading) opacity-100 disabled:opacity-35"
-          disabled={sourceModeDisabled}
-          label={label("app.switchToVisualMode")}
-          onClick={onToggleSourceMode}
-        >
-          <Eye aria-hidden="true" size={15} />
-        </IconButton>
-      ) : null}
-      {onToggleSourceMode && !sourceMode ? (
-        <IconButton
-          className="disabled:opacity-35"
-          disabled={sourceModeDisabled}
-          label={label("app.switchToSourceMode")}
-          onClick={onToggleSourceMode}
-        >
-          <Code2 aria-hidden="true" size={15} />
-        </IconButton>
-      ) : null}
-      {renderOpenAction()}
-      <IconButton
-        className="disabled:opacity-35"
-        disabled={saveDisabled}
-        label={label("app.saveMarkdown")}
-        onClick={onSaveMarkdown}
-      >
-        <Save aria-hidden="true" size={15} />
-      </IconButton>
-      <IconButton
-        label={themeActionLabel}
-        onClick={onToggleTheme}
-      >
-        {theme === "dark" ? <Sun aria-hidden="true" size={15} /> : <Moon aria-hidden="true" size={15} />}
-      </IconButton>
+        <SortableContext items={visibleTitlebarActionIds} strategy={horizontalListSortingStrategy}>
+          {normalizedTitlebarActions.map((action) => action.visible ? (
+            <SortableTitlebarAction
+              key={action.id}
+              disabled={!onTitlebarActionsChange}
+              id={action.id}
+            >
+              {(sortable) => (
+                <span
+                  className={sortable.itemClassName}
+                  data-titlebar-action={action.id}
+                  ref={sortable.setItemRef}
+                  style={sortable.itemStyle}
+                >
+                  {renderTitlebarAction(action.id, sortable)}
+                </span>
+              )}
+            </SortableTitlebarAction>
+          ) : null)}
+        </SortableContext>
+      </DndContext>
     </div>
   );
 

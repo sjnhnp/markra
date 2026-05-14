@@ -61,7 +61,8 @@ import {
   initializeStoredAiAgentSession,
   saveStoredEditorPreferences,
   saveStoredAiAgentSessionTitle,
-  setStoredAiAgentSessionArchived
+  setStoredAiAgentSessionArchived,
+  type TitlebarActionPreference
 } from "./lib/settings/app-settings";
 import { notifyAppEditorPreferencesChanged } from "./lib/settings/settings-events";
 import {
@@ -756,6 +757,16 @@ export default function App() {
       .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
       .catch(() => {});
   }, [activeEditorContentWidth, editorPreferences.preferences]);
+  const handleTitlebarActionsChange = useCallback((titlebarActions: TitlebarActionPreference[]) => {
+    const nextPreferences = {
+      ...editorPreferences.preferences,
+      titlebarActions
+    };
+
+    saveStoredEditorPreferences(nextPreferences)
+      .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
+      .catch(() => {});
+  }, [editorPreferences.preferences]);
   const handleCreateMarkdownTreeFile = useCallback(async (fileName: string) => {
     try {
       const file = await createMarkdownTreeFile(fileName);
@@ -1225,11 +1236,13 @@ export default function App() {
           sourceMode={sourceMode}
           sourceModeDisabled={!sourceModeAvailable}
           theme={appTheme.resolvedTheme}
+          titlebarActions={editorPreferences.preferences.titlebarActions}
           titleContent={titlebarDocumentTabs}
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
           onOpenMarkdown={handleOpenMarkdownFile}
           onOpenMarkdownFolder={handleOpenMarkdownFolder}
           onSaveMarkdown={handleSaveClick}
+          onTitlebarActionsChange={handleTitlebarActionsChange}
           onToggleAiAgent={handleAiAgentToggle}
           onToggleMarkdownFiles={handleFileTreeToggle}
           onToggleSourceMode={handleEditorModeToggle}

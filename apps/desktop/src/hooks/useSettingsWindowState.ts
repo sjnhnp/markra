@@ -29,6 +29,7 @@ import {
   type WebSearchSettings
 } from "../lib/settings/app-settings";
 import {
+  listenAppEditorPreferencesChanged,
   notifyAppAiSettingsChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
@@ -111,13 +112,26 @@ export function useSettingsWindowState() {
 
   useEffect(() => {
     let cancelled = false;
+    let stopListening: (() => unknown) | null = null;
 
     getStoredEditorPreferences().then((preferences) => {
       if (!cancelled) setEditorPreferences(preferences);
     }).catch(() => {});
 
+    listenAppEditorPreferencesChanged((preferences) => {
+      if (!cancelled) setEditorPreferences(preferences);
+    }).then((cleanup) => {
+      if (cancelled) {
+        cleanup();
+        return;
+      }
+
+      stopListening = cleanup;
+    }).catch(() => {});
+
     return () => {
       cancelled = true;
+      stopListening?.();
     };
   }, []);
 

@@ -1,15 +1,38 @@
 import {
+  Bot,
   ChevronDown,
+  Code2,
+  FolderOpen,
   Languages,
   Monitor,
   Moon,
   RefreshCw,
   RotateCcw,
+  Save,
   Sun,
   type LucideIcon
 } from "lucide-react";
-import { Children, type ReactNode, useEffect, useMemo, useState } from "react";
-import { Button, SegmentedControl, SegmentedControlItem, Switch } from "@markra/ui";
+import {
+  Children,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
+import {
+  closestCenter,
+  DndContext,
+  MouseSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  type UniqueIdentifier
+} from "@dnd-kit/core";
+import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
+import { Button, IconButton, SegmentedControl, SegmentedControlItem, Switch } from "@markra/ui";
 import {
   defaultMarkdownShortcuts,
   markdownShortcutFromKeyboardEvent,
@@ -17,14 +40,18 @@ import {
   parseMarkdownShortcut,
   type MarkdownShortcutAction
 } from "@markra/editor";
-import type {
-  AppTheme,
-  EditorPreferences,
-  ExportSettings as ExportSettingsValue,
-  PdfMarginPreset,
-  PdfPageSize,
-  WebSearchProviderId,
-  WebSearchSettings
+import {
+  defaultTitlebarActions,
+  reorderTitlebarActions,
+  type AppTheme,
+  type EditorPreferences,
+  type ExportSettings as ExportSettingsValue,
+  type PdfMarginPreset,
+  type PdfPageSize,
+  type TitlebarActionId,
+  type TitlebarActionPreference,
+  type WebSearchProviderId,
+  type WebSearchSettings
 } from "../lib/settings/app-settings";
 import type { DesktopPlatform } from "../lib/platform";
 import { clampNumber, supportedLanguages, type AppLanguage, type I18nKey } from "@markra/shared";
@@ -34,6 +61,7 @@ import {
   editorCustomContentWidthMin,
   normalizeEditorContentWidthPx
 } from "../lib/editor-width";
+import { SortableTitlebarAction } from "./SortableTitlebarAction";
 
 type Translate = (key: I18nKey) => string;
 
@@ -63,10 +91,43 @@ const themeOptions: Array<{
   }
 ];
 
+const titlebarActionOptions: Array<{
+  icon: LucideIcon;
+  id: TitlebarActionId;
+  labelKey: I18nKey;
+}> = [
+  {
+    icon: Bot,
+    id: "aiAgent",
+    labelKey: "app.toggleAiAgent"
+  },
+  {
+    icon: Code2,
+    id: "sourceMode",
+    labelKey: "app.switchToSourceMode"
+  },
+  {
+    icon: FolderOpen,
+    id: "open",
+    labelKey: "app.openMarkdownOrFolder"
+  },
+  {
+    icon: Save,
+    id: "save",
+    labelKey: "app.saveMarkdown"
+  },
+  {
+    icon: Moon,
+    id: "theme",
+    labelKey: "app.switchToDarkTheme"
+  }
+];
+
 const bodyFontSizeOptions = [14, 15, 16, 17, 18, 20];
 const contentWidthRatioSpanPx = editorCustomContentWidthMax - editorCustomContentWidthMin;
 const contentWidthRatioMin = 0;
 const contentWidthRatioMax = 100;
+const titlebarActionDragThresholdPx = 4;
 const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
 const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
 const lineHeightOptions = [1.5, 1.65, 1.8];
@@ -92,6 +153,13 @@ const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
   toggleMarkdownFiles: "app.toggleMarkdownFiles",
   toggleSourceMode: "app.switchToSourceMode"
 };
+const titlebarActionVisibleClassName =
+  "aria-[pressed=true]:border-transparent aria-[pressed=true]:bg-(--bg-active) aria-[pressed=true]:text-(--text-heading) aria-[pressed=true]:opacity-100 aria-[pressed=true]:hover:bg-(--bg-active)";
+const titlebarActionHiddenClassName = "text-(--text-secondary) opacity-55 hover:opacity-100";
+
+function mergeClassNames(...classNames: Array<string | false | null | undefined>) {
+  return classNames.filter(Boolean).join(" ");
+}
 
 const keyboardShortcutSections: Array<{
   labelKey: I18nKey;
@@ -552,6 +620,144 @@ function ThemeSegmentedControl({
   );
 }
 
+function titlebarActionOption(id: TitlebarActionId) {
+  return titlebarActionOptions.find((option) => option.id === id) ?? titlebarActionOptions[0]!;
+}
+
+function SettingsTitlebarActionsControl({
+  onUpdatePreferences,
+  preferences,
+  translate
+}: {
+  onUpdatePreferences: (preferences: EditorPreferences) => unknown;
+  preferences: EditorPreferences;
+  translate: Translate;
+}) {
+  const actions = preferences.titlebarActions;
+  const draggingActionIdRef = useRef<TitlebarActionId | null>(null);
+  const suppressActionClickIdsRef = useRef(new Set<TitlebarActionId>());
+  const actionIds = useMemo(() => actions.map((action) => action.id), [actions]);
+  const sensors = useSensors(useSensor(MouseSensor, {
+    activationConstraint: {
+      distance: titlebarActionDragThresholdPx
+    }
+  }));
+  const updateActions = (titlebarActions: TitlebarActionPreference[]) => {
+    onUpdatePreferences({
+      ...preferences,
+      titlebarActions
+    });
+  };
+  const toggleAction = (id: TitlebarActionId) => {
+    updateActions(actions.map((action) =>
+      action.id === id ? { ...action, visible: !action.visible } : action
+    ));
+  };
+  const titlebarActionIdFromDndId = (id: UniqueIdentifier) => {
+    const actionId = id as TitlebarActionId;
+
+    return actions.some((action) => action.id === actionId) ? actionId : null;
+  };
+  const suppressActionClick = (id: TitlebarActionId) => {
+    suppressActionClickIdsRef.current.add(id);
+    window.setTimeout(() => {
+      suppressActionClickIdsRef.current.delete(id);
+    }, 0);
+  };
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    draggingActionIdRef.current = titlebarActionIdFromDndId(active.id);
+  };
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    const draggedId = titlebarActionIdFromDndId(active.id);
+    const targetId = over ? titlebarActionIdFromDndId(over.id) : null;
+    draggingActionIdRef.current = null;
+    if (draggedId) suppressActionClick(draggedId);
+    if (targetId) suppressActionClick(targetId);
+    if (!draggedId || !targetId) return;
+
+    updateActions(reorderTitlebarActions(actions, draggedId, targetId));
+  };
+  const handleDragCancel = () => {
+    const draggedId = draggingActionIdRef.current;
+    draggingActionIdRef.current = null;
+    if (draggedId) suppressActionClick(draggedId);
+  };
+  const handleClick = (id: TitlebarActionId, event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (suppressActionClickIdsRef.current.has(id)) {
+      suppressActionClickIdsRef.current.delete(id);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    toggleAction(id);
+  };
+
+  return (
+    <div
+      className="inline-flex items-center gap-1.5"
+      role="group"
+      aria-label={translate("settings.editor.titlebarActions")}
+    >
+      <div className="inline-flex h-8 items-center gap-1 rounded-md border border-(--border-default) bg-(--bg-primary) p-0.5">
+        <DndContext
+          collisionDetection={closestCenter}
+          sensors={sensors}
+          onDragCancel={handleDragCancel}
+          onDragEnd={handleDragEnd}
+          onDragStart={handleDragStart}
+        >
+          <SortableContext items={actionIds} strategy={horizontalListSortingStrategy}>
+            {actions.map((action) => {
+              const option = titlebarActionOption(action.id);
+              const Icon = option.icon;
+              const label = translate(option.labelKey);
+
+              return (
+                <SortableTitlebarAction key={action.id} id={action.id}>
+                  {(sortable) => (
+                    <span
+                      className={sortable.itemClassName}
+                      data-titlebar-action={action.id}
+                      ref={sortable.setItemRef}
+                      style={sortable.itemStyle}
+                    >
+                      <IconButton
+                        className={mergeClassNames(
+                          titlebarActionVisibleClassName,
+                          action.visible ? "" : titlebarActionHiddenClassName,
+                          sortable.actionClassName
+                        )}
+                        data-visible={action.visible ? "true" : "false"}
+                        label={label}
+                        pressed={action.visible}
+                        title={label}
+                        size="icon-xs"
+                        onClick={(event) => handleClick(action.id, event)}
+                        {...sortable.actionAttributes}
+                        {...sortable.actionListeners}
+                      >
+                        <Icon aria-hidden="true" size={13} />
+                      </IconButton>
+                    </span>
+                  )}
+                </SortableTitlebarAction>
+              );
+            })}
+          </SortableContext>
+        </DndContext>
+      </div>
+      <SettingsButton
+        label={translate("settings.editor.titlebarActionsReset")}
+        onClick={() => updateActions(defaultTitlebarActions.map((action) => ({ ...action })))}
+      >
+        <RotateCcw aria-hidden="true" size={13} />
+        {translate("settings.editor.shortcutsReset")}
+      </SettingsButton>
+    </div>
+  );
+}
+
 export function GeneralSettings({
   language,
   onCheckForUpdates,
@@ -872,6 +1078,17 @@ export function EditorSettings({
                   clipboardImageFolder: value
                 })
               }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.titlebarActions")}
+          description={translate("settings.editor.titlebarActionsDescription")}
+          action={
+            <SettingsTitlebarActionsControl
+              preferences={preferences}
+              translate={translate}
+              onUpdatePreferences={onUpdatePreferences}
             />
           }
         />

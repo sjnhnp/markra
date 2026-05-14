@@ -40,6 +40,11 @@ export type AppTheme = "light" | "dark" | "system";
 export type ResolvedAppTheme = "light" | "dark";
 export type PdfMarginPreset = "custom" | "default" | "narrow" | "none" | "normal" | "wide";
 export type PdfPageSize = "a4" | "custom" | "default" | "letter";
+export type TitlebarActionId = "aiAgent" | "sourceMode" | "open" | "save" | "theme";
+export type TitlebarActionPreference = {
+  id: TitlebarActionId;
+  visible: boolean;
+};
 export type AiAgentPreferences = {
   thinkingEnabled: boolean;
   webSearchEnabled: boolean;
@@ -55,6 +60,7 @@ export type EditorPreferences = {
   markdownShortcuts: MarkdownShortcutBindings;
   restoreWorkspaceOnStartup: boolean;
   showDocumentTabs: boolean;
+  titlebarActions: TitlebarActionPreference[];
   showWordCount: boolean;
 };
 export type ExportSettings = {
@@ -79,6 +85,14 @@ export type { AppLanguage };
 export type { EditorContentWidth };
 export type { WebSearchProviderId, WebSearchSettings };
 
+export const defaultTitlebarActions: readonly TitlebarActionPreference[] = [
+  { id: "aiAgent", visible: true },
+  { id: "sourceMode", visible: true },
+  { id: "open", visible: true },
+  { id: "save", visible: true },
+  { id: "theme", visible: true }
+];
+
 export const defaultEditorPreferences: EditorPreferences = {
   autoOpenAiOnSelection: true,
   bodyFontSize: 16,
@@ -90,6 +104,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   markdownShortcuts: defaultMarkdownShortcuts,
   restoreWorkspaceOnStartup: true,
   showDocumentTabs: true,
+  titlebarActions: [...defaultTitlebarActions],
   showWordCount: true
 };
 
@@ -497,7 +512,12 @@ export function normalizeAiAgentPreferences(value: unknown): AiAgentPreferences 
 }
 
 export function normalizeEditorPreferences(value: unknown): EditorPreferences {
-  if (typeof value !== "object" || value === null) return defaultEditorPreferences;
+  if (typeof value !== "object" || value === null) {
+    return {
+      ...defaultEditorPreferences,
+      titlebarActions: [...defaultTitlebarActions]
+    };
+  }
 
   const preferences = value as Partial<EditorPreferences>;
 
@@ -530,9 +550,58 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       typeof preferences.showDocumentTabs === "boolean"
         ? preferences.showDocumentTabs
         : defaultEditorPreferences.showDocumentTabs,
+    titlebarActions: normalizeTitlebarActions(preferences.titlebarActions),
     showWordCount:
       typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount
   };
+}
+
+export function normalizeTitlebarActions(value: unknown): TitlebarActionPreference[] {
+  if (!Array.isArray(value)) return [...defaultTitlebarActions];
+
+  const knownIds = new Set<TitlebarActionId>(defaultTitlebarActions.map((action) => action.id));
+  const usedIds = new Set<TitlebarActionId>();
+  const normalized: TitlebarActionPreference[] = [];
+
+  value.forEach((item) => {
+    const candidate = typeof item === "object" && item !== null ? item as Partial<TitlebarActionPreference> : null;
+    const id = candidate?.id;
+    if (!id || !knownIds.has(id) || usedIds.has(id)) return;
+
+    usedIds.add(id);
+    normalized.push({
+      id,
+      visible: typeof candidate.visible === "boolean" ? candidate.visible : true
+    });
+  });
+
+  defaultTitlebarActions.forEach((action) => {
+    if (usedIds.has(action.id)) return;
+
+    normalized.push({ ...action });
+  });
+
+  return normalized;
+}
+
+export function reorderTitlebarActions(
+  actions: readonly TitlebarActionPreference[],
+  draggedId: TitlebarActionId,
+  targetId: TitlebarActionId
+): TitlebarActionPreference[] {
+  const normalized = normalizeTitlebarActions(actions);
+  if (draggedId === targetId) return normalized;
+
+  const fromIndex = normalized.findIndex((action) => action.id === draggedId);
+  const toIndex = normalized.findIndex((action) => action.id === targetId);
+  if (fromIndex < 0 || toIndex < 0) return normalized;
+
+  const draggedAction = normalized[fromIndex];
+  const nextActions = normalized.filter((action) => action.id !== draggedId);
+
+  nextActions.splice(toIndex, 0, draggedAction);
+
+  return nextActions;
 }
 
 export function normalizeExportSettings(value: unknown): ExportSettings {

@@ -8,6 +8,30 @@ function translate(key: Parameters<typeof t>[1]) {
   return t("en", key);
 }
 
+function mockTitlebarActionRects(actionIds: string[]) {
+  actionIds.forEach((id, index) => {
+    const element = document.querySelector(`[data-titlebar-action="${id}"]`) as HTMLElement;
+    const left = index * 28;
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      bottom: 24,
+      height: 24,
+      left,
+      right: left + 24,
+      top: 0,
+      width: 24,
+      x: left,
+      y: 0,
+      toJSON: () => ({})
+    } as DOMRect);
+  });
+}
+
+async function settleSortableDrag() {
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, 60);
+  });
+}
+
 describe("EditorSettings", () => {
   it("keeps markdown shortcuts out of the editor tab", () => {
     render(
@@ -109,6 +133,116 @@ describe("EditorSettings", () => {
       ...defaultEditorPreferences,
       contentWidth: "default",
       contentWidthPx: null
+    });
+  });
+
+  it("manages titlebar action order and visibility with icon buttons", async () => {
+    const onUpdatePreferences = vi.fn();
+    const preferences: EditorPreferences = {
+      ...defaultEditorPreferences,
+      titlebarActions: [
+        { id: "theme", visible: true },
+        { id: "save", visible: false },
+        { id: "open", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "aiAgent", visible: true }
+      ]
+    };
+
+    render(
+      <EditorSettings
+        preferences={preferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const group = screen.getByRole("group", { name: "Toolbar buttons" });
+    const buttons = within(group).getAllByRole("button").filter((button) => button.ariaLabel !== "Reset toolbar buttons");
+
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Switch to dark theme",
+      "Save Markdown",
+      "Open Markdown or Folder",
+      "Switch to source mode",
+      "Toggle Markra AI"
+    ]);
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveAttribute("data-visible", "true");
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveClass("aria-[pressed=true]:bg-(--bg-active)");
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).not.toHaveClass("aria-[pressed=true]:border-(--accent)");
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).not.toHaveClass("aria-[pressed=true]:shadow-[inset_0_0_0_1px_var(--accent)]");
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveClass("transition-transform");
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toHaveAttribute("data-visible", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Markdown" }));
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...preferences,
+      titlebarActions: [
+        { id: "theme", visible: true },
+        { id: "save", visible: true },
+        { id: "open", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "aiAgent", visible: true }
+      ]
+    });
+
+    const themeButton = screen.getByRole("button", { name: "Switch to dark theme" });
+    mockTitlebarActionRects(["theme", "save", "open", "sourceMode", "aiAgent"]);
+
+    fireEvent.mouseDown(themeButton, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 60, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 60, clientY: 10 });
+    await settleSortableDrag();
+
+    expect(onUpdatePreferences).toHaveBeenLastCalledWith({
+      ...preferences,
+      titlebarActions: [
+        { id: "save", visible: false },
+        { id: "open", visible: true },
+        { id: "theme", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "aiAgent", visible: true }
+      ]
+    });
+
+    const sourceModeButton = screen.getByRole("button", { name: "Switch to source mode" });
+
+    fireEvent.mouseDown(sourceModeButton, {
+      button: 0,
+      clientX: 80,
+      clientY: 10
+    });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 70, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 20, clientY: 10 });
+    await settleSortableDrag();
+
+    expect(onUpdatePreferences).toHaveBeenLastCalledWith({
+      ...preferences,
+      titlebarActions: [
+        { id: "theme", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "save", visible: false },
+        { id: "open", visible: true },
+        { id: "aiAgent", visible: true }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset toolbar buttons" }));
+
+    expect(onUpdatePreferences).toHaveBeenLastCalledWith({
+      ...preferences,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ]
     });
   });
 });
