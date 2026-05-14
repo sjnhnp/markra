@@ -74,6 +74,7 @@ export function MarkdownTabsBar({
 
   return (
     <section
+      data-tauri-drag-region={titlebarPlacement ? "true" : undefined}
       className={
         titlebarPlacement
           ? "document-tabs document-tabs-titlebar h-10 min-w-0 w-full bg-transparent"
@@ -166,6 +167,13 @@ export function MarkdownTabsBar({
         >
           <Plus aria-hidden="true" size={13} />
         </IconButton>
+        {titlebarPlacement ? (
+          <span
+            aria-hidden="true"
+            className="document-tabs-drag-spacer min-w-4 flex-1 self-stretch"
+            data-tauri-drag-region="true"
+          />
+        ) : null}
       </div>
     </section>
   );

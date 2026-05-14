@@ -20,11 +20,13 @@ import { clearAiSelectionHold, showAiSelectionHold } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 
 const outlineScrollTopOffset = 24;
+const aiCommandSelectionBottomMargin = 24;
 const defaultMarkdownTable = [
   "| Column 1 | Column 2 |",
   "| --- | --- |",
   "|  |  |"
 ].join("\n");
+const aiSelectionHoldSelector = ".markra-ai-selection-hold";
 
 function comparableSerializedMarkdown(markdown: string) {
   return markdown
@@ -59,6 +61,43 @@ export function scrollElementToContainerTop(element: Node | null, scrollContaine
   }
 
   scrollContainer.scrollTop = top;
+}
+
+export function scrollElementsAboveContainerBottomInset(
+  elements: Iterable<Element>,
+  scrollContainer: Element | null,
+  bottomInset: number,
+  margin = aiCommandSelectionBottomMargin
+) {
+  if (!(scrollContainer instanceof HTMLElement) || bottomInset <= 0) return false;
+
+  const targetRects = Array.from(elements)
+    .filter((element): element is HTMLElement => element instanceof HTMLElement)
+    .map((element) => element.getBoundingClientRect());
+  if (targetRects.length === 0) return false;
+
+  const containerRect = scrollContainer.getBoundingClientRect();
+  const targetBottom = Math.max(...targetRects.map((rect) => rect.bottom));
+  const safeBottom = containerRect.bottom - bottomInset - margin;
+  if (targetBottom <= safeBottom) return false;
+
+  const top = Math.max(0, scrollContainer.scrollTop + targetBottom - safeBottom);
+  if (typeof scrollContainer.scrollTo === "function") {
+    scrollContainer.scrollTo({
+      behavior: aiCommandSelectionScrollBehavior(),
+      top
+    });
+    return true;
+  }
+
+  scrollContainer.scrollTop = top;
+  return true;
+}
+
+function aiCommandSelectionScrollBehavior(): ScrollBehavior {
+  if (typeof window.matchMedia !== "function") return "smooth";
+
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }
 
 export function readAiSelectionContextFromView(view: EditorView): AiSelectionContext {
@@ -484,6 +523,22 @@ export function useEditorController() {
     }
   }, []);
 
+  const scrollAiSelectionAboveCommand = useCallback((bottomInset: number) => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return false;
+
+      const selectionHoldElements = view.dom.querySelectorAll(aiSelectionHoldSelector);
+      return scrollElementsAboveContainerBottomInset(
+        selectionHoldElements,
+        view.dom.closest(".paper-scroll"),
+        bottomInset
+      );
+    } catch {
+      return false;
+    }
+  }, []);
+
   const clearAiPreview = useCallback((result?: AiDiffResult, options: { previewId?: string } = {}) => {
     try {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
@@ -600,6 +655,7 @@ export function useEditorController() {
     listAiPreviews,
     previewAiResult,
     runEditorShortcut,
+    scrollAiSelectionAboveCommand,
     scrollToAiPreview,
     selectOutlineItem
   };

@@ -1540,6 +1540,22 @@ export function EditorSettings({
             />
           }
         />
+        <SettingsRow
+          title={translate("settings.editor.suggestAiPanelForComplexInlinePrompts")}
+          description={translate("settings.editor.suggestAiPanelForComplexInlinePromptsDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.suggestAiPanelForComplexInlinePrompts}
+              label={translate("settings.editor.suggestAiPanelForComplexInlinePrompts")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  suggestAiPanelForComplexInlinePrompts: !preferences.suggestAiPanelForComplexInlinePrompts
+                })
+              }
+            />
+          }
+        />
       </SettingsSection>
     </>
   );

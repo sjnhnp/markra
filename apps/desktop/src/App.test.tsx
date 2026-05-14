@@ -150,6 +150,7 @@ describe("Markra workspace", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
@@ -185,6 +186,7 @@ describe("Markra workspace", () => {
         lineHeight: 1.65,
         markdownShortcuts: defaultMarkdownShortcuts,
         restoreWorkspaceOnStartup: true,
+        suggestAiPanelForComplexInlinePrompts: true,
         showDocumentTabs: true,
         titlebarActions: [
           { id: "sourceMode", visible: true },
@@ -208,6 +210,7 @@ describe("Markra workspace", () => {
         lineHeight: 1.65,
         markdownShortcuts: defaultMarkdownShortcuts,
         restoreWorkspaceOnStartup: true,
+        suggestAiPanelForComplexInlinePrompts: true,
         showDocumentTabs: true,
         titlebarActions: [
           { id: "sourceMode", visible: true },
@@ -446,6 +449,7 @@ describe("Markra workspace", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent" as const, visible: true },
@@ -546,6 +550,7 @@ describe("Markra workspace", () => {
         bold: "Mod+Alt+B"
       },
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
@@ -851,9 +856,10 @@ describe("Markra workspace", () => {
       gridTemplateColumns: "220px minmax(0,1fr)"
     });
     expect(container.querySelector(".native-title-slot")).toHaveStyle({
-      marginRight: "110px",
-      transform: "translateX(110px)"
+      marginLeft: "56px"
     });
+    expect(container.querySelector(".native-title-slot")).toHaveAttribute("data-tauri-drag-region");
+    expect(container.querySelector(".native-title-slot")).not.toHaveStyle({ transform: "translateX(110px)" });
     expect(resizeHandle).toHaveAttribute("aria-valuemin", "220");
     expect(resizeHandle).toHaveAttribute("aria-valuemax", "440");
     expect(resizeHandle).toHaveAttribute("aria-valuenow", "220");
@@ -1498,6 +1504,7 @@ describe("Markra workspace", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       titlebarActions: [
         { id: "aiAgent", visible: true },

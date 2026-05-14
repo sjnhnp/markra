@@ -82,6 +82,7 @@ function markdownShortcutSignature(shortcuts: MarkdownShortcutMap | undefined) {
 
 type MarkdownPaperProps = {
   autoFocus?: boolean;
+  bottomOverlayInset?: number;
   bodyFontSize?: number;
   contentWidth?: EditorContentWidth;
   contentWidthMax?: number;
@@ -425,6 +426,7 @@ function MilkdownSurface({
 
 export function MarkdownPaper({
   autoFocus = false,
+  bottomOverlayInset = 0,
   bodyFontSize = 16,
   contentWidth = "default",
   contentWidthMax = editorCustomContentWidthMax,
@@ -451,7 +453,8 @@ export function MarkdownPaper({
   const paperStyle = {
     fontSize: `${bodyFontSize}px`,
     lineHeight,
-    maxWidth: `${resolvedContentWidth}px`
+    maxWidth: `${resolvedContentWidth}px`,
+    ...(bottomOverlayInset > 0 ? { paddingBottom: `${bottomOverlayInset}px` } : {})
   } satisfies CSSProperties;
   const shortcutsSignature = markdownShortcutSignature(markdownShortcuts);
   const normalizedMarkdownShortcuts = useMemo(

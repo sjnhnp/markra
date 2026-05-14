@@ -1,7 +1,137 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AiCommandBar } from "./AiCommandBar";
 
 describe("AiCommandBar", () => {
+  it("keeps the compact command closed on programmatic focus after selection opens it", () => {
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    const input = screen.getByRole("textbox", { name: "AI command" });
+    fireEvent.focus(input);
+
+    expect(input.closest(".ai-command-box")).toHaveAttribute("data-state", "compact");
+    expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
+  });
+
+  it("reports the compact command overlay inset from its rendered height", async () => {
+    const onOverlayInsetChange = vi.fn();
+    const originalInnerHeight = window.innerHeight;
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 800
+    });
+    HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this.classList.contains("ai-command-box")) {
+        return {
+          bottom: 752,
+          height: 56,
+          left: 0,
+          right: 600,
+          top: 696,
+          width: 600,
+          x: 0,
+          y: 696,
+          toJSON: () => ({})
+        } as DOMRect;
+      }
+
+      return originalRect.call(this);
+    };
+
+    try {
+      render(
+        <AiCommandBar
+          language="en"
+          open
+          prompt=""
+          submitting={false}
+          onClose={vi.fn()}
+          onOverlayInsetChange={onOverlayInsetChange}
+          onPromptChange={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      );
+
+      await waitFor(() => expect(onOverlayInsetChange).toHaveBeenCalledWith(104));
+    } finally {
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: originalInnerHeight
+      });
+      HTMLElement.prototype.getBoundingClientRect = originalRect;
+    }
+  });
+
+  it("updates the overlay inset when the command expands", async () => {
+    const onOverlayInsetChange = vi.fn();
+    const originalInnerHeight = window.innerHeight;
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    let commandTop = 696;
+    let commandHeight = 56;
+
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 800
+    });
+    HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this.classList.contains("ai-command-box")) {
+        return {
+          bottom: commandTop + commandHeight,
+          height: commandHeight,
+          left: 0,
+          right: 600,
+          top: commandTop,
+          width: 600,
+          x: 0,
+          y: commandTop,
+          toJSON: () => ({})
+        } as DOMRect;
+      }
+
+      return originalRect.call(this);
+    };
+
+    try {
+      render(
+        <AiCommandBar
+          language="en"
+          open
+          prompt=""
+          submitting={false}
+          onClose={vi.fn()}
+          onOverlayInsetChange={onOverlayInsetChange}
+          onPromptChange={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      );
+
+      await waitFor(() => expect(onOverlayInsetChange).toHaveBeenCalledWith(104));
+
+      commandTop = 620;
+      commandHeight = 132;
+      fireEvent.click(screen.getByRole("textbox", { name: "AI command" }));
+
+      await waitFor(() => expect(onOverlayInsetChange).toHaveBeenCalledWith(180));
+    } finally {
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: originalInnerHeight
+      });
+      HTMLElement.prototype.getBoundingClientRect = originalRect;
+    }
+  });
+
   it("keeps result follow-up input aligned with the pre-generation command UI", () => {
     render(
       <AiCommandBar
@@ -208,6 +338,51 @@ describe("AiCommandBar", () => {
 
     expect(onPromptChange).toHaveBeenCalledWith("hello\nworld");
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("suggests the AI panel for structurally complex inline prompts", () => {
+    const onTransferToAiPanel = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt={"Compare these options\n- speed\n- reliability"}
+        selectedText="Synthetic selected paragraph."
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onTransferToAiPanel={onTransferToAiPanel}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("textbox", { name: "AI command" }));
+
+    expect(screen.getByText("This may work better in Markra AI.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use Markra AI" }));
+
+    expect(onTransferToAiPanel).toHaveBeenCalledWith("Compare these options\n- speed\n- reliability");
+  });
+
+  it("keeps simple inline prompts focused on the command box", () => {
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt="Polish this"
+        selectedText="Synthetic selected paragraph."
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onTransferToAiPanel={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("textbox", { name: "AI command" }));
+
+    expect(screen.queryByText("This may work better in Markra AI.")).not.toBeInTheDocument();
   });
 
   it("uses quick actions, sends them immediately, and hides the toolkit once the user types", async () => {

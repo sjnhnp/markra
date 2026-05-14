@@ -67,6 +67,34 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("toggles experimental AI panel handoff suggestions from editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          suggestAiPanelForComplexInlinePrompts: true
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        "Experimental. Suggest Markra AI for complex inline requests based on local input structure. Turn it off if the prompt feels too eager."
+      )
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "Suggest Markra AI for complex inline requests" }));
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      suggestAiPanelForComplexInlinePrompts: false
+    });
+  });
+
   it("shows storage type in the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

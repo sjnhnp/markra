@@ -163,6 +163,7 @@ describe("app settings", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
@@ -397,6 +398,7 @@ describe("app settings", () => {
         bold: "Mod+Alt+B"
       },
       restoreWorkspaceOnStartup: false,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
@@ -610,6 +612,7 @@ describe("app settings", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
@@ -656,6 +659,7 @@ describe("app settings", () => {
         bold: "Mod+Alt+B"
       },
       restoreWorkspaceOnStartup: false,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       titlebarActions: [
         { id: "theme", visible: true },
@@ -700,6 +704,7 @@ describe("app settings", () => {
         bold: "Mod+Alt+B"
       },
       restoreWorkspaceOnStartup: false,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       titlebarActions: [
         { id: "theme", visible: true },

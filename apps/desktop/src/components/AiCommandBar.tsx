@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -41,6 +42,25 @@ type AiCommandSubmitOptions = {
 };
 
 type AiCommandState = "compact" | "expanded" | "collapsing" | "closing";
+
+function complexInlinePromptSignalScore(prompt: string, selectedText: string) {
+  const normalizedPrompt = prompt.trim();
+  if (!normalizedPrompt) return 0;
+
+  const lineCount = normalizedPrompt.split(/\r?\n/).filter((line) => line.trim().length > 0).length;
+  const questionCount = normalizedPrompt.match(/[?？]/g)?.length ?? 0;
+  const listLikePrompt = /(^|\n)\s*(?:[-*•]|\d+[.)])\s+\S/.test(normalizedPrompt);
+  const normalizedSelection = selectedText.trim();
+
+  return [
+    normalizedPrompt.length > 120,
+    normalizedSelection.length > 1600,
+    normalizedSelection.length === 0,
+    lineCount >= 3,
+    listLikePrompt,
+    questionCount >= 2
+  ].filter(Boolean).length;
+}
 
 const collapseDurationMs = 160;
 const exitDurationMs = 200;
@@ -92,13 +112,16 @@ type AiCommandBarProps = {
   prompt: string;
   selectedModelId?: string | null;
   selectedProviderId?: string | null;
+  selectedText?: string;
   submitting?: boolean;
   supportsThinking?: boolean;
   onClose: () => unknown;
   onInterrupt?: () => unknown;
+  onOverlayInsetChange?: (inset: number) => unknown;
   onPromptChange: (prompt: string) => unknown;
   onSelectModel?: (providerId: string, modelId: string) => unknown;
   onSubmit: (promptOverride?: string, intent?: AiEditIntent, options?: AiCommandSubmitOptions) => unknown;
+  onTransferToAiPanel?: (prompt: string) => unknown;
 };
 
 export function AiCommandBar({
@@ -112,16 +135,20 @@ export function AiCommandBar({
   prompt,
   selectedModelId = null,
   selectedProviderId = null,
+  selectedText = "",
   submitting = false,
   supportsThinking = false,
   onClose,
   onInterrupt,
+  onOverlayInsetChange,
   onPromptChange,
   onSelectModel,
-  onSubmit
+  onSubmit,
+  onTransferToAiPanel
 }: AiCommandBarProps) {
   const collapseTimerRef = useRef<number | null>(null);
   const exitTimerRef = useRef<number | null>(null);
+  const commandLayerRef = useRef<HTMLElement | null>(null);
   const commandRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const commandStateRef = useRef<AiCommandState>("compact");
@@ -225,6 +252,52 @@ export function AiCommandBar({
       clearExitTimer();
     };
   }, [clearCollapseTimer, clearExitTimer]);
+
+  const reportOverlayInset = useCallback(() => {
+    if (!onOverlayInsetChange) return;
+
+    const commandLayer = commandLayerRef.current;
+    if (!commandLayer) {
+      onOverlayInsetChange(0);
+      return;
+    }
+
+    const occludingElements = commandLayer.querySelectorAll<HTMLElement>(".ai-command-box, .ai-command-actions");
+    const rects = Array.from(occludingElements)
+      .map((element) => element.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 || rect.height > 0);
+    if (rects.length === 0) {
+      onOverlayInsetChange(0);
+      return;
+    }
+
+    const top = Math.min(...rects.map((rect) => rect.top));
+    onOverlayInsetChange(Math.max(0, Math.ceil(window.innerHeight - top)));
+  }, [onOverlayInsetChange]);
+
+  useLayoutEffect(() => {
+    if (!onOverlayInsetChange) return;
+
+    if (!rendered) {
+      onOverlayInsetChange(0);
+      return;
+    }
+
+    const animationFrame = window.requestAnimationFrame(reportOverlayInset);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(reportOverlayInset);
+
+    reportOverlayInset();
+    if (commandLayerRef.current) resizeObserver?.observe(commandLayerRef.current);
+    if (commandRef.current) resizeObserver?.observe(commandRef.current);
+    window.addEventListener("resize", reportOverlayInset);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", reportOverlayInset);
+    };
+  });
 
   const expandCommand = useCallback(() => {
     if (!open || closing) return;
@@ -394,6 +467,12 @@ export function AiCommandBar({
   const showModelSelector = showExpandedInput && availableModels.length > 1 && Boolean(onSelectModel);
   const showAgentStatus = showExpandedInput && busy;
   const showThinkingToggle = showExpandedInput && supportsThinking;
+  const showAiPanelSuggestion =
+    showExpandedInput &&
+    !aiResult &&
+    !busy &&
+    Boolean(onTransferToAiPanel) &&
+    complexInlinePromptSignalScore(prompt, selectedText) > 0;
   const compactLoadingText = activeQuickActionIntent
     ? label(aiCommandLoadingLabelKeys[activeQuickActionIntent])
     : label("app.aiAgentThinking");
@@ -464,13 +543,26 @@ export function AiCommandBar({
             onChange={(event) => handlePromptChange(event.target.value)}
             onCompositionEnd={handleCompositionEnd}
             onCompositionStart={handleCompositionStart}
-            onFocus={expandCommand}
             onKeyDown={handlePromptKeyDown}
             aria-label={label("app.aiCommandInput")}
           />
         )}
         {!showExpandedInput ? renderSubmitButton(false) : null}
       </div>
+      {showExpandedInput ? (
+        showAiPanelSuggestion ? (
+          <div className="ai-command-panel-suggestion flex w-full items-center justify-between gap-3 rounded-md bg-(--bg-secondary) px-3 py-2 text-[12px] leading-5 text-(--text-secondary)">
+            <span className="min-w-0 truncate">{label("app.aiCommandPanelSuggestion")}</span>
+            <button
+              className="shrink-0 cursor-pointer rounded-md border border-(--border-default) bg-(--bg-primary) px-2 py-1 text-[12px] leading-4 font-[650] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+              type="button"
+              onClick={() => onTransferToAiPanel?.(prompt)}
+            >
+              {label("app.aiCommandOpenPanel")}
+            </button>
+          </div>
+        ) : null
+      ) : null}
       {showExpandedInput ? (
         <div
           className={
@@ -516,6 +608,7 @@ export function AiCommandBar({
 
   return (
     <section
+      ref={commandLayerRef}
       className={`ai-command-layer pointer-events-none fixed bottom-12 z-40 flex justify-center px-6 transition-[opacity,transform] duration-200 ease-out will-change-transform max-[760px]:bottom-8 max-[760px]:px-4 motion-reduce:transition-none ${entered ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.98] opacity-0"}`}
       style={commandLayerStyle}
       role="dialog"

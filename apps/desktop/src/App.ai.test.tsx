@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { defaultMarkdownShortcuts } from "@markra/editor";
 import {
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
   dispatchAiEditorPreviewAction,
@@ -7,6 +8,7 @@ import {
   mockNativePath,
   mockedCreateAiAgentSessionId,
   mockedGetStoredAiAgentSession,
+  mockedGetStoredEditorPreferences,
   mockedGetStoredAiSettings,
   mockedGetStoredWorkspaceState,
   mockedListNativeMarkdownFilesForPath,
@@ -91,6 +93,92 @@ describe("Markra AI workspace", () => {
     fireEvent.keyDown(window, { key: "j", metaKey: true, shiftKey: true });
 
     expect(await screen.findByRole("textbox", { name: "AI command" })).toBeInTheDocument();
+  });
+
+  it("moves structurally complex inline prompts into the Markra AI panel", async () => {
+    renderApp();
+
+    await screen.findByText("Welcome to Markra");
+    await screen.findByRole("textbox", { name: "Markdown document" });
+
+    fireEvent.keyDown(window, { key: "j", metaKey: true, shiftKey: true });
+
+    const commandInput = await screen.findByRole("textbox", { name: "AI command" });
+    fireEvent.click(commandInput);
+    fireEvent.change(commandInput, {
+      target: {
+        value: "Compare these options\n- speed\n- reliability"
+      }
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Use Markra AI" }));
+
+    const agentPanel = await screen.findByRole("complementary", { name: "Markra AI" });
+    expect(within(agentPanel).getByRole("textbox", { name: "Markra AI message" })).toHaveValue(
+      "Compare these options\n- speed\n- reliability"
+    );
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "AI command" })).not.toBeInTheDocument());
+  });
+
+  it("hides the complex inline prompt panel suggestion when the experimental setting is off", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue({
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "assets",
+      closeAiCommandOnAgentPanelOpen: false,
+      contentWidth: "default",
+      contentWidthPx: null,
+      imageUpload: {
+        fileNamePattern: "pasted-image-{timestamp}",
+        provider: "local",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "",
+          publicBaseUrl: "",
+          serverUrl: "",
+          uploadPath: "",
+          username: ""
+        }
+      },
+      lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
+      restoreWorkspaceOnStartup: true,
+      showDocumentTabs: true,
+      showWordCount: true,
+      suggestAiPanelForComplexInlinePrompts: false,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ]
+    });
+
+    renderApp();
+
+    await screen.findByText("Welcome to Markra");
+    await screen.findByRole("textbox", { name: "Markdown document" });
+
+    fireEvent.keyDown(window, { key: "j", metaKey: true, shiftKey: true });
+
+    const commandInput = await screen.findByRole("textbox", { name: "AI command" });
+    fireEvent.click(commandInput);
+    fireEvent.change(commandInput, {
+      target: {
+        value: "Compare these options\n- speed\n- reliability"
+      }
+    });
+
+    expect(screen.queryByRole("button", { name: "Use Markra AI" })).not.toBeInTheDocument();
   });
 
   it("does not allow agent messages until a markdown document is open", async () => {

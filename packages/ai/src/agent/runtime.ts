@@ -6,17 +6,17 @@ import { assistantTextContent } from "./runtime/messages";
 import { createPiAgentModel } from "./runtime/model";
 import { createNativeChatStreamFn } from "./runtime/stream";
 import { buildInlineAiMessages, normalizeInlineAiReplacement } from "./inline-prompt";
-import { runReadOnlyAgentTools } from "./read-only-tools";
 
 export { assistantTextContent } from "./runtime/messages";
 export { createPiAgentModel } from "./runtime/model";
 export { createNativeChatStreamFn } from "./runtime/stream";
 export type { InlineAiAgentComplete, InlineAiAgentInput, InlineAiAgentTarget } from "./runtime/types";
 
+const maxTargetContextChars = 1_600;
+
 export async function runInlineAiAgent({
   complete = chatCompletionStream,
   documentContent,
-  documentPath,
   intent = "custom",
   model,
   onEvent,
@@ -24,19 +24,17 @@ export async function runInlineAiAgent({
   provider,
   target,
   thinkingEnabled,
-  translationTargetLanguage,
-  workspaceFiles = []
+  translationTargetLanguage
 }: InlineAiAgentInput) {
-  const toolResults = await runReadOnlyAgentTools({
-    documentContent,
-    documentPath,
-    workspaceFiles
+  const targetContext = nearbyTargetContext(documentContent, target.from, target.to, {
+    direction: target.type === "insert" || intent === "continue" ? "before" : "around"
   });
   const messages = buildInlineAiMessages({
-    documentContent,
+    documentContent: "",
     intent,
     prompt,
     suggestionContext: target.suggestionContext,
+    targetContext,
     targetScope: target.scope,
     targetText: target.promptText,
     targetType: target.type,
@@ -44,8 +42,7 @@ export async function runInlineAiAgent({
   });
   const systemPrompt = messages.find((message) => message.role === "system")?.content ?? "";
   const userPrompt = [
-    ...messages.filter((message) => message.role !== "system").map((message) => message.content),
-    formatReadOnlyToolContext(toolResults)
+    ...messages.filter((message) => message.role !== "system").map((message) => message.content)
   ].join("\n\n");
   const agent = new Agent({
     initialState: {
@@ -75,9 +72,48 @@ export async function runInlineAiAgent({
   };
 }
 
-function formatReadOnlyToolContext(toolResults: Awaited<ReturnType<typeof runReadOnlyAgentTools>>) {
-  return [
-    "Read-only agent tool context:",
-    ...toolResults.map((result) => [`Tool: ${result.name}`, result.content].join("\n"))
-  ].join("\n\n");
+function nearbyTargetContext(
+  documentContent: string,
+  from: number | undefined,
+  to: number | undefined,
+  {
+    direction = "around"
+  }: {
+    direction?: "around" | "before";
+  } = {}
+) {
+  if (typeof from !== "number" || typeof to !== "number") return null;
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || to < from) return null;
+
+  const targetFrom = clampPosition(from, documentContent.length);
+  const targetTo = clampPosition(to, documentContent.length);
+  const beforeChars = direction === "before" ? maxTargetContextChars : Math.floor(maxTargetContextChars / 2);
+  const afterChars = direction === "before" ? 0 : Math.floor(maxTargetContextChars / 2);
+
+  const contextStart = Math.max(0, targetFrom - beforeChars);
+  const contextEnd = Math.min(documentContent.length, targetTo + afterChars);
+  const lineStart = documentContent.lastIndexOf("\n", Math.max(0, contextStart - 1)) + 1;
+  const nextLineBreak = documentContent.indexOf("\n", contextEnd);
+  const lineEnd = nextLineBreak === -1 ? documentContent.length : nextLineBreak;
+  const excerpt = documentContent.slice(lineStart, lineEnd).trim();
+
+  if (!excerpt) return null;
+  if (excerpt.length <= maxTargetContextChars) return excerpt;
+
+  return compactTargetContext(excerpt, targetFrom - lineStart, targetTo - lineStart);
+}
+
+function compactTargetContext(excerpt: string, targetFrom: number, targetTo: number) {
+  const targetText = excerpt.slice(targetFrom, targetTo);
+  const sideLength = Math.max(0, Math.floor((maxTargetContextChars - targetText.length) / 2) - 8);
+  const start = Math.max(0, targetFrom - sideLength);
+  const end = Math.min(excerpt.length, targetTo + sideLength);
+  const prefix = start > 0 ? "[...]\n" : "";
+  const suffix = end < excerpt.length ? "\n[...]" : "";
+
+  return `${prefix}${excerpt.slice(start, end).trim()}${suffix}`;
+}
+
+function clampPosition(position: number, documentLength: number) {
+  return Math.min(Math.max(position, 0), documentLength);
 }
