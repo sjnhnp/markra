@@ -104,6 +104,10 @@ export type SaveNativeClipboardImageInput = {
   image: File;
 };
 
+export type DownloadNativeWebImageInput = {
+  src: string;
+};
+
 export type UploadNativeWebDavImageInput = {
   fileName: string;
   image: File;
@@ -152,6 +156,12 @@ type MarkdownTreeChangedPayload = {
 
 type ClipboardImageFileResponse = {
   relativePath: string;
+};
+
+type WebImageDownloadResponse = {
+  bytes: number[];
+  fileName: string;
+  mimeType: string;
 };
 
 type RemoteImageUploadResponse = {
@@ -558,6 +568,18 @@ export async function saveNativeClipboardImage({
     alt: imageAltFromFileName(image.name),
     src: encodeMarkdownRelativePath(savedImage.relativePath)
   };
+}
+
+export async function downloadNativeWebImage({ src }: DownloadNativeWebImageInput): Promise<File> {
+  const downloadedImage = await invoke<WebImageDownloadResponse>("download_web_image", {
+    request: {
+      url: src
+    }
+  });
+
+  return new File([new Uint8Array(downloadedImage.bytes)], downloadedImage.fileName, {
+    type: downloadedImage.mimeType
+  });
 }
 
 export async function uploadNativeWebDavImage({

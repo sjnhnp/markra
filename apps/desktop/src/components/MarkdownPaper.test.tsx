@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@milkdown/kit/core";
 import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/kit/core";
+import { Slice } from "@milkdown/kit/prose/model";
 import { NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
@@ -10,6 +11,7 @@ import {
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
   type AiEditorPreviewAppliedDetail,
   type AiEditorPreviewActionDetail,
+  type RemoteClipboardImage,
   applyAiEditorResult,
   clearAiEditorPreview,
   confirmAiEditorResultApplied,
@@ -29,6 +31,7 @@ async function renderEditor(
   options: {
     onMarkdownChange?: (content: string) => unknown;
     onSaveClipboardImage?: (image: File) => Promise<{ alt: string; src: string } | null>;
+    onSaveRemoteClipboardImage?: (image: RemoteClipboardImage) => Promise<{ alt: string; src: string } | null>;
     openExternalUrl?: (url: string) => unknown;
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
     resolveImageSrc?: (src: string) => string;
@@ -45,6 +48,7 @@ async function renderEditor(
       markdownShortcuts={options.markdownShortcuts}
       onMarkdownChange={options.onMarkdownChange ?? (() => {})}
       onSaveClipboardImage={options.onSaveClipboardImage}
+      onSaveRemoteClipboardImage={options.onSaveRemoteClipboardImage}
       openExternalUrl={options.openExternalUrl}
       onTextSelectionChange={options.onTextSelectionChange}
       resolveImageSrc={options.resolveImageSrc}
@@ -258,6 +262,21 @@ function pasteImage(view: EditorView, image: File) {
   });
 
   return view.someProp("handlePaste", (handler) => handler(view, event, view.state.selection.content()));
+}
+
+function pasteHtml(view: EditorView, html: string, slice: Slice) {
+  const event = new Event("paste", {
+    bubbles: true,
+    cancelable: true
+  }) as ClipboardEvent;
+  Object.defineProperty(event, "clipboardData", {
+    value: {
+      files: [],
+      getData: (type: string) => type === "text/html" ? html : ""
+    }
+  });
+
+  return view.someProp("handlePaste", (handler) => handler(view, event, slice));
 }
 
 function dropImage(view: EditorView, image: File) {
@@ -770,6 +789,64 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("![Screenshot](assets/pasted-image.png)");
     expect(serializeMarkdown(view.state.doc)).not.toContain("!\\[Screenshot\\]\\(assets/pasted-image.png\\)");
     await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("![Screenshot](assets/pasted-image.png)")));
+  });
+
+  it("transfers remote images from pasted web HTML through the image save pipeline", async () => {
+    const onMarkdownChange = vi.fn();
+    const onSaveRemoteClipboardImage = vi.fn().mockResolvedValue({
+      alt: "Kitten",
+      src: "assets/kitten.png"
+    });
+    const { container, editor, view } = await renderEditor("", {
+      onMarkdownChange,
+      onSaveRemoteClipboardImage
+    });
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+    const pastedDocument = parseMarkdown("Intro\n\n![Kitten](https://images.example.com/kitten.png)\n\nOutro");
+
+    expect(pasteHtml(
+      view,
+      '<p>Intro</p><img src="https://images.example.com/kitten.png" alt="Kitten"><p>Outro</p>',
+      new Slice(pastedDocument.content, 0, 0)
+    )).toBe(true);
+
+    await waitFor(() => {
+      expect(onSaveRemoteClipboardImage).toHaveBeenCalledWith({
+        alt: "Kitten",
+        src: "https://images.example.com/kitten.png",
+        title: ""
+      });
+    });
+    await waitFor(() => {
+      expect(container.querySelector<HTMLImageElement>('img[src="assets/kitten.png"]')).toHaveAttribute(
+        "alt",
+        "Kitten"
+      );
+    });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("![Kitten](assets/kitten.png)");
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("![Kitten](assets/kitten.png)")));
+  });
+
+  it("keeps pasted web image URLs when remote image transfer is skipped", async () => {
+    const onSaveRemoteClipboardImage = vi.fn().mockResolvedValue(null);
+    const { container, editor, view } = await renderEditor("", { onSaveRemoteClipboardImage });
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+    const pastedDocument = parseMarkdown("![Logo](https://images.example.com/logo.png)");
+
+    expect(pasteHtml(
+      view,
+      '<img src="https://images.example.com/logo.png" alt="Logo">',
+      new Slice(pastedDocument.content, 0, 0)
+    )).toBe(true);
+
+    await waitFor(() => expect(onSaveRemoteClipboardImage).toHaveBeenCalled());
+    expect(container.querySelector<HTMLImageElement>('img[src="https://images.example.com/logo.png"]')).toHaveAttribute(
+      "alt",
+      "Logo"
+    );
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("![Logo](https://images.example.com/logo.png)");
   });
 
   it("saves dropped image files and inserts markdown image references", async () => {

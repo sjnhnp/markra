@@ -31,7 +31,7 @@ use opened_files::{
 };
 use tauri::Emitter;
 use watcher::{unwatch_markdown_file, watch_markdown_file, MarkdownWatcherState};
-use web_http::request_web_resource;
+use web_http::{download_web_image, request_web_resource};
 use windows::{
     apply_main_window_chrome, apply_webview_window_chrome, apply_window_event_chrome,
     open_blank_editor_window, open_settings_window, spawn_blank_editor_window,
@@ -105,6 +105,7 @@ pub fn run() {
             request_native_chat,
             request_native_chat_stream,
             request_web_resource,
+            download_web_image,
             upload_s3_image,
             upload_webdav_image,
             write_markdown_file,

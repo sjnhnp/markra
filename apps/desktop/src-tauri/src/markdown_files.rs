@@ -145,6 +145,7 @@ fn clipboard_image_extension(mime_type: &str) -> Result<&'static str, String> {
         "image/webp" => Ok("webp"),
         "image/avif" => Ok("avif"),
         "image/bmp" => Ok("bmp"),
+        "image/svg+xml" => Ok("svg"),
         _ => Err("Clipboard image type is not supported".to_string()),
     }
 }
@@ -1620,6 +1621,14 @@ mod tests {
         );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn saves_svg_clipboard_images_with_svg_extension() {
+        assert_eq!(
+            clipboard_image_extension("image/svg+xml").expect("SVG images should be supported"),
+            "svg"
+        );
     }
 
     #[test]

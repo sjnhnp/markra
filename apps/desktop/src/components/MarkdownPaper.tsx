@@ -25,7 +25,11 @@ import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/re
 import { Plugin } from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
 import { markraLiveMarkdownPlugin } from "@markra/editor";
-import { markraClipboardImagePlugin, type SaveClipboardImage } from "@markra/editor";
+import {
+  markraClipboardImagePluginWithOptions,
+  type SaveClipboardImage,
+  type SaveRemoteClipboardImage
+} from "@markra/editor";
 import { markraCodeBlockPlugin } from "@markra/editor";
 import { markraHeadingSourcePlugin } from "@markra/editor";
 import { normalizeHeadingSourceDocument } from "@markra/editor";
@@ -92,6 +96,7 @@ type MarkdownPaperProps = {
   onContentWidthResizeEnd?: () => unknown;
   onContentWidthResizeStart?: () => unknown;
   onSaveClipboardImage?: SaveClipboardImage;
+  onSaveRemoteClipboardImage?: SaveRemoteClipboardImage;
   openExternalUrl?: (url: string) => unknown;
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
   resolveImageSrc?: (src: string) => string;
@@ -106,6 +111,7 @@ type MilkdownSurfaceProps = {
   onEditorReady: MarkdownPaperProps["onEditorReady"];
   onMarkdownChange: (content: string) => unknown;
   onSaveClipboardImage?: MarkdownPaperProps["onSaveClipboardImage"];
+  onSaveRemoteClipboardImage?: MarkdownPaperProps["onSaveRemoteClipboardImage"];
   openExternalUrl?: MarkdownPaperProps["openExternalUrl"];
   onTextSelectionChange?: MarkdownPaperProps["onTextSelectionChange"];
   resolveImageSrc?: MarkdownPaperProps["resolveImageSrc"];
@@ -264,6 +270,7 @@ function MilkdownSurface({
   onEditorReady,
   onMarkdownChange,
   onSaveClipboardImage,
+  onSaveRemoteClipboardImage,
   openExternalUrl,
   onTextSelectionChange,
   resolveImageSrc,
@@ -271,6 +278,7 @@ function MilkdownSurface({
 }: MilkdownSurfaceProps) {
   const initialContentRef = useRef(initialContent);
   const onSaveClipboardImageRef = useRef(onSaveClipboardImage);
+  const onSaveRemoteClipboardImageRef = useRef(onSaveRemoteClipboardImage);
   const onTextSelectionChangeRef = useRef(onTextSelectionChange);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
   const tableControlLabels = {
@@ -305,6 +313,10 @@ function MilkdownSurface({
   useEffect(() => {
     onSaveClipboardImageRef.current = onSaveClipboardImage;
   }, [onSaveClipboardImage]);
+
+  useEffect(() => {
+    onSaveRemoteClipboardImageRef.current = onSaveRemoteClipboardImage;
+  }, [onSaveRemoteClipboardImage]);
 
   useEffect(() => {
     onTextSelectionChangeRef.current = onTextSelectionChange;
@@ -379,9 +391,14 @@ function MilkdownSurface({
         editor.use(markraExternalLinkClickPlugin(openExternalUrl));
       }
 
-      if (onSaveClipboardImageRef.current) {
+      if (onSaveClipboardImageRef.current || onSaveRemoteClipboardImageRef.current) {
         editor.use(
-          markraClipboardImagePlugin((image) => onSaveClipboardImageRef.current?.(image) ?? Promise.resolve(null))
+          markraClipboardImagePluginWithOptions(
+            (image) => onSaveClipboardImageRef.current?.(image) ?? Promise.resolve(null),
+            {
+              saveRemoteImage: (image) => onSaveRemoteClipboardImageRef.current?.(image) ?? Promise.resolve(null)
+            }
+          )
         );
       }
 
@@ -417,6 +434,7 @@ export function MarkdownPaper({
   onContentWidthResizeEnd,
   onContentWidthResizeStart,
   onSaveClipboardImage,
+  onSaveRemoteClipboardImage,
   openExternalUrl,
   onTextSelectionChange,
   resolveImageSrc,
@@ -466,6 +484,7 @@ export function MarkdownPaper({
             onEditorReady={onEditorReady}
             onMarkdownChange={onMarkdownChange}
             onSaveClipboardImage={onSaveClipboardImage}
+            onSaveRemoteClipboardImage={onSaveRemoteClipboardImage}
             openExternalUrl={openExternalUrl}
             onTextSelectionChange={onTextSelectionChange}
             resolveImageSrc={resolveImageSrc}

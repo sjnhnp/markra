@@ -1,5 +1,5 @@
 import { imageSchema } from "@milkdown/kit/preset/commonmark";
-import { Fragment, type NodeType } from "@milkdown/kit/prose/model";
+import { Fragment, type Node as ProseNode, type NodeType, type Slice } from "@milkdown/kit/prose/model";
 import { Plugin, Selection, type SelectionBookmark } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
@@ -10,6 +10,27 @@ export type SavedClipboardImage = {
 };
 
 export type SaveClipboardImage = (image: File) => Promise<SavedClipboardImage | null>;
+
+export type RemoteClipboardImage = {
+  alt: string;
+  src: string;
+  title: string;
+};
+
+export type SaveRemoteClipboardImage = (image: RemoteClipboardImage) => Promise<SavedClipboardImage | null>;
+
+export type ClipboardImagePluginOptions = {
+  saveRemoteImage?: SaveRemoteClipboardImage;
+};
+
+type InsertedRange = {
+  from: number;
+  to: number;
+};
+
+type PendingRemoteImage = RemoteClipboardImage & {
+  position: number;
+};
 
 function dataTransferImageFiles(dataTransfer: DataTransfer | null | undefined) {
   const files = dataTransfer?.files as (ArrayLike<File> & { item?: (index: number) => File | null }) | undefined;
@@ -26,6 +47,10 @@ function dataTransferImageFiles(dataTransfer: DataTransfer | null | undefined) {
 
 function clipboardImageFiles(event: ClipboardEvent) {
   return dataTransferImageFiles(event.clipboardData);
+}
+
+function clipboardHtml(event: ClipboardEvent) {
+  return event.clipboardData?.getData("text/html") ?? "";
 }
 
 function droppedImageFiles(event: DragEvent) {
@@ -57,6 +82,134 @@ function createImageFragment(images: SavedClipboardImage[], image: NodeType) {
   );
 }
 
+function isRemoteImageSrc(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function remoteClipboardImageFromNode(node: ProseNode): RemoteClipboardImage | null {
+  const { alt, src, title } = node.attrs;
+  if (!isRemoteImageSrc(src)) return null;
+
+  return {
+    alt: typeof alt === "string" ? alt : "",
+    src,
+    title: typeof title === "string" ? title : ""
+  };
+}
+
+function remoteImagesInSlice(slice: Slice, image: NodeType) {
+  const remoteImages: RemoteClipboardImage[] = [];
+
+  slice.content.descendants((node) => {
+    if (node.type !== image) return;
+
+    const remoteImage = remoteClipboardImageFromNode(node);
+    if (remoteImage) remoteImages.push(remoteImage);
+  });
+
+  return remoteImages;
+}
+
+function insertedRangesFromTransactionMaps(
+  maps: readonly {
+    forEach: (callback: (oldStart: number, oldEnd: number, newStart: number, newEnd: number) => unknown) => unknown;
+  }[]
+) {
+  const ranges: InsertedRange[] = [];
+
+  for (const map of maps) {
+    map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
+      if (newEnd > newStart) ranges.push({ from: newStart, to: newEnd });
+    });
+  }
+
+  return ranges;
+}
+
+function collectInsertedRemoteImages(
+  view: EditorView,
+  ranges: InsertedRange[],
+  image: NodeType,
+  pastedImages: RemoteClipboardImage[]
+) {
+  const pastedSources = new Set(pastedImages.map((pastedImage) => pastedImage.src));
+  const pendingImages: PendingRemoteImage[] = [];
+  const seenPositions = new Set<number>();
+
+  for (const range of ranges) {
+    const from = Math.max(0, range.from);
+    const to = Math.min(view.state.doc.content.size, range.to);
+    if (to < from) continue;
+
+    view.state.doc.nodesBetween(from, to, (node, position) => {
+      if (node.type !== image || seenPositions.has(position)) return;
+
+      const remoteImage = remoteClipboardImageFromNode(node);
+      if (!remoteImage || !pastedSources.has(remoteImage.src)) return;
+
+      seenPositions.add(position);
+      pendingImages.push({
+        ...remoteImage,
+        position
+      });
+    });
+  }
+
+  return pendingImages;
+}
+
+function replaceRemoteImage(
+  view: EditorView,
+  image: NodeType,
+  pendingImage: PendingRemoteImage,
+  savedImage: SavedClipboardImage
+) {
+  const currentNode = view.state.doc.nodeAt(pendingImage.position);
+  if (!currentNode || currentNode.type !== image || currentNode.attrs.src !== pendingImage.src) return;
+
+  const transaction = view.state.tr.setNodeMarkup(pendingImage.position, undefined, {
+    ...currentNode.attrs,
+    alt: pendingImage.alt || savedImage.alt || "image",
+    src: savedImage.src,
+    title: pendingImage.title
+  });
+  view.dispatch(transaction);
+}
+
+async function saveAndReplaceRemoteImages(
+  view: EditorView,
+  pendingImages: PendingRemoteImage[],
+  saveRemoteImage: SaveRemoteClipboardImage,
+  image: NodeType
+) {
+  const savedBySource = new Map<string, Promise<SavedClipboardImage | null>>();
+
+  for (const pendingImage of pendingImages) {
+    let savedImagePromise = savedBySource.get(pendingImage.src);
+    if (!savedImagePromise) {
+      savedImagePromise = saveRemoteImage({
+        alt: pendingImage.alt,
+        src: pendingImage.src,
+        title: pendingImage.title
+      });
+      savedBySource.set(pendingImage.src, savedImagePromise);
+    }
+
+    const savedImage = await savedImagePromise.catch((error: unknown) => {
+      console.error("[markra-clipboard-images] failed to save remote pasted image", error);
+      return null;
+    });
+    if (savedImage) replaceRemoteImage(view, image, pendingImage, savedImage);
+  }
+}
+
 async function saveAndInsertClipboardImages(
   view: EditorView,
   files: File[],
@@ -84,19 +237,48 @@ async function saveAndInsertClipboardImages(
 }
 
 export function markraClipboardImagePlugin(saveClipboardImage: SaveClipboardImage) {
+  return markraClipboardImagePluginWithOptions(saveClipboardImage);
+}
+
+export function markraClipboardImagePluginWithOptions(
+  saveClipboardImage: SaveClipboardImage,
+  options: ClipboardImagePluginOptions = {}
+) {
   return $prose((ctx) => {
     const image = imageSchema.type(ctx);
 
     return new Plugin({
       props: {
-        handlePaste: (view, event) => {
+        handlePaste: (view, event, slice) => {
           const files = clipboardImageFiles(event);
-          if (!files.length) return false;
+          if (files.length) {
+            event.preventDefault();
+            saveAndInsertClipboardImages(view, files, saveClipboardImage, image).catch((error: unknown) => {
+              console.error("[markra-clipboard-images] failed to insert pasted image", error);
+            });
+            return true;
+          }
+
+          const saveRemoteImage = options.saveRemoteImage;
+          const html = clipboardHtml(event);
+          if (!saveRemoteImage || !html || !/<img[\s>]/iu.test(html)) return false;
+
+          const pastedRemoteImages = remoteImagesInSlice(slice, image);
+          if (!pastedRemoteImages.length) return false;
 
           event.preventDefault();
-          saveAndInsertClipboardImages(view, files, saveClipboardImage, image).catch((error: unknown) => {
-            console.error("[markra-clipboard-images] failed to insert pasted image", error);
-          });
+          const transaction = view.state.tr.replaceSelection(slice).scrollIntoView();
+          const insertedRanges = insertedRangesFromTransactionMaps(transaction.mapping.maps);
+          view.dispatch(transaction);
+          view.focus();
+
+          const pendingRemoteImages = collectInsertedRemoteImages(view, insertedRanges, image, pastedRemoteImages);
+          if (pendingRemoteImages.length) {
+            saveAndReplaceRemoteImages(view, pendingRemoteImages, saveRemoteImage, image).catch((error: unknown) => {
+              console.error("[markra-clipboard-images] failed to replace remote pasted images", error);
+            });
+          }
+
           return true;
         },
         handleDrop: (view, event) => {

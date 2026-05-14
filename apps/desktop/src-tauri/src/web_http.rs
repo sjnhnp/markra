@@ -2,13 +2,14 @@ use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE, LOCATION};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_LENGTH, CONTENT_TYPE, LOCATION};
 use reqwest::redirect::Policy;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 const WEB_RESOURCE_MAX_REDIRECTS: usize = 5;
 const WEB_RESOURCE_REQUEST_TIMEOUT_SECS: u64 = 30;
+const WEB_IMAGE_MAX_BYTES: u64 = 25 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,11 +29,32 @@ pub(crate) struct WebResourceResponse {
     status: u16,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WebImageDownloadRequest {
+    url: String,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WebImageDownloadResponse {
+    bytes: Vec<u8>,
+    file_name: String,
+    mime_type: String,
+}
+
 #[tauri::command]
 pub(crate) async fn request_web_resource(
     request: WebResourceRequest,
 ) -> Result<WebResourceResponse, String> {
     execute_web_resource_request(request).await
+}
+
+#[tauri::command]
+pub(crate) async fn download_web_image(
+    request: WebImageDownloadRequest,
+) -> Result<WebImageDownloadResponse, String> {
+    execute_web_image_download(request).await
 }
 
 async fn execute_web_resource_request(
@@ -87,7 +109,73 @@ async fn execute_web_resource_request(
     Err("Web resource request followed too many redirects.".to_string())
 }
 
-fn validated_web_resource_url(value: &str, allow_localhost: bool) -> Result<Url, String> {
+async fn execute_web_image_download(
+    request: WebImageDownloadRequest,
+) -> Result<WebImageDownloadResponse, String> {
+    let mut url = validated_web_resource_url(&request.url, false)?;
+    let client = reqwest::Client::builder()
+        .redirect(Policy::none())
+        .timeout(Duration::from_secs(WEB_RESOURCE_REQUEST_TIMEOUT_SECS))
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    for _ in 0..=WEB_RESOURCE_MAX_REDIRECTS {
+        let response = client
+            .get(url.clone())
+            .send()
+            .await
+            .map_err(|error| error.to_string())?;
+        let status = response.status();
+
+        if status.is_redirection() {
+            let location = response
+                .headers()
+                .get(LOCATION)
+                .ok_or_else(|| "Web image redirect did not include a location.".to_string())?;
+            let location = location.to_str().map_err(|error| error.to_string())?;
+            let next_url = url.join(location).map_err(|error| error.to_string())?;
+            url = validated_web_resource_url(next_url.as_str(), false)?;
+            continue;
+        }
+
+        if !status.is_success() {
+            return Err(format!(
+                "Web image download failed: HTTP {}",
+                status.as_u16()
+            ));
+        }
+
+        if let Some(content_length) = response.headers().get(CONTENT_LENGTH) {
+            let content_length = content_length
+                .to_str()
+                .ok()
+                .and_then(|value| value.parse::<u64>().ok());
+            if content_length.is_some_and(|length| length > WEB_IMAGE_MAX_BYTES) {
+                return Err("Web image is too large to paste into the document.".to_string());
+            }
+        }
+
+        let mime_type = web_image_mime_type(response.headers().get(CONTENT_TYPE), &url)?;
+        let file_name = web_image_file_name(&url, &mime_type);
+        let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+        if bytes.len() as u64 > WEB_IMAGE_MAX_BYTES {
+            return Err("Web image is too large to paste into the document.".to_string());
+        }
+
+        return Ok(WebImageDownloadResponse {
+            bytes: bytes.to_vec(),
+            file_name,
+            mime_type,
+        });
+    }
+
+    Err("Web image download followed too many redirects.".to_string())
+}
+
+pub(crate) fn validated_web_resource_url(
+    value: &str,
+    allow_localhost: bool,
+) -> Result<Url, String> {
     let url = Url::parse(value).map_err(|error| error.to_string())?;
     if !matches!(url.scheme(), "http" | "https") {
         return Err("Only HTTP and HTTPS web resource URLs are supported.".to_string());
@@ -100,6 +188,96 @@ fn validated_web_resource_url(value: &str, allow_localhost: bool) -> Result<Url,
     }
 
     Ok(url)
+}
+
+fn web_image_mime_type(content_type: Option<&HeaderValue>, url: &Url) -> Result<String, String> {
+    let normalized_content_type = content_type
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .filter(|value| !value.is_empty());
+
+    if let Some(mime_type) = normalized_content_type {
+        if mime_type.starts_with("image/") {
+            return Ok(mime_type);
+        }
+
+        if mime_type != "application/octet-stream" {
+            return Err("Downloaded web resource is not an image.".to_string());
+        }
+    }
+
+    image_mime_type_from_url(url)
+        .map(str::to_string)
+        .ok_or_else(|| "Downloaded web resource is not a supported image.".to_string())
+}
+
+fn web_image_file_name(url: &Url, mime_type: &str) -> String {
+    let file_name = url
+        .path_segments()
+        .and_then(|segments| segments.filter(|segment| !segment.is_empty()).last())
+        .filter(|segment| !segment.trim().is_empty())
+        .unwrap_or("web-image");
+
+    if image_extension_from_file_name(file_name).is_some() {
+        return file_name.to_string();
+    }
+
+    format!(
+        "{}.{}",
+        file_name,
+        image_extension_from_mime_type(mime_type)
+    )
+}
+
+fn image_mime_type_from_url(url: &Url) -> Option<&'static str> {
+    let file_name = url
+        .path_segments()
+        .and_then(|segments| segments.filter(|segment| !segment.is_empty()).last())?;
+    let extension = image_extension_from_file_name(file_name)?;
+    image_mime_type_from_extension(extension)
+}
+
+fn image_extension_from_file_name(file_name: &str) -> Option<&str> {
+    let extension = file_name.rsplit_once('.')?.1;
+    if is_supported_image_extension(extension) {
+        Some(extension)
+    } else {
+        None
+    }
+}
+
+fn is_supported_image_extension(extension: &str) -> bool {
+    matches!(
+        extension.to_ascii_lowercase().as_str(),
+        "avif" | "bmp" | "gif" | "jpeg" | "jpg" | "png" | "svg" | "webp"
+    )
+}
+
+fn image_mime_type_from_extension(extension: &str) -> Option<&'static str> {
+    match extension.to_ascii_lowercase().as_str() {
+        "avif" => Some("image/avif"),
+        "bmp" => Some("image/bmp"),
+        "gif" => Some("image/gif"),
+        "jpeg" | "jpg" => Some("image/jpeg"),
+        "png" => Some("image/png"),
+        "svg" => Some("image/svg+xml"),
+        "webp" => Some("image/webp"),
+        _ => None,
+    }
+}
+
+fn image_extension_from_mime_type(mime_type: &str) -> &'static str {
+    match mime_type {
+        "image/avif" => "avif",
+        "image/bmp" => "bmp",
+        "image/gif" => "gif",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/svg+xml" => "svg",
+        "image/webp" => "webp",
+        _ => "png",
+    }
 }
 
 fn is_local_or_private_host(url: &Url) -> bool {
@@ -201,6 +379,42 @@ mod tests {
             .expect("localhost should be allowed when explicitly requested");
 
         assert_eq!(url.as_str(), "http://localhost:8888/search?q=markra");
+    }
+
+    #[test]
+    fn accepts_image_content_types_for_web_image_downloads() {
+        let url = Url::parse("https://example.com/assets/kitten").expect("URL should parse");
+        let content_type = HeaderValue::from_static("image/png; charset=binary");
+
+        assert_eq!(
+            web_image_mime_type(Some(&content_type), &url).expect("image content type should pass"),
+            "image/png"
+        );
+        assert_eq!(web_image_file_name(&url, "image/png"), "kitten.png");
+    }
+
+    #[test]
+    fn infers_web_image_mime_type_from_url_for_octet_streams() {
+        let url = Url::parse("https://cdn.example.com/assets/logo.svg?version=1")
+            .expect("URL should parse");
+        let content_type = HeaderValue::from_static("application/octet-stream");
+
+        assert_eq!(
+            web_image_mime_type(Some(&content_type), &url)
+                .expect("octet stream image URLs should infer a MIME type"),
+            "image/svg+xml"
+        );
+        assert_eq!(web_image_file_name(&url, "image/svg+xml"), "logo.svg");
+    }
+
+    #[test]
+    fn rejects_non_image_content_types_for_web_image_downloads() {
+        let url = Url::parse("https://example.com/page.html").expect("URL should parse");
+        let content_type = HeaderValue::from_static("text/html");
+        let error = web_image_mime_type(Some(&content_type), &url)
+            .expect_err("non-image content type should be rejected");
+
+        assert!(error.contains("not an image"));
     }
 
     #[test]
