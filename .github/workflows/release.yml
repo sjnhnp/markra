@@ -142,6 +142,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: ${{ env.DESKTOP_DIR }}/src-tauri -> target
+          cache-bin: false
 
       - name: Install Linux system dependencies
         if: matrix.os == 'ubuntu-22.04'
