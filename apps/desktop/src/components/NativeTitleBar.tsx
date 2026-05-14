@@ -407,7 +407,7 @@ export function NativeTitleBar({
     : undefined;
 
   const renderTitleContent = (className: string, style?: CSSProperties) => (
-    <div className={className} style={style}>
+    <div className={className} style={style} data-tauri-drag-region>
       {titleContent}
     </div>
   );
@@ -415,7 +415,7 @@ export function NativeTitleBar({
     <span
       aria-hidden="true"
       className="native-titlebar-sidebar-divider pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-(--border-default)"
-      style={{ left: markdownFilesWidth }}
+      style={{ left: Math.max(0, markdownFilesWidth - 1) }}
     />
   ) : null;
 
@@ -430,7 +430,8 @@ export function NativeTitleBar({
         >
           {renderMarkdownFilesDivider()}
           {renderTitleContent(
-            "native-title-slot min-w-0 h-10 px-3"
+            "native-title-slot min-w-0 h-10 px-3",
+            markdownFilesOpen ? { paddingLeft: markdownFilesWidth + 12 } : undefined
           )}
           {renderDocumentActions(
             "document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100"
@@ -456,6 +457,11 @@ export function NativeTitleBar({
   const editorRightInset = aiAgentOpen ? aiAgentWidth : 0;
   const titleOffset = (editorLeftInset - editorRightInset) / 2;
   const titleTransform = titleOffset === 0 ? undefined : `translateX(${titleOffset}px)`;
+  const titlebarSideSlotWidth = 164;
+  const titleContentSlotStyle: CSSProperties = {
+    ...(editorLeftInset > titlebarSideSlotWidth ? { marginLeft: editorLeftInset - titlebarSideSlotWidth } : {}),
+    ...(editorRightInset > titlebarSideSlotWidth ? { marginRight: editorRightInset - titlebarSideSlotWidth } : {})
+  };
   const titleSlotStyle: CSSProperties = {
     transform: titleTransform,
     ...(titleOffset > 0 ? { marginRight: titleOffset } : {}),
@@ -505,7 +511,7 @@ export function NativeTitleBar({
           `native-title-slot flex h-10 min-w-0 items-center justify-center motion-reduce:transition-none ${
             titleResizing ? "transition-none" : "transition-[margin,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
           }`,
-          titleSlotStyle
+          titleContentSlotStyle
         )
       ) : (
         <h1

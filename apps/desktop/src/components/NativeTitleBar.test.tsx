@@ -80,15 +80,74 @@ describe("NativeTitleBar", () => {
 
     expect(screen.queryByRole("heading", { name: "Draft.md" })).not.toBeInTheDocument();
     expect(screen.getByRole("tablist", { name: "Open documents" })).toBeInTheDocument();
+    expect(container.querySelector(".native-title-slot")).toHaveAttribute("data-tauri-drag-region");
     expect(container.querySelector(".native-titlebar")).toHaveClass("bg-(--bg-primary)");
     expect(container.querySelector(".native-titlebar")).not.toHaveClass("border-b");
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
       background: "linear-gradient(to right, var(--bg-secondary) 0 220px, var(--bg-primary) 220px 100%)"
     });
-    expect(container.querySelector(".native-titlebar-sidebar-divider")).toHaveStyle({ left: "220px" });
+    expect(container.querySelector(".native-titlebar-sidebar-divider")).toHaveStyle({ left: "219px" });
     expect(container.querySelector(".native-title-slot")).toHaveStyle({
-      marginRight: "110px",
-      transform: "translateX(110px)"
+      marginLeft: "56px"
+    });
+    expect(container.querySelector(".native-title-slot")).not.toHaveStyle({ transform: "translateX(110px)" });
+  });
+
+  it("keeps macOS titlebar tabs between the sidebar and AI panel", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen
+        aiAgentWidth={384}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen
+        markdownFilesWidth={288}
+        theme="light"
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".native-title-slot")).toHaveStyle({
+      marginLeft: "124px",
+      marginRight: "220px"
+    });
+  });
+
+  it("keeps Windows titlebar tabs out of the markdown files sidebar", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen
+        markdownFilesWidth={220}
+        platform="windows"
+        theme="light"
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("tablist", { name: "Open documents" })).toBeInTheDocument();
+    expect(container.querySelector(".native-title-slot")).toHaveStyle({
+      paddingLeft: "232px"
     });
   });
 

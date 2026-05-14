@@ -856,9 +856,10 @@ describe("Markra workspace", () => {
       gridTemplateColumns: "220px minmax(0,1fr)"
     });
     expect(container.querySelector(".native-title-slot")).toHaveStyle({
-      marginRight: "110px",
-      transform: "translateX(110px)"
+      marginLeft: "56px"
     });
+    expect(container.querySelector(".native-title-slot")).toHaveAttribute("data-tauri-drag-region");
+    expect(container.querySelector(".native-title-slot")).not.toHaveStyle({ transform: "translateX(110px)" });
     expect(resizeHandle).toHaveAttribute("aria-valuemin", "220");
     expect(resizeHandle).toHaveAttribute("aria-valuemax", "440");
     expect(resizeHandle).toHaveAttribute("aria-valuenow", "220");
