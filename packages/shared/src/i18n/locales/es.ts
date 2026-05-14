@@ -209,6 +209,8 @@ const messages: LocaleMessages = {
   "editor.table.resizeTableTo": "Cambiar tabla a {columns} columnas x {rows} filas",
   "editor.table.columns": "Columnas de la tabla",
   "editor.table.rows": "Filas de la tabla",
+  "editor.slashCommands": "Comandos con barra",
+  "editor.slashCommandsNoResults": "No hay comandos coincidentes",
   "app.documentStatus": "Estado del documento",
   "app.words": "palabras",
   "app.saved": "guardado",

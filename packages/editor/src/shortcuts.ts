@@ -10,10 +10,10 @@ import {
   strongSchema
 } from "@milkdown/kit/preset/commonmark";
 import { strikethroughSchema } from "@milkdown/kit/preset/gfm";
-import { exitCode, setBlockType, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
+import { exitCode, lift, setBlockType, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
 import { redo, undo } from "@milkdown/kit/prose/history";
-import type { ResolvedPos } from "@milkdown/kit/prose/model";
-import type { Command } from "@milkdown/kit/prose/state";
+import type { NodeType, ResolvedPos } from "@milkdown/kit/prose/model";
+import type { Command, Selection } from "@milkdown/kit/prose/state";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { wrapInList } from "@milkdown/kit/prose/schema-list";
@@ -60,6 +60,44 @@ function runCommand(view: EditorView, command: Command) {
   }
 
   return handled;
+}
+
+function selectionIsInsideNodeType(
+  selection: Selection,
+  nodeType: NodeType
+) {
+  const positions = [selection.$from, selection.$to];
+
+  return positions.every(($pos) => {
+    for (let depth = $pos.depth; depth > 0; depth -= 1) {
+      if ($pos.node(depth).type === nodeType) return true;
+    }
+
+    return false;
+  });
+}
+
+function toggleBlockquote(blockquote: ReturnType<typeof blockquoteSchema.type>): Command {
+  return (state, dispatch, view) => {
+    if (selectionIsInsideNodeType(state.selection, blockquote)) {
+      return lift(state, dispatch, view);
+    }
+
+    return wrapIn(blockquote)(state, dispatch, view);
+  };
+}
+
+function selectionIsEmptyTextBlock(selection: Selection) {
+  return (
+    selection instanceof TextSelection &&
+    selection.empty &&
+    selection.$from.parent.isTextblock &&
+    selection.$from.parent.content.size === 0
+  );
+}
+
+function selectionIsEmptyBlockquote(selection: Selection, blockquote: NodeType) {
+  return selectionIsEmptyTextBlock(selection) && selectionIsInsideNodeType(selection, blockquote);
 }
 
 function isPlainParagraphNodeName(nodeName: string) {
@@ -141,7 +179,7 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
     italic: toggleMark(emphasis),
     orderedList: wrapInList(orderedList),
     paragraph: setBlockType(paragraph),
-    quote: wrapIn(blockquote),
+    quote: toggleBlockquote(blockquote),
     strikethrough: toggleMark(strikethrough)
   };
 
@@ -149,9 +187,20 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
     props: {
       handleKeyDown: (view, event) => {
         let command: Command | null = null;
+        const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
 
         // Support both Milkdown-style shortcuts and common document-editor aliases.
-        if (event.key === "Enter" && isKeyboardShortcutModKey(event) && !event.shiftKey && !event.altKey) {
+        if (event.key === "Enter" && !hasModifier && selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
+          event.preventDefault();
+          view.focus();
+          return true;
+        } else if (event.key === "Backspace" && !hasModifier && selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
+          const handled = runCommand(view, lift);
+          if (!handled) return false;
+
+          event.preventDefault();
+          return true;
+        } else if (event.key === "Enter" && isKeyboardShortcutModKey(event) && !event.shiftKey && !event.altKey) {
           const handled = runCommand(view, exitCode) || moveBelowTerminalBlock(view, paragraph);
           if (!handled) return false;
 

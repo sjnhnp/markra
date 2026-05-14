@@ -215,6 +215,8 @@ const messages: LocaleMessages = {
   "editor.table.resizeTableTo": "調整為 {columns} 欄 x {rows} 列",
   "editor.table.columns": "表格欄數",
   "editor.table.rows": "表格列數",
+  "editor.slashCommands": "斜線命令",
+  "editor.slashCommandsNoResults": "沒有符合的命令",
   "app.documentStatus": "文件狀態",
   "app.words": "個字",
   "app.saved": "已儲存",

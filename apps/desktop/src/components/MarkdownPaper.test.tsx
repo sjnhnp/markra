@@ -108,6 +108,23 @@ function selectText(view: EditorView, from: number, to: number) {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
 }
 
+function findFirstTextBlockCursor(view: EditorView) {
+  let position: number | null = null;
+
+  view.state.doc.descendants((node, nodePosition) => {
+    if (!node.isTextblock) return true;
+
+    position = nodePosition + 1;
+    return false;
+  });
+
+  if (position === null) {
+    throw new Error("Could not find text block in editor.");
+  }
+
+  return position;
+}
+
 function splitCurrentTextBlockDirectly(view: EditorView) {
   view.dispatch(view.state.tr.split(view.state.selection.from).scrollIntoView());
 }
@@ -172,6 +189,15 @@ function findNodeStartPosition(view: EditorView, typeName: string) {
 function pressEnter(view: EditorView) {
   const event = new KeyboardEvent("keydown", {
     key: "Enter",
+    bubbles: true,
+    cancelable: true
+  });
+  return view.someProp("handleKeyDown", (handler) => handler(view, event));
+}
+
+function pressBackspace(view: EditorView) {
+  const event = new KeyboardEvent("keydown", {
+    key: "Backspace",
     bubbles: true,
     cancelable: true
   });
@@ -2303,6 +2329,44 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("toggles quote formatting off without deleting the quoted text", async () => {
+    const { container, view } = await renderEditor();
+    typeText(view, "Quote");
+
+    expect(pressShortcut(view, "b", { metaKey: true, shiftKey: true })).toBe(true);
+    expect(container.querySelector(".ProseMirror blockquote")).toHaveTextContent("Quote");
+
+    expect(pressShortcut(view, "b", { metaKey: true, shiftKey: true })).toBe(true);
+
+    expect(container.querySelector(".ProseMirror blockquote")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror p")).toHaveTextContent("Quote");
+    await settleMarkdownListener();
+  });
+
+  it("keeps empty quote formatting when pressing Enter", async () => {
+    const { container, view } = await renderEditor("> ");
+    moveCursor(view, findFirstTextBlockCursor(view));
+
+    expect(container.querySelector(".ProseMirror blockquote")).toBeInTheDocument();
+    expect(pressEnter(view)).toBe(true);
+
+    expect(container.querySelector(".ProseMirror blockquote")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("");
+    await settleMarkdownListener();
+  });
+
+  it("removes empty quote formatting when pressing Backspace", async () => {
+    const { container, view } = await renderEditor("> ");
+    moveCursor(view, findFirstTextBlockCursor(view));
+
+    expect(container.querySelector(".ProseMirror blockquote")).toBeInTheDocument();
+    expect(pressBackspace(view)).toBe(true);
+
+    expect(container.querySelector(".ProseMirror blockquote")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror p")).toHaveTextContent("");
+    await settleMarkdownListener();
+  });
+
   it("supports undo and redo shortcuts", async () => {
     const { container, view } = await renderEditor();
 
@@ -3058,6 +3122,52 @@ describe("MarkdownPaper editing", () => {
 
     expect(quote.container.querySelector(".ProseMirror blockquote")).toHaveTextContent("quote");
     expect(quote.container.querySelector(".ProseMirror")?.textContent).toBe("quote");
+    await settleMarkdownListener();
+  });
+
+  it("opens and dismisses the slash command menu from an empty block", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "/");
+
+    expect(await screen.findByRole("listbox", { name: "Slash commands" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Heading 1" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Code Block" })).toBeInTheDocument();
+
+    expect(pressShortcut(view, "Escape")).toBe(true);
+
+    await waitFor(() => expect(screen.queryByRole("listbox", { name: "Slash commands" })).not.toBeInTheDocument());
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("/");
+    await settleMarkdownListener();
+  });
+
+  it("filters slash commands and inserts a code block from the keyboard", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "/co");
+
+    expect(await screen.findByRole("listbox", { name: "Slash commands" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Code Block" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("option", { name: "Heading 1" })).not.toBeInTheDocument();
+
+    expect(pressEnter(view)).toBe(true);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror .markra-code-block")).toBeInTheDocument());
+    expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("/co");
+    await settleMarkdownListener();
+  });
+
+  it("inserts a table from the slash command menu", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "/ta");
+
+    const tableOption = await screen.findByRole("option", { name: "Table" });
+    fireEvent.mouseDown(tableOption);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror table")).toBeInTheDocument());
+    expect(container.querySelector(".ProseMirror table")).toHaveTextContent("Column 1");
+    expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("/ta");
     await settleMarkdownListener();
   });
 

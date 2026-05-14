@@ -215,6 +215,8 @@ const messages: LocaleMessages = {
   "editor.table.resizeTableTo": "{columns} 列 x {rows} 行に変更",
   "editor.table.columns": "表の列数",
   "editor.table.rows": "表の行数",
+  "editor.slashCommands": "スラッシュコマンド",
+  "editor.slashCommandsNoResults": "一致するコマンドはありません",
   "app.documentStatus": "ドキュメント状態",
   "app.words": "語",
   "app.saved": "保存済み",

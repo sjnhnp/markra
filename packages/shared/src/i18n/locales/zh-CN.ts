@@ -315,6 +315,8 @@ const messages: LocaleMessages = {
   "editor.table.resizeTableTo": "调整为 {columns} 列 x {rows} 行",
   "editor.table.columns": "表格列数",
   "editor.table.rows": "表格行数",
+  "editor.slashCommands": "斜杠命令",
+  "editor.slashCommandsNoResults": "没有匹配的命令",
   "app.documentStatus": "文档状态",
   "app.words": "个词",
   "app.saved": "已保存",

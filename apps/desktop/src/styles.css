@@ -277,6 +277,24 @@
 }
 
 @layer components {
+  .markra-slash-menu {
+    @apply fixed z-[60] w-60 rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 text-[13px] leading-5 text-(--text-primary);
+    box-shadow: var(--ai-command-popover-shadow);
+  }
+
+  .markra-slash-menu-option {
+    @apply flex h-8 w-full cursor-pointer items-center rounded-md border-0 bg-transparent px-2.5 text-left text-[13px] leading-5 font-[560] tracking-normal text-(--text-primary) outline-none transition-[background-color,color] duration-150 ease-out;
+  }
+
+  .markra-slash-menu-option:hover,
+  .markra-slash-menu-option[aria-selected="true"] {
+    @apply bg-(--bg-active) text-(--text-heading);
+  }
+
+  .markra-slash-menu-empty {
+    @apply px-2.5 py-2 text-[12px] leading-5 font-[560] text-(--text-secondary);
+  }
+
   .markdown-paper [data-milkdown-root],
   .markdown-paper .ProseMirror {
     @apply min-h-[calc(100vh-176px)] outline-none;

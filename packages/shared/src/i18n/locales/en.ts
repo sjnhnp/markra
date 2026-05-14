@@ -315,6 +315,8 @@ const messages: BaseLocaleMessages = {
   "editor.table.resizeTableTo": "Resize table to {columns} columns by {rows} rows",
   "editor.table.columns": "Table columns",
   "editor.table.rows": "Table rows",
+  "editor.slashCommands": "Slash commands",
+  "editor.slashCommandsNoResults": "No matching commands",
   "app.documentStatus": "Document status",
   "app.words": "words",
   "app.saved": "saved",
