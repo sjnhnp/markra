@@ -16,12 +16,20 @@ type BuildInlineAiMessagesInput = {
   targetScope?: AiTargetScope;
   targetText: string;
   targetType?: "insert" | "replace";
-  translationTargetLanguage?: string;
 };
 
 type NormalizeInlineAiReplacementOptions = {
   preserveLeadingWhitespace?: boolean;
 };
+
+const translateIntentInstruction = [
+  "Automatically detect the target text's current language before translating it.",
+  "If the target text is mostly English, translate it into Simplified Chinese.",
+  "If the target text is mostly Chinese, translate it into English.",
+  "For other languages, translate it into English unless the user instruction names another target language.",
+  "If the user instruction explicitly names a different target language, use that explicit language instead.",
+  "Preserve Markdown formatting."
+].join(" ");
 
 const intentInstruction: Record<AiEditIntent, string> = {
   custom: "Follow the user instruction exactly while keeping the edit scoped to the target.",
@@ -29,7 +37,7 @@ const intentInstruction: Record<AiEditIntent, string> = {
   rewrite: "Rewrite the target text according to the user instruction while preserving the intended meaning unless asked otherwise.",
   continue: "Continue after the target text. Return only the new Markdown to insert after it. Do not repeat the target text.",
   summarize: "Summarize the target text concisely while preserving the important facts and Markdown readability.",
-  translate: "Translate the target text into English."
+  translate: translateIntentInstruction
 };
 
 const targetScopeLabel: Record<AiTargetScope, string> = {
@@ -47,8 +55,7 @@ export function buildInlineAiMessages({
   targetContext = null,
   targetScope = "selection",
   targetText,
-  targetType = "replace",
-  translationTargetLanguage = "English"
+  targetType = "replace"
 }: BuildInlineAiMessagesInput): ChatMessage[] {
   const trimmedDocumentContext = documentContent.trim();
   const currentSuggestion = suggestionContext
@@ -75,7 +82,7 @@ export function buildInlineAiMessages({
     },
     {
       content: [
-        `Task:\n${instructionForIntent(intent, translationTargetLanguage)}`,
+        `Task:\n${instructionForIntent(intent)}`,
         `Target scope:\n${targetScopeLabel[targetScope]}`,
         `Edit mode:\n${targetType === "insert" ? "Insert after the target" : "Replace the target"}`,
         `Target text:\n${targetText}`,
@@ -94,14 +101,8 @@ export function buildInlineAiMessages({
   ];
 }
 
-function instructionForIntent(intent: AiEditIntent, translationTargetLanguage: string) {
-  if (intent !== "translate") return intentInstruction[intent];
-
-  return [
-    `Translate the target text into ${translationTargetLanguage || "English"}.`,
-    "If the user instruction explicitly names a different target language, use that explicit language instead.",
-    "Preserve Markdown formatting."
-  ].join(" ");
+function instructionForIntent(intent: AiEditIntent) {
+  return intentInstruction[intent];
 }
 
 export function normalizeInlineAiReplacement(

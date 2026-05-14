@@ -23,8 +23,7 @@ export async function runInlineAiAgent({
   prompt,
   provider,
   target,
-  thinkingEnabled,
-  translationTargetLanguage
+  thinkingEnabled
 }: InlineAiAgentInput) {
   const targetContext = nearbyTargetContext(documentContent, target.from, target.to, {
     direction: target.type === "insert" || intent === "continue" ? "before" : "around"
@@ -37,8 +36,7 @@ export async function runInlineAiAgent({
     targetContext,
     targetScope: target.scope,
     targetText: target.promptText,
-    targetType: target.type,
-    translationTargetLanguage
+    targetType: target.type
   });
   const systemPrompt = messages.find((message) => message.role === "system")?.content ?? "";
   const userPrompt = [

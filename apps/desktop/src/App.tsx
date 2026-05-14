@@ -42,7 +42,7 @@ import {
   useNativeMenuHandlers,
   useNativeMenus
 } from "./hooks/useNativeBindings";
-import { aiTranslationLanguageName, t, type I18nKey } from "@markra/shared";
+import { t, type I18nKey } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
@@ -372,7 +372,6 @@ export default function App() {
     provider: aiSettings.inlineProvider,
     settingsLoading: aiSettings.loading,
     translate,
-    translationTargetLanguage: aiTranslationLanguageName(appLanguage.ready ? appLanguage.language : "en"),
     workspaceFiles: fileTreeFiles
   });
   const aiCommandVisible = aiCommand.open && (hasAiCommandContext || Boolean(aiResult) || aiContextMenuActionPending);
@@ -1490,6 +1489,7 @@ export default function App() {
           busy={aiCommand.submitting || aiContextMenuActionPending}
           language={appLanguage.language}
           open={aiSelectionToolbarVisible}
+          quickActionPrompts={editorPreferences.preferences.aiQuickActionPrompts}
           onOpenCommand={handleAiSelectionToolbarOpenCommand}
           onRunAction={handleAiSelectionToolbarAction}
         />
@@ -1503,6 +1503,7 @@ export default function App() {
           language={appLanguage.language}
           open={aiCommandVisible}
           prompt={aiCommand.prompt}
+          quickActionPrompts={editorPreferences.preferences.aiQuickActionPrompts}
           selectedModelId={aiSettings.inlineModelId}
           selectedProviderId={aiSettings.inlineProviderId}
           selectedText={activeAiSelection?.text ?? ""}

@@ -1,13 +1,18 @@
 import { type CSSProperties } from "react";
 import { FileText, Languages, PenLine, Plus, Sparkles, WandSparkles, type LucideIcon } from "lucide-react";
-import type { AiEditIntent } from "@markra/ai";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
+import {
+  aiQuickActionLabelKeys,
+  defaultAiQuickActionPrompts,
+  resolveAiQuickActionPrompt,
+  type AiQuickActionId,
+  type AiQuickActionPrompts
+} from "../lib/ai-actions";
 import type { SelectionAnchor } from "../lib/selection-anchor";
 
 type AiSelectionAction = {
   icon: LucideIcon;
-  intent: Exclude<AiEditIntent, "custom">;
-  labelKey: I18nKey;
+  intent: AiQuickActionId;
 };
 
 type AiSelectionToolbarProps = {
@@ -15,8 +20,9 @@ type AiSelectionToolbarProps = {
   busy?: boolean;
   language?: AppLanguage;
   open: boolean;
+  quickActionPrompts?: AiQuickActionPrompts;
   onOpenCommand: () => unknown;
-  onRunAction: (intent: Exclude<AiEditIntent, "custom">, prompt: string) => unknown;
+  onRunAction: (intent: AiQuickActionId, prompt: string) => unknown;
 };
 
 const toolbarOffsetPx = 12;
@@ -24,28 +30,23 @@ const toolbarOffsetPx = 12;
 const aiSelectionActions: AiSelectionAction[] = [
   {
     icon: Sparkles,
-    intent: "polish",
-    labelKey: "app.aiPolish"
+    intent: "polish"
   },
   {
     icon: PenLine,
-    intent: "rewrite",
-    labelKey: "app.aiRewrite"
+    intent: "rewrite"
   },
   {
     icon: Plus,
-    intent: "continue",
-    labelKey: "app.aiContinueWriting"
+    intent: "continue"
   },
   {
     icon: FileText,
-    intent: "summarize",
-    labelKey: "app.aiSummarize"
+    intent: "summarize"
   },
   {
     icon: Languages,
-    intent: "translate",
-    labelKey: "app.aiTranslate"
+    intent: "translate"
   }
 ];
 
@@ -54,6 +55,7 @@ export function AiSelectionToolbar({
   busy = false,
   language = "en",
   open,
+  quickActionPrompts = defaultAiQuickActionPrompts,
   onOpenCommand,
   onRunAction
 }: AiSelectionToolbarProps) {
@@ -87,16 +89,21 @@ export function AiSelectionToolbar({
         <span className="mx-0.5 h-5 w-px bg-(--border-default)" aria-hidden="true" />
         {aiSelectionActions.map((action) => {
           const Icon = action.icon;
-          const actionLabel = label(action.labelKey);
+          const actionLabel = label(aiQuickActionLabelKeys[action.intent]);
+          const actionPrompt = resolveAiQuickActionPrompt(
+            quickActionPrompts,
+            action.intent,
+            defaultAiQuickActionPrompts[action.intent]
+          );
 
           return (
             <button
               className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-[13px] leading-5 font-[560] text-(--text-primary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 max-[720px]:px-2"
-              key={action.labelKey}
+              key={action.intent}
               type="button"
               disabled={busy}
               title={actionLabel}
-              onClick={() => onRunAction(action.intent, actionLabel)}
+              onClick={() => onRunAction(action.intent, actionPrompt)}
               aria-label={actionLabel}
             >
               <Icon aria-hidden="true" size={14} />

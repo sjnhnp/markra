@@ -2,10 +2,15 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import { t } from "@markra/shared";
 import { defaultEditorPreferences, type EditorPreferences } from "../lib/settings/app-settings";
-import { EditorSettings, KeyboardShortcutsSettings, StorageSettings } from "./SettingsSections";
+import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
+import { AiSettings, EditorSettings, KeyboardShortcutsSettings, StorageSettings } from "./SettingsSections";
 
 function translate(key: Parameters<typeof t>[1]) {
   return t("en", key);
+}
+
+function translateChinese(key: Parameters<typeof t>[1]) {
+  return t("zh-CN", key);
 }
 
 function mockTitlebarActionRects(actionIds: string[]) {
@@ -67,11 +72,27 @@ describe("EditorSettings", () => {
     });
   });
 
-  it("toggles experimental AI panel handoff suggestions from editor settings", () => {
+  it("keeps AI assistance controls out of the editor settings", () => {
+    render(
+      <EditorSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("heading", { name: "AI assistance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Show AI on text selection" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Selection AI display" })).not.toBeInTheDocument();
+  });
+});
+
+describe("AiSettings", () => {
+  it("moves editor AI assistance controls into the AI settings tab", () => {
     const onUpdatePreferences = vi.fn();
 
     render(
-      <EditorSettings
+      <AiSettings
         preferences={{
           ...defaultEditorPreferences,
           suggestAiPanelForComplexInlinePrompts: true
@@ -95,6 +116,107 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("selects how AI appears after selecting text", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <AiSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          aiSelectionDisplayMode: "toolbar"
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const group = screen.getByRole("group", { name: "Selection AI display" });
+    const quickInputButton = within(group).getByRole("button", { name: "Use quick input" });
+    const toolbarButton = within(group).getByRole("button", { name: "Use selection toolbar" });
+
+    expect(toolbarButton).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(quickInputButton);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      aiSelectionDisplayMode: "command"
+    });
+  });
+
+  it("edits and resets AI quick action prompts", () => {
+    const onUpdatePreferences = vi.fn();
+    const preferences = {
+      ...defaultEditorPreferences,
+      aiQuickActionPrompts: {
+        ...defaultAiQuickActionPrompts,
+        polish: "Make the selected text clearer."
+      }
+    };
+
+    render(
+      <AiSettings
+        preferences={preferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const polishPrompt = screen.getByRole("textbox", { name: "Polish prompt" });
+
+    expect(screen.getByRole("heading", { name: "AI prompts" })).toBeInTheDocument();
+    expect(polishPrompt).toHaveValue("Make the selected text clearer.");
+
+    fireEvent.change(polishPrompt, { target: { value: "Make this sharper." } });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...preferences,
+      aiQuickActionPrompts: {
+        ...defaultAiQuickActionPrompts,
+        polish: "Make this sharper."
+      }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset Polish prompt" }));
+
+    expect(onUpdatePreferences).toHaveBeenLastCalledWith({
+      ...preferences,
+      aiQuickActionPrompts: defaultAiQuickActionPrompts
+    });
+  });
+
+  it("shows the English default prompt when no custom quick action prompt is stored", () => {
+    render(
+      <AiSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "Polish prompt" })).toHaveValue(
+      defaultAiQuickActionPrompts.polish
+    );
+    expect(screen.getByRole("textbox", { name: "Continue writing prompt" })).toHaveValue(
+      defaultAiQuickActionPrompts.continue
+    );
+  });
+
+  it("keeps default quick action prompts in English across app languages", () => {
+    render(
+      <AiSettings
+        preferences={defaultEditorPreferences}
+        translate={translateChinese}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "润色 提示词" })).toHaveValue(defaultAiQuickActionPrompts.polish);
+    expect(screen.getByRole("textbox", { name: "翻译 提示词" })).toHaveValue(defaultAiQuickActionPrompts.translate);
+  });
+});
+
+describe("EditorSettings", () => {
   it("shows storage type in the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 
@@ -259,34 +381,6 @@ describe("StorageSettings", () => {
 });
 
 describe("EditorSettings", () => {
-  it("selects how AI appears after selecting text", () => {
-    const onUpdatePreferences = vi.fn();
-
-    render(
-      <EditorSettings
-        preferences={{
-          ...defaultEditorPreferences,
-          aiSelectionDisplayMode: "toolbar"
-        }}
-        translate={translate}
-        onUpdatePreferences={onUpdatePreferences}
-      />
-    );
-
-    const group = screen.getByRole("group", { name: "Selection AI display" });
-    const quickInputButton = within(group).getByRole("button", { name: "Use quick input" });
-    const toolbarButton = within(group).getByRole("button", { name: "Use selection toolbar" });
-
-    expect(toolbarButton).toHaveAttribute("aria-pressed", "true");
-
-    fireEvent.click(quickInputButton);
-
-    expect(onUpdatePreferences).toHaveBeenCalledWith({
-      ...defaultEditorPreferences,
-      aiSelectionDisplayMode: "command"
-    });
-  });
-
   it("edits content width as a percentage with a reset button", () => {
     const onUpdatePreferences = vi.fn();
 

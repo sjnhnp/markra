@@ -20,6 +20,11 @@ import {
   normalizeEditorContentWidthPx,
   type EditorContentWidth
 } from "../editor-width";
+import {
+  defaultAiQuickActionPrompts,
+  normalizeAiQuickActionPrompts,
+  type AiQuickActionPrompts
+} from "../ai-actions";
 
 const settingsStorePath = "settings.json";
 const aiAgentSessionIndexStorePath = "ai-agent-sessions/index.json";
@@ -74,6 +79,7 @@ export type AiAgentPreferences = {
   webSearchEnabled: boolean;
 };
 export type EditorPreferences = {
+  aiQuickActionPrompts: AiQuickActionPrompts;
   aiSelectionDisplayMode: AiSelectionDisplayMode;
   autoOpenAiOnSelection: boolean;
   bodyFontSize: number;
@@ -142,6 +148,7 @@ export const defaultImageUploadSettings: ImageUploadSettings = {
 };
 
 export const defaultEditorPreferences: EditorPreferences = {
+  aiQuickActionPrompts: { ...defaultAiQuickActionPrompts },
   aiSelectionDisplayMode: "command",
   autoOpenAiOnSelection: true,
   bodyFontSize: 16,
@@ -574,6 +581,7 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   const preferences = value as Partial<EditorPreferences>;
 
   return {
+    aiQuickActionPrompts: normalizeAiQuickActionPrompts(preferences.aiQuickActionPrompts),
     aiSelectionDisplayMode: aiSelectionDisplayModeOptions.includes(preferences.aiSelectionDisplayMode as AiSelectionDisplayMode)
       ? preferences.aiSelectionDisplayMode as AiSelectionDisplayMode
       : defaultEditorPreferences.aiSelectionDisplayMode,

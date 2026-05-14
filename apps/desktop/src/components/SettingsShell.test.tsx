@@ -41,6 +41,25 @@ describe("SettingsShell", () => {
     expect(onCategoryChange).toHaveBeenCalledWith("storage");
   });
 
+  it("shows AI and providers as separate settings categories", () => {
+    const onCategoryChange = vi.fn();
+
+    render(
+      <SettingsSidebar
+        activeCategory="general"
+        platform="macos"
+        translate={translate}
+        onCategoryChange={onCategoryChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "AI" }));
+    fireEvent.click(screen.getByRole("button", { name: "Providers" }));
+
+    expect(onCategoryChange).toHaveBeenCalledWith("ai");
+    expect(onCategoryChange).toHaveBeenCalledWith("providers");
+  });
+
   it("uses the keyboard shortcuts category title for the active panel", () => {
     render(
       <SettingsContent activeCategory="keyboardShortcuts" translate={translate}>
@@ -59,5 +78,15 @@ describe("SettingsShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Storage" })).toBeInTheDocument();
+  });
+
+  it("uses the provider category title for the provider panel", () => {
+    render(
+      <SettingsContent activeCategory="providers" translate={translate}>
+        <div />
+      </SettingsContent>
+    );
+
+    expect(screen.getByRole("heading", { name: "Providers" })).toBeInTheDocument();
   });
 });

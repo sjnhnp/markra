@@ -1,10 +1,18 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import { getStoredEditorPreferences } from "../lib/settings/app-settings";
 import { listenAppEditorPreferencesChanged } from "../lib/settings/settings-events";
 import { useEditorPreferences } from "./useEditorPreferences";
 
 vi.mock("../lib/settings/app-settings", () => ({
   defaultEditorPreferences: {
+    aiQuickActionPrompts: {
+      continue: "Continue after the target text. Return only the new Markdown to insert after it. Do not repeat the target text.",
+      polish: "Polish the target text for clarity, flow, grammar, and word choice without adding new facts.",
+      rewrite: "Rewrite the target text according to the user instruction while preserving the intended meaning unless asked otherwise.",
+      summarize: "Summarize the target text concisely while preserving the important facts and Markdown readability.",
+      translate: "Automatically detect the target text's current language before translating it. If the target text is mostly English, translate it into Simplified Chinese. If the target text is mostly Chinese, translate it into English. For other languages, translate it into English unless the user instruction names another target language. If the user instruction explicitly names a different target language, use that explicit language instead. Preserve Markdown formatting."
+    },
     aiSelectionDisplayMode: "command",
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
@@ -78,6 +86,7 @@ describe("useEditorPreferences", () => {
   it("loads editor preferences and reacts to cross-window preference changes", async () => {
     let onPreferencesChanged: Parameters<typeof listenAppEditorPreferencesChanged>[0] | null = null;
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
       aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
@@ -152,6 +161,7 @@ describe("useEditorPreferences", () => {
 
     act(() => {
       onPreferencesChanged?.({
+        aiQuickActionPrompts: defaultAiQuickActionPrompts,
         aiSelectionDisplayMode: "command",
         autoOpenAiOnSelection: false,
         bodyFontSize: 18,

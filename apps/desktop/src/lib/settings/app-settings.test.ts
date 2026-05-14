@@ -33,6 +33,7 @@ import {
   type AiProviderSettings
 } from "./app-settings";
 import { defaultMarkdownShortcuts } from "@markra/editor";
+import { defaultAiQuickActionPrompts } from "../ai-actions";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn()
@@ -134,6 +135,7 @@ describe("app settings", () => {
     store.get.mockResolvedValue(undefined);
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
       aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
@@ -368,6 +370,7 @@ describe("app settings", () => {
     });
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
       aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 16,
@@ -437,6 +440,20 @@ describe("app settings", () => {
     expect(normalizeEditorPreferences({
       aiSelectionDisplayMode: "popup"
     }).aiSelectionDisplayMode).toBe("command");
+  });
+
+  it("normalizes AI quick action prompt overrides", () => {
+    expect(normalizeEditorPreferences({
+      aiQuickActionPrompts: {
+        continue: "Keep writing in the same voice.",
+        polish: 42,
+        summarize: "Summarize in one sentence."
+      }
+    }).aiQuickActionPrompts).toEqual({
+      ...defaultAiQuickActionPrompts,
+      continue: "Keep writing in the same voice.",
+      summarize: "Summarize in one sentence."
+    });
   });
 
   it("moves titlebar actions to the target slot in both directions", () => {
@@ -592,6 +609,7 @@ describe("app settings", () => {
     });
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
       aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
@@ -637,6 +655,7 @@ describe("app settings", () => {
 
   it("persists editor preferences", async () => {
     await saveStoredEditorPreferences({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
       aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
@@ -683,6 +702,7 @@ describe("app settings", () => {
     });
 
     expect(store.set).toHaveBeenCalledWith("editorPreferences", {
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
       aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,

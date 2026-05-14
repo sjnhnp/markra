@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import { AiCommandBar } from "./AiCommandBar";
 
 describe("AiCommandBar", () => {
@@ -494,13 +495,40 @@ describe("AiCommandBar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Polish" }));
 
-    expect(onPromptChange).toHaveBeenCalledWith("Polish");
-    expect(onSubmit).toHaveBeenCalledWith("Polish", "polish");
+    expect(onPromptChange).toHaveBeenCalledWith(defaultAiQuickActionPrompts.polish);
+    expect(onSubmit).toHaveBeenCalledWith(defaultAiQuickActionPrompts.polish, "polish");
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: "custom request" } });
 
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
+  });
+
+  it("uses configured quick action prompts for the command box toolkit", async () => {
+    const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt=""
+        quickActionPrompts={{
+          ...defaultAiQuickActionPrompts,
+          polish: "Make the selected text clearer."
+        }}
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("textbox", { name: "AI command" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Polish" }));
+
+    expect(onPromptChange).toHaveBeenCalledWith("Make the selected text clearer.");
+    expect(onSubmit).toHaveBeenCalledWith("Make the selected text clearer.", "polish");
   });
 
   it("keeps quick action generation in the compact input style", async () => {
@@ -526,7 +554,7 @@ describe("AiCommandBar", () => {
       <AiCommandBar
         language="zh-CN"
         open
-        prompt="润色"
+        prompt={defaultAiQuickActionPrompts.polish}
         submitting
         onClose={vi.fn()}
         onInterrupt={vi.fn()}
@@ -538,8 +566,8 @@ describe("AiCommandBar", () => {
     const status = screen.getByRole("status");
     const commandBox = status.closest(".ai-command-box");
 
-    expect(onPromptChange).toHaveBeenCalledWith("润色");
-    expect(onSubmit).toHaveBeenCalledWith("润色", "polish");
+    expect(onPromptChange).toHaveBeenCalledWith(defaultAiQuickActionPrompts.polish);
+    expect(onSubmit).toHaveBeenCalledWith(defaultAiQuickActionPrompts.polish, "polish");
     expect(status).toHaveTextContent("润色中……");
     expect(screen.getByText("润色中……")).toHaveClass("ai-command-inline-loading-text");
     expect(commandBox).toHaveClass("h-14", "rounded-xl", "border-(--border-default)");

@@ -72,13 +72,12 @@ describe("inline AI prompt builder", () => {
     expect(messages[1]?.content).toContain("Do not repeat the target text.");
   });
 
-  it("translates into the configured app language and defaults to English", () => {
+  it("auto-detects the current text language before choosing a translation target", () => {
     const messages = buildInlineAiMessages({
       documentContent: "# 标题\n\n你好",
       intent: "translate",
       prompt: "Translate",
-      targetText: "你好",
-      translationTargetLanguage: "Simplified Chinese"
+      targetText: "你好"
     });
     const defaultMessages = buildInlineAiMessages({
       documentContent: "# 标题\n\n你好",
@@ -87,8 +86,12 @@ describe("inline AI prompt builder", () => {
       targetText: "你好"
     });
 
-    expect(messages[1]?.content).toContain("Task:\nTranslate the target text into Simplified Chinese.");
-    expect(defaultMessages[1]?.content).toContain("Task:\nTranslate the target text into English.");
+    expect(messages[1]?.content).toContain("Task:\nAutomatically detect the target text's current language");
+    expect(messages[1]?.content).toContain("If the target text is mostly English, translate it into Simplified Chinese.");
+    expect(messages[1]?.content).toContain("If the target text is mostly Chinese, translate it into English.");
+    expect(defaultMessages[1]?.content).toContain(
+      "For other languages, translate it into English unless the user instruction names another target language."
+    );
   });
 
   it("removes accidental Markdown code fences from final model output", () => {

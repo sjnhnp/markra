@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import { AiSelectionToolbar } from "./AiSelectionToolbar";
 
 const anchor = {
@@ -49,7 +50,29 @@ describe("AiSelectionToolbar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "润色" }));
 
-    expect(onRunAction).toHaveBeenCalledWith("polish", "润色");
+    expect(onRunAction).toHaveBeenCalledWith("polish", defaultAiQuickActionPrompts.polish);
+  });
+
+  it("uses configured prompt text while keeping the localized button label", () => {
+    const onRunAction = vi.fn();
+
+    render(
+      <AiSelectionToolbar
+        anchor={anchor}
+        language="zh-CN"
+        open
+        quickActionPrompts={{
+          ...defaultAiQuickActionPrompts,
+          polish: "让选中的内容更清晰"
+        }}
+        onOpenCommand={vi.fn()}
+        onRunAction={onRunAction}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "润色" }));
+
+    expect(onRunAction).toHaveBeenCalledWith("polish", "让选中的内容更清晰");
   });
 
   it("opens the full command input for a custom instruction", () => {

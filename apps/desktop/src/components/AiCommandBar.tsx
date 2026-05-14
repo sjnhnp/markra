@@ -26,11 +26,17 @@ import type { AiDiffResult, AiEditIntent } from "@markra/ai";
 import type { AiProviderApiStyle } from "../lib/settings/app-settings";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import { RoundIconButton, ToggleButton } from "@markra/ui";
+import {
+  aiQuickActionLabelKeys,
+  defaultAiQuickActionPrompts,
+  resolveAiQuickActionPrompt,
+  type AiQuickActionId,
+  type AiQuickActionPrompts
+} from "../lib/ai-actions";
 
 type AiCommandAction = {
   icon: LucideIcon;
-  intent: Exclude<AiEditIntent, "custom">;
-  labelKey: I18nKey;
+  intent: AiQuickActionId;
 };
 
 type AiCommandModelOption = AiModelPickerOption & {
@@ -68,28 +74,23 @@ const exitDurationMs = 200;
 const aiCommandActions: AiCommandAction[] = [
   {
     icon: Sparkles,
-    intent: "polish",
-    labelKey: "app.aiPolish"
+    intent: "polish"
   },
   {
     icon: PenLine,
-    intent: "rewrite",
-    labelKey: "app.aiRewrite"
+    intent: "rewrite"
   },
   {
     icon: Plus,
-    intent: "continue",
-    labelKey: "app.aiContinueWriting"
+    intent: "continue"
   },
   {
     icon: FileText,
-    intent: "summarize",
-    labelKey: "app.aiSummarize"
+    intent: "summarize"
   },
   {
     icon: Languages,
-    intent: "translate",
-    labelKey: "app.aiTranslate"
+    intent: "translate"
   }
 ];
 
@@ -110,6 +111,7 @@ type AiCommandBarProps = {
   language?: AppLanguage;
   open: boolean;
   prompt: string;
+  quickActionPrompts?: AiQuickActionPrompts;
   selectedModelId?: string | null;
   selectedProviderId?: string | null;
   selectedText?: string;
@@ -134,6 +136,7 @@ export function AiCommandBar({
   language = "en",
   open,
   prompt,
+  quickActionPrompts = defaultAiQuickActionPrompts,
   selectedModelId = null,
   selectedProviderId = null,
   selectedText = "",
@@ -448,7 +451,11 @@ export function AiCommandBar({
   const handleQuickAction = (action: AiCommandAction) => {
     if (busy) return;
 
-    const quickPrompt = label(action.labelKey);
+    const quickPrompt = resolveAiQuickActionPrompt(
+      quickActionPrompts,
+      action.intent,
+      defaultAiQuickActionPrompts[action.intent]
+    );
     setActiveQuickActionIntent(action.intent);
     setQuickActionsVisible(false);
     onPromptChange(quickPrompt);
@@ -643,17 +650,18 @@ export function AiCommandBar({
             <div className="grid gap-0.5">
               {aiCommandActions.map((action) => {
                 const Icon = action.icon;
+                const actionLabel = label(aiQuickActionLabelKeys[action.intent]);
 
                 return (
                   <button
                     className="inline-flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-left text-[13px] leading-5 font-[560] text-(--text-primary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                    key={action.labelKey}
+                    key={action.intent}
                     type="button"
                     onClick={() => handleQuickAction(action)}
-                    aria-label={label(action.labelKey)}
+                    aria-label={actionLabel}
                   >
                     <Icon aria-hidden="true" size={15} />
-                    <span className="min-w-0 truncate">{label(action.labelKey)}</span>
+                    <span className="min-w-0 truncate">{actionLabel}</span>
                   </button>
                 );
               })}

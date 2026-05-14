@@ -1,12 +1,13 @@
 import {
-  Bot,
   Download,
   Globe2,
   HardDrive,
   Keyboard,
+  KeyRound,
   Palette,
   PenLine,
   SlidersHorizontal,
+  Sparkles,
   type LucideIcon
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -29,9 +30,14 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     labelKey: "settings.categories.general"
   },
   {
-    icon: Bot,
+    icon: Sparkles,
     id: "ai",
     labelKey: "settings.categories.ai"
+  },
+  {
+    icon: KeyRound,
+    id: "providers",
+    labelKey: "settings.categories.providers"
   },
   {
     icon: Globe2,
@@ -163,7 +169,7 @@ export function SettingsContent({
 
       <div
         className={
-          activeCategory === "ai"
+          activeCategory === "providers"
             ? "settings-scroll min-h-0 flex-1 overflow-hidden overscroll-none p-0"
             : "settings-scroll min-h-0 flex-1 overflow-auto overscroll-none px-8 py-7"
         }

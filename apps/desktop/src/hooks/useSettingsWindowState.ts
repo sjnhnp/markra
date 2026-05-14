@@ -42,6 +42,7 @@ import { useAppTheme } from "./useAppTheme";
 export type SettingsCategory =
   | "general"
   | "ai"
+  | "providers"
   | "web"
   | "storage"
   | "appearance"
