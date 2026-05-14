@@ -1,5 +1,29 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NativeTitleBar } from "./NativeTitleBar";
+
+function mockTitlebarActionRects(actionIds: string[]) {
+  actionIds.forEach((id, index) => {
+    const element = document.querySelector(`[data-titlebar-action="${id}"]`) as HTMLElement;
+    const left = index * 28;
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      bottom: 24,
+      height: 24,
+      left,
+      right: left + 24,
+      top: 0,
+      width: 24,
+      x: left,
+      y: 0,
+      toJSON: () => ({})
+    } as DOMRect);
+  });
+}
+
+async function settleSortableDrag() {
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, 60);
+  });
+}
 
 describe("NativeTitleBar", () => {
   it("renders centered title and file actions inside the drag region", () => {
@@ -29,6 +53,7 @@ describe("NativeTitleBar", () => {
     expect(titlebar).toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
     expect(titlebar).toHaveClass("h-10");
     expect(container.querySelector(".document-actions")).toHaveClass("h-10");
+    expect(container.querySelector("[data-titlebar-action='aiAgent']")).toHaveClass("transition-transform");
   });
 
   it("uses custom titlebar content instead of the centered document title", () => {
@@ -147,6 +172,131 @@ describe("NativeTitleBar", () => {
     expect(visualButton).not.toHaveAttribute("aria-pressed");
     expect(screen.queryByRole("button", { name: "Switch to source mode" })).not.toBeInTheDocument();
     expect(sourceModeCase.container.querySelector(".lucide-code-xml")).not.toBeInTheDocument();
+  });
+
+  it("renders right-side file actions in the configured order and hides disabled actions", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[
+          { id: "theme", visible: true },
+          { id: "save", visible: false },
+          { id: "open", visible: true },
+          { id: "aiAgent", visible: true },
+          { id: "sourceMode", visible: true }
+        ]}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleSourceMode={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    const actionLabels = within(container.querySelector(".document-actions") as HTMLElement)
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label"));
+
+    expect(actionLabels).toEqual([
+      "Switch to dark theme",
+      "Open Markdown or Folder",
+      "Toggle Markra AI",
+      "Switch to source mode"
+    ]);
+    expect(screen.queryByRole("button", { name: "Save Markdown" })).not.toBeInTheDocument();
+  });
+
+  it("reorders right-side file actions by holding and dragging", async () => {
+    const updateTitlebarActions = vi.fn();
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[
+          { id: "aiAgent", visible: true },
+          { id: "sourceMode", visible: true },
+          { id: "open", visible: true },
+          { id: "save", visible: true },
+          { id: "theme", visible: true }
+        ]}
+        onTitlebarActionsChange={updateTitlebarActions}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleSourceMode={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    const aiButton = screen.getByRole("button", { name: "Toggle Markra AI" });
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "open", "save", "theme"]);
+
+    fireEvent.mouseDown(aiButton, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 100, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 100, clientY: 10 });
+    await settleSortableDrag();
+
+    expect(updateTitlebarActions).toHaveBeenCalledWith([
+      { id: "sourceMode", visible: true },
+      { id: "open", visible: true },
+      { id: "save", visible: true },
+      { id: "aiAgent", visible: true },
+      { id: "theme", visible: true }
+    ]);
+  });
+
+  it("reorders right-side file actions from right to left by holding and dragging", async () => {
+    const updateTitlebarActions = vi.fn();
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[
+          { id: "aiAgent", visible: true },
+          { id: "sourceMode", visible: true },
+          { id: "open", visible: true },
+          { id: "save", visible: true },
+          { id: "theme", visible: true }
+        ]}
+        onTitlebarActionsChange={updateTitlebarActions}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleSourceMode={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    const saveButton = screen.getByRole("button", { name: "Save Markdown" });
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "open", "save", "theme"]);
+
+    fireEvent.mouseDown(saveButton, { button: 0, clientX: 80, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 70, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 20, clientY: 10 });
+    await settleSortableDrag();
+
+    expect(updateTitlebarActions).toHaveBeenCalledWith([
+      { id: "aiAgent", visible: true },
+      { id: "save", visible: true },
+      { id: "sourceMode", visible: true },
+      { id: "open", visible: true },
+      { id: "theme", visible: true }
+    ]);
   });
 
   it("keeps editor width controls out of the titlebar when unavailable", () => {

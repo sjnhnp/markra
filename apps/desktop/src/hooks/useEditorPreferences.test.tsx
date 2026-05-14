@@ -87,6 +87,13 @@ describe("useEditorPreferences", () => {
       },
       restoreWorkspaceOnStartup: true,
       showDocumentTabs: true,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
       showWordCount: true
     });
     mockedListenAppEditorPreferencesChanged.mockImplementation(async (listener) => {
@@ -132,6 +139,13 @@ describe("useEditorPreferences", () => {
         },
         restoreWorkspaceOnStartup: false,
         showDocumentTabs: false,
+        titlebarActions: [
+          { id: "theme", visible: true },
+          { id: "save", visible: false },
+          { id: "open", visible: true },
+          { id: "sourceMode", visible: true },
+          { id: "aiAgent", visible: true }
+        ],
         showWordCount: false
       });
     });

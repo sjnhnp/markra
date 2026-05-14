@@ -26,6 +26,7 @@ import {
   mockedInstallNativeEditorContextMenu,
   mockedInstallNativeMarkdownFileDrop,
   mockedListNativeMarkdownFilesForPath,
+  mockedListenAppEditorPreferencesChanged,
   mockedListenAppLanguageChanged,
   mockedListenAppThemeChanged,
   mockedNotifyAppEditorPreferencesChanged,
@@ -65,6 +66,30 @@ async function settleEditorUpdates() {
   });
 }
 
+async function settleSortableDrag() {
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, 60);
+  });
+}
+
+function mockTitlebarActionRects(actionIds: string[]) {
+  actionIds.forEach((id, index) => {
+    const element = document.querySelector(`[data-titlebar-action="${id}"]`) as HTMLElement;
+    const left = index * 28;
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      bottom: 24,
+      height: 24,
+      left,
+      right: left + 24,
+      top: 0,
+      width: 24,
+      x: left,
+      y: 0,
+      toJSON: () => ({})
+    } as DOMRect);
+  });
+}
+
 describe("Markra workspace", () => {
   it("renders a Typora-like minimal writing surface", async () => {
     const { container } = renderApp();
@@ -88,6 +113,86 @@ describe("Markra workspace", () => {
     expect(shell).toHaveClass("bg-(--bg-primary)");
     expect(shell).toHaveClass("grid-rows-[minmax(0,1fr)]");
     expect(shell).toHaveClass("overscroll-none");
+  });
+
+  it("persists titlebar action order changes by holding and dragging", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue({
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "assets",
+      closeAiCommandOnAgentPanelOpen: false,
+      contentWidth: "default",
+      contentWidthPx: null,
+      lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
+      restoreWorkspaceOnStartup: true,
+      showDocumentTabs: true,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
+      showWordCount: true
+    });
+    renderApp();
+
+    await screen.findByText("Welcome to Markra");
+
+    const aiButton = screen.getByRole("button", { name: "Toggle Markra AI" });
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "open", "save", "theme"]);
+
+    fireEvent.mouseDown(aiButton, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 100, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 100, clientY: 10 });
+    await settleSortableDrag();
+
+    await waitFor(() =>
+      expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith({
+        autoOpenAiOnSelection: true,
+        bodyFontSize: 16,
+        clipboardImageFolder: "assets",
+        closeAiCommandOnAgentPanelOpen: false,
+        contentWidth: "default",
+        contentWidthPx: null,
+        lineHeight: 1.65,
+        markdownShortcuts: defaultMarkdownShortcuts,
+        restoreWorkspaceOnStartup: true,
+        showDocumentTabs: true,
+        titlebarActions: [
+          { id: "sourceMode", visible: true },
+          { id: "open", visible: true },
+          { id: "save", visible: true },
+          { id: "aiAgent", visible: true },
+          { id: "theme", visible: true }
+        ],
+        showWordCount: true
+      })
+    );
+    await waitFor(() =>
+      expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith({
+        autoOpenAiOnSelection: true,
+        bodyFontSize: 16,
+        clipboardImageFolder: "assets",
+        closeAiCommandOnAgentPanelOpen: false,
+        contentWidth: "default",
+        contentWidthPx: null,
+        lineHeight: 1.65,
+        markdownShortcuts: defaultMarkdownShortcuts,
+        restoreWorkspaceOnStartup: true,
+        showDocumentTabs: true,
+        titlebarActions: [
+          { id: "sourceMode", visible: true },
+          { id: "open", visible: true },
+          { id: "save", visible: true },
+          { id: "aiAgent", visible: true },
+          { id: "theme", visible: true }
+        ],
+        showWordCount: true
+      })
+    );
   });
 
   it("opens settings from the lower-left settings launcher", async () => {
@@ -297,6 +402,73 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedNotifyAppThemeChanged).toHaveBeenCalledWith("dark"));
   });
 
+  it("syncs toolbar button order in the settings window after another window changes it", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    let onEditorPreferencesChanged: ((preferences: Parameters<typeof mockedSaveStoredEditorPreferences>[0]) => unknown) | null = null;
+    mockedListenAppEditorPreferencesChanged.mockImplementation(async (listener) => {
+      onEditorPreferencesChanged = listener;
+      return () => {};
+    });
+    const initialPreferences = {
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "assets",
+      closeAiCommandOnAgentPanelOpen: false,
+      contentWidth: "default" as const,
+      contentWidthPx: null,
+      lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
+      restoreWorkspaceOnStartup: true,
+      showDocumentTabs: true,
+      titlebarActions: [
+        { id: "aiAgent" as const, visible: true },
+        { id: "sourceMode" as const, visible: true },
+        { id: "open" as const, visible: true },
+        { id: "save" as const, visible: true },
+        { id: "theme" as const, visible: true }
+      ],
+      showWordCount: true
+    };
+    mockedGetStoredEditorPreferences.mockResolvedValue(initialPreferences);
+    window.history.pushState({}, "", "/?settings=1");
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Editor" }));
+    const toolbarGroup = await screen.findByRole("group", { name: "Toolbar buttons" });
+
+    expect(within(toolbarGroup).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Toggle Markra AI",
+      "Switch to source mode",
+      "Open Markdown or Folder",
+      "Save Markdown",
+      "Switch to dark theme",
+      "Reset toolbar buttons"
+    ]);
+
+    act(() => {
+      onEditorPreferencesChanged?.({
+        ...initialPreferences,
+        titlebarActions: [
+          { id: "sourceMode", visible: true },
+          { id: "open", visible: true },
+          { id: "save", visible: true },
+          { id: "aiAgent", visible: true },
+          { id: "theme", visible: true }
+        ]
+      });
+    });
+
+    expect(within(toolbarGroup).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Switch to source mode",
+      "Open Markdown or Folder",
+      "Save Markdown",
+      "Toggle Markra AI",
+      "Switch to dark theme",
+      "Reset toolbar buttons"
+    ]);
+  });
+
   it("removes the reserved settings drag space on Windows", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockedResolveDesktopPlatform.mockReturnValue("windows");
@@ -347,6 +519,13 @@ describe("Markra workspace", () => {
       },
       restoreWorkspaceOnStartup: true,
       showDocumentTabs: true,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
       showWordCount: true
     });
     window.history.pushState({}, "", "/?settings=1");
@@ -1291,6 +1470,13 @@ describe("Markra workspace", () => {
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
       showDocumentTabs: false,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
       showWordCount: true
     });
     mockOpenMarkdownFile({

@@ -10,6 +10,7 @@ import {
   notifyAppLanguageChanged,
   notifyAppThemeChanged
 } from "./settings-events";
+import type { EditorPreferences } from "./app-settings";
 
 vi.mock("@tauri-apps/api/event", () => ({
   emit: vi.fn(),
@@ -87,7 +88,7 @@ describe("settings events", () => {
     const cleanup = await listenAppEditorPreferencesChanged(onPreferencesChanged);
     const listener = mockedListen.mock.calls[0]?.[1];
 
-    const preferences = {
+    const preferences: EditorPreferences = {
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
       clipboardImageFolder: "images",
@@ -98,6 +99,13 @@ describe("settings events", () => {
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: false,
       showDocumentTabs: true,
+      titlebarActions: [
+        { id: "theme", visible: true },
+        { id: "save", visible: false },
+        { id: "open", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "aiAgent", visible: true }
+      ],
       showWordCount: false
     };
 

@@ -17,6 +17,7 @@ import {
   normalizeEditorPreferences,
   normalizeWebSearchSettings,
   normalizeExportSettings,
+  reorderTitlebarActions,
   resetWelcomeDocumentState,
   saveStoredAiAgentSession,
   saveStoredAiAgentPreferences,
@@ -143,6 +144,13 @@ describe("app settings", () => {
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
       showDocumentTabs: true,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
       showWordCount: true
     });
 
@@ -339,8 +347,59 @@ describe("app settings", () => {
       },
       restoreWorkspaceOnStartup: false,
       showDocumentTabs: true,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
       showWordCount: false
     });
+  });
+
+  it("normalizes titlebar action ordering and visibility", () => {
+    expect(normalizeEditorPreferences({
+      titlebarActions: [
+        { id: "save", visible: false },
+        { id: "theme", visible: true },
+        { id: "save", visible: true },
+        { id: "unknown", visible: true },
+        { id: "aiAgent", visible: "yes" },
+        { id: "open", visible: true }
+      ]
+    }).titlebarActions).toEqual([
+      { id: "save", visible: false },
+      { id: "theme", visible: true },
+      { id: "aiAgent", visible: true },
+      { id: "open", visible: true },
+      { id: "sourceMode", visible: true }
+    ]);
+  });
+
+  it("moves titlebar actions to the target slot in both directions", () => {
+    const actions = [
+      { id: "aiAgent", visible: true },
+      { id: "sourceMode", visible: true },
+      { id: "open", visible: true },
+      { id: "save", visible: true },
+      { id: "theme", visible: true }
+    ] as const;
+
+    expect(reorderTitlebarActions(actions, "aiAgent", "save")).toEqual([
+      { id: "sourceMode", visible: true },
+      { id: "open", visible: true },
+      { id: "save", visible: true },
+      { id: "aiAgent", visible: true },
+      { id: "theme", visible: true }
+    ]);
+    expect(reorderTitlebarActions(actions, "save", "sourceMode")).toEqual([
+      { id: "aiAgent", visible: true },
+      { id: "save", visible: true },
+      { id: "sourceMode", visible: true },
+      { id: "open", visible: true },
+      { id: "theme", visible: true }
+    ]);
   });
 
   it("normalizes custom markdown shortcuts while keeping unsafe chords at their defaults", () => {
@@ -410,6 +469,13 @@ describe("app settings", () => {
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
       showDocumentTabs: true,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
       showWordCount: true
     });
   });
@@ -429,6 +495,13 @@ describe("app settings", () => {
       },
       restoreWorkspaceOnStartup: false,
       showDocumentTabs: false,
+      titlebarActions: [
+        { id: "theme", visible: true },
+        { id: "save", visible: false },
+        { id: "open", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "aiAgent", visible: true }
+      ],
       showWordCount: false
     });
 
@@ -446,6 +519,13 @@ describe("app settings", () => {
       },
       restoreWorkspaceOnStartup: false,
       showDocumentTabs: false,
+      titlebarActions: [
+        { id: "theme", visible: true },
+        { id: "save", visible: false },
+        { id: "open", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "aiAgent", visible: true }
+      ],
       showWordCount: false
     });
     expect(store.save).toHaveBeenCalledTimes(1);

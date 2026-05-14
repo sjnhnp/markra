@@ -144,8 +144,22 @@ vi.mock("../lib/settings/app-settings", () => ({
     },
     restoreWorkspaceOnStartup: true,
     showDocumentTabs: true,
+    titlebarActions: [
+      { id: "aiAgent", visible: true },
+      { id: "sourceMode", visible: true },
+      { id: "open", visible: true },
+      { id: "save", visible: true },
+      { id: "theme", visible: true }
+    ],
     showWordCount: true
   },
+  defaultTitlebarActions: [
+    { id: "aiAgent", visible: true },
+    { id: "sourceMode", visible: true },
+    { id: "open", visible: true },
+    { id: "save", visible: true },
+    { id: "theme", visible: true }
+  ],
   defaultWebSearchSettings: {
     contentMaxChars: 12000,
     enabled: true,
@@ -200,9 +214,42 @@ vi.mock("../lib/settings/app-settings", () => ({
     },
     restoreWorkspaceOnStartup: true,
     showDocumentTabs: true,
+    titlebarActions: [
+      { id: "aiAgent", visible: true },
+      { id: "sourceMode", visible: true },
+      { id: "open", visible: true },
+      { id: "save", visible: true },
+      { id: "theme", visible: true }
+    ],
     showWordCount: true,
     ...preferences
   })),
+  normalizeTitlebarActions: vi.fn((actions) => Array.isArray(actions) ? actions : [
+    { id: "aiAgent", visible: true },
+    { id: "sourceMode", visible: true },
+    { id: "open", visible: true },
+    { id: "save", visible: true },
+    { id: "theme", visible: true }
+  ]),
+  reorderTitlebarActions: vi.fn((actions, draggedId, targetId) => {
+    const normalized = Array.isArray(actions) ? actions : [
+      { id: "aiAgent", visible: true },
+      { id: "sourceMode", visible: true },
+      { id: "open", visible: true },
+      { id: "save", visible: true },
+      { id: "theme", visible: true }
+    ];
+    const fromIndex = normalized.findIndex((action) => action.id === draggedId);
+    const toIndex = normalized.findIndex((action) => action.id === targetId);
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return normalized;
+
+    const draggedAction = normalized[fromIndex];
+    const nextActions = normalized.filter((action) => action.id !== draggedId);
+
+    nextActions.splice(toIndex, 0, draggedAction);
+
+    return nextActions;
+  }),
   normalizeExportSettings: vi.fn((settings) => ({
     pdfAuthor: "",
     pdfFooter: "",
@@ -550,6 +597,13 @@ export function installAppTestHarness() {
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
       showDocumentTabs: true,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "open", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
       showWordCount: true
     });
     mockedGetStoredExportSettings.mockResolvedValue({
