@@ -1028,7 +1028,8 @@
   .markdown-paper .markra-ai-selection-hold {
     @apply rounded-[3px];
     background: color-mix(in srgb, var(--accent) 18%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 
   .markdown-paper .markra-ai-preview-widget {

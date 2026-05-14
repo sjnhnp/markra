@@ -2452,6 +2452,50 @@ describe("MarkdownPaper editing", () => {
     outsideInput.remove();
   });
 
+  it("clears a stale text selection after an editor click leaves only a collapsed DOM selection", async () => {
+    const onTextSelectionChange = vi.fn();
+    const collapsedDomSelection = {
+      isCollapsed: true,
+      toString: () => ""
+    } as Selection;
+    const getSelectionSpy = vi.spyOn(document, "getSelection").mockReturnValue(collapsedDomSelection);
+    const { view } = await renderEditor("First sentence. Second sentence.", { onTextSelectionChange });
+    const from = findTextPosition(view, "Second");
+    const to = from + "Second sentence.".length;
+
+    try {
+      selectText(view, from, to);
+      onTextSelectionChange.mockClear();
+      fireEvent.mouseUp(view.dom);
+
+      await waitFor(() => expect(onTextSelectionChange).toHaveBeenCalledWith(null));
+    } finally {
+      getSelectionSpy.mockRestore();
+    }
+  });
+
+  it("clears a stale text selection after clicking the paper blank area outside the editor root", async () => {
+    const onTextSelectionChange = vi.fn();
+    const collapsedDomSelection = {
+      isCollapsed: true,
+      toString: () => ""
+    } as Selection;
+    const getSelectionSpy = vi.spyOn(document, "getSelection").mockReturnValue(collapsedDomSelection);
+    const { view } = await renderEditor("First sentence. Second sentence.", { onTextSelectionChange });
+    const from = findTextPosition(view, "Second");
+    const to = from + "Second sentence.".length;
+
+    try {
+      selectText(view, from, to);
+      onTextSelectionChange.mockClear();
+      fireEvent.mouseUp(screen.getByLabelText("Markdown editor"));
+
+      await waitFor(() => expect(onTextSelectionChange).toHaveBeenCalledWith(null));
+    } finally {
+      getSelectionSpy.mockRestore();
+    }
+  });
+
   it("uses the current text block as AI context when no text is selected", async () => {
     const { view } = await renderEditor("# Title\n\nFirst paragraph.\n\nSecond paragraph.");
     const from = findTextPosition(view, "First paragraph.");
@@ -2595,6 +2639,25 @@ describe("MarkdownPaper editing", () => {
     clearAiSelectionHold(view);
 
     expect(container.querySelector(".ProseMirror .markra-ai-selection-hold")).not.toBeInTheDocument();
+    await settleMarkdownListener();
+  });
+
+  it("keeps multi-line AI selection highlights scoped to text inside list items", async () => {
+    const { container, view } = await renderEditor(["- First item", "- Second item", "- Third item"].join("\n"));
+    const from = findTextPosition(view, "First item");
+    const to = findTextPosition(view, "Third item", "Third item".length);
+
+    showAiSelectionHold(view, {
+      from,
+      text: ["First item", "Second item", "Third item"].join("\n"),
+      to
+    });
+
+    const holds = Array.from(container.querySelectorAll(".ProseMirror .markra-ai-selection-hold"));
+    expect(holds.map((element) => element.textContent)).toEqual(["First item", "Second item", "Third item"]);
+    expect(holds.every((element) => element.closest("li"))).toBe(true);
+
+    clearAiSelectionHold(view);
     await settleMarkdownListener();
   });
 

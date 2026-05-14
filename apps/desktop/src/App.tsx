@@ -556,7 +556,7 @@ export default function App() {
       return;
     }
 
-    editor.holdAiSelection(selection);
+    editor.clearAiSelection();
 
     if (shouldHideAiCommandForAiAgentPanel({
       aiAgentOpen,
@@ -663,7 +663,6 @@ export default function App() {
     const selection = aiCommandTextSelection(getActiveAiSelection()) ?? aiCommandTextSelection(getEditorSelection());
     if (!selection) return;
 
-    holdAiSelection(selection);
     updateActiveAiSelection(selection);
     openAiCommand(selection);
   }, [
@@ -675,6 +674,13 @@ export default function App() {
     openAiCommand,
     updateActiveAiSelection
   ]);
+  const handleAiCommandSelectionContextFocus = useCallback(() => {
+    const selection = aiCommandTextSelection(getActiveAiSelection()) ?? aiCommandTextSelection(getEditorSelection());
+    if (!selection) return;
+
+    holdAiSelection(selection);
+    updateActiveAiSelection(selection);
+  }, [getActiveAiSelection, getEditorSelection, holdAiSelection, updateActiveAiSelection]);
   const handleAiCommandInterrupt = useCallback(() => {
     aiContextMenuActionIdRef.current += 1;
     setAiContextMenuActionPending(false);
@@ -1506,6 +1512,7 @@ export default function App() {
           onInterrupt={handleAiCommandInterrupt}
           onOverlayInsetChange={setAiCommandOverlayInset}
           onPromptChange={aiCommand.updatePrompt}
+          onSelectionContextFocus={handleAiCommandSelectionContextFocus}
           onSelectModel={aiSettings.selectInlineModel}
           onSubmit={aiCommand.submitPrompt}
           onTransferToAiPanel={

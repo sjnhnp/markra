@@ -51,6 +51,17 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("font-weight: inherit");
   });
 
+  it("keeps AI selection holds from drawing connected borders across wrapped lines", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const selectionHoldStart = styles.indexOf(".markdown-paper .markra-ai-selection-hold {");
+    const selectionHoldEnd = styles.indexOf(".markdown-paper .markra-ai-preview-widget");
+    const selectionHoldStyles = styles.slice(selectionHoldStart, selectionHoldEnd);
+
+    expect(selectionHoldStyles).toContain("box-decoration-break: clone");
+    expect(selectionHoldStyles).toContain("-webkit-box-decoration-break: clone");
+    expect(selectionHoldStyles).not.toContain("box-shadow");
+  });
+
   it("styles finalized emphasis marks in the editor", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

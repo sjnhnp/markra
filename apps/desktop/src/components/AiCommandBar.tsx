@@ -119,6 +119,7 @@ type AiCommandBarProps = {
   onInterrupt?: () => unknown;
   onOverlayInsetChange?: (inset: number) => unknown;
   onPromptChange: (prompt: string) => unknown;
+  onSelectionContextFocus?: () => unknown;
   onSelectModel?: (providerId: string, modelId: string) => unknown;
   onSubmit: (promptOverride?: string, intent?: AiEditIntent, options?: AiCommandSubmitOptions) => unknown;
   onTransferToAiPanel?: (prompt: string) => unknown;
@@ -142,6 +143,7 @@ export function AiCommandBar({
   onInterrupt,
   onOverlayInsetChange,
   onPromptChange,
+  onSelectionContextFocus,
   onSelectModel,
   onSubmit,
   onTransferToAiPanel
@@ -327,19 +329,25 @@ export function AiCommandBar({
   }, [clearCollapseTimer, expanded, setCommandStateValue]);
 
   useEffect(() => {
-    if (!open || !expanded) return;
+    if (!open) return;
 
     const handleOutsideClick = (event: MouseEvent) => {
       if (commandRef.current?.contains(event.target as Node)) return;
 
-      collapseCommand();
+      const state = commandStateRef.current;
+      if (!busy && !aiResult && !prompt.trim() && (state === "compact" || state === "expanded")) {
+        onClose();
+        return;
+      }
+
+      if (state === "expanded") collapseCommand();
     };
 
     document.addEventListener("mousedown", handleOutsideClick);
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
-  }, [collapseCommand, expanded, open]);
+  }, [aiResult, busy, collapseCommand, onClose, open, prompt]);
 
   useEffect(() => {
     if (!rendered) return;
@@ -543,6 +551,7 @@ export function AiCommandBar({
             onChange={(event) => handlePromptChange(event.target.value)}
             onCompositionEnd={handleCompositionEnd}
             onCompositionStart={handleCompositionStart}
+            onFocus={onSelectionContextFocus}
             onKeyDown={handlePromptKeyDown}
             aria-label={label("app.aiCommandInput")}
           />

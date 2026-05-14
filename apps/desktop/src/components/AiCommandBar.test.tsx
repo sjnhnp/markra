@@ -22,6 +22,91 @@ describe("AiCommandBar", () => {
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
   });
 
+  it("notifies when the command input takes focus so the app can preserve selection context", () => {
+    const onSelectionContextFocus = vi.fn();
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={vi.fn()}
+        onSelectionContextFocus={onSelectionContextFocus}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    fireEvent.focus(screen.getByRole("textbox", { name: "AI command" }));
+
+    expect(onSelectionContextFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes an idle compact command when clicking outside it", () => {
+    const onClose = vi.fn();
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={onClose}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    fireEvent.mouseDown(document.body);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes an idle expanded command when clicking outside it", () => {
+    const onClose = vi.fn();
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={onClose}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("textbox", { name: "AI command" }));
+    fireEvent.mouseDown(document.body);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a result follow-up command open when clicking outside it", () => {
+    const onClose = vi.fn();
+    render(
+      <AiCommandBar
+        aiResult={{
+          from: 1,
+          original: "Original",
+          replacement: "Improved",
+          to: 9,
+          type: "replace"
+        }}
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={onClose}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    fireEvent.mouseDown(document.body);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("reports the compact command overlay inset from its rendered height", async () => {
     const onOverlayInsetChange = vi.fn();
     const originalInnerHeight = window.innerHeight;
