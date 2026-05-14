@@ -303,7 +303,43 @@ fn normalize_clipboard_image_folder(folder: &str) -> Result<PathBuf, String> {
     Ok(target)
 }
 
-fn clipboard_image_file_name(extension: &str, attempt: usize) -> String {
+fn requested_clipboard_image_stem(file_name: &str) -> Result<String, String> {
+    let trimmed = file_name.trim();
+    if trimmed.is_empty()
+        || trimmed.contains('/')
+        || trimmed.contains('\\')
+        || matches!(trimmed, "." | "..")
+    {
+        return Err("Clipboard image file name is invalid".to_string());
+    }
+
+    let stem = trimmed
+        .rsplit_once('.')
+        .map_or(trimmed, |(stem, _)| stem)
+        .trim();
+    if stem.is_empty() || matches!(stem, "." | "..") {
+        return Err("Clipboard image file name is invalid".to_string());
+    }
+
+    Ok(stem.to_string())
+}
+
+fn clipboard_image_file_name(
+    extension: &str,
+    attempt: usize,
+    requested_file_name: Option<&str>,
+) -> Result<String, String> {
+    if let Some(file_name) = requested_file_name {
+        let stem = requested_clipboard_image_stem(file_name)?;
+        let suffix = if attempt == 0 {
+            String::new()
+        } else {
+            format!("-{}", attempt + 1)
+        };
+
+        return Ok(format!("{stem}{suffix}.{extension}"));
+    }
+
     let millis = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_millis())
@@ -314,7 +350,7 @@ fn clipboard_image_file_name(extension: &str, attempt: usize) -> String {
         format!("-{}", attempt + 1)
     };
 
-    format!("pasted-image-{millis}{suffix}.{extension}")
+    Ok(format!("pasted-image-{millis}{suffix}.{extension}"))
 }
 
 fn allow_asset_directory<R: tauri::Runtime>(
@@ -331,6 +367,7 @@ fn save_clipboard_image_file(
     folder: String,
     mime_type: String,
     bytes: Vec<u8>,
+    file_name: Option<String>,
     allow_root_assets: impl FnOnce(&Path) -> Result<(), String>,
 ) -> Result<ClipboardImageFile, String> {
     if bytes.is_empty() {
@@ -362,7 +399,11 @@ fn save_clipboard_image_file(
         .map_err(|_| "Clipboard image folder is outside the current Markdown folder".to_string())?;
 
     for attempt in 0..1000 {
-        let target_path = target_folder.join(clipboard_image_file_name(extension, attempt));
+        let target_path = target_folder.join(clipboard_image_file_name(
+            extension,
+            attempt,
+            file_name.as_deref(),
+        )?);
         if target_path.exists() {
             continue;
         }
@@ -1062,8 +1103,9 @@ pub(crate) fn save_clipboard_image(
     folder: String,
     mime_type: String,
     bytes: Vec<u8>,
+    file_name: Option<String>,
 ) -> Result<ClipboardImageFile, String> {
-    save_clipboard_image_file(document_path, folder, mime_type, bytes, |root| {
+    save_clipboard_image_file(document_path, folder, mime_type, bytes, file_name, |root| {
         allow_asset_directory(&app, root)
     })
 }
@@ -1530,6 +1572,7 @@ mod tests {
             "assets/screenshots".to_string(),
             "image/png".to_string(),
             vec![1, 2, 3],
+            None,
             |_| Ok(()),
         )
         .expect("clipboard image should be saved");
@@ -1538,6 +1581,39 @@ mod tests {
             .relative_path
             .starts_with("assets/screenshots/pasted-image-"));
         assert!(saved.relative_path.ends_with(".png"));
+        assert_eq!(
+            fs::read(root.join(saved.relative_path)).expect("saved image should be readable"),
+            vec![1, 2, 3]
+        );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn saves_clipboard_images_with_the_requested_file_name() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-clipboard-image-name-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let note = root.join("note.md");
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        fs::write(&note, "# Note").expect("markdown file should be created");
+
+        let saved = save_clipboard_image_file(
+            note.to_string_lossy().to_string(),
+            "assets".to_string(),
+            "image/png".to_string(),
+            vec![1, 2, 3],
+            Some("diagram-from-rule.png".to_string()),
+            |_| Ok(()),
+        )
+        .expect("clipboard image should use the requested name");
+
+        assert_eq!(saved.relative_path, "assets/diagram-from-rule.png");
         assert_eq!(
             fs::read(root.join(saved.relative_path)).expect("saved image should be readable"),
             vec![1, 2, 3]
@@ -1643,6 +1719,7 @@ mod tests {
             "../outside".to_string(),
             "image/png".to_string(),
             vec![1, 2, 3],
+            None,
             |_| Ok(()),
         )
         .is_err());

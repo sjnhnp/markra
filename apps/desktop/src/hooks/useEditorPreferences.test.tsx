@@ -11,6 +11,26 @@ vi.mock("../lib/settings/app-settings", () => ({
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     contentWidthPx: null,
+    imageUpload: {
+      fileNamePattern: "pasted-image-{timestamp}",
+      provider: "local",
+      s3: {
+        accessKeyId: "",
+        bucket: "",
+        endpointUrl: "",
+        publicBaseUrl: "",
+        region: "",
+        secretAccessKey: "",
+        uploadPath: ""
+      },
+      webdav: {
+        password: "",
+        publicBaseUrl: "",
+        serverUrl: "",
+        uploadPath: "",
+        username: ""
+      }
+    },
     lineHeight: 1.65,
     markdownShortcuts: {
       bold: "Mod+B",
@@ -63,6 +83,26 @@ describe("useEditorPreferences", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      imageUpload: {
+        fileNamePattern: "pasted-image-{timestamp}",
+        provider: "local",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "",
+          publicBaseUrl: "",
+          serverUrl: "",
+          uploadPath: "",
+          username: ""
+        }
+      },
       lineHeight: 1.65,
       markdownShortcuts: {
         bold: "Mod+B",
@@ -115,6 +155,26 @@ describe("useEditorPreferences", () => {
         closeAiCommandOnAgentPanelOpen: true,
         contentWidth: "wide",
         contentWidthPx: 1120,
+        imageUpload: {
+          fileNamePattern: "{name}-{timestamp}",
+          provider: "webdav",
+          s3: {
+            accessKeyId: "",
+            bucket: "",
+            endpointUrl: "",
+            publicBaseUrl: "",
+            region: "",
+            secretAccessKey: "",
+            uploadPath: ""
+          },
+          webdav: {
+            password: "secret",
+            publicBaseUrl: "",
+            serverUrl: "https://dav.example.com/images",
+            uploadPath: "notes",
+            username: "ada"
+          }
+        },
         lineHeight: 1.8,
         markdownShortcuts: {
           bold: "Mod+Alt+B",

@@ -234,6 +234,20 @@ function pasteImage(view: EditorView, image: File) {
   return view.someProp("handlePaste", (handler) => handler(view, event, view.state.selection.content()));
 }
 
+function dropImage(view: EditorView, image: File) {
+  const event = new Event("drop", {
+    bubbles: true,
+    cancelable: true
+  }) as DragEvent;
+  Object.defineProperty(event, "dataTransfer", {
+    value: {
+      files: [image]
+    }
+  });
+
+  return view.someProp("handleDrop", (handler) => handler(view, event, view.state.selection.content(), false));
+}
+
 function expectLiveMark(container: HTMLElement, kind: string, text: string) {
   expect(container.querySelector(`.ProseMirror .markra-live-mark-${kind}`)).toHaveTextContent(text);
 }
@@ -730,6 +744,27 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("![Screenshot](assets/pasted-image.png)");
     expect(serializeMarkdown(view.state.doc)).not.toContain("!\\[Screenshot\\]\\(assets/pasted-image.png\\)");
     await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("![Screenshot](assets/pasted-image.png)")));
+  });
+
+  it("saves dropped image files and inserts markdown image references", async () => {
+    const onSaveClipboardImage = vi.fn().mockResolvedValue({
+      alt: "Diagram",
+      src: "https://cdn.example.com/notes/diagram.png"
+    });
+    const image = new File([new Uint8Array([1, 2, 3])], "Diagram.png", { type: "image/png" });
+    const { container, editor, view } = await renderEditor("", { onSaveClipboardImage });
+
+    expect(dropImage(view, image)).toBe(true);
+
+    await waitFor(() => expect(onSaveClipboardImage).toHaveBeenCalledWith(image));
+    await waitFor(() => {
+      const insertedImage = container.querySelector<HTMLImageElement>(
+        'img[src="https://cdn.example.com/notes/diagram.png"]'
+      );
+      expect(insertedImage).toHaveAttribute("alt", "Diagram");
+    });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("![Diagram](https://cdn.example.com/notes/diagram.png)");
   });
 
   it("adds table rows and columns from the hover controls", async () => {

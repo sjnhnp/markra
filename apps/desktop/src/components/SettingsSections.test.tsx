@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import { t } from "@markra/shared";
 import { defaultEditorPreferences, type EditorPreferences } from "../lib/settings/app-settings";
-import { EditorSettings, KeyboardShortcutsSettings } from "./SettingsSections";
+import { EditorSettings, KeyboardShortcutsSettings, StorageSettings } from "./SettingsSections";
 
 function translate(key: Parameters<typeof t>[1]) {
   return t("en", key);
@@ -67,6 +67,170 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("shows storage type in the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const storageType = screen.getByRole("group", { name: "Storage type" });
+    expect(within(storageType).getByRole("button", { name: "Use local storage" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    fireEvent.click(within(storageType).getByRole("button", { name: "Use WebDAV storage" }));
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        provider: "webdav"
+      }
+    });
+  });
+});
+
+describe("StorageSettings", () => {
+  it("switches between provider settings without changing the active storage type", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <StorageSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    expect(screen.queryByText("Storage type")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Storage type: Local")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Use WebDAV storage" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Use S3-compatible storage" })).not.toBeInTheDocument();
+
+    const settingsTypeRow = screen.getByText("Settings type").closest(".settings-row") as HTMLElement | null;
+    expect(settingsTypeRow).not.toBeNull();
+    expect(
+      within(settingsTypeRow as HTMLElement).getByText(
+        "Change the active storage type in Editor settings. The switch here only chooses which settings to configure."
+      )
+    ).toBeInTheDocument();
+
+    const settingsType = within(settingsTypeRow as HTMLElement).getByRole("group", { name: "Settings type" });
+    expect(within(settingsType).getByRole("button", { name: "Show local settings" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    expect(screen.queryByRole("heading", { name: "Local" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Clipboard image folder" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "WebDAV server URL" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "S3 endpoint URL" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "File naming pattern" }), {
+      target: { value: "{name}-{timestamp}" }
+    });
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        fileNamePattern: "{name}-{timestamp}"
+      }
+    });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Clipboard image folder" }), {
+      target: { value: "media" }
+    });
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      clipboardImageFolder: "media"
+    });
+
+    fireEvent.click(within(settingsType).getByRole("button", { name: "Show WebDAV settings" }));
+    expect(within(settingsType).getByRole("button", { name: "Show WebDAV settings" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.queryByRole("textbox", { name: "Clipboard image folder" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "WebDAV" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "WebDAV server URL" })).toBeInTheDocument();
+    expect(screen.getByLabelText("WebDAV password")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "S3 endpoint URL" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "WebDAV server URL" }), {
+      target: { value: "https://dav.example.com/images" }
+    });
+    fireEvent.change(screen.getByLabelText("WebDAV password"), {
+      target: { value: "secret" }
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        webdav: {
+          ...defaultEditorPreferences.imageUpload.webdav,
+          serverUrl: "https://dav.example.com/images"
+        }
+      }
+    });
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        webdav: {
+          ...defaultEditorPreferences.imageUpload.webdav,
+          password: "secret"
+        }
+      }
+    });
+
+    fireEvent.click(within(settingsType).getByRole("button", { name: "Show S3-compatible settings" }));
+    expect(within(settingsType).getByRole("button", { name: "Show S3-compatible settings" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.queryByRole("textbox", { name: "Clipboard image folder" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "WebDAV server URL" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "S3" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "S3 endpoint URL" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "S3 bucket" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "S3 endpoint URL" }), {
+      target: { value: "https://s3.example.com" }
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "S3 bucket" }), {
+      target: { value: "markra-images" }
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        s3: {
+          ...defaultEditorPreferences.imageUpload.s3,
+          endpointUrl: "https://s3.example.com"
+        }
+      }
+    });
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        s3: {
+          ...defaultEditorPreferences.imageUpload.s3,
+          bucket: "markra-images"
+        }
+      }
+    });
+  });
+});
+
+describe("EditorSettings", () => {
   it("edits content width as a percentage with a reset button", () => {
     const onUpdatePreferences = vi.fn();
 

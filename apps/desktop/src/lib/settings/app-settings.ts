@@ -45,6 +45,29 @@ export type TitlebarActionPreference = {
   id: TitlebarActionId;
   visible: boolean;
 };
+export type ImageUploadProvider = "local" | "s3" | "webdav";
+export type S3ImageUploadSettings = {
+  accessKeyId: string;
+  bucket: string;
+  endpointUrl: string;
+  publicBaseUrl: string;
+  region: string;
+  secretAccessKey: string;
+  uploadPath: string;
+};
+export type WebDavImageUploadSettings = {
+  password: string;
+  publicBaseUrl: string;
+  serverUrl: string;
+  uploadPath: string;
+  username: string;
+};
+export type ImageUploadSettings = {
+  fileNamePattern: string;
+  provider: ImageUploadProvider;
+  s3: S3ImageUploadSettings;
+  webdav: WebDavImageUploadSettings;
+};
 export type AiAgentPreferences = {
   thinkingEnabled: boolean;
   webSearchEnabled: boolean;
@@ -56,6 +79,7 @@ export type EditorPreferences = {
   closeAiCommandOnAgentPanelOpen: boolean;
   contentWidth: EditorContentWidth;
   contentWidthPx: number | null;
+  imageUpload: ImageUploadSettings;
   lineHeight: number;
   markdownShortcuts: MarkdownShortcutBindings;
   restoreWorkspaceOnStartup: boolean;
@@ -93,6 +117,27 @@ export const defaultTitlebarActions: readonly TitlebarActionPreference[] = [
   { id: "theme", visible: true }
 ];
 
+export const defaultImageUploadSettings: ImageUploadSettings = {
+  fileNamePattern: "pasted-image-{timestamp}",
+  provider: "local",
+  s3: {
+    accessKeyId: "",
+    bucket: "",
+    endpointUrl: "",
+    publicBaseUrl: "",
+    region: "",
+    secretAccessKey: "",
+    uploadPath: ""
+  },
+  webdav: {
+    password: "",
+    publicBaseUrl: "",
+    serverUrl: "",
+    uploadPath: "",
+    username: ""
+  }
+};
+
 export const defaultEditorPreferences: EditorPreferences = {
   autoOpenAiOnSelection: true,
   bodyFontSize: 16,
@@ -100,6 +145,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   closeAiCommandOnAgentPanelOpen: false,
   contentWidth: "default",
   contentWidthPx: null,
+  imageUpload: defaultImageUploadSettings,
   lineHeight: 1.65,
   markdownShortcuts: defaultMarkdownShortcuts,
   restoreWorkspaceOnStartup: true,
@@ -538,6 +584,7 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       ? (preferences.contentWidth as EditorContentWidth)
       : defaultEditorPreferences.contentWidth,
     contentWidthPx: normalizeEditorContentWidthPx(preferences.contentWidthPx),
+    imageUpload: normalizeImageUploadSettings(preferences.imageUpload),
     lineHeight: editorLineHeightOptions.includes(preferences.lineHeight as typeof editorLineHeightOptions[number])
       ? Number(preferences.lineHeight)
       : defaultEditorPreferences.lineHeight,
@@ -604,6 +651,61 @@ export function reorderTitlebarActions(
   return nextActions;
 }
 
+export function normalizeImageUploadSettings(value: unknown): ImageUploadSettings {
+  if (typeof value !== "object" || value === null) return defaultImageUploadSettings;
+
+  const settings = value as Partial<ImageUploadSettings>;
+  const provider = settings.provider === "webdav" || settings.provider === "s3" ? settings.provider : "local";
+
+  return {
+    fileNamePattern: normalizeImageUploadFileNamePattern(settings.fileNamePattern),
+    provider,
+    s3: normalizeS3ImageUploadSettings(settings.s3),
+    webdav: normalizeWebDavImageUploadSettings(settings.webdav)
+  };
+}
+
+export function normalizeImageUploadFileNamePattern(value: unknown) {
+  if (typeof value !== "string") return defaultImageUploadSettings.fileNamePattern;
+
+  const pattern = value.trim();
+  if (!pattern || pattern.includes("/") || pattern.includes("\\") || pattern === "." || pattern === "..") {
+    return defaultImageUploadSettings.fileNamePattern;
+  }
+
+  return pattern.slice(0, 120);
+}
+
+export function normalizeS3ImageUploadSettings(value: unknown): S3ImageUploadSettings {
+  if (typeof value !== "object" || value === null) return defaultImageUploadSettings.s3;
+
+  const settings = value as Partial<S3ImageUploadSettings>;
+
+  return {
+    accessKeyId: typeof settings.accessKeyId === "string" ? settings.accessKeyId.trim() : "",
+    bucket: normalizeS3Bucket(settings.bucket),
+    endpointUrl: normalizeImageUploadUrl(settings.endpointUrl),
+    publicBaseUrl: normalizeImageUploadUrl(settings.publicBaseUrl),
+    region: typeof settings.region === "string" ? settings.region.trim() : "",
+    secretAccessKey: typeof settings.secretAccessKey === "string" ? settings.secretAccessKey : "",
+    uploadPath: normalizeRemoteImageUploadPath(settings.uploadPath)
+  };
+}
+
+export function normalizeWebDavImageUploadSettings(value: unknown): WebDavImageUploadSettings {
+  if (typeof value !== "object" || value === null) return defaultImageUploadSettings.webdav;
+
+  const settings = value as Partial<WebDavImageUploadSettings>;
+
+  return {
+    password: typeof settings.password === "string" ? settings.password : "",
+    publicBaseUrl: normalizeImageUploadUrl(settings.publicBaseUrl),
+    serverUrl: normalizeImageUploadUrl(settings.serverUrl),
+    uploadPath: normalizeRemoteImageUploadPath(settings.uploadPath),
+    username: typeof settings.username === "string" ? settings.username.trim() : ""
+  };
+}
+
 export function normalizeExportSettings(value: unknown): ExportSettings {
   if (typeof value !== "object" || value === null) return defaultExportSettings;
 
@@ -652,6 +754,51 @@ export function normalizeClipboardImageFolder(value: unknown) {
   }
 
   return parts.join("/");
+}
+
+function normalizeImageUploadUrl(value: unknown) {
+  if (typeof value !== "string") return "";
+
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  try {
+    const url = new URL(trimmed);
+    if (!["http:", "https:"].includes(url.protocol)) return "";
+
+    url.hash = "";
+    url.search = "";
+
+    return url.toString().replace(/\/+$/u, "");
+  } catch {
+    return "";
+  }
+}
+
+export function normalizeRemoteImageUploadPath(value: unknown) {
+  if (typeof value !== "string") return "";
+
+  const normalized = value.trim().replace(/\\/gu, "/").replace(/\/+/gu, "/");
+  if (!normalized || normalized === ".") return "";
+  if (normalized.startsWith("/") || /^[a-zA-Z]:/u.test(normalized)) return "";
+
+  const parts = normalized
+    .split("/")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && part !== ".");
+
+  if (parts.some((part) => part === "..")) return "";
+
+  return parts.join("/");
+}
+
+function normalizeS3Bucket(value: unknown) {
+  if (typeof value !== "string") return "";
+
+  const bucket = value.trim();
+  if (!bucket || bucket.includes("/") || bucket.includes("\\") || bucket === "." || bucket === "..") return "";
+
+  return bucket;
 }
 
 function normalizeExportMarginMm(value: unknown) {

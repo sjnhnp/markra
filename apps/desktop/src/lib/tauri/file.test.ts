@@ -25,6 +25,8 @@ import {
   saveNativePdfFile,
   renameNativeMarkdownTreeFile,
   saveNativeMarkdownFile,
+  uploadNativeS3Image,
+  uploadNativeWebDavImage,
   watchNativeMarkdownFile
 } from "./file";
 
@@ -525,6 +527,7 @@ describe("native file access", () => {
     await expect(
       saveNativeClipboardImage({
         documentPath: mockReadmePath,
+        fileName: "custom-image.png",
         folder: "assets",
         image
       })
@@ -536,8 +539,87 @@ describe("native file access", () => {
     expect(mockedInvoke).toHaveBeenCalledWith("save_clipboard_image", {
       bytes: [1, 2, 3],
       documentPath: mockReadmePath,
+      fileName: "custom-image.png",
       folder: "assets",
       mimeType: "image/png"
+    });
+  });
+
+  it("uploads a clipboard image to WebDAV through Tauri", async () => {
+    const image = new File([new Uint8Array([4, 5, 6])], "Diagram.png", { type: "image/png" });
+    mockedInvoke.mockResolvedValue({
+      url: "https://cdn.example.com/images/notes/pasted-image-123.png"
+    });
+
+    await expect(
+      uploadNativeWebDavImage({
+        fileName: "custom-image.png",
+        image,
+        settings: {
+          password: "secret",
+          publicBaseUrl: "https://cdn.example.com/images",
+          serverUrl: "https://dav.example.com/images",
+          uploadPath: "notes",
+          username: "ada"
+        }
+      })
+    ).resolves.toEqual({
+      alt: "Diagram",
+      src: "https://cdn.example.com/images/notes/pasted-image-123.png"
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("upload_webdav_image", {
+      request: {
+        bytes: [4, 5, 6],
+        fileName: "custom-image.png",
+        mimeType: "image/png",
+        password: "secret",
+        publicBaseUrl: "https://cdn.example.com/images",
+        serverUrl: "https://dav.example.com/images",
+        uploadPath: "notes",
+        username: "ada"
+      }
+    });
+  });
+
+  it("uploads a clipboard image to S3-compatible object storage through Tauri", async () => {
+    const image = new File([new Uint8Array([7, 8, 9])], "Object.png", { type: "image/png" });
+    mockedInvoke.mockResolvedValue({
+      url: "https://cdn.example.com/images/notes/pasted-image-123.png"
+    });
+
+    await expect(
+      uploadNativeS3Image({
+        fileName: "custom-image.png",
+        image,
+        settings: {
+          accessKeyId: "access-key",
+          bucket: "markra-images",
+          endpointUrl: "https://s3.example.com",
+          publicBaseUrl: "https://cdn.example.com/images",
+          region: "us-east-1",
+          secretAccessKey: "secret",
+          uploadPath: "notes"
+        }
+      })
+    ).resolves.toEqual({
+      alt: "Object",
+      src: "https://cdn.example.com/images/notes/pasted-image-123.png"
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("upload_s3_image", {
+      request: {
+        accessKeyId: "access-key",
+        bucket: "markra-images",
+        bytes: [7, 8, 9],
+        endpointUrl: "https://s3.example.com",
+        fileName: "custom-image.png",
+        mimeType: "image/png",
+        publicBaseUrl: "https://cdn.example.com/images",
+        region: "us-east-1",
+        secretAccessKey: "secret",
+        uploadPath: "notes"
+      }
     });
   });
 

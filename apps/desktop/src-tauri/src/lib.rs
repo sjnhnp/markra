@@ -1,5 +1,6 @@
 mod ai_http;
 mod external_urls;
+mod image_upload;
 mod language;
 mod markdown_files;
 mod menu;
@@ -11,6 +12,7 @@ mod windows;
 
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
 use external_urls::open_external_url;
+use image_upload::{upload_s3_image, upload_webdav_image};
 use markdown_files::{
     create_markdown_tree_file, create_markdown_tree_folder, delete_markdown_tree_file,
     export_pdf_file, list_markdown_files_for_path, open_markdown_file_in_new_window,
@@ -103,6 +105,8 @@ pub fn run() {
             request_native_chat,
             request_native_chat_stream,
             request_web_resource,
+            upload_s3_image,
+            upload_webdav_image,
             write_markdown_file,
             export_pdf_file,
             watch_markdown_file,
@@ -160,6 +164,47 @@ mod tests {
                 .pointer("/role")
                 .and_then(serde_json::Value::as_str),
             Some("Editor")
+        );
+    }
+
+    #[test]
+    fn builds_webdav_upload_and_public_image_urls() {
+        let targets = crate::image_upload::webdav_image_upload_targets(
+            "https://dav.example.com/remote.php/dav/files/ada/",
+            "notes/screenshots",
+            "https://cdn.example.com/images/",
+            "pasted-image-123.png",
+        )
+        .expect("WebDAV upload targets should be built");
+
+        assert_eq!(
+            targets.upload_url.as_str(),
+            "https://dav.example.com/remote.php/dav/files/ada/notes/screenshots/pasted-image-123.png"
+        );
+        assert_eq!(
+            targets.public_url,
+            "https://cdn.example.com/images/notes/screenshots/pasted-image-123.png"
+        );
+    }
+
+    #[test]
+    fn builds_s3_upload_and_public_image_urls() {
+        let targets = crate::image_upload::s3_image_upload_targets(
+            "https://s3.example.com/",
+            "markra-images",
+            "notes/screenshots",
+            "https://cdn.example.com/images/",
+            "pasted-image-123.png",
+        )
+        .expect("S3 upload targets should be built");
+
+        assert_eq!(
+            targets.upload_url.as_str(),
+            "https://s3.example.com/markra-images/notes/screenshots/pasted-image-123.png"
+        );
+        assert_eq!(
+            targets.public_url,
+            "https://cdn.example.com/images/notes/screenshots/pasted-image-123.png"
         );
     }
 }
