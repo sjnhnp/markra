@@ -146,8 +146,13 @@ type MarkdownImageFileResponse = {
   path: string;
 };
 
+type OpenedMarkdownPathsPayload = {
+  paths?: unknown;
+};
+
 const markdownFileChangedEvent = "markra://file-changed";
 const markdownTreeChangedEvent = "markra://tree-changed";
+const openedMarkdownPathsEvent = "markra://opened-markdown-paths";
 
 const markdownFilters = [
   {
@@ -178,10 +183,29 @@ function isMarkdownTreeAssetPath(path: string) {
   return /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(path);
 }
 
+function normalizeOpenedMarkdownPaths(paths: unknown) {
+  if (!Array.isArray(paths)) return [];
+
+  return paths.filter((path): path is string => typeof path === "string" && path.trim().length > 0);
+}
+
 function parentPathFromPath(path: string) {
   const lastSeparatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   if (lastSeparatorIndex < 0) return ".";
   return path.slice(0, lastSeparatorIndex);
+}
+
+export async function takeNativeOpenedMarkdownPaths(): Promise<string[]> {
+  return normalizeOpenedMarkdownPaths(await invoke("take_opened_markdown_paths"));
+}
+
+export async function listenNativeOpenedMarkdownPaths(onPaths: (paths: string[]) => unknown | Promise<unknown>) {
+  return listen<OpenedMarkdownPathsPayload>(openedMarkdownPathsEvent, (event) => {
+    const paths = normalizeOpenedMarkdownPaths(event.payload?.paths);
+    if (paths.length === 0) return;
+
+    Promise.resolve(onPaths(paths)).catch(() => {});
+  });
 }
 
 export async function readNativeMarkdownFile(path: string): Promise<NativeMarkdownFile> {

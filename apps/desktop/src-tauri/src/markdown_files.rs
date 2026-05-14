@@ -98,7 +98,7 @@ fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
 
-fn markdown_open_path_for_path(path: &Path) -> Result<MarkdownOpenPath, String> {
+pub(crate) fn markdown_open_path_for_path(path: &Path) -> Result<MarkdownOpenPath, String> {
     if path.is_dir() {
         return Ok(MarkdownOpenPath::Folder {
             path: path_to_string(path),

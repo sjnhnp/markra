@@ -4,6 +4,7 @@ mod language;
 mod markdown_files;
 mod menu;
 mod menu_labels;
+mod opened_files;
 mod watcher;
 mod web_http;
 mod windows;
@@ -22,6 +23,10 @@ use menu::{
     is_native_new_window_command, is_native_settings_window_command, NativeMenuCommand,
     NATIVE_MENU_COMMAND_EVENT,
 };
+use opened_files::{
+    opened_markdown_paths_from_args, opened_markdown_paths_from_urls, queue_opened_markdown_paths,
+    take_opened_markdown_paths, OpenedMarkdownPathsState,
+};
 use tauri::Emitter;
 use watcher::{unwatch_markdown_file, watch_markdown_file, MarkdownWatcherState};
 use web_http::request_web_resource;
@@ -35,6 +40,7 @@ use windows::{
 pub fn run() {
     tauri::Builder::default()
         .manage(MarkdownWatcherState::default())
+        .manage(OpenedMarkdownPathsState::default())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
@@ -42,6 +48,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             apply_main_window_chrome(app);
+            let paths = opened_markdown_paths_from_args(std::env::args());
+            queue_opened_markdown_paths(&app.handle(), paths);
             Ok(())
         })
         .on_page_load(|webview, _| {
@@ -98,10 +106,17 @@ pub fn run() {
             write_markdown_file,
             export_pdf_file,
             watch_markdown_file,
-            unwatch_markdown_file
+            unwatch_markdown_file,
+            take_opened_markdown_paths
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Markra");
+        .build(tauri::generate_context!())
+        .expect("error while building Markra")
+        .run(|app, event| {
+            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+            if let tauri::RunEvent::Opened { urls } = event {
+                queue_opened_markdown_paths(app, opened_markdown_paths_from_urls(&urls));
+            }
+        });
 }
 
 #[cfg(test)]
@@ -113,5 +128,38 @@ mod tests {
         assert!(crate::menu::is_native_settings_window_command(
             "openSettings"
         ));
+    }
+
+    #[test]
+    fn bundle_declares_markdown_file_associations() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("Tauri config should be valid JSON");
+        let associations = config
+            .pointer("/bundle/fileAssociations")
+            .and_then(serde_json::Value::as_array)
+            .expect("bundle should declare file associations");
+        let markdown_association = associations
+            .iter()
+            .find(|association| {
+                association
+                    .pointer("/ext")
+                    .and_then(serde_json::Value::as_array)
+                    .is_some_and(|extensions| {
+                        extensions
+                            .iter()
+                            .any(|extension| extension.as_str() == Some("md"))
+                            && extensions
+                                .iter()
+                                .any(|extension| extension.as_str() == Some("markdown"))
+                    })
+            })
+            .expect("Markdown extensions should be associated with Markra");
+
+        assert_eq!(
+            markdown_association
+                .pointer("/role")
+                .and_then(serde_json::Value::as_str),
+            Some("Editor")
+        );
     }
 }
