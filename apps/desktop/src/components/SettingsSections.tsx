@@ -12,6 +12,7 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  Sparkles,
   Sun,
   type LucideIcon
 } from "lucide-react";
@@ -47,6 +48,7 @@ import {
   defaultTitlebarActions,
   reorderTitlebarActions,
   type AppTheme,
+  type AiSelectionDisplayMode,
   type EditorPreferences,
   type ExportSettings as ExportSettingsValue,
   type ImageUploadProvider,
@@ -126,6 +128,26 @@ const imageUploadProviderSettingsActionLabelKeys: Record<ImageUploadProvider, I1
   s3: "settings.editor.imageUploadProvider.showS3Settings",
   webdav: "settings.editor.imageUploadProvider.showWebDavSettings"
 };
+
+const aiSelectionDisplayModeOptions: Array<{
+  actionLabelKey: I18nKey;
+  icon: LucideIcon;
+  labelKey: I18nKey;
+  value: AiSelectionDisplayMode;
+}> = [
+  {
+    actionLabelKey: "settings.editor.aiSelectionDisplayMode.useCommand",
+    icon: Bot,
+    labelKey: "settings.editor.aiSelectionDisplayMode.command",
+    value: "command"
+  },
+  {
+    actionLabelKey: "settings.editor.aiSelectionDisplayMode.useToolbar",
+    icon: Sparkles,
+    labelKey: "settings.editor.aiSelectionDisplayMode.toolbar",
+    value: "toolbar"
+  }
+];
 
 const titlebarActionOptions: Array<{
   icon: LucideIcon;
@@ -710,6 +732,37 @@ function ImageUploadProviderSettingsControl({
             label={translate(imageUploadProviderSettingsActionLabelKeys[option.value])}
             selected={active}
             onClick={() => onSelectProvider(option.value)}
+          >
+            <Icon aria-hidden="true" size={13} />
+            {translate(option.labelKey)}
+          </SegmentedControlItem>
+        );
+      })}
+    </SegmentedControl>
+  );
+}
+
+function AiSelectionDisplayModeControl({
+  mode,
+  onSelectMode,
+  translate
+}: {
+  mode: AiSelectionDisplayMode;
+  onSelectMode: (mode: AiSelectionDisplayMode) => unknown;
+  translate: Translate;
+}) {
+  return (
+    <SegmentedControl className="grid-cols-2" label={translate("settings.editor.aiSelectionDisplayMode")}>
+      {aiSelectionDisplayModeOptions.map((option) => {
+        const Icon = option.icon;
+        const active = mode === option.value;
+
+        return (
+          <SegmentedControlItem
+            key={option.value}
+            label={translate(option.actionLabelKey)}
+            selected={active}
+            onClick={() => onSelectMode(option.value)}
           >
             <Icon aria-hidden="true" size={13} />
             {translate(option.labelKey)}
@@ -1519,6 +1572,22 @@ export function EditorSettings({
                 onUpdatePreferences({
                   ...preferences,
                   autoOpenAiOnSelection: !preferences.autoOpenAiOnSelection
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.aiSelectionDisplayMode")}
+          description={translate("settings.editor.aiSelectionDisplayModeDescription")}
+          action={
+            <AiSelectionDisplayModeControl
+              mode={preferences.aiSelectionDisplayMode}
+              translate={translate}
+              onSelectMode={(mode) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  aiSelectionDisplayMode: mode
                 })
               }
             />

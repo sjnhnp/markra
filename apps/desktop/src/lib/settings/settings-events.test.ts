@@ -89,6 +89,7 @@ describe("settings events", () => {
     const listener = mockedListen.mock.calls[0]?.[1];
 
     const preferences: EditorPreferences = {
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
       clipboardImageFolder: "images",

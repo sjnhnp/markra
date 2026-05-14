@@ -134,6 +134,7 @@ describe("app settings", () => {
     store.get.mockResolvedValue(undefined);
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -339,6 +340,7 @@ describe("app settings", () => {
 
   it("normalizes partial editor preferences from older settings files", async () => {
     store.get.mockResolvedValue({
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 99,
       clipboardImageFolder: "media/screenshots",
@@ -366,6 +368,7 @@ describe("app settings", () => {
     });
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 16,
       clipboardImageFolder: "media/screenshots",
@@ -428,6 +431,12 @@ describe("app settings", () => {
       { id: "open", visible: true },
       { id: "sourceMode", visible: true }
     ]);
+  });
+
+  it("falls back to the quick input for unknown AI selection display modes", () => {
+    expect(normalizeEditorPreferences({
+      aiSelectionDisplayMode: "popup"
+    }).aiSelectionDisplayMode).toBe("command");
   });
 
   it("moves titlebar actions to the target slot in both directions", () => {
@@ -583,6 +592,7 @@ describe("app settings", () => {
     });
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -627,6 +637,7 @@ describe("app settings", () => {
 
   it("persists editor preferences", async () => {
     await saveStoredEditorPreferences({
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
       clipboardImageFolder: "images",
@@ -672,6 +683,7 @@ describe("app settings", () => {
     });
 
     expect(store.set).toHaveBeenCalledWith("editorPreferences", {
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
       clipboardImageFolder: "images",

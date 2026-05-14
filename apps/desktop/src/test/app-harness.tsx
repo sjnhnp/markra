@@ -131,6 +131,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   consumeWelcomeDocumentState: vi.fn(),
   deleteStoredAiAgentSession: vi.fn(),
   defaultEditorPreferences: {
+    aiSelectionDisplayMode: "command",
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -222,6 +223,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   initializeStoredAiAgentSession: vi.fn(),
   listStoredAiAgentSessions: vi.fn(),
   normalizeEditorPreferences: vi.fn((preferences) => ({
+    aiSelectionDisplayMode: "command",
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -657,6 +659,7 @@ export function installAppTestHarness() {
     });
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",

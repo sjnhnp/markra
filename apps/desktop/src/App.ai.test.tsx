@@ -122,6 +122,7 @@ describe("Markra AI workspace", () => {
 
   it("hides the complex inline prompt panel suggestion when the experimental setting is off", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",

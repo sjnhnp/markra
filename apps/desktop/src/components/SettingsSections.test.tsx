@@ -259,6 +259,34 @@ describe("StorageSettings", () => {
 });
 
 describe("EditorSettings", () => {
+  it("selects how AI appears after selecting text", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          aiSelectionDisplayMode: "toolbar"
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const group = screen.getByRole("group", { name: "Selection AI display" });
+    const quickInputButton = within(group).getByRole("button", { name: "Use quick input" });
+    const toolbarButton = within(group).getByRole("button", { name: "Use selection toolbar" });
+
+    expect(toolbarButton).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(quickInputButton);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      aiSelectionDisplayMode: "command"
+    });
+  });
+
   it("edits content width as a percentage with a reset button", () => {
     const onUpdatePreferences = vi.fn();
 

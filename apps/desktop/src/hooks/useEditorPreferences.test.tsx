@@ -5,6 +5,7 @@ import { useEditorPreferences } from "./useEditorPreferences";
 
 vi.mock("../lib/settings/app-settings", () => ({
   defaultEditorPreferences: {
+    aiSelectionDisplayMode: "command",
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -77,6 +78,7 @@ describe("useEditorPreferences", () => {
   it("loads editor preferences and reacts to cross-window preference changes", async () => {
     let onPreferencesChanged: Parameters<typeof listenAppEditorPreferencesChanged>[0] | null = null;
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -150,6 +152,7 @@ describe("useEditorPreferences", () => {
 
     act(() => {
       onPreferencesChanged?.({
+        aiSelectionDisplayMode: "command",
         autoOpenAiOnSelection: false,
         bodyFontSize: 18,
         clipboardImageFolder: "images",
@@ -213,6 +216,7 @@ describe("useEditorPreferences", () => {
     });
 
     expect(result.current.preferences.autoOpenAiOnSelection).toBe(false);
+    expect(result.current.preferences.aiSelectionDisplayMode).toBe("command");
     expect(result.current.preferences.bodyFontSize).toBe(18);
     expect(result.current.preferences.closeAiCommandOnAgentPanelOpen).toBe(true);
     expect(result.current.preferences.contentWidth).toBe("wide");
