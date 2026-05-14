@@ -173,6 +173,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       strikethrough: "Mod+Shift+X"
     },
     restoreWorkspaceOnStartup: true,
+    suggestAiPanelForComplexInlinePrompts: true,
     showDocumentTabs: true,
     titlebarActions: [
       { id: "aiAgent", visible: true },
@@ -263,6 +264,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       strikethrough: "Mod+Shift+X"
     },
     restoreWorkspaceOnStartup: true,
+    suggestAiPanelForComplexInlinePrompts: true,
     showDocumentTabs: true,
     titlebarActions: [
       { id: "aiAgent", visible: true },
@@ -684,6 +686,7 @@ export function installAppTestHarness() {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },

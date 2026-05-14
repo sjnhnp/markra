@@ -126,6 +126,7 @@ describe("useEditorPreferences", () => {
         toggleSourceMode: "Mod+Alt+S"
       },
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
@@ -198,6 +199,7 @@ describe("useEditorPreferences", () => {
           toggleSourceMode: "Mod+Alt+S"
         },
         restoreWorkspaceOnStartup: false,
+        suggestAiPanelForComplexInlinePrompts: true,
         showDocumentTabs: false,
         titlebarActions: [
           { id: "theme", visible: true },

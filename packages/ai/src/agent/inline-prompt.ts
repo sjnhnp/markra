@@ -10,7 +10,9 @@ type BuildInlineAiMessagesInput = {
   documentContent: string;
   intent?: AiEditIntent;
   prompt: string;
+  readOnlyContext?: string;
   suggestionContext?: InlineAiSuggestionContext;
+  targetContext?: string | null;
   targetScope?: AiTargetScope;
   targetText: string;
   targetType?: "insert" | "replace";
@@ -40,12 +42,15 @@ export function buildInlineAiMessages({
   documentContent,
   intent = "custom",
   prompt,
+  readOnlyContext,
   suggestionContext,
+  targetContext = null,
   targetScope = "selection",
   targetText,
   targetType = "replace",
   translationTargetLanguage = "English"
 }: BuildInlineAiMessagesInput): ChatMessage[] {
+  const trimmedDocumentContext = documentContent.trim();
   const currentSuggestion = suggestionContext
     ? [
         "Current AI suggestion awaiting confirmation:",
@@ -57,8 +62,10 @@ export function buildInlineAiMessages({
   return [
     {
       content: [
-        "You are Markra's inline Markdown editor.",
-        "Return only the Markdown fragment that should be inserted or used as the replacement.",
+        "You are Markra's inline Markdown assistant.",
+        "If the user asks a question, answer it directly using the target text and provided context.",
+        "If the answer is not present in the provided context, say that briefly.",
+        "For editing requests: Return only the Markdown fragment that should be inserted or used as the replacement.",
         "Do not return JSON, metadata, explanations, or alternatives.",
         "Do not wrap the answer in code fences.",
         "Preserve the target's language, tone, and Markdown structure unless the user explicitly asks to change them.",
@@ -69,12 +76,15 @@ export function buildInlineAiMessages({
     {
       content: [
         `Task:\n${instructionForIntent(intent, translationTargetLanguage)}`,
-        `User instruction:\n${prompt.trim()}`,
         `Target scope:\n${targetScopeLabel[targetScope]}`,
         `Edit mode:\n${targetType === "insert" ? "Insert after the target" : "Replace the target"}`,
         `Target text:\n${targetText}`,
+        targetContext?.trim() ? `Nearby target context:\n${targetContext.trim()}` : null,
         currentSuggestion,
-        `Current document context (read-only):\n${documentContent}`,
+        trimmedDocumentContext ? `Current document context (read-only):\n${trimmedDocumentContext}` : null,
+        readOnlyContext?.trim() ? readOnlyContext : null,
+        "Use the target text and nearby target context before any broader document context.",
+        `User instruction:\n${prompt.trim()}`,
         "Do not edit unrelated document content."
       ]
         .filter(Boolean)

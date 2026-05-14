@@ -27,6 +27,7 @@ import { useAiAgentSessionList } from "./hooks/useAiAgentSessionList";
 import { useAiAgentSession } from "./hooks/useAiAgentSession";
 import { useAiSettings } from "./hooks/useAiSettings";
 import { useEditorPreferences } from "./hooks/useEditorPreferences";
+import { useDeferredAiSelectionReveal } from "./hooks/ai-selection-reveal";
 import { useExportSettings } from "./hooks/useExportSettings";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
@@ -165,6 +166,7 @@ export default function App() {
   const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [imageTabs, setImageTabs] = useState<ImageDocumentTab[]>([]);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
+  const [aiCommandOverlayInset, setAiCommandOverlayInset] = useState(0);
   const [aiContextMenuActionPending, setAiContextMenuActionPending] = useState(false);
   const [editorMode, setEditorMode] = useState<"source" | "visual">("visual");
   const [exportSnapshot, setExportSnapshot] = useState<MarkdownExportSnapshot | null>(null);
@@ -370,6 +372,7 @@ export default function App() {
     translationTargetLanguage: aiTranslationLanguageName(appLanguage.ready ? appLanguage.language : "en"),
     workspaceFiles: fileTreeFiles
   });
+  const aiCommandVisible = aiCommand.open && (hasAiCommandContext || Boolean(aiResult) || aiContextMenuActionPending);
   const aiAgent = useAiAgentSession({
     documentPath: document.path,
     getDocumentContent: getAiDocumentContent,
@@ -570,6 +573,7 @@ export default function App() {
   ]);
   const getEditorSelection = editor.getSelection;
   const holdAiSelection = editor.holdAiSelection;
+  const scrollAiSelectionAboveCommand = editor.scrollAiSelectionAboveCommand;
   const interruptAiCommandPrompt = aiCommand.interruptPrompt;
   const openAiCommand = aiCommand.openAiCommand;
   const submitAiCommandPrompt = aiCommand.submitPrompt;
@@ -650,6 +654,12 @@ export default function App() {
     setAiContextMenuActionPending(false);
     interruptAiCommandPrompt();
   }, [interruptAiCommandPrompt]);
+  useDeferredAiSelectionReveal({
+    active: aiCommandVisible,
+    bottomInset: aiCommandOverlayInset,
+    reveal: scrollAiSelectionAboveCommand,
+    selection: activeAiSelection
+  });
   const saveDocumentAs = useCallback(() => saveCurrentDocument(true), [saveCurrentDocument]);
   const handleApplyAiResult = useCallback((restoredResult?: AiDiffResult | null, previewId?: string) => {
     const result = restoredResult ?? aiResults.at(-1) ?? null;
@@ -912,6 +922,12 @@ export default function App() {
   const handleAiAgentToggle = useCallback(() => {
     toggleAiAgentPanel();
   }, [toggleAiAgentPanel]);
+  const handleAiCommandTransferToAgentPanel = useCallback((promptValue: string) => {
+    const draft = promptValue.trim();
+    if (draft) aiAgent.setDraft(draft);
+    openAiAgentPanel();
+    aiCommand.closeAiCommand();
+  }, [aiAgent.setDraft, aiCommand.closeAiCommand, openAiAgentPanel]);
   const handleOpenSettings = useCallback(() => {
     openSettingsWindow().catch(() => {});
   }, []);
@@ -1340,6 +1356,7 @@ export default function App() {
                   ) : (
                     <MarkdownPaper
                       autoFocus={shouldFocusEditorOnReady(document.content)}
+                      bottomOverlayInset={aiCommandVisible ? aiCommandOverlayInset : 0}
                       bodyFontSize={editorPreferences.preferences.bodyFontSize}
                       contentWidth={activeEditorContentWidth}
                       contentWidthPx={activeEditorContentWidthPx}
@@ -1425,17 +1442,24 @@ export default function App() {
           editorRightInset={aiAgentInset}
           externalActionPending={aiContextMenuActionPending}
           language={appLanguage.language}
-          open={aiCommand.open && (hasAiCommandContext || Boolean(aiResult) || aiContextMenuActionPending)}
+          open={aiCommandVisible}
           prompt={aiCommand.prompt}
           selectedModelId={aiSettings.inlineModelId}
           selectedProviderId={aiSettings.inlineProviderId}
+          selectedText={activeAiSelection?.text ?? ""}
           submitting={aiCommand.submitting}
           supportsThinking={supportsAiThinking}
           onClose={handleAiCommandClose}
           onInterrupt={handleAiCommandInterrupt}
+          onOverlayInsetChange={setAiCommandOverlayInset}
           onPromptChange={aiCommand.updatePrompt}
           onSelectModel={aiSettings.selectInlineModel}
           onSubmit={aiCommand.submitPrompt}
+          onTransferToAiPanel={
+            editorPreferences.preferences.suggestAiPanelForComplexInlinePrompts
+              ? handleAiCommandTransferToAgentPanel
+              : undefined
+          }
         />
       </main>
       <MarkdownExportDocument

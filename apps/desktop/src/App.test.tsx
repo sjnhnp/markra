@@ -150,6 +150,7 @@ describe("Markra workspace", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
@@ -185,6 +186,7 @@ describe("Markra workspace", () => {
         lineHeight: 1.65,
         markdownShortcuts: defaultMarkdownShortcuts,
         restoreWorkspaceOnStartup: true,
+        suggestAiPanelForComplexInlinePrompts: true,
         showDocumentTabs: true,
         titlebarActions: [
           { id: "sourceMode", visible: true },
@@ -208,6 +210,7 @@ describe("Markra workspace", () => {
         lineHeight: 1.65,
         markdownShortcuts: defaultMarkdownShortcuts,
         restoreWorkspaceOnStartup: true,
+        suggestAiPanelForComplexInlinePrompts: true,
         showDocumentTabs: true,
         titlebarActions: [
           { id: "sourceMode", visible: true },
@@ -446,6 +449,7 @@ describe("Markra workspace", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent" as const, visible: true },
@@ -546,6 +550,7 @@ describe("Markra workspace", () => {
         bold: "Mod+Alt+B"
       },
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
@@ -1498,6 +1503,7 @@ describe("Markra workspace", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       titlebarActions: [
         { id: "aiAgent", visible: true },

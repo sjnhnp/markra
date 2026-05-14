@@ -83,6 +83,7 @@ export type EditorPreferences = {
   lineHeight: number;
   markdownShortcuts: MarkdownShortcutBindings;
   restoreWorkspaceOnStartup: boolean;
+  suggestAiPanelForComplexInlinePrompts: boolean;
   showDocumentTabs: boolean;
   titlebarActions: TitlebarActionPreference[];
   showWordCount: boolean;
@@ -149,6 +150,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   lineHeight: 1.65,
   markdownShortcuts: defaultMarkdownShortcuts,
   restoreWorkspaceOnStartup: true,
+  suggestAiPanelForComplexInlinePrompts: true,
   showDocumentTabs: true,
   titlebarActions: [...defaultTitlebarActions],
   showWordCount: true
@@ -593,6 +595,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       typeof preferences.restoreWorkspaceOnStartup === "boolean"
         ? preferences.restoreWorkspaceOnStartup
         : defaultEditorPreferences.restoreWorkspaceOnStartup,
+    suggestAiPanelForComplexInlinePrompts:
+      typeof preferences.suggestAiPanelForComplexInlinePrompts === "boolean"
+        ? preferences.suggestAiPanelForComplexInlinePrompts
+        : defaultEditorPreferences.suggestAiPanelForComplexInlinePrompts,
     showDocumentTabs:
       typeof preferences.showDocumentTabs === "boolean"
         ? preferences.showDocumentTabs

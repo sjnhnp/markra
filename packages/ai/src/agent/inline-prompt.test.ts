@@ -40,6 +40,23 @@ describe("inline AI prompt builder", () => {
     expect(messages[1]?.content).toContain("Do not edit unrelated document content.");
   });
 
+  it("frames custom questions as answers grounded in the selected text context", () => {
+    const messages = buildInlineAiMessages({
+      documentContent: "- 2042年3月4日，项目团队发布了“示例口号”。",
+      intent: "custom",
+      prompt: "这是什么时候提出来的",
+      targetContext: "- 2042年3月4日，项目团队发布了“示例口号”。",
+      targetScope: "selection",
+      targetText: "示例口号",
+      targetType: "replace"
+    });
+
+    expect(messages[0]?.content).toContain("If the user asks a question, answer it directly");
+    expect(messages[1]?.content).toContain("Nearby target context:");
+    expect(messages[1]?.content).toContain("2042年3月4日");
+    expect(messages[1]?.content).toContain("User instruction:\n这是什么时候提出来的");
+  });
+
   it("frames continuation as inserted text without repeating the target", () => {
     const messages = buildInlineAiMessages({
       documentContent: "# Title\n\nOpening paragraph.",

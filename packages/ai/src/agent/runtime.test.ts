@@ -1,6 +1,7 @@
 import { runInlineAiAgent } from "./runtime";
 import { messagesFromPiContext } from "./runtime/messages";
 import type { AiProviderConfig } from "@markra/providers";
+import type { ChatMessage } from "./chat/types";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
   return {
@@ -17,43 +18,82 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
 }
 
 describe("inline AI agent runtime", () => {
-  it("runs read-only context tools before requesting the final inline edit", async () => {
+  it("keeps continuation context local instead of sending unrelated document sections", async () => {
+    const documentContent = [
+      "# Synthetic Topic Alpha",
+      "",
+      "Opening line for the current topic.",
+      "",
+      "# Synthetic Topic Beta",
+      "",
+      "Unrelated downstream details that should stay out of an inline continuation prompt."
+    ].join("\n");
+    const targetText = "# Synthetic Topic Alpha";
+    const from = documentContent.indexOf(targetText);
     const complete = vi.fn().mockResolvedValue({ content: "Better body", finishReason: "stop" });
 
     await expect(
       runInlineAiAgent({
         complete,
-        documentContent: "# Draft\n\nOriginal body",
-        documentPath: "/vault/README.md",
+        documentContent,
+        documentPath: "/vault/synthetic.md",
+        intent: "continue",
         model: "gpt-5.5",
-        prompt: "make it clearer",
+        prompt: "continue this topic",
         provider: provider(),
         target: {
-          from: 9,
-          original: "Original body",
-          promptText: "Original body",
-          to: 22,
-          type: "replace"
+          from,
+          original: targetText,
+          promptText: targetText,
+          scope: "block",
+          to: from + targetText.length,
+          type: "insert"
         },
         workspaceFiles: [{ name: "README.md", path: "/vault/README.md", relativePath: "README.md" }]
       })
     ).resolves.toEqual({ content: "Better body", finishReason: "stop" });
 
-    expect(complete).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "openai" }),
-      "gpt-5.5",
-      expect.arrayContaining([
-        expect.objectContaining({
-          content: expect.stringContaining("Read-only agent tool context")
-        }),
-        expect.objectContaining({
-          content: expect.stringContaining("workspace_markdown_files")
-        })
-      ]),
-      expect.objectContaining({
-        onDelta: expect.any(Function)
-      })
-    );
+    const messages = (complete.mock.calls[0]?.[2] ?? []) as ChatMessage[];
+    const userMessage = messages.find((message) => message.role === "user")?.content ?? "";
+    expect(userMessage).toContain("Target text:\n# Synthetic Topic Alpha");
+    expect(userMessage).not.toContain("Synthetic Topic Beta");
+    expect(userMessage).not.toContain("Unrelated downstream details");
+    expect(userMessage).not.toContain("Read-only agent tool context");
+    expect(userMessage).not.toContain("workspace_markdown_files");
+  });
+
+  it("adds nearby target context for selected-text questions", async () => {
+    const documentContent = [
+      "# Synthetic note",
+      "",
+      "- On 2042-03-04, the team introduced the motto \"Selected sample phrase\" during a mock launch note."
+    ].join("\n");
+    const targetText = "Selected sample phrase";
+    const from = documentContent.indexOf(targetText);
+    const complete = vi.fn().mockResolvedValue({ content: "It was introduced on 2042-03-04.", finishReason: "stop" });
+
+    await runInlineAiAgent({
+      complete,
+      documentContent,
+      documentPath: "/vault/synthetic.md",
+      model: "local-synthetic-model",
+      prompt: "When was this introduced?",
+      provider: provider({ id: "ollama", type: "ollama" }),
+      target: {
+        from,
+        original: targetText,
+        promptText: targetText,
+        scope: "selection",
+        to: from + targetText.length,
+        type: "replace"
+      }
+    });
+
+    const messages = (complete.mock.calls[0]?.[2] ?? []) as ChatMessage[];
+    const userMessage = messages.find((message) => message.role === "user")?.content ?? "";
+    expect(userMessage).toContain("Nearby target context:");
+    expect(userMessage).toContain("2042-03-04");
+    expect(userMessage).not.toContain("Current document context");
   });
 
   it("emits agent lifecycle and assistant update events while producing the inline edit", async () => {
