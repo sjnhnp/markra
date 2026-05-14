@@ -45,6 +45,7 @@ import { markraMathSourcePlugin } from "@markra/editor";
 import { markraTableControlsPlugin } from "@markra/editor";
 import { markraAiEditorPreviewPlugin } from "@markra/editor";
 import { markraAiSelectionHoldPlugin } from "@markra/editor";
+import { markraBlockDragPlugin } from "@markra/editor";
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { SlashCommandLabels } from "@markra/editor";
 import type { AiSelectionContext } from "@markra/ai";
@@ -294,6 +295,10 @@ function MilkdownSurface({
     tableColumns: t(language, "editor.table.columns"),
     tableRows: t(language, "editor.table.rows")
   };
+  const blockDragLabels = {
+    addBlock: t(language, "editor.blockAdd"),
+    dragBlock: t(language, "editor.blockDrag")
+  };
   const slashCommandLabels = useMemo<SlashCommandLabels>(() => ({
     menu: t(language, "editor.slashCommands"),
     noResults: t(language, "editor.slashCommandsNoResults"),
@@ -370,6 +375,7 @@ function MilkdownSurface({
         .use(markraMathPlugin)
         .use(markraAiSelectionHoldPlugin)
         .use(markraAiEditorPreviewPlugin)
+        .use(markraBlockDragPlugin(blockDragLabels))
         .use(
           markraTextSelectionObserverPlugin((selection) => {
             onTextSelectionChangeRef.current?.(selection);

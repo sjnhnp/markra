@@ -313,6 +313,8 @@ export type I18nKey =
   | "app.markdownEditor"
   | "app.markdownSource"
   | "app.markdownDocument"
+  | "editor.blockAdd"
+  | "editor.blockDrag"
   | "editor.htmlSource"
   | "editor.htmlSourceApply"
   | "editor.table.addColumnRight"
