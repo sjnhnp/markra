@@ -45,6 +45,7 @@ import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import type { EditorContentWidth } from "./lib/editor-width";
+import { saveEditorImage } from "./lib/image-upload";
 import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
 import type { AiDiffResult, AiEditIntent, AiSelectionContext } from "@markra/ai";
 import {
@@ -70,7 +71,6 @@ import {
   confirmNativeUnsavedMarkdownDocumentDiscard,
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
-  saveNativeClipboardImage,
   saveNativeHtmlFile,
   saveNativePdfFile,
   type NativeMarkdownFolderFile
@@ -706,22 +706,38 @@ export default function App() {
     navigator.clipboard?.writeText(result.replacement);
   }, [aiResults]);
   const handleSaveClipboardImage = useCallback(async (image: File) => {
-    if (!document.path) {
+    const result = await saveEditorImage({
+      documentPath: document.path,
+      image,
+      preferences: editorPreferences.preferences
+    }).catch(() => null);
+
+    if (!result) {
       showAppToast({
-        message: translate("app.clipboardImageRequiresSavedDocument"),
+        message: translate("app.clipboardImageSaveFailed"),
+        status: "error"
+      });
+      return null;
+    }
+
+    if (result.status === "skipped") {
+      const messageKey = result.reason === "s3-not-configured"
+        ? "app.clipboardImageS3UploadNotConfigured"
+        : result.reason === "webdav-not-configured"
+          ? "app.clipboardImageUploadNotConfigured"
+          : "app.clipboardImageRequiresSavedDocument";
+
+      showAppToast({
+        message: translate(messageKey),
         status: "error"
       });
       return null;
     }
 
     try {
-      const savedImage = await saveNativeClipboardImage({
-        documentPath: document.path,
-        folder: editorPreferences.preferences.clipboardImageFolder,
-        image
-      });
-      await refreshMarkdownFileTree(document.path);
-      return savedImage;
+      if (result.refreshTree && document.path) {
+        await refreshMarkdownFileTree(document.path);
+      }
     } catch {
       showAppToast({
         message: translate("app.clipboardImageSaveFailed"),
@@ -729,7 +745,9 @@ export default function App() {
       });
       return null;
     }
-  }, [document.path, editorPreferences.preferences.clipboardImageFolder, refreshMarkdownFileTree, translate]);
+
+    return result.image;
+  }, [document.path, editorPreferences.preferences, refreshMarkdownFileTree, translate]);
 
   useEffect(() => {
     const storedWidth = editorPreferences.preferences.contentWidthPx ?? null;

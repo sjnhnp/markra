@@ -95,6 +95,26 @@ describe("settings events", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide" as const,
       contentWidthPx: 1120,
+      imageUpload: {
+        fileNamePattern: "{name}-{timestamp}",
+        provider: "webdav",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "secret",
+          publicBaseUrl: "",
+          serverUrl: "https://dav.example.com/images",
+          uploadPath: "notes",
+          username: "ada"
+        }
+      },
       lineHeight: 1.8,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: false,

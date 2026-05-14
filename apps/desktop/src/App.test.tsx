@@ -62,6 +62,27 @@ import type { NativeMenuHandlers } from "./test/app-harness";
 
 installAppTestHarness();
 
+const defaultImageUpload = {
+  fileNamePattern: "pasted-image-{timestamp}",
+  provider: "local" as const,
+  s3: {
+    accessKeyId: "",
+    bucket: "",
+    endpointUrl: "",
+    publicBaseUrl: "",
+    region: "",
+    secretAccessKey: "",
+    uploadPath: ""
+  },
+  webdav: {
+    password: "",
+    publicBaseUrl: "",
+    serverUrl: "",
+    uploadPath: "",
+    username: ""
+  }
+};
+
 async function settleEditorUpdates() {
   await new Promise((resolve) => {
     window.setTimeout(resolve, 300);
@@ -125,6 +146,7 @@ describe("Markra workspace", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      imageUpload: defaultImageUpload,
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
@@ -159,6 +181,7 @@ describe("Markra workspace", () => {
         closeAiCommandOnAgentPanelOpen: false,
         contentWidth: "default",
         contentWidthPx: null,
+        imageUpload: defaultImageUpload,
         lineHeight: 1.65,
         markdownShortcuts: defaultMarkdownShortcuts,
         restoreWorkspaceOnStartup: true,
@@ -181,6 +204,7 @@ describe("Markra workspace", () => {
         closeAiCommandOnAgentPanelOpen: false,
         contentWidth: "default",
         contentWidthPx: null,
+        imageUpload: defaultImageUpload,
         lineHeight: 1.65,
         markdownShortcuts: defaultMarkdownShortcuts,
         restoreWorkspaceOnStartup: true,
@@ -374,10 +398,10 @@ describe("Markra workspace", () => {
     expect(settingsGroups[0]).not.toHaveClass("divide-y");
     expect(settingsGroups.some((group) => group.classList.contains("divide-y"))).toBe(true);
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
-    expect(categoryButtons).toHaveLength(7);
+    expect(categoryButtons).toHaveLength(8);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
     expect(categoryButtons[1]).not.toHaveAttribute("aria-current");
-    expect(categoryButtons[5]).toHaveTextContent("Keyboard shortcuts");
+    expect(categoryButtons[6]).toHaveTextContent("Keyboard shortcuts");
     const languageSelect = container.querySelector("select");
     expect(languageSelect).toHaveValue("en");
     expect(container.querySelector('[role="group"]')).not.toBeInTheDocument();
@@ -390,8 +414,8 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedSaveStoredLanguage).toHaveBeenCalledWith("zh-CN"));
     await waitFor(() => expect(mockedNotifyAppLanguageChanged).toHaveBeenCalledWith("zh-CN"));
 
-    fireEvent.click(categoryButtons[3]);
-    expect(categoryButtons[3]).toHaveAttribute("aria-current", "page");
+    fireEvent.click(categoryButtons[4]);
+    expect(categoryButtons[4]).toHaveAttribute("aria-current", "page");
     const themeGroup = container.querySelector('[role="group"]');
     expect(themeGroup).toBeInTheDocument();
     const themeButtons = themeGroup?.querySelectorAll("button");
@@ -418,6 +442,7 @@ describe("Markra workspace", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default" as const,
       contentWidthPx: null,
+      imageUpload: defaultImageUpload,
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
@@ -514,6 +539,7 @@ describe("Markra workspace", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      imageUpload: defaultImageUpload,
       lineHeight: 1.65,
       markdownShortcuts: {
         ...defaultMarkdownShortcuts,
@@ -1468,6 +1494,7 @@ describe("Markra workspace", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      imageUpload: defaultImageUpload,
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,

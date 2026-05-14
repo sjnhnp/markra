@@ -2,7 +2,10 @@ import {
   Bot,
   ChevronDown,
   Code2,
+  Cloud,
+  Database,
   FolderOpen,
+  HardDrive,
   Languages,
   Monitor,
   Moon,
@@ -46,6 +49,7 @@ import {
   type AppTheme,
   type EditorPreferences,
   type ExportSettings as ExportSettingsValue,
+  type ImageUploadProvider,
   type PdfMarginPreset,
   type PdfPageSize,
   type TitlebarActionId,
@@ -90,6 +94,38 @@ const themeOptions: Array<{
     value: "dark"
   }
 ];
+
+const imageUploadProviderOptions: Array<{
+  actionLabelKey: I18nKey;
+  icon: LucideIcon;
+  labelKey: I18nKey;
+  value: ImageUploadProvider;
+}> = [
+  {
+    actionLabelKey: "settings.editor.imageUploadProvider.useLocal",
+    icon: HardDrive,
+    labelKey: "settings.editor.imageUploadProvider.local",
+    value: "local"
+  },
+  {
+    actionLabelKey: "settings.editor.imageUploadProvider.useWebDav",
+    icon: Cloud,
+    labelKey: "settings.editor.imageUploadProvider.webdav",
+    value: "webdav"
+  },
+  {
+    actionLabelKey: "settings.editor.imageUploadProvider.useS3",
+    icon: Database,
+    labelKey: "settings.editor.imageUploadProvider.s3",
+    value: "s3"
+  }
+];
+
+const imageUploadProviderSettingsActionLabelKeys: Record<ImageUploadProvider, I18nKey> = {
+  local: "settings.editor.imageUploadProvider.showLocalSettings",
+  s3: "settings.editor.imageUploadProvider.showS3Settings",
+  webdav: "settings.editor.imageUploadProvider.showWebDavSettings"
+};
 
 const titlebarActionOptions: Array<{
   icon: LucideIcon;
@@ -317,19 +353,21 @@ function SettingsTextInput({
   label,
   onChange,
   placeholder,
+  type = "text",
   value,
   widthClassName = "w-44"
 }: {
   label: string;
   onChange: (value: string) => unknown;
   placeholder?: string;
+  type?: "password" | "text";
   value: string;
   widthClassName?: string;
 }) {
   return (
     <input
       className={`h-8 ${widthClassName} rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out placeholder:text-(--text-secondary) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)`}
-      type="text"
+      type={type}
       aria-label={label}
       value={value}
       placeholder={placeholder}
@@ -620,6 +658,102 @@ function ThemeSegmentedControl({
   );
 }
 
+function ImageUploadProviderControl({
+  onSelectProvider,
+  provider,
+  translate
+}: {
+  onSelectProvider: (provider: ImageUploadProvider) => unknown;
+  provider: ImageUploadProvider;
+  translate: Translate;
+}) {
+  return (
+    <SegmentedControl className="grid-cols-3" label={translate("settings.editor.imageUploadProvider")}>
+      {imageUploadProviderOptions.map((option) => {
+        const Icon = option.icon;
+        const active = provider === option.value;
+
+        return (
+          <SegmentedControlItem
+            key={option.value}
+            label={translate(option.actionLabelKey)}
+            selected={active}
+            onClick={() => onSelectProvider(option.value)}
+          >
+            <Icon aria-hidden="true" size={13} />
+            {translate(option.labelKey)}
+          </SegmentedControlItem>
+        );
+      })}
+    </SegmentedControl>
+  );
+}
+
+function ImageUploadProviderSettingsControl({
+  onSelectProvider,
+  provider,
+  translate
+}: {
+  onSelectProvider: (provider: ImageUploadProvider) => unknown;
+  provider: ImageUploadProvider;
+  translate: Translate;
+}) {
+  return (
+    <SegmentedControl className="grid-cols-3" label={translate("settings.editor.imageUploadProviderSettings")}>
+      {imageUploadProviderOptions.map((option) => {
+        const Icon = option.icon;
+        const active = provider === option.value;
+
+        return (
+          <SegmentedControlItem
+            key={option.value}
+            label={translate(imageUploadProviderSettingsActionLabelKeys[option.value])}
+            selected={active}
+            onClick={() => onSelectProvider(option.value)}
+          >
+            <Icon aria-hidden="true" size={13} />
+            {translate(option.labelKey)}
+          </SegmentedControlItem>
+        );
+      })}
+    </SegmentedControl>
+  );
+}
+
+function StorageTypeControlRow({
+  onUpdatePreferences,
+  preferences,
+  translate
+}: {
+  onUpdatePreferences: (preferences: EditorPreferences) => unknown;
+  preferences: EditorPreferences;
+  translate: Translate;
+}) {
+  const imageUpload = preferences.imageUpload;
+
+  return (
+    <SettingsRow
+      title={translate("settings.editor.imageUploadProvider")}
+      description={translate("settings.editor.imageUploadProviderDescription")}
+      action={
+        <ImageUploadProviderControl
+          provider={imageUpload.provider}
+          translate={translate}
+          onSelectProvider={(provider) =>
+            onUpdatePreferences({
+              ...preferences,
+              imageUpload: {
+                ...imageUpload,
+                provider
+              }
+            })
+          }
+        />
+      }
+    />
+  );
+}
+
 function titlebarActionOption(id: TitlebarActionId) {
   return titlebarActionOptions.find((option) => option.id === id) ?? titlebarActionOptions[0]!;
 }
@@ -866,6 +1000,265 @@ export function AppearanceSettings({
   );
 }
 
+export function StorageSettings({
+  onUpdatePreferences,
+  preferences,
+  translate
+}: {
+  onUpdatePreferences: (preferences: EditorPreferences) => unknown;
+  preferences: EditorPreferences;
+  translate: Translate;
+}) {
+  const imageUpload = preferences.imageUpload;
+  const [settingsProvider, setSettingsProvider] = useState<ImageUploadProvider>(imageUpload.provider);
+  useEffect(() => {
+    setSettingsProvider(imageUpload.provider);
+  }, [imageUpload.provider]);
+
+  const updateWebDavImageUpload = (patch: Partial<typeof imageUpload.webdav>) => {
+    onUpdatePreferences({
+      ...preferences,
+      imageUpload: {
+        ...imageUpload,
+        webdav: {
+          ...imageUpload.webdav,
+          ...patch
+        }
+      }
+    });
+  };
+  const updateS3ImageUpload = (patch: Partial<typeof imageUpload.s3>) => {
+    onUpdatePreferences({
+      ...preferences,
+      imageUpload: {
+        ...imageUpload,
+        s3: {
+          ...imageUpload.s3,
+          ...patch
+        }
+      }
+    });
+  };
+
+  return (
+    <SettingsSection label={translate("settings.categories.storage")}>
+      <SettingsRow
+        title={translate("settings.editor.imageUploadProviderSettings")}
+        description={translate("settings.editor.imageUploadProviderStorageHint")}
+        action={
+          <ImageUploadProviderSettingsControl
+            provider={settingsProvider}
+            translate={translate}
+            onSelectProvider={setSettingsProvider}
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.editor.imageUploadFileNamePattern")}
+        description={translate("settings.editor.imageUploadFileNamePatternDescription")}
+        action={
+          <SettingsTextInput
+            label={translate("settings.editor.imageUploadFileNamePattern")}
+            value={imageUpload.fileNamePattern}
+            placeholder="pasted-image-{timestamp}"
+            widthClassName="w-64"
+            onChange={(fileNamePattern) =>
+              onUpdatePreferences({
+                ...preferences,
+                imageUpload: {
+                  ...imageUpload,
+                  fileNamePattern
+                }
+              })
+            }
+          />
+        }
+      />
+      {settingsProvider === "local" ? (
+        <SettingsRow
+          title={translate("settings.editor.clipboardImageFolder")}
+          description={translate("settings.editor.clipboardImageFolderDescription")}
+          action={
+            <SettingsTextInput
+              label={translate("settings.editor.clipboardImageFolder")}
+              value={preferences.clipboardImageFolder}
+              placeholder="assets"
+              onChange={(value) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  clipboardImageFolder: value
+                })
+              }
+            />
+          }
+        />
+      ) : null}
+      {settingsProvider === "webdav" ? (
+        <>
+          <SettingsRow
+            title={translate("settings.editor.webDavServerUrl")}
+            description={translate("settings.editor.webDavServerUrlDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.webDavServerUrl")}
+                value={imageUpload.webdav.serverUrl}
+                placeholder="https://dav.example.com/images"
+                widthClassName="w-72"
+                onChange={(serverUrl) => updateWebDavImageUpload({ serverUrl })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.webDavUsername")}
+            description={translate("settings.editor.webDavUsernameDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.webDavUsername")}
+                value={imageUpload.webdav.username}
+                widthClassName="w-56"
+                onChange={(username) => updateWebDavImageUpload({ username })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.webDavPassword")}
+            description={translate("settings.editor.webDavPasswordDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.webDavPassword")}
+                value={imageUpload.webdav.password}
+                type="password"
+                widthClassName="w-56"
+                onChange={(password) => updateWebDavImageUpload({ password })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.webDavUploadPath")}
+            description={translate("settings.editor.webDavUploadPathDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.webDavUploadPath")}
+                value={imageUpload.webdav.uploadPath}
+                placeholder="notes"
+                widthClassName="w-56"
+                onChange={(uploadPath) => updateWebDavImageUpload({ uploadPath })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.webDavPublicBaseUrl")}
+            description={translate("settings.editor.webDavPublicBaseUrlDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.webDavPublicBaseUrl")}
+                value={imageUpload.webdav.publicBaseUrl}
+                placeholder="https://cdn.example.com/images"
+                widthClassName="w-72"
+                onChange={(publicBaseUrl) => updateWebDavImageUpload({ publicBaseUrl })}
+              />
+            }
+          />
+        </>
+      ) : null}
+      {settingsProvider === "s3" ? (
+        <>
+          <SettingsRow
+            title={translate("settings.editor.s3EndpointUrl")}
+            description={translate("settings.editor.s3EndpointUrlDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.s3EndpointUrl")}
+                value={imageUpload.s3.endpointUrl}
+                placeholder="https://s3.example.com"
+                widthClassName="w-72"
+                onChange={(endpointUrl) => updateS3ImageUpload({ endpointUrl })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.s3Region")}
+            description={translate("settings.editor.s3RegionDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.s3Region")}
+                value={imageUpload.s3.region}
+                placeholder="us-east-1"
+                widthClassName="w-44"
+                onChange={(region) => updateS3ImageUpload({ region })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.s3Bucket")}
+            description={translate("settings.editor.s3BucketDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.s3Bucket")}
+                value={imageUpload.s3.bucket}
+                placeholder="markra-images"
+                widthClassName="w-56"
+                onChange={(bucket) => updateS3ImageUpload({ bucket })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.s3AccessKeyId")}
+            description={translate("settings.editor.s3AccessKeyIdDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.s3AccessKeyId")}
+                value={imageUpload.s3.accessKeyId}
+                widthClassName="w-56"
+                onChange={(accessKeyId) => updateS3ImageUpload({ accessKeyId })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.s3SecretAccessKey")}
+            description={translate("settings.editor.s3SecretAccessKeyDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.s3SecretAccessKey")}
+                value={imageUpload.s3.secretAccessKey}
+                type="password"
+                widthClassName="w-56"
+                onChange={(secretAccessKey) => updateS3ImageUpload({ secretAccessKey })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.s3UploadPath")}
+            description={translate("settings.editor.s3UploadPathDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.s3UploadPath")}
+                value={imageUpload.s3.uploadPath}
+                placeholder="notes"
+                widthClassName="w-56"
+                onChange={(uploadPath) => updateS3ImageUpload({ uploadPath })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.s3PublicBaseUrl")}
+            description={translate("settings.editor.s3PublicBaseUrlDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.s3PublicBaseUrl")}
+                value={imageUpload.s3.publicBaseUrl}
+                placeholder="https://cdn.example.com/images"
+                widthClassName="w-72"
+                onChange={(publicBaseUrl) => updateS3ImageUpload({ publicBaseUrl })}
+              />
+            }
+          />
+        </>
+      ) : null}
+    </SettingsSection>
+  );
+}
+
 function ShortcutCaptureButton({
   active,
   actionLabel,
@@ -1064,22 +1457,10 @@ export function EditorSettings({
             />
           }
         />
-        <SettingsRow
-          title={translate("settings.editor.clipboardImageFolder")}
-          description={translate("settings.editor.clipboardImageFolderDescription")}
-          action={
-            <SettingsTextInput
-              label={translate("settings.editor.clipboardImageFolder")}
-              value={preferences.clipboardImageFolder}
-              placeholder="assets"
-              onChange={(value) =>
-                onUpdatePreferences({
-                  ...preferences,
-                  clipboardImageFolder: value
-                })
-              }
-            />
-          }
+        <StorageTypeControlRow
+          preferences={preferences}
+          translate={translate}
+          onUpdatePreferences={onUpdatePreferences}
         />
         <SettingsRow
           title={translate("settings.editor.titlebarActions")}

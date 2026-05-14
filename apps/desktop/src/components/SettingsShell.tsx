@@ -2,6 +2,7 @@ import {
   Bot,
   Download,
   Globe2,
+  HardDrive,
   Keyboard,
   Palette,
   PenLine,
@@ -36,6 +37,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: Globe2,
     id: "web",
     labelKey: "settings.categories.web"
+  },
+  {
+    icon: HardDrive,
+    id: "storage",
+    labelKey: "settings.categories.storage"
   },
   {
     icon: Palette,

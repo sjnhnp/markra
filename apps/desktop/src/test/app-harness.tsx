@@ -99,6 +99,8 @@ vi.mock("../lib/tauri", () => ({
   saveNativeMarkdownFile: vi.fn(),
   saveNativePdfFile: vi.fn(),
   showNativeMarkdownFileTreeContextMenu: vi.fn(),
+  uploadNativeS3Image: vi.fn(),
+  uploadNativeWebDavImage: vi.fn(),
   watchNativeMarkdownFile: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn(),
   takeNativeOpenedMarkdownPaths: vi.fn(),
@@ -133,6 +135,26 @@ vi.mock("../lib/settings/app-settings", () => ({
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     contentWidthPx: null,
+    imageUpload: {
+      fileNamePattern: "pasted-image-{timestamp}",
+      provider: "local",
+      s3: {
+        accessKeyId: "",
+        bucket: "",
+        endpointUrl: "",
+        publicBaseUrl: "",
+        region: "",
+        secretAccessKey: "",
+        uploadPath: ""
+      },
+      webdav: {
+        password: "",
+        publicBaseUrl: "",
+        serverUrl: "",
+        uploadPath: "",
+        username: ""
+      }
+    },
     lineHeight: 1.65,
     markdownShortcuts: {
       bold: "Mod+B",
@@ -203,6 +225,26 @@ vi.mock("../lib/settings/app-settings", () => ({
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     contentWidthPx: null,
+    imageUpload: {
+      fileNamePattern: "pasted-image-{timestamp}",
+      provider: "local",
+      s3: {
+        accessKeyId: "",
+        bucket: "",
+        endpointUrl: "",
+        publicBaseUrl: "",
+        region: "",
+        secretAccessKey: "",
+        uploadPath: ""
+      },
+      webdav: {
+        password: "",
+        publicBaseUrl: "",
+        serverUrl: "",
+        uploadPath: "",
+        username: ""
+      }
+    },
     lineHeight: 1.65,
     markdownShortcuts: {
       bold: "Mod+B",
@@ -612,6 +654,26 @@ export function installAppTestHarness() {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      imageUpload: {
+        fileNamePattern: "pasted-image-{timestamp}",
+        provider: "local",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "",
+          publicBaseUrl: "",
+          serverUrl: "",
+          uploadPath: "",
+          username: ""
+        }
+      },
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,

@@ -6,6 +6,7 @@ import {
   ExportSettings,
   GeneralSettings,
   KeyboardShortcutsSettings,
+  StorageSettings,
   WebSearchSettings
 } from "./SettingsSections";
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
@@ -102,6 +103,13 @@ export function SettingsWindow() {
               settings={webSearchSettings}
               translate={translate}
               onUpdateSettings={handleUpdateWebSearchSettings}
+            />
+          ) : null}
+          {activeCategory === "storage" ? (
+            <StorageSettings
+              preferences={editorPreferences}
+              translate={translate}
+              onUpdatePreferences={handleUpdateEditorPreferences}
             />
           ) : null}
           {activeCategory === "appearance" ? (

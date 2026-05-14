@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { fileNameFromPath } from "@markra/shared";
+import type { S3ImageUploadSettings, WebDavImageUploadSettings } from "../settings/app-settings";
 
 type MarkdownFileResponse = {
   path: string;
@@ -98,8 +99,21 @@ export type SavedNativePdfFile = {
 
 export type SaveNativeClipboardImageInput = {
   documentPath: string;
+  fileName: string;
   folder: string;
   image: File;
+};
+
+export type UploadNativeWebDavImageInput = {
+  fileName: string;
+  image: File;
+  settings: WebDavImageUploadSettings;
+};
+
+export type UploadNativeS3ImageInput = {
+  fileName: string;
+  image: File;
+  settings: S3ImageUploadSettings;
 };
 
 export type NativeMarkdownPickerLabels = {
@@ -138,6 +152,10 @@ type MarkdownTreeChangedPayload = {
 
 type ClipboardImageFileResponse = {
   relativePath: string;
+};
+
+type RemoteImageUploadResponse = {
+  url: string;
 };
 
 type MarkdownImageFileResponse = {
@@ -523,6 +541,7 @@ function encodeMarkdownRelativePath(path: string) {
 
 export async function saveNativeClipboardImage({
   documentPath,
+  fileName,
   folder,
   image
 }: SaveNativeClipboardImageInput): Promise<SavedNativeClipboardImage> {
@@ -530,6 +549,7 @@ export async function saveNativeClipboardImage({
   const savedImage = await invoke<ClipboardImageFileResponse>("save_clipboard_image", {
     bytes,
     documentPath,
+    fileName,
     folder,
     mimeType: image.type
   });
@@ -537,6 +557,58 @@ export async function saveNativeClipboardImage({
   return {
     alt: imageAltFromFileName(image.name),
     src: encodeMarkdownRelativePath(savedImage.relativePath)
+  };
+}
+
+export async function uploadNativeWebDavImage({
+  fileName,
+  image,
+  settings
+}: UploadNativeWebDavImageInput): Promise<SavedNativeClipboardImage> {
+  const bytes = Array.from(new Uint8Array(await image.arrayBuffer()));
+  const uploadedImage = await invoke<RemoteImageUploadResponse>("upload_webdav_image", {
+    request: {
+      bytes,
+      fileName,
+      mimeType: image.type,
+      password: settings.password,
+      publicBaseUrl: settings.publicBaseUrl,
+      serverUrl: settings.serverUrl,
+      uploadPath: settings.uploadPath,
+      username: settings.username
+    }
+  });
+
+  return {
+    alt: imageAltFromFileName(image.name),
+    src: uploadedImage.url
+  };
+}
+
+export async function uploadNativeS3Image({
+  fileName,
+  image,
+  settings
+}: UploadNativeS3ImageInput): Promise<SavedNativeClipboardImage> {
+  const bytes = Array.from(new Uint8Array(await image.arrayBuffer()));
+  const uploadedImage = await invoke<RemoteImageUploadResponse>("upload_s3_image", {
+    request: {
+      accessKeyId: settings.accessKeyId,
+      bucket: settings.bucket,
+      bytes,
+      endpointUrl: settings.endpointUrl,
+      fileName,
+      mimeType: image.type,
+      publicBaseUrl: settings.publicBaseUrl,
+      region: settings.region,
+      secretAccessKey: settings.secretAccessKey,
+      uploadPath: settings.uploadPath
+    }
+  });
+
+  return {
+    alt: imageAltFromFileName(image.name),
+    src: uploadedImage.url
   };
 }
 

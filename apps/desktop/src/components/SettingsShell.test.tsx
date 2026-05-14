@@ -24,6 +24,23 @@ describe("SettingsShell", () => {
     expect(onCategoryChange).toHaveBeenCalledWith("keyboardShortcuts");
   });
 
+  it("shows storage as its own settings category", () => {
+    const onCategoryChange = vi.fn();
+
+    render(
+      <SettingsSidebar
+        activeCategory="general"
+        platform="macos"
+        translate={translate}
+        onCategoryChange={onCategoryChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Storage" }));
+
+    expect(onCategoryChange).toHaveBeenCalledWith("storage");
+  });
+
   it("uses the keyboard shortcuts category title for the active panel", () => {
     render(
       <SettingsContent activeCategory="keyboardShortcuts" translate={translate}>
@@ -32,5 +49,15 @@ describe("SettingsShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+  });
+
+  it("uses the storage category title for the active panel", () => {
+    render(
+      <SettingsContent activeCategory="storage" translate={translate}>
+        <div />
+      </SettingsContent>
+    );
+
+    expect(screen.getByRole("heading", { name: "Storage" })).toBeInTheDocument();
   });
 });

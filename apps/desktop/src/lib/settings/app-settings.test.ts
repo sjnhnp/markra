@@ -140,6 +140,26 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      imageUpload: {
+        fileNamePattern: "pasted-image-{timestamp}",
+        provider: "local",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "",
+          publicBaseUrl: "",
+          serverUrl: "",
+          uploadPath: "",
+          username: ""
+        }
+      },
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
@@ -323,6 +343,17 @@ describe("app settings", () => {
       clipboardImageFolder: "media/screenshots",
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "page",
+      imageUpload: {
+        fileNamePattern: "web-{name}-{timestamp}",
+        provider: "webdav",
+        webdav: {
+          password: "secret",
+          publicBaseUrl: " https://cdn.example.com/images/ ",
+          serverUrl: " https://dav.example.com/remote.php/dav/files/me/ ",
+          uploadPath: " Markra/screenshots ",
+          username: " ada "
+        }
+      },
       lineHeight: 2,
       markdownShortcuts: {
         bold: "Mod+Alt+B",
@@ -340,6 +371,26 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "default",
       contentWidthPx: null,
+      imageUpload: {
+        fileNamePattern: "web-{name}-{timestamp}",
+        provider: "webdav",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "secret",
+          publicBaseUrl: "https://cdn.example.com/images",
+          serverUrl: "https://dav.example.com/remote.php/dav/files/me",
+          uploadPath: "Markra/screenshots",
+          username: "ada"
+        }
+      },
       lineHeight: 1.65,
       markdownShortcuts: {
         ...defaultMarkdownShortcuts,
@@ -453,6 +504,77 @@ describe("app settings", () => {
     });
   });
 
+  it("falls back to local image upload when persisted image upload settings are unsafe", () => {
+    expect(normalizeEditorPreferences({
+      imageUpload: {
+        fileNamePattern: "../bad",
+        provider: "ftp",
+        webdav: {
+          publicBaseUrl: "file:///tmp/images",
+          serverUrl: "ftp://dav.example.com/images",
+          uploadPath: "../outside",
+          username: 42
+        }
+      }
+    }).imageUpload).toEqual({
+      provider: "local",
+      fileNamePattern: "pasted-image-{timestamp}",
+      s3: {
+        accessKeyId: "",
+        bucket: "",
+        endpointUrl: "",
+        publicBaseUrl: "",
+        region: "",
+        secretAccessKey: "",
+        uploadPath: ""
+      },
+      webdav: {
+        password: "",
+        publicBaseUrl: "",
+        serverUrl: "",
+        uploadPath: "",
+        username: ""
+      }
+    });
+  });
+
+  it("normalizes S3-compatible image upload settings", () => {
+    expect(normalizeEditorPreferences({
+      imageUpload: {
+        fileNamePattern: "{name}-{random}",
+        provider: "s3",
+        s3: {
+          accessKeyId: " access-key ",
+          bucket: " markra-images ",
+          endpointUrl: " https://s3.example.com/ ",
+          publicBaseUrl: " https://cdn.example.com/images/ ",
+          region: " us-east-1 ",
+          secretAccessKey: "secret",
+          uploadPath: " notes/screenshots "
+        }
+      }
+    }).imageUpload).toEqual({
+      provider: "s3",
+      fileNamePattern: "{name}-{random}",
+      s3: {
+        accessKeyId: "access-key",
+        bucket: "markra-images",
+        endpointUrl: "https://s3.example.com",
+        publicBaseUrl: "https://cdn.example.com/images",
+        region: "us-east-1",
+        secretAccessKey: "secret",
+        uploadPath: "notes/screenshots"
+      },
+      webdav: {
+        password: "",
+        publicBaseUrl: "",
+        serverUrl: "",
+        uploadPath: "",
+        username: ""
+      }
+    });
+  });
+
   it("falls back to the default clipboard image folder when the stored folder is unsafe", async () => {
     store.get.mockResolvedValue({
       clipboardImageFolder: "../outside"
@@ -465,6 +587,26 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      imageUpload: {
+        fileNamePattern: "pasted-image-{timestamp}",
+        provider: "local",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "",
+          publicBaseUrl: "",
+          serverUrl: "",
+          uploadPath: "",
+          username: ""
+        }
+      },
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       restoreWorkspaceOnStartup: true,
@@ -488,6 +630,26 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide",
       contentWidthPx: 1120,
+      imageUpload: {
+        fileNamePattern: "{name}-{timestamp}",
+        provider: "webdav",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "secret",
+          publicBaseUrl: "https://cdn.example.com/images",
+          serverUrl: "https://dav.example.com/images",
+          uploadPath: "notes",
+          username: "ada"
+        }
+      },
       lineHeight: 1.8,
       markdownShortcuts: {
         ...defaultMarkdownShortcuts,
@@ -512,6 +674,26 @@ describe("app settings", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide",
       contentWidthPx: 1120,
+      imageUpload: {
+        fileNamePattern: "{name}-{timestamp}",
+        provider: "webdav",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "secret",
+          publicBaseUrl: "https://cdn.example.com/images",
+          serverUrl: "https://dav.example.com/images",
+          uploadPath: "notes",
+          username: "ada"
+        }
+      },
       lineHeight: 1.8,
       markdownShortcuts: {
         ...defaultMarkdownShortcuts,

@@ -1,6 +1,6 @@
 import { imageSchema } from "@milkdown/kit/preset/commonmark";
 import { Fragment, type NodeType } from "@milkdown/kit/prose/model";
-import { Plugin, Selection } from "@milkdown/kit/prose/state";
+import { Plugin, Selection, type SelectionBookmark } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 
@@ -11,8 +11,8 @@ export type SavedClipboardImage = {
 
 export type SaveClipboardImage = (image: File) => Promise<SavedClipboardImage | null>;
 
-function clipboardImageFiles(event: ClipboardEvent) {
-  const files = event.clipboardData?.files as (ArrayLike<File> & { item?: (index: number) => File | null }) | undefined;
+function dataTransferImageFiles(dataTransfer: DataTransfer | null | undefined) {
+  const files = dataTransfer?.files as (ArrayLike<File> & { item?: (index: number) => File | null }) | undefined;
   if (!files?.length) return [];
 
   const images: File[] = [];
@@ -22,6 +22,27 @@ function clipboardImageFiles(event: ClipboardEvent) {
   }
 
   return images;
+}
+
+function clipboardImageFiles(event: ClipboardEvent) {
+  return dataTransferImageFiles(event.clipboardData);
+}
+
+function droppedImageFiles(event: DragEvent) {
+  return dataTransferImageFiles(event.dataTransfer);
+}
+
+function dropSelectionBookmark(view: EditorView, event: DragEvent) {
+  const root = view.root as { elementFromPoint?: unknown };
+  if (typeof root.elementFromPoint !== "function") return view.state.selection.getBookmark();
+
+  const position = view.posAtCoords({
+    left: event.clientX,
+    top: event.clientY
+  });
+  if (!position) return view.state.selection.getBookmark();
+
+  return Selection.near(view.state.doc.resolve(position.pos)).getBookmark();
 }
 
 function createImageFragment(images: SavedClipboardImage[], image: NodeType) {
@@ -40,9 +61,9 @@ async function saveAndInsertClipboardImages(
   view: EditorView,
   files: File[],
   saveClipboardImage: SaveClipboardImage,
-  image: NodeType
+  image: NodeType,
+  bookmark: SelectionBookmark = view.state.selection.getBookmark()
 ) {
-  const bookmark = view.state.selection.getBookmark();
   const savedImages: SavedClipboardImage[] = [];
 
   for (const file of files) {
@@ -75,6 +96,22 @@ export function markraClipboardImagePlugin(saveClipboardImage: SaveClipboardImag
           event.preventDefault();
           saveAndInsertClipboardImages(view, files, saveClipboardImage, image).catch((error: unknown) => {
             console.error("[markra-clipboard-images] failed to insert pasted image", error);
+          });
+          return true;
+        },
+        handleDrop: (view, event) => {
+          const files = droppedImageFiles(event);
+          if (!files.length) return false;
+
+          event.preventDefault();
+          saveAndInsertClipboardImages(
+            view,
+            files,
+            saveClipboardImage,
+            image,
+            dropSelectionBookmark(view, event)
+          ).catch((error: unknown) => {
+            console.error("[markra-clipboard-images] failed to insert dropped image", error);
           });
           return true;
         }
