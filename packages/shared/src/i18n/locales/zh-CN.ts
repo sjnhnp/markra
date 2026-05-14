@@ -322,7 +322,7 @@ const messages: LocaleMessages = {
   "editor.slashCommands": "斜杠命令",
   "editor.slashCommandsNoResults": "没有匹配的命令",
   "app.documentStatus": "文档状态",
-  "app.words": "个词",
+  "app.words": "个字",
   "app.saved": "已保存",
   "app.unsaved": "未保存",
   "app.aiCommandDialog": "AI 写作命令",

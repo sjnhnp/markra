@@ -1,5 +1,8 @@
+const countableWordUnits =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]|(?:(?![\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])[\p{L}\p{N}_'-])+/gu;
+
 export function getWordCount(text: string) {
-  const words = text.trim().match(/[\p{L}\p{N}_'-]+/gu);
+  const words = text.trim().match(countableWordUnits);
   return words?.length ?? 0;
 }
 
