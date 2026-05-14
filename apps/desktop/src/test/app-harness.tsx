@@ -6,6 +6,7 @@ import {
   confirmNativeUnsavedMarkdownDocumentDiscard,
   createNativeMarkdownTreeFile,
   deleteNativeMarkdownTreeFile,
+  downloadNativeWebImage,
   openNativeMarkdownFolder,
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
@@ -80,6 +81,7 @@ vi.mock("../lib/tauri", () => ({
   confirmNativeUnsavedMarkdownDocumentDiscard: vi.fn(),
   createNativeMarkdownTreeFile: vi.fn(),
   deleteNativeMarkdownTreeFile: vi.fn(),
+  downloadNativeWebImage: vi.fn(),
   installNativeMarkdownFileDrop: vi.fn(),
   openNativeMarkdownFolder: vi.fn(),
   openNativeMarkdownFolderInNewWindow: vi.fn(),
@@ -372,6 +374,7 @@ export const mockedConfirmNativeMarkdownFileDelete = vi.mocked(confirmNativeMark
 export const mockedConfirmNativeUnsavedMarkdownDocumentDiscard = vi.mocked(confirmNativeUnsavedMarkdownDocumentDiscard);
 export const mockedCreateNativeMarkdownTreeFile = vi.mocked(createNativeMarkdownTreeFile);
 export const mockedDeleteNativeMarkdownTreeFile = vi.mocked(deleteNativeMarkdownTreeFile);
+export const mockedDownloadNativeWebImage = vi.mocked(downloadNativeWebImage);
 export const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFileInNewWindow);
 export const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
 export const mockedListenNativeOpenedMarkdownPaths = vi.mocked(listenNativeOpenedMarkdownPaths);
@@ -571,6 +574,7 @@ export function installAppTestHarness() {
     mockedTestAiProviderConnection.mockReset();
     mockedChatCompletion.mockReset();
     mockedGenerateAiAgentSessionTitle.mockReset();
+    mockedDownloadNativeWebImage.mockReset();
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("data-window");
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
@@ -581,6 +585,9 @@ export function installAppTestHarness() {
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenNativeExternalUrl.mockResolvedValue(undefined);
+    mockedDownloadNativeWebImage.mockResolvedValue(new File([new Uint8Array([1, 2, 3])], "web-image.png", {
+      type: "image/png"
+    }));
     mockedCheckNativeAppUpdate.mockResolvedValue(null);
     mockedResolveDesktopPlatform.mockReturnValue("macos");
     mockedOpenSettingsWindow.mockResolvedValue(undefined);

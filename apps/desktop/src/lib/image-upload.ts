@@ -51,6 +51,7 @@ const imageMimeExtensions: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
   "image/png": "png",
+  "image/svg+xml": "svg",
   "image/webp": "webp"
 };
 
@@ -156,7 +157,7 @@ function imageExtensionFromFile(image: File) {
     .pop()
     ?.trim()
     .toLowerCase();
-  if (nameExtension && ["avif", "bmp", "gif", "jpg", "jpeg", "png", "webp"].includes(nameExtension)) {
+  if (nameExtension && ["avif", "bmp", "gif", "jpg", "jpeg", "png", "svg", "webp"].includes(nameExtension)) {
     return nameExtension === "jpeg" ? "jpg" : nameExtension;
   }
 

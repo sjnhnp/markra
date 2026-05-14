@@ -19,6 +19,14 @@ describe("save editor image", () => {
     })).toBe("My-Diagram.1700000000000.png");
   });
 
+  it("keeps SVG image extensions when creating upload file names", () => {
+    const image = new File([new Uint8Array([1, 2, 3])], "Logo.svg", { type: "image/svg+xml" });
+
+    expect(createImageUploadFileName(image, "{name}-{timestamp}", {
+      timestamp: () => "1700000000000"
+    })).toBe("Logo-1700000000000.svg");
+  });
+
   it("uses the local clipboard image folder and reports that the file tree should refresh", async () => {
     const image = new File([new Uint8Array([1, 2, 3])], "Screenshot.png", { type: "image/png" });
     const saveLocalImage = vi.fn().mockResolvedValue({

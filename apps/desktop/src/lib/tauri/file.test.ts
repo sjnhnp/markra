@@ -8,6 +8,7 @@ import {
   createNativeMarkdownTreeFile,
   createNativeMarkdownTreeFolder,
   deleteNativeMarkdownTreeFile,
+  downloadNativeWebImage,
   installNativeMarkdownFileDrop,
   listenNativeOpenedMarkdownPaths,
   listNativeMarkdownFilesForPath,
@@ -542,6 +543,26 @@ describe("native file access", () => {
       fileName: "custom-image.png",
       folder: "assets",
       mimeType: "image/png"
+    });
+  });
+
+  it("downloads a web image through Tauri and returns a File", async () => {
+    mockedInvoke.mockResolvedValue({
+      bytes: [1, 2, 3],
+      fileName: "kitten.png",
+      mimeType: "image/png"
+    });
+
+    const image = await downloadNativeWebImage({ src: "https://images.example.com/kitten.png" });
+
+    expect(image).toBeInstanceOf(File);
+    expect(image.name).toBe("kitten.png");
+    expect(image.type).toBe("image/png");
+    await expect(image.arrayBuffer()).resolves.toEqual(new Uint8Array([1, 2, 3]).buffer);
+    expect(mockedInvoke).toHaveBeenCalledWith("download_web_image", {
+      request: {
+        url: "https://images.example.com/kitten.png"
+      }
     });
   });
 

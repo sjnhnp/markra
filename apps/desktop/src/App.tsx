@@ -54,7 +54,8 @@ import {
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
   type AiEditorPreviewAppliedDetail,
   type AiEditorPreviewActionDetail,
-  type AiEditorPreviewRestoreDetail
+  type AiEditorPreviewRestoreDetail,
+  type RemoteClipboardImage
 } from "@markra/editor";
 import { aiAgentWebSearchAvailable } from "@markra/ai";
 import {
@@ -69,6 +70,7 @@ import { notifyAppEditorPreferencesChanged } from "./lib/settings/settings-event
 import {
   confirmNativeMarkdownFileDelete,
   confirmNativeUnsavedMarkdownDocumentDiscard,
+  downloadNativeWebImage,
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
   saveNativeHtmlFile,
@@ -749,6 +751,19 @@ export default function App() {
     return result.image;
   }, [document.path, editorPreferences.preferences, refreshMarkdownFileTree, translate]);
 
+  const handleSaveRemoteClipboardImage = useCallback(async (image: RemoteClipboardImage) => {
+    const downloadedImage = await downloadNativeWebImage({ src: image.src }).catch(() => null);
+    if (!downloadedImage) {
+      showAppToast({
+        message: translate("app.clipboardImageSaveFailed"),
+        status: "error"
+      });
+      return null;
+    }
+
+    return handleSaveClipboardImage(downloadedImage);
+  }, [handleSaveClipboardImage, translate]);
+
   useEffect(() => {
     const storedWidth = editorPreferences.preferences.contentWidthPx ?? null;
     setEditorContentWidth(editorPreferences.preferences.contentWidth);
@@ -1337,6 +1352,7 @@ export default function App() {
                       onContentWidthChange={handleEditorContentWidthChange}
                       onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                       onSaveClipboardImage={handleSaveClipboardImage}
+                      onSaveRemoteClipboardImage={handleSaveRemoteClipboardImage}
                       openExternalUrl={openNativeExternalUrl}
                       onTextSelectionChange={handleTextSelectionChange}
                       resolveImageSrc={resolveImageSrc}
