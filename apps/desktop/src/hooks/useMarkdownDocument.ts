@@ -12,7 +12,10 @@ import {
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
   readNativeMarkdownFile,
+  resolveNativeMarkdownPath,
   saveNativeMarkdownFile,
+  listenNativeOpenedMarkdownPaths,
+  takeNativeOpenedMarkdownPaths,
   watchNativeMarkdownFile,
   type NativeMarkdownDroppedTarget,
   type NativeMarkdownFile,
@@ -163,11 +166,13 @@ export function useMarkdownDocument({
   const [tabs, setTabs] = useState<MarkdownDocumentTab[]>(() => [createDocumentTab(createInitialDocumentState(), "untitled:0")]);
   const [activeTabId, setActiveTabId] = useState<string | null>("untitled:0");
   const [workspaceSessionId, setWorkspaceSessionId] = useState<string | null>(null);
+  const [nativeOpenedPathsReady, setNativeOpenedPathsReady] = useState(false);
   const documentRef = useRef(document);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef<string | null>(activeTabId);
   const untitledTabIndexRef = useRef(1);
   const workspaceSessionIdRef = useRef<string | null>(null);
+  const openedFromNativeRef = useRef(false);
   const outlineItems = useMemo(() => getMarkdownOutline(document.content), [document.content]);
   const wordCount = useMemo(() => getWordCount(document.content), [document.content]);
 
@@ -636,6 +641,25 @@ export function useMarkdownDocument({
     [clearOpenDocument, currentMarkdown, loadNativeMarkdownPath, onTreeRootFromFolderPath, resolveWorkspaceSessionId]
   );
 
+  const handleNativeOpenedMarkdownPaths = useCallback(async (paths: string[]) => {
+    if (paths.length === 0) return false;
+
+    let openedPath = false;
+
+    for (const path of paths) {
+      try {
+        const target = await resolveNativeMarkdownPath(path);
+        await handleDroppedMarkdownPath(target);
+        openedPath = true;
+      } catch {
+        // Unsupported or moved OS-opened paths should not block other files.
+      }
+    }
+
+    if (openedPath) openedFromNativeRef.current = true;
+    return openedPath;
+  }, [handleDroppedMarkdownPath]);
+
   useEffect(() => {
     const title = document.open && document.dirty ? `${document.name} *` : document.name;
     setNativeWindowTitle(title);
@@ -682,7 +706,54 @@ export function useMarkdownDocument({
   }, [clearOpenDocument, onTreeRootFromFolderPath, resolveWorkspaceSessionId]);
 
   useEffect(() => {
+    if (isBlankEditorWindow() || initialMarkdownFilePath() || initialMarkdownFolderPath()) {
+      setNativeOpenedPathsReady(true);
+      return;
+    }
+
+    let active = true;
+    let cleanupNativeListener: (() => unknown) | null = null;
+
+    (async () => {
+      try {
+        const paths = await takeNativeOpenedMarkdownPaths();
+        if (active) await handleNativeOpenedMarkdownPaths(paths);
+      } catch {
+        // Native launch state is opportunistic; the normal startup path remains available.
+      } finally {
+        if (active) setNativeOpenedPathsReady(true);
+      }
+
+      try {
+        const cleanup = await listenNativeOpenedMarkdownPaths((paths) => {
+          takeNativeOpenedMarkdownPaths()
+            .then((queuedPaths) => handleNativeOpenedMarkdownPaths(queuedPaths.length > 0 ? queuedPaths : paths))
+            .catch(() => handleNativeOpenedMarkdownPaths(paths));
+        });
+
+        if (!active) {
+          cleanup();
+          return;
+        }
+
+        cleanupNativeListener = cleanup;
+      } catch {
+        // If event registration fails, manual open and drag/drop still work.
+      }
+    })().catch(() => {
+      if (active) setNativeOpenedPathsReady(true);
+    });
+
+    return () => {
+      active = false;
+      cleanupNativeListener?.();
+    };
+  }, [handleNativeOpenedMarkdownPaths]);
+
+  useEffect(() => {
     if (isBlankEditorWindow() || initialMarkdownFilePath() || initialMarkdownFolderPath()) return;
+    if (!nativeOpenedPathsReady) return;
+    if (openedFromNativeRef.current) return;
     if (!preferencesReady) return;
 
     let active = true;
@@ -747,6 +818,7 @@ export function useMarkdownDocument({
     applyNativeMarkdownFile,
     assignWorkspaceSessionId,
     clearOpenDocument,
+    nativeOpenedPathsReady,
     onTreeRootFromFolderPath,
     preferencesReady,
     resolveWorkspaceSessionId,

@@ -9,7 +9,9 @@ import {
   createNativeMarkdownTreeFolder,
   deleteNativeMarkdownTreeFile,
   installNativeMarkdownFileDrop,
+  listenNativeOpenedMarkdownPaths,
   listNativeMarkdownFilesForPath,
+  takeNativeOpenedMarkdownPaths,
   openNativeMarkdownFolder,
   openNativeMarkdownFile,
   openNativeMarkdownFolderInNewWindow,
@@ -93,6 +95,32 @@ describe("native file access", () => {
     expect(mockedInvoke).toHaveBeenCalledWith("read_markdown_file", {
       path: mockReadmePath
     });
+  });
+
+  it("takes markdown paths queued by native file-open requests", async () => {
+    mockedInvoke.mockResolvedValue([mockReadmePath, mockDraftPath]);
+
+    await expect(takeNativeOpenedMarkdownPaths()).resolves.toEqual([mockReadmePath, mockDraftPath]);
+
+    expect(mockedInvoke).toHaveBeenCalledWith("take_opened_markdown_paths");
+  });
+
+  it("listens for markdown paths opened by the operating system", async () => {
+    const unlisten = vi.fn();
+    const onPaths = vi.fn();
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenNativeOpenedMarkdownPaths(onPaths);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    listener?.({ payload: { paths: [mockReadmePath] } } as Parameters<NonNullable<typeof listener>>[0]);
+    listener?.({ payload: { paths: [] } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://opened-markdown-paths", expect.any(Function));
+    expect(onPaths).toHaveBeenCalledTimes(1);
+    expect(onPaths).toHaveBeenCalledWith([mockReadmePath]);
+    expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
   it("passes localized titles to native markdown pickers", async () => {

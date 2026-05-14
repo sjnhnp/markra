@@ -10,14 +10,17 @@ import {
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
+  listenNativeOpenedMarkdownPaths,
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
+  resolveNativeMarkdownPath,
   saveNativeHtmlFile,
   saveNativeMarkdownFile,
   saveNativePdfFile,
   showNativeMarkdownFileTreeContextMenu,
   installNativeMarkdownFileDrop,
   listNativeMarkdownFilesForPath,
+  takeNativeOpenedMarkdownPaths,
   renameNativeMarkdownTreeFile,
   watchNativeMarkdownFile
 } from "../lib/tauri";
@@ -82,12 +85,14 @@ vi.mock("../lib/tauri", () => ({
   openNativeMarkdownFolderInNewWindow: vi.fn(),
   openNativeMarkdownFileInNewWindow: vi.fn(),
   openNativeMarkdownPath: vi.fn(),
+  listenNativeOpenedMarkdownPaths: vi.fn(),
   readNativeMarkdownImageFile: vi.fn(),
   readNativeMarkdownFile: vi.fn(),
   requestNativeAiJson: vi.fn(),
   requestNativeChat: vi.fn(),
   requestNativeChatStream: vi.fn(),
   requestNativeWebResource: vi.fn(),
+  resolveNativeMarkdownPath: vi.fn(),
   renameNativeMarkdownTreeFile: vi.fn(),
   saveNativeClipboardImage: vi.fn(),
   saveNativeHtmlFile: vi.fn(),
@@ -96,6 +101,7 @@ vi.mock("../lib/tauri", () => ({
   showNativeMarkdownFileTreeContextMenu: vi.fn(),
   watchNativeMarkdownFile: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn(),
+  takeNativeOpenedMarkdownPaths: vi.fn(),
   installNativeApplicationMenu: vi.fn(),
   installNativeEditorContextMenu: vi.fn(),
   openNativeExternalUrl: vi.fn(),
@@ -326,14 +332,17 @@ export const mockedCreateNativeMarkdownTreeFile = vi.mocked(createNativeMarkdown
 export const mockedDeleteNativeMarkdownTreeFile = vi.mocked(deleteNativeMarkdownTreeFile);
 export const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFileInNewWindow);
 export const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
+export const mockedListenNativeOpenedMarkdownPaths = vi.mocked(listenNativeOpenedMarkdownPaths);
 export const mockedReadNativeMarkdownImageFile = vi.mocked(readNativeMarkdownImageFile);
 export const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
+export const mockedResolveNativeMarkdownPath = vi.mocked(resolveNativeMarkdownPath);
 export const mockedSaveNativeHtmlFile = vi.mocked(saveNativeHtmlFile);
 export const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
 export const mockedSaveNativePdfFile = vi.mocked(saveNativePdfFile);
 export const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
 export const mockedInstallNativeMarkdownFileDrop = vi.mocked(installNativeMarkdownFileDrop);
 export const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
+export const mockedTakeNativeOpenedMarkdownPaths = vi.mocked(takeNativeOpenedMarkdownPaths);
 export const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
 export const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
 export const mockedInstallNativeApplicationMenu = vi.mocked(installNativeApplicationMenu);
@@ -467,14 +476,17 @@ export function installAppTestHarness() {
     mockedOpenNativeMarkdownFolderInNewWindow.mockReset();
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
     mockedOpenNativeMarkdownPath.mockReset();
+    mockedListenNativeOpenedMarkdownPaths.mockReset();
     mockedReadNativeMarkdownImageFile.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
+    mockedResolveNativeMarkdownPath.mockReset();
     mockedSaveNativeHtmlFile.mockReset();
     mockedSaveNativePdfFile.mockReset();
     mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
     mockedShowNativeMarkdownFileTreeContextMenu.mockReset();
     mockedListNativeMarkdownFilesForPath.mockReset();
+    mockedTakeNativeOpenedMarkdownPaths.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
     mockedInstallNativeApplicationMenu.mockReset();
     mockedInstallNativeEditorContextMenu.mockReset();
@@ -521,7 +533,9 @@ export function installAppTestHarness() {
     document.documentElement.removeAttribute("data-window");
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
     mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
+    mockedTakeNativeOpenedMarkdownPaths.mockResolvedValue([]);
     mockedInstallNativeMarkdownFileDrop.mockResolvedValue(() => {});
+    mockedListenNativeOpenedMarkdownPaths.mockResolvedValue(() => {});
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenNativeExternalUrl.mockResolvedValue(undefined);
@@ -534,6 +548,11 @@ export function installAppTestHarness() {
       path: "/mock-files/assets/image.png",
       src: "assets/image.png"
     });
+    mockedResolveNativeMarkdownPath.mockImplementation(async (path) => ({
+      kind: path === mockFolderPath ? "folder" : "file",
+      name: path === mockFolderPath ? "vault" : path.split("/").pop() ?? path,
+      path
+    }));
     mockedSaveStoredEditorPreferences.mockResolvedValue(undefined);
     mockedSaveStoredExportSettings.mockResolvedValue(undefined);
     mockedSaveNativeHtmlFile.mockResolvedValue({

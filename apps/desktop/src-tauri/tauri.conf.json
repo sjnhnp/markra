@@ -47,6 +47,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown"],
+        "name": "Markdown Document",
+        "description": "Markdown document",
+        "mimeType": "text/markdown",
+        "role": "Editor"
+      }
+    ],
     "macOS": {
       "files": {
         "Resources/de.lproj": "macos-locales/de.lproj",

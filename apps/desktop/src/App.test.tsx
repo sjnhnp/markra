@@ -26,6 +26,7 @@ import {
   mockedInstallNativeEditorContextMenu,
   mockedInstallNativeMarkdownFileDrop,
   mockedListNativeMarkdownFilesForPath,
+  mockedListenNativeOpenedMarkdownPaths,
   mockedListenAppEditorPreferencesChanged,
   mockedListenAppLanguageChanged,
   mockedListenAppThemeChanged,
@@ -52,6 +53,7 @@ import {
   mockedSaveStoredTheme,
   mockedSaveStoredWorkspaceState,
   mockedShowNativeMarkdownFileTreeContextMenu,
+  mockedTakeNativeOpenedMarkdownPaths,
   mockedTestAiProviderConnection,
   mockedWatchNativeMarkdownFile,
   renderApp
@@ -1757,6 +1759,47 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("tab", { name: /dropped\.md/ })).toBeInTheDocument();
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockDroppedPath);
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+  });
+
+  it("loads a markdown file when the operating system opens Markra with a file path", async () => {
+    mockedTakeNativeOpenedMarkdownPaths.mockResolvedValue([mockDroppedPath]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Opened from OS\n\nDouble-clicked from Finder or Explorer.",
+      name: "dropped.md",
+      path: mockDroppedPath
+    });
+
+    renderApp();
+
+    expect(await screen.findByText("Opened from OS")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /dropped\.md/ })).toBeInTheDocument();
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockDroppedPath);
+    expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+  });
+
+  it("opens a markdown file when the operating system sends a file-open event while Markra is running", async () => {
+    let onOpenedPaths: ((paths: string[]) => unknown) | null = null;
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockedListenNativeOpenedMarkdownPaths.mockImplementation(async (listener) => {
+      onOpenedPaths = listener;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Runtime file\n\nOpened while Markra was already running.",
+      name: "dropped.md",
+      path: mockDroppedPath
+    });
+
+    renderApp();
+    await screen.findByRole("textbox", { name: "Markdown document" });
+    await waitFor(() => expect(onOpenedPaths).not.toBeNull());
+
+    await act(async () => {
+      await onOpenedPaths?.([mockDroppedPath]);
+    });
+
+    expect(await screen.findByText("Runtime file")).toBeInTheDocument();
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockDroppedPath);
   });
 
   it("opens a markdown folder when a native folder window opens with an initial path", async () => {
