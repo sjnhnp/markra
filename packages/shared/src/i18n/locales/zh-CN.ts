@@ -302,6 +302,8 @@ const messages: LocaleMessages = {
   "app.markdownEditor": "Markdown 编辑器",
   "app.markdownSource": "Markdown 源码",
   "app.markdownDocument": "Markdown 文档",
+  "editor.blockAdd": "在下方新增块",
+  "editor.blockDrag": "拖拽块",
   "editor.htmlSource": "HTML 源码",
   "editor.htmlSourceApply": "应用 HTML 源码",
   "editor.table.addColumnRight": "在右侧新增列",

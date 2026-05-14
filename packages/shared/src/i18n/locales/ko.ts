@@ -196,6 +196,8 @@ const messages: LocaleMessages = {
   "app.markdownEditor": "Markdown 편집기",
   "app.markdownSource": "Markdown 소스",
   "app.markdownDocument": "Markdown 문서",
+  "editor.blockAdd": "아래에 블록 추가",
+  "editor.blockDrag": "블록 드래그",
   "editor.htmlSource": "HTML 소스",
   "editor.htmlSourceApply": "HTML 소스 적용",
   "editor.table.addColumnRight": "오른쪽에 열 추가",

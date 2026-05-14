@@ -293,6 +293,213 @@ function dropImage(view: EditorView, image: File) {
   return view.someProp("handleDrop", (handler) => handler(view, event, view.state.selection.content(), false));
 }
 
+function createDragDataTransfer() {
+  const data = new Map<string, string>();
+
+  return {
+    clearData: () => data.clear(),
+    dropEffect: "move",
+    effectAllowed: "copyMove",
+    getData: (type: string) => data.get(type) ?? "",
+    setData: (type: string, value: string) => data.set(type, value),
+    setDragImage: vi.fn()
+  } as unknown as DataTransfer;
+}
+
+function dispatchDragEvent(
+  target: Element,
+  type: string,
+  options: { clientX: number; clientY: number; dataTransfer: DataTransfer }
+) {
+  const event = new Event(type, {
+    bubbles: true,
+    cancelable: true
+  }) as DragEvent;
+
+  Object.defineProperty(event, "clientX", { value: options.clientX });
+  Object.defineProperty(event, "clientY", { value: options.clientY });
+  Object.defineProperty(event, "dataTransfer", { value: options.dataTransfer });
+  target.dispatchEvent(event);
+
+  return event;
+}
+
+function topLevelBlockPositions(view: EditorView) {
+  const positions: number[] = [];
+
+  view.state.doc.forEach((_node, offset) => {
+    positions.push(offset);
+  });
+
+  return positions;
+}
+
+function nodePositionsByType(view: EditorView, typeName: string) {
+  const positions: number[] = [];
+
+  view.state.doc.descendants((node, position) => {
+    if (node.type.name === typeName) positions.push(position);
+  });
+
+  return positions;
+}
+
+function positionWithAncestorExcluding(view: EditorView, typeName: string, excludedTypeName: string) {
+  for (let position = 0; position <= view.state.doc.content.size; position += 1) {
+    const $position = view.state.doc.resolve(position);
+    let hasType = false;
+    let hasExcludedType = false;
+
+    for (let depth = $position.depth; depth > 0; depth -= 1) {
+      const nodeTypeName = $position.node(depth).type.name;
+      if (nodeTypeName === typeName) hasType = true;
+      if (nodeTypeName === excludedTypeName) hasExcludedType = true;
+    }
+
+    if (hasType && !hasExcludedType) return position;
+  }
+
+  return null;
+}
+
+function mockBlockDragLayout(view: EditorView, blocks: HTMLElement[], positions: number[]) {
+  const blockRects = blocks.map((_block, index) => {
+    const top = 100 + index * 40;
+    return {
+      bottom: top + 28,
+      height: 28,
+      left: 160,
+      right: 640,
+      top,
+      width: 480,
+      x: 160,
+      y: top,
+      toJSON: () => ({})
+    } as DOMRect;
+  });
+  const originalPosAtCoords = view.posAtCoords.bind(view);
+
+  for (const [index, block] of blocks.entries()) {
+    block.getBoundingClientRect = vi.fn(() => blockRects[index]);
+  }
+
+  view.dom.getBoundingClientRect = vi.fn(() => ({
+    bottom: 260,
+    height: 180,
+    left: 160,
+    right: 640,
+    top: 90,
+    width: 480,
+    x: 160,
+    y: 90,
+    toJSON: () => ({})
+  } as DOMRect));
+
+  Object.defineProperty(view, "posAtCoords", {
+    configurable: true,
+    value: ({ left, top }: { left: number; top: number }) => {
+      if (left < 160 || left > 640) return null;
+
+      const index = blockRects.findIndex((rect) => top >= rect.top && top <= rect.bottom);
+      let blockIndex = index;
+
+      if (blockIndex === -1) {
+        blockIndex = 0;
+        for (const [rectIndex, rect] of blockRects.entries()) {
+          if (top > rect.bottom) blockIndex = rectIndex;
+        }
+      }
+
+      const normalizedIndex = Math.max(0, Math.min(positions.length - 1, blockIndex));
+      const position = positions[normalizedIndex];
+
+      return { inside: position, pos: position + 1 };
+    }
+  });
+
+  return () => {
+    Object.defineProperty(view, "posAtCoords", {
+      configurable: true,
+      value: originalPosAtCoords
+    });
+  };
+}
+
+function mockTopLevelBlockDragLayout(view: EditorView, container: HTMLElement) {
+  return mockBlockDragLayout(
+    view,
+    Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > *")),
+    topLevelBlockPositions(view)
+  );
+}
+
+function mockListItemBlockDragLayout(view: EditorView, container: HTMLElement) {
+  return mockBlockDragLayout(
+    view,
+    Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror li")),
+    nodePositionsByType(view, "list_item")
+  );
+}
+
+function mockTopLevelBlockDragLayoutByCurrentDomOrder(view: EditorView, container: HTMLElement) {
+  const surface = container.querySelector<HTMLElement>(".ProseMirror");
+  if (!surface) throw new Error("Could not find editor surface.");
+
+  const blocks = Array.from(surface.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+  const positions = topLevelBlockPositions(view);
+  const originalPosAtCoords = view.posAtCoords.bind(view);
+
+  const rectForIndex = (index: number) => {
+    const top = 100 + index * 40;
+    return {
+      bottom: top + 28,
+      height: 28,
+      left: 160,
+      right: 640,
+      top,
+      width: 480,
+      x: 160,
+      y: top,
+      toJSON: () => ({})
+    } as DOMRect;
+  };
+
+  for (const block of blocks) {
+    block.getBoundingClientRect = vi.fn(() => rectForIndex(Array.from(surface.children).indexOf(block)));
+  }
+
+  view.dom.getBoundingClientRect = vi.fn(() => ({
+    bottom: 260,
+    height: 180,
+    left: 160,
+    right: 640,
+    top: 90,
+    width: 480,
+    x: 160,
+    y: 90,
+    toJSON: () => ({})
+  } as DOMRect));
+
+  Object.defineProperty(view, "posAtCoords", {
+    configurable: true,
+    value: ({ left, top }: { left: number; top: number }) => {
+      if (left < 160 || left > 640) return null;
+
+      const blockIndex = Math.max(0, Math.min(positions.length - 1, Math.floor((top - 100) / 40)));
+      const position = positions[blockIndex];
+
+      return { inside: position, pos: position + 1 };
+    }
+  });
+
+  return () => {
+    Object.defineProperty(view, "posAtCoords", {
+      configurable: true,
+      value: originalPosAtCoords
+    });
+  };
+}
+
 function expectLiveMark(container: HTMLElement, kind: string, text: string) {
   expect(container.querySelector(`.ProseMirror .markra-live-mark-${kind}`)).toHaveTextContent(text);
 }
@@ -868,6 +1075,715 @@ describe("MarkdownPaper editing", () => {
     });
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toContain("![Diagram](https://cdn.example.com/notes/diagram.png)");
+  });
+
+  it("reorders top-level blocks from the hover drag handle", async () => {
+    const { container, editor, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const editorRoot = surface?.parentElement;
+    expect(surface).toBeInTheDocument();
+    expect(editorRoot).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+    const dataTransfer = createDragDataTransfer();
+
+    dispatchDragEvent(handle, "dragstart", {
+      clientX: 136,
+      clientY: 112,
+      dataTransfer
+    });
+    dispatchDragEvent(editorRoot!, "dragover", {
+      clientX: 136,
+      clientY: 160,
+      dataTransfer
+    });
+    dispatchDragEvent(editorRoot!, "drop", {
+      clientX: 136,
+      clientY: 160,
+      dataTransfer
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("Second\n\nFirst\n\nThird\n");
+    expect(view.state.selection).not.toBeInstanceOf(NodeSelection);
+    expect(container.querySelector(".ProseMirror-selectednode")).not.toBeInTheDocument();
+    restoreLayout();
+  });
+
+  it("reveals the block drag handle from the editor gutter and reorders blocks there", async () => {
+    const { container, editor, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+
+    fireEvent.pointerMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+    const dataTransfer = createDragDataTransfer();
+
+    dispatchDragEvent(handle, "dragstart", {
+      clientX: 136,
+      clientY: 112,
+      dataTransfer
+    });
+    dispatchDragEvent(paper!, "dragover", {
+      clientX: 136,
+      clientY: 160,
+      dataTransfer
+    });
+    dispatchDragEvent(paper!, "drop", {
+      clientX: 136,
+      clientY: 160,
+      dataTransfer
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("Second\n\nFirst\n\nThird\n");
+    restoreLayout();
+  });
+
+  it("reorders blocks with pointer dragging from the gutter handle", async () => {
+    const { container, editor, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+
+    fireEvent.pointerMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.pointerDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 112,
+      pointerId: 7
+    });
+    fireEvent.pointerMove(document, {
+      buttons: 1,
+      clientX: 136,
+      clientY: 160,
+      pointerId: 7
+    });
+    fireEvent.pointerUp(document, {
+      button: 0,
+      clientX: 136,
+      clientY: 160,
+      pointerId: 7
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("Second\n\nFirst\n\nThird\n");
+    restoreLayout();
+  });
+
+  it("reorders blocks with mouse dragging from the gutter handle", async () => {
+    const { container, editor, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+
+    fireEvent.mouseMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+    expect(handle.closest(".markra-block-toolbar")).toHaveAttribute("data-show", "true");
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 112
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 136,
+      clientY: 160
+    });
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 136,
+      clientY: 160
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("Second\n\nFirst\n\nThird\n");
+    restoreLayout();
+  });
+
+  it("shows a lightweight drag ghost while dragging a block", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+
+    fireEvent.mouseMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 112
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 136,
+      clientY: 160
+    });
+
+    const ghost = paper!.querySelector<HTMLElement>(".markra-block-drag-ghost");
+    expect(ghost).toBeInTheDocument();
+    expect(ghost).toHaveAttribute("data-show", "true");
+    expect(ghost).toHaveTextContent("First");
+    expect(ghost?.style.left).toBe("0px");
+    expect(ghost?.style.top).toBe("0px");
+    expect(ghost?.style.transform).toBe("translate(148px, 170px)");
+
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 136,
+      clientY: 160
+    });
+
+    expect(ghost).toHaveAttribute("data-show", "false");
+    restoreLayout();
+  });
+
+  it("keeps the drop indicator close to the content width", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    const secondBlock = surface?.children.item(1) as HTMLElement | null;
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+    expect(secondBlock).toBeInstanceOf(HTMLElement);
+
+    secondBlock!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 168,
+          height: 28,
+          left: 160,
+          right: 1160,
+          top: 140,
+          width: 1000,
+          x: 160,
+          y: 140,
+          toJSON: () => ({})
+        }) as DOMRect
+    );
+
+    fireEvent.mouseMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 112
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 136,
+      clientY: 160
+    });
+
+    const indicator = paper!.querySelector<HTMLElement>(".markra-block-drop-indicator");
+    expect(indicator).toHaveAttribute("data-show", "true");
+    expect(indicator?.style.left).toBe("162px");
+    expect(indicator?.style.width).toBe("640px");
+
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 136,
+      clientY: 160
+    });
+    restoreLayout();
+  });
+
+  it("scrolls the editor edge while dragging a block near the viewport boundary", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    const paperScroll = surface?.closest<HTMLElement>(".paper-scroll");
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+    expect(paperScroll).toBeInTheDocument();
+
+    paperScroll!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 200,
+          height: 200,
+          left: 0,
+          right: 900,
+          top: 0,
+          width: 900,
+          x: 0,
+          y: 0,
+          toJSON: () => ({})
+        }) as DOMRect
+    );
+    const scrollBy = vi.fn();
+    paperScroll!.scrollBy = scrollBy;
+
+    fireEvent.mouseMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 112
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 136,
+      clientY: 188
+    });
+
+    const scrollOptions = scrollBy.mock.calls[0]?.[0] as ScrollToOptions | undefined;
+    expect(scrollOptions?.top).toBeGreaterThan(0);
+
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 136,
+      clientY: 188
+    });
+    restoreLayout();
+  });
+
+  it("prevents native text selection while dragging a block", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    const firstText = surface?.querySelector("p")?.firstChild;
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+    expect(firstText).toBeInstanceOf(Text);
+
+    const selection = window.getSelection();
+    const selectionRange = document.createRange();
+    selectionRange.selectNodeContents(firstText!);
+    selection?.removeAllRanges();
+    selection?.addRange(selectionRange);
+    expect(selection?.toString()).toBe("First");
+
+    fireEvent.mouseMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 112
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 136,
+      clientY: 160
+    });
+
+    expect(document.documentElement).toHaveAttribute("data-markra-block-dragging", "true");
+    expect(paper).toHaveAttribute("data-block-dragging", "true");
+    expect(selection?.toString()).toBe("");
+
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 136,
+      clientY: 160
+    });
+
+    expect(document.documentElement).not.toHaveAttribute("data-markra-block-dragging");
+    expect(paper).not.toHaveAttribute("data-block-dragging");
+    restoreLayout();
+  });
+
+  it("animates blocks into their reordered positions", async () => {
+    const { container, editor, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayoutByCurrentDomOrder(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    const originalAnimate = HTMLElement.prototype.animate;
+    const animate = vi.fn(() => ({
+      addEventListener: vi.fn(),
+      finished: Promise.resolve()
+    } as unknown as Animation));
+    Object.defineProperty(HTMLElement.prototype, "animate", {
+      configurable: true,
+      value: animate
+    });
+
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+
+    fireEvent.mouseMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 112
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 136,
+      clientY: 160
+    });
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 136,
+      clientY: 160
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("Second\n\nFirst\n\nThird\n");
+    expect(animate).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({ transform: expect.stringContaining("translate") }),
+        { transform: "translate(0, 0)" }
+      ],
+      expect.objectContaining({
+        duration: expect.any(Number),
+        easing: expect.stringContaining("cubic-bezier")
+      })
+    );
+
+    Object.defineProperty(HTMLElement.prototype, "animate", {
+      configurable: true,
+      value: originalAnimate
+    });
+    restoreLayout();
+  });
+
+  it("reorders list items from the hover drag handle", async () => {
+    const { container, editor, view } = await renderEditor("- First\n- Second\n- Third");
+    const restoreLayout = mockListItemBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+    const dataTransfer = createDragDataTransfer();
+
+    dispatchDragEvent(handle, "dragstart", {
+      clientX: 136,
+      clientY: 112,
+      dataTransfer
+    });
+    dispatchDragEvent(surface!, "dragover", {
+      clientX: 170,
+      clientY: 160,
+      dataTransfer
+    });
+    dispatchDragEvent(surface!, "drop", {
+      clientX: 170,
+      clientY: 160,
+      dataTransfer
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("* Second\n\n* First\n\n* Third\n");
+    restoreLayout();
+  });
+
+  it("does not show a separate drag handle for the whole list container", async () => {
+    const { container, view } = await renderEditor("- First\n- Second\n- Third");
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const originalPosAtCoords = view.posAtCoords.bind(view);
+    const listContainerPosition = positionWithAncestorExcluding(view, "bullet_list", "list_item");
+    expect(surface).toBeInTheDocument();
+    expect(listContainerPosition).not.toBeNull();
+
+    Object.defineProperty(view, "posAtCoords", {
+      configurable: true,
+      value: () => ({ inside: listContainerPosition, pos: listContainerPosition })
+    });
+
+    fireEvent.mouseMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    expect(container.querySelector(".markra-block-toolbar")).toHaveAttribute("data-show", "false");
+    Object.defineProperty(view, "posAtCoords", {
+      configurable: true,
+      value: originalPosAtCoords
+    });
+  });
+
+  it("keeps the list block toolbar anchored while hovering its drag handle", async () => {
+    const { container, view } = await renderEditor("- First\n- Second\n- Third");
+    const restoreLayout = mockListItemBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.mouseMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+    const toolbar = handle.closest<HTMLElement>(".markra-block-toolbar");
+    expect(toolbar).toBeInTheDocument();
+    const anchoredTop = toolbar!.style.top;
+
+    fireEvent.mouseMove(handle, {
+      clientX: 136,
+      clientY: 160
+    });
+
+    expect(toolbar!.style.top).toBe(anchoredTop);
+    restoreLayout();
+  });
+
+  it("moves a list item outside its list near another top-level block", async () => {
+    const { container, editor, view } = await renderEditor("Intro\n\n- First\n- Second\n\nOutro");
+    const paragraphs = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > p"));
+    const listItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror li"));
+    const topLevelPositions = topLevelBlockPositions(view);
+    const listItemPositions = nodePositionsByType(view, "list_item");
+    const restoreLayout = mockBlockDragLayout(view, [listItems[0], listItems[1], paragraphs[1]], [
+      listItemPositions[0],
+      listItemPositions[1],
+      topLevelPositions[2]
+    ]);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.mouseMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 152
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 240,
+      clientY: 200
+    });
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 240,
+      clientY: 200
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("Intro\n\n* First\n\nOutro\n\n* Second\n");
+    restoreLayout();
+  });
+
+  it("moves a paragraph into a list as a list item", async () => {
+    const { container, editor, view } = await renderEditor("Intro\n\n- First\n- Second");
+    const intro = container.querySelector<HTMLElement>(".ProseMirror > p");
+    const listItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror li"));
+    const restoreLayout = mockBlockDragLayout(view, [intro!, listItems[0], listItems[1]], [
+      topLevelBlockPositions(view)[0],
+      ...nodePositionsByType(view, "list_item")
+    ]);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+    expect(intro).toBeInTheDocument();
+
+    fireEvent.mouseMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 112
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 170,
+      clientY: 160
+    });
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 170,
+      clientY: 160
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("* First\n\n* Intro\n\n* Second\n");
+    restoreLayout();
+  });
+
+  it("nests a paragraph when dragged rightward into a list", async () => {
+    const { container, editor, view } = await renderEditor("Intro\n\n- First\n- Second");
+    const intro = container.querySelector<HTMLElement>(".ProseMirror > p");
+    const listItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror li"));
+    const restoreLayout = mockBlockDragLayout(view, [intro!, listItems[0], listItems[1]], [
+      topLevelBlockPositions(view)[0],
+      ...nodePositionsByType(view, "list_item")
+    ]);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+    expect(intro).toBeInTheDocument();
+
+    fireEvent.mouseMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 112
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 240,
+      clientY: 160
+    });
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 240,
+      clientY: 160
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("* First\n\n  * Intro\n\n* Second\n");
+    restoreLayout();
+  });
+
+  it("nests a list item when dragged with a rightward offset", async () => {
+    const { container, editor, view } = await renderEditor("- First\n- Second\n- Third");
+    const restoreLayout = mockListItemBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.mouseMove(surface!, {
+      clientX: 240,
+      clientY: 192
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+
+    fireEvent.mouseDown(handle, {
+      button: 0,
+      buttons: 1,
+      clientX: 136,
+      clientY: 192
+    });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 220,
+      clientY: 112
+    });
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 220,
+      clientY: 112
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("* First\n\n  * Third\n\n* Second\n");
+    restoreLayout();
+  });
+
+  it("adds a paragraph below the hovered block from the side toolbar", async () => {
+    const { container, editor, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+    typeText(view, "Inserted");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("First\n\nSecond\n\nInserted\n\nThird\n");
+    restoreLayout();
+  });
+
+  it("adds a list item below the hovered list item from the side toolbar", async () => {
+    const { container, editor, view } = await renderEditor("- First\n- Second");
+    const restoreLayout = mockListItemBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+    typeText(view, "Inserted");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("* First\n\n* Inserted\n\n* Second\n");
+    restoreLayout();
   });
 
   it("adds table rows and columns from the hover controls", async () => {
