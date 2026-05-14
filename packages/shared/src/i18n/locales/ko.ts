@@ -209,6 +209,8 @@ const messages: LocaleMessages = {
   "editor.table.resizeTableTo": "표를 {columns}열 x {rows}행으로 변경",
   "editor.table.columns": "표 열 수",
   "editor.table.rows": "표 행 수",
+  "editor.slashCommands": "슬래시 명령",
+  "editor.slashCommandsNoResults": "일치하는 명령이 없습니다",
   "app.documentStatus": "문서 상태",
   "app.words": "단어",
   "app.saved": "저장됨",

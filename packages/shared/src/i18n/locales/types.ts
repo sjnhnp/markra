@@ -326,6 +326,8 @@ export type I18nKey =
   | "editor.table.resizeTableTo"
   | "editor.table.columns"
   | "editor.table.rows"
+  | "editor.slashCommands"
+  | "editor.slashCommandsNoResults"
   | "app.documentStatus"
   | "app.words"
   | "app.saved"

@@ -209,6 +209,8 @@ const messages: LocaleMessages = {
   "editor.table.resizeTableTo": "Изменить таблицу до {columns} столбцов x {rows} строк",
   "editor.table.columns": "Столбцы таблицы",
   "editor.table.rows": "Строки таблицы",
+  "editor.slashCommands": "Slash-команды",
+  "editor.slashCommandsNoResults": "Нет подходящих команд",
   "app.documentStatus": "Состояние документа",
   "app.words": "слов",
   "app.saved": "сохранено",

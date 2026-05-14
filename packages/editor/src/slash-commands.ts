@@ -1,0 +1,534 @@
+import {
+  blockquoteSchema,
+  bulletListSchema,
+  codeBlockSchema,
+  headingSchema,
+  orderedListSchema,
+  paragraphSchema
+} from "@milkdown/kit/preset/commonmark";
+import {
+  tableCellSchema,
+  tableHeaderRowSchema,
+  tableHeaderSchema,
+  tableRowSchema,
+  tableSchema
+} from "@milkdown/kit/preset/gfm";
+import type { NodeType } from "@milkdown/kit/prose/model";
+import { setBlockType, wrapIn } from "@milkdown/kit/prose/commands";
+import { Plugin, PluginKey, TextSelection, type Command, type EditorState } from "@milkdown/kit/prose/state";
+import type { EditorView } from "@milkdown/kit/prose/view";
+import { wrapInList } from "@milkdown/kit/prose/schema-list";
+import { $prose } from "@milkdown/kit/utils";
+
+export type SlashCommandId =
+  | "paragraph"
+  | "heading1"
+  | "heading2"
+  | "heading3"
+  | "bulletList"
+  | "orderedList"
+  | "quote"
+  | "codeBlock"
+  | "table";
+
+export type SlashCommandLabels = {
+  menu: string;
+  noResults: string;
+  commands: Record<SlashCommandId, string>;
+};
+
+type SlashCommandRange = {
+  from: number;
+  query: string;
+  to: number;
+};
+
+type SuppressedSlashCommandRange = Pick<SlashCommandRange, "from" | "to">;
+
+type SlashCommandState = {
+  active: SlashCommandRange | null;
+  selectedIndex: number;
+  suppressed: SuppressedSlashCommandRange | null;
+};
+
+type SlashCommandMeta =
+  | {
+      type: "close";
+    }
+  | {
+      selectedIndex: number;
+      type: "select";
+    };
+
+type SlashCommandSpec = {
+  aliases: string[];
+  id: SlashCommandId;
+  label: string;
+  run: (view: EditorView, range: SlashCommandRange) => boolean;
+};
+
+const slashCommandsKey = new PluginKey<SlashCommandState>("markra-slash-commands");
+const emptySlashCommandState: SlashCommandState = {
+  active: null,
+  selectedIndex: 0,
+  suppressed: null
+};
+
+export const defaultSlashCommandLabels: SlashCommandLabels = {
+  menu: "Slash commands",
+  noResults: "No matching commands",
+  commands: {
+    bulletList: "Bullet List",
+    codeBlock: "Code Block",
+    heading1: "Heading 1",
+    heading2: "Heading 2",
+    heading3: "Heading 3",
+    orderedList: "Ordered List",
+    paragraph: "Paragraph",
+    quote: "Quote",
+    table: "Table"
+  }
+};
+
+function clampSelectedIndex(index: number, commandsLength: number) {
+  if (commandsLength <= 0) return 0;
+
+  return Math.max(0, Math.min(index, commandsLength - 1));
+}
+
+function sameRange(left: SuppressedSlashCommandRange | null, right: SuppressedSlashCommandRange | null) {
+  return Boolean(left && right && left.from === right.from && left.to === right.to);
+}
+
+function slashRangeFromState(state: EditorState): SlashCommandRange | null {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+
+  const { $from } = selection;
+  if (!$from.parent.isTextblock || $from.parent.type.spec.code) return null;
+
+  const beforeCursor = $from.parent.textContent.slice(0, $from.parentOffset);
+  const afterCursor = $from.parent.textContent.slice($from.parentOffset);
+  if (afterCursor.length > 0) return null;
+
+  const match = beforeCursor.match(/^\/([^\s/]*)$/u);
+  if (!match) return null;
+
+  return {
+    from: selection.from - beforeCursor.length,
+    query: match[1] ?? "",
+    to: selection.from
+  };
+}
+
+function normalizedSearchText(value: string) {
+  return value.toLowerCase().replace(/\s+/gu, "");
+}
+
+function filterSlashCommands(commands: SlashCommandSpec[], query: string) {
+  const normalizedQuery = normalizedSearchText(query);
+  if (!normalizedQuery) return commands;
+
+  return commands.filter((command) => {
+    const haystacks = [command.id, command.label, ...command.aliases];
+
+    return haystacks.some((candidate) => normalizedSearchText(candidate).includes(normalizedQuery));
+  });
+}
+
+function runCommandAfterDeletingSlash(view: EditorView, range: SlashCommandRange, command: Command) {
+  let deleteTransaction = view.state.tr.delete(range.from, range.to);
+  deleteTransaction = deleteTransaction
+    .setSelection(TextSelection.create(deleteTransaction.doc, range.from))
+    .scrollIntoView();
+  view.dispatch(deleteTransaction);
+
+  const handled = command(view.state, view.dispatch, view);
+  if (handled) view.focus();
+
+  return handled;
+}
+
+function createTableCell(
+  view: EditorView,
+  cellType: NodeType,
+  paragraph: NodeType,
+  text = ""
+) {
+  const content = text ? paragraph.create(null, view.state.schema.text(text)) : paragraph.create();
+
+  return cellType.create(null, content);
+}
+
+function createDefaultTableNode(view: EditorView, commands: {
+  paragraph: NodeType;
+  table: NodeType;
+  tableCell: NodeType;
+  tableHeader: NodeType;
+  tableHeaderRow: NodeType;
+  tableRow: NodeType;
+}) {
+  const headerRow = commands.tableHeaderRow.create(null, [
+    createTableCell(view, commands.tableHeader, commands.paragraph, "Column 1"),
+    createTableCell(view, commands.tableHeader, commands.paragraph, "Column 2")
+  ]);
+  const bodyRow = commands.tableRow.create(null, [
+    createTableCell(view, commands.tableCell, commands.paragraph),
+    createTableCell(view, commands.tableCell, commands.paragraph)
+  ]);
+
+  return commands.table.create(null, [headerRow, bodyRow]);
+}
+
+function runTableCommand(view: EditorView, range: SlashCommandRange, commands: {
+  paragraph: NodeType;
+  table: NodeType;
+  tableCell: NodeType;
+  tableHeader: NodeType;
+  tableHeaderRow: NodeType;
+  tableRow: NodeType;
+}) {
+  const { state } = view;
+  const $from = state.doc.resolve(range.from);
+  if (!$from.parent.isTextblock || $from.depth < 1) return false;
+
+  const blockFrom = $from.before();
+  const blockTo = $from.after();
+  let transaction = state.tr.replaceWith(blockFrom, blockTo, createDefaultTableNode(view, commands));
+  const selectionPosition = Math.min(blockFrom + 3, transaction.doc.content.size);
+
+  transaction = transaction
+    .setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition)))
+    .scrollIntoView();
+  view.dispatch(transaction);
+  view.focus();
+
+  return true;
+}
+
+function createSlashCommands(
+  labels: SlashCommandLabels,
+  commands: {
+    bulletList: ReturnType<typeof bulletListSchema.type>;
+    codeBlock: ReturnType<typeof codeBlockSchema.type>;
+    heading: ReturnType<typeof headingSchema.type>;
+    orderedList: ReturnType<typeof orderedListSchema.type>;
+    paragraph: ReturnType<typeof paragraphSchema.type>;
+    quote: ReturnType<typeof blockquoteSchema.type>;
+    table: ReturnType<typeof tableSchema.type>;
+    tableCell: ReturnType<typeof tableCellSchema.type>;
+    tableHeader: ReturnType<typeof tableHeaderSchema.type>;
+    tableHeaderRow: ReturnType<typeof tableHeaderRowSchema.type>;
+    tableRow: ReturnType<typeof tableRowSchema.type>;
+  }
+): SlashCommandSpec[] {
+  return [
+    {
+      aliases: ["text", "plain"],
+      id: "paragraph",
+      label: labels.commands.paragraph,
+      run: (view, range) => runCommandAfterDeletingSlash(view, range, setBlockType(commands.paragraph))
+    },
+    {
+      aliases: ["h1", "title", "heading"],
+      id: "heading1",
+      label: labels.commands.heading1,
+      run: (view, range) => runCommandAfterDeletingSlash(view, range, setBlockType(commands.heading, { level: 1 }))
+    },
+    {
+      aliases: ["h2", "subtitle", "heading"],
+      id: "heading2",
+      label: labels.commands.heading2,
+      run: (view, range) => runCommandAfterDeletingSlash(view, range, setBlockType(commands.heading, { level: 2 }))
+    },
+    {
+      aliases: ["h3", "subheading", "heading"],
+      id: "heading3",
+      label: labels.commands.heading3,
+      run: (view, range) => runCommandAfterDeletingSlash(view, range, setBlockType(commands.heading, { level: 3 }))
+    },
+    {
+      aliases: ["ul", "list", "unordered"],
+      id: "bulletList",
+      label: labels.commands.bulletList,
+      run: (view, range) => runCommandAfterDeletingSlash(view, range, wrapInList(commands.bulletList))
+    },
+    {
+      aliases: ["ol", "list", "numbered"],
+      id: "orderedList",
+      label: labels.commands.orderedList,
+      run: (view, range) => runCommandAfterDeletingSlash(view, range, wrapInList(commands.orderedList))
+    },
+    {
+      aliases: ["blockquote", "callout"],
+      id: "quote",
+      label: labels.commands.quote,
+      run: (view, range) => runCommandAfterDeletingSlash(view, range, wrapIn(commands.quote))
+    },
+    {
+      aliases: ["code", "pre", "fence"],
+      id: "codeBlock",
+      label: labels.commands.codeBlock,
+      run: (view, range) => runCommandAfterDeletingSlash(view, range, setBlockType(commands.codeBlock))
+    },
+    {
+      aliases: ["grid"],
+      id: "table",
+      label: labels.commands.table,
+      run: (view, range) => runTableCommand(view, range, commands)
+    }
+  ];
+}
+
+function dispatchSlashCommandSelection(view: EditorView, selectedIndex: number) {
+  view.dispatch(view.state.tr.setMeta(slashCommandsKey, {
+    selectedIndex,
+    type: "select"
+  } satisfies SlashCommandMeta));
+}
+
+function closeSlashCommandMenu(view: EditorView) {
+  view.dispatch(view.state.tr.setMeta(slashCommandsKey, {
+    type: "close"
+  } satisfies SlashCommandMeta));
+}
+
+function runSelectedSlashCommand(view: EditorView, commands: SlashCommandSpec[]) {
+  const state = slashCommandsKey.getState(view.state);
+  if (!state?.active) return false;
+
+  const filteredCommands = filterSlashCommands(commands, state.active.query);
+  const selectedCommand = filteredCommands[state.selectedIndex];
+  if (!selectedCommand) return false;
+
+  return selectedCommand.run(view, state.active);
+}
+
+function positionMenu(menu: HTMLElement, view: EditorView, range: SlashCommandRange) {
+  try {
+    const coords = view.coordsAtPos(range.to);
+    const margin = 10;
+    const width = menu.offsetWidth || 240;
+    const height = menu.offsetHeight || 220;
+    const left = Math.min(Math.max(coords.left, margin), Math.max(window.innerWidth - width - margin, margin));
+    const top = Math.min(coords.bottom + 8, Math.max(window.innerHeight - height - margin, margin));
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+  } catch {
+    menu.style.left = "12px";
+    menu.style.top = "12px";
+  }
+}
+
+class SlashCommandMenuView {
+  private readonly menu: HTMLDivElement;
+  private view: EditorView;
+
+  constructor(
+    view: EditorView,
+    private readonly commands: SlashCommandSpec[],
+    private readonly labels: SlashCommandLabels
+  ) {
+    this.view = view;
+    this.menu = view.dom.ownerDocument.createElement("div");
+    this.menu.className = "markra-slash-menu";
+    this.menu.setAttribute("aria-label", labels.menu);
+    this.menu.setAttribute("role", "listbox");
+    this.menu.addEventListener("mousedown", this.handleMouseDown);
+    this.menu.addEventListener("mouseover", this.handleMouseOver);
+  }
+
+  update(view: EditorView) {
+    this.view = view;
+    const state = slashCommandsKey.getState(view.state);
+
+    if (!state?.active) {
+      this.detach();
+      return;
+    }
+
+    this.attach();
+    this.render(state);
+    positionMenu(this.menu, view, state.active);
+  }
+
+  destroy() {
+    this.menu.removeEventListener("mousedown", this.handleMouseDown);
+    this.menu.removeEventListener("mouseover", this.handleMouseOver);
+    this.detach();
+  }
+
+  private attach() {
+    if (this.menu.isConnected) return;
+
+    this.view.dom.ownerDocument.body.append(this.menu);
+  }
+
+  private detach() {
+    if (!this.menu.isConnected) return;
+
+    this.menu.remove();
+  }
+
+  private render(state: SlashCommandState) {
+    const filteredCommands = filterSlashCommands(this.commands, state.active?.query ?? "");
+    this.menu.textContent = "";
+
+    if (filteredCommands.length === 0) {
+      const empty = this.view.dom.ownerDocument.createElement("div");
+      empty.className = "markra-slash-menu-empty";
+      empty.textContent = this.labels.noResults;
+      this.menu.append(empty);
+      return;
+    }
+
+    filteredCommands.forEach((command, index) => {
+      const option = this.view.dom.ownerDocument.createElement("button");
+      option.className = "markra-slash-menu-option";
+      option.dataset.slashCommandId = command.id;
+      option.setAttribute("aria-selected", String(index === state.selectedIndex));
+      option.setAttribute("role", "option");
+      option.tabIndex = -1;
+      option.type = "button";
+      option.textContent = command.label;
+      this.menu.append(option);
+    });
+  }
+
+  private readonly handleMouseDown = (event: MouseEvent) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const option = target?.closest<HTMLElement>("[data-slash-command-id]");
+    if (!option || !this.menu.contains(option)) return;
+
+    event.preventDefault();
+    const commandId = option.dataset.slashCommandId as SlashCommandId | undefined;
+    const state = slashCommandsKey.getState(this.view.state);
+    if (!state?.active || !commandId) return;
+
+    const command = this.commands.find((candidate) => candidate.id === commandId);
+    if (!command) return;
+
+    command.run(this.view, state.active);
+  };
+
+  private readonly handleMouseOver = (event: MouseEvent) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const option = target?.closest<HTMLElement>("[data-slash-command-id]");
+    if (!option || !this.menu.contains(option)) return;
+
+    const options = Array.from(this.menu.querySelectorAll<HTMLElement>("[data-slash-command-id]"));
+    const selectedIndex = options.indexOf(option);
+    if (selectedIndex < 0) return;
+
+    dispatchSlashCommandSelection(this.view, selectedIndex);
+  };
+}
+
+export const markraSlashCommands = (labels: Partial<SlashCommandLabels> = {}) => $prose((ctx) => {
+  const resolvedLabels: SlashCommandLabels = {
+    menu: labels.menu ?? defaultSlashCommandLabels.menu,
+    noResults: labels.noResults ?? defaultSlashCommandLabels.noResults,
+    commands: {
+      ...defaultSlashCommandLabels.commands,
+      ...labels.commands
+    }
+  };
+  const commands = createSlashCommands(resolvedLabels, {
+    bulletList: bulletListSchema.type(ctx),
+    codeBlock: codeBlockSchema.type(ctx),
+    heading: headingSchema.type(ctx),
+    orderedList: orderedListSchema.type(ctx),
+    paragraph: paragraphSchema.type(ctx),
+    quote: blockquoteSchema.type(ctx),
+    table: tableSchema.type(ctx),
+    tableCell: tableCellSchema.type(ctx),
+    tableHeader: tableHeaderSchema.type(ctx),
+    tableHeaderRow: tableHeaderRowSchema.type(ctx),
+    tableRow: tableRowSchema.type(ctx)
+  });
+
+  return new Plugin<SlashCommandState>({
+    key: slashCommandsKey,
+    state: {
+      init: () => emptySlashCommandState,
+      apply(transaction, previousState, _oldState, newState) {
+        const meta = transaction.getMeta(slashCommandsKey) as SlashCommandMeta | undefined;
+        const activeRange = slashRangeFromState(newState);
+
+        if (meta?.type === "close") {
+          return {
+            active: null,
+            selectedIndex: 0,
+            suppressed: activeRange ? { from: activeRange.from, to: activeRange.to } : null
+          };
+        }
+
+        if (!activeRange) return emptySlashCommandState;
+        if (sameRange(activeRange, previousState.suppressed)) {
+          return {
+            active: null,
+            selectedIndex: 0,
+            suppressed: previousState.suppressed
+          };
+        }
+
+        const filteredCommands = filterSlashCommands(commands, activeRange.query);
+        const selectedIndex = meta?.type === "select"
+          ? meta.selectedIndex
+          : previousState.active?.query === activeRange.query
+            ? previousState.selectedIndex
+            : 0;
+
+        return {
+          active: activeRange,
+          selectedIndex: clampSelectedIndex(selectedIndex, filteredCommands.length),
+          suppressed: null
+        };
+      }
+    },
+    props: {
+      handleKeyDown(view, event) {
+        const state = slashCommandsKey.getState(view.state);
+        if (!state?.active) return false;
+
+        const filteredCommands = filterSlashCommands(commands, state.active.query);
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeSlashCommandMenu(view);
+          return true;
+        }
+
+        if (event.metaKey || event.ctrlKey || event.altKey) return false;
+
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          dispatchSlashCommandSelection(view, (state.selectedIndex + 1) % Math.max(filteredCommands.length, 1));
+          return true;
+        }
+
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          dispatchSlashCommandSelection(
+            view,
+            (state.selectedIndex + Math.max(filteredCommands.length, 1) - 1) % Math.max(filteredCommands.length, 1)
+          );
+          return true;
+        }
+
+        if (event.key !== "Enter" && event.key !== "Tab") return false;
+        if (filteredCommands.length === 0) return false;
+
+        event.preventDefault();
+        return runSelectedSlashCommand(view, commands);
+      }
+    },
+    view: (view) => {
+      const menuView = new SlashCommandMenuView(view, commands, resolvedLabels);
+      menuView.update(view);
+
+      return menuView;
+    }
+  });
+});

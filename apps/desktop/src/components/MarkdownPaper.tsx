@@ -34,6 +34,7 @@ import { markraRawHtmlPlugin } from "@markra/editor";
 import { serializeLinkImageLiveMarkdown } from "@markra/editor";
 import { markraMarkdownShortcuts } from "@markra/editor";
 import { normalizeMarkdownShortcuts } from "@markra/editor";
+import { markraSlashCommands } from "@markra/editor";
 import { markraMathPlugin } from "@markra/editor";
 import { markraMathRemarkPlugin } from "@markra/editor";
 import { markraMathSourcePlugin } from "@markra/editor";
@@ -41,6 +42,7 @@ import { markraTableControlsPlugin } from "@markra/editor";
 import { markraAiEditorPreviewPlugin } from "@markra/editor";
 import { markraAiSelectionHoldPlugin } from "@markra/editor";
 import type { MarkdownShortcutMap } from "@markra/editor";
+import type { SlashCommandLabels } from "@markra/editor";
 import type { AiSelectionContext } from "@markra/ai";
 import { t, type AppLanguage } from "@markra/shared";
 import {
@@ -284,6 +286,21 @@ function MilkdownSurface({
     tableColumns: t(language, "editor.table.columns"),
     tableRows: t(language, "editor.table.rows")
   };
+  const slashCommandLabels = useMemo<SlashCommandLabels>(() => ({
+    menu: t(language, "editor.slashCommands"),
+    noResults: t(language, "editor.slashCommandsNoResults"),
+    commands: {
+      bulletList: t(language, "menu.bulletList"),
+      codeBlock: t(language, "menu.codeBlock"),
+      heading1: t(language, "menu.heading1"),
+      heading2: t(language, "menu.heading2"),
+      heading3: t(language, "menu.heading3"),
+      orderedList: t(language, "menu.orderedList"),
+      paragraph: t(language, "menu.paragraph"),
+      quote: t(language, "menu.quote"),
+      table: t(language, "menu.table")
+    }
+  }), [language]);
 
   useEffect(() => {
     onSaveClipboardImageRef.current = onSaveClipboardImage;
@@ -334,6 +351,7 @@ function MilkdownSurface({
         .use(markraMathRemarkPlugin)
         .use(markraCommonmark)
         .use(markraGfm)
+        .use(markraSlashCommands(slashCommandLabels))
         .use(markraMathSourcePlugin)
         .use(markraMarkdownShortcuts(markdownShortcuts))
         .use(markraCodeBlockPlugin)
@@ -369,7 +387,7 @@ function MilkdownSurface({
 
       return editor;
     },
-    [language, markdownDocumentLabel, markdownShortcuts, onMarkdownChange, openExternalUrl, resolveImageSrc]
+    [language, markdownDocumentLabel, markdownShortcuts, onMarkdownChange, openExternalUrl, resolveImageSrc, slashCommandLabels]
   );
 
   useEditor(createEditor, [createEditor]);
