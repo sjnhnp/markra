@@ -4,11 +4,26 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: Release tag to build and publish, for example v0.1.0
-        required: true
+        description: 'Release tag (e.g. v0.1.0). Leave blank to auto-increment version.'
+        required: false
         type: string
+      build_windows:
+        description: 'Build for Windows'
+        required: true
+        default: true
+        type: boolean
+      build_macos:
+        description: 'Build for macOS'
+        required: true
+        default: true
+        type: boolean
+      build_linux:
+        description: 'Build for Linux'
+        required: true
+        default: true
+        type: boolean
       draft:
-        description: Publish as draft release
+        description: 'Publish as draft'
         required: false
         default: false
         type: boolean
@@ -29,11 +44,53 @@ env:
   DESKTOP_DIR: apps/desktop
   NODE_VERSION: 24
   PNPM_VERSION: 10.30.3
-  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
-  TAURI_UPDATER_ENDPOINT: https://github.com/murongg/markra/releases/latest/download/latest.json
 
 jobs:
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag_name: ${{ steps.tag.outputs.name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Determine Tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -z "${{ inputs.tag_name }}" ]]; then
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            pnpm install --frozen-lockfile
+            pnpm release patch --yes
+            NEW_TAG="v$(node -p "require('./package.json').version")"
+            git push origin main --follow-tags
+            echo "name=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "name=${{ inputs.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    name: Build ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    if: ${{ github.event_name == 'push' || (matrix.asset_platform == 'windows' && inputs.build_windows) || (matrix.asset_platform == 'macos' && inputs.build_macos) || (matrix.asset_platform == 'linux' && inputs.build_linux) }}
+    timeout-minutes: 45
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag_name }}
     strategy:
       fail-fast: false
       matrix:
@@ -70,10 +127,6 @@ jobs:
             asset_arch: x64
             updater_platform: windows-x86_64
             args: --target x86_64-pc-windows-msvc
-
-    name: Build ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
