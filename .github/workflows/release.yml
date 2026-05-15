@@ -50,6 +50,7 @@ jobs:
       contents: write
     outputs:
       tag_name: ${{ steps.tag.outputs.name }}
+      matrix: ${{ steps.matrix.outputs.config }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -80,50 +81,39 @@ jobs:
             echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Set Matrix
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          JSON='{"include":['
+          if [[ "${{ github.event_name }}" == "push" || "${{ inputs.build_windows }}" == "true" ]]; then
+            JSON+='{"name":"Windows (x64)","artifact_name":"Windows-x64","os":"windows-latest","target":"x86_64-pc-windows-msvc","asset_platform":"windows","asset_arch":"x64","updater_platform":"windows-x86_64","args":"--target x86_64-pc-windows-msvc"},'
+          fi
+          if [[ "${{ github.event_name }}" == "push" || "${{ inputs.build_macos }}" == "true" ]]; then
+            JSON+='{"name":"macOS (Apple Silicon)","artifact_name":"macOS-apple-silicon","os":"macos-15","target":"aarch64-apple-darwin","asset_platform":"macos","asset_arch":"arm64","updater_platform":"darwin-aarch64","args":"--target aarch64-apple-darwin"},'
+            JSON+='{"name":"macOS (Intel)","artifact_name":"macOS-intel","os":"macos-15-intel","target":"x86_64-apple-darwin","asset_platform":"macos","asset_arch":"x64","updater_platform":"darwin-x86_64","args":"--target x86_64-apple-darwin"},'
+          fi
+          if [[ "${{ github.event_name }}" == "push" || "${{ inputs.build_linux }}" == "true" ]]; then
+            JSON+='{"name":"Linux (x64)","artifact_name":"Linux-x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","asset_platform":"linux","asset_arch":"x64","updater_platform":"linux-x86_64","args":"--target x86_64-unknown-linux-gnu"},'
+          fi
+          JSON="${JSON%,}]}"
+          if [[ "$JSON" == '{"include":]}' ]]; then
+            echo "Error: No platforms selected for build."
+            exit 1
+          fi
+          echo "config=$JSON" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.name }}
     needs: prepare
     runs-on: ${{ matrix.os }}
-    if: ${{ github.event_name == 'push' || (matrix.asset_platform == 'windows' && inputs.build_windows) || (matrix.asset_platform == 'macos' && inputs.build_macos) || (matrix.asset_platform == 'linux' && inputs.build_linux) }}
     timeout-minutes: 45
     env:
       RELEASE_TAG: ${{ needs.prepare.outputs.tag_name }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: macOS (Apple Silicon)
-            artifact_name: macOS-apple-silicon
-            os: macos-15
-            target: aarch64-apple-darwin
-            asset_platform: macos
-            asset_arch: arm64
-            updater_platform: darwin-aarch64
-            args: --target aarch64-apple-darwin
-          - name: macOS (Intel)
-            artifact_name: macOS-intel
-            os: macos-15-intel
-            target: x86_64-apple-darwin
-            asset_platform: macos
-            asset_arch: x64
-            updater_platform: darwin-x86_64
-            args: --target x86_64-apple-darwin
-          - name: Linux (x64)
-            artifact_name: Linux-x64
-            os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            asset_platform: linux
-            asset_arch: x64
-            updater_platform: linux-x86_64
-            args: --target x86_64-unknown-linux-gnu
-          - name: Windows (x64)
-            artifact_name: Windows-x64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            asset_platform: windows
-            asset_arch: x64
-            updater_platform: windows-x86_64
-            args: --target x86_64-pc-windows-msvc
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
 
     steps:
       - name: Checkout repository
