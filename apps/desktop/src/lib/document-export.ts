@@ -312,8 +312,8 @@ export function buildMarkdownHtmlDocument({
   const processText = (text: string | undefined) => {
     if (!text) return "";
     return escapeHtmlText(text.trim())
-      .replace(/{{page}}/gu, '<span class="markra-pdf-counter-page"></span>')
-      .replace(/{{pages}}/gu, '<span class="markra-pdf-counter-pages"></span>');
+      .replace(/\{\{page\}\}/gu, '<span class="markra-pdf-counter-page"></span>')
+      .replace(/\{\{pages\}\}/gu, '<span class="markra-pdf-counter-pages"></span>');
   };
 
   const processedHeader = processText(pdfHeader);
