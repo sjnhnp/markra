@@ -1072,6 +1072,10 @@ export default function App() {
       pdfHeader: pdfSettings?.pdfHeader,
       pdfHeightMm: pdfSettings?.pdfHeightMm,
       pdfMarginMm: pdfSettings?.pdfMarginMm,
+      pdfMarginTopMm: pdfSettings?.pdfMarginTopMm,
+      pdfMarginBottomMm: pdfSettings?.pdfMarginBottomMm,
+      pdfMarginLeftMm: pdfSettings?.pdfMarginLeftMm,
+      pdfMarginRightMm: pdfSettings?.pdfMarginRightMm,
       pdfPageBreakOnH1: pdfSettings?.pdfPageBreakOnH1,
       pdfWidthMm: pdfSettings?.pdfWidthMm,
       title: exported.title

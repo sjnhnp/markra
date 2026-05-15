@@ -102,6 +102,10 @@ export type ExportSettings = {
   pdfHeader: string;
   pdfHeightMm: number;
   pdfMarginMm: number;
+  pdfMarginTopMm: number;
+  pdfMarginBottomMm: number;
+  pdfMarginLeftMm: number;
+  pdfMarginRightMm: number;
   pdfMarginPreset: PdfMarginPreset;
   pdfPageBreakOnH1: boolean;
   pdfPageSize: PdfPageSize;
@@ -172,6 +176,10 @@ export const defaultExportSettings: ExportSettings = {
   pdfHeader: "",
   pdfHeightMm: 297,
   pdfMarginMm: 18,
+  pdfMarginTopMm: 18,
+  pdfMarginBottomMm: 18,
+  pdfMarginLeftMm: 18,
+  pdfMarginRightMm: 18,
   pdfMarginPreset: "default",
   pdfPageBreakOnH1: false,
   pdfPageSize: "default",
@@ -743,12 +751,18 @@ export function normalizeExportSettings(value: unknown): ExportSettings {
       }
     : exportPageSizeDimensions[pdfPageSize];
 
+  const presetMarginMm = pdfMarginPreset === "custom" ? pdfMarginMm : exportMarginPresetMm[pdfMarginPreset];
+
   return {
     pdfAuthor: normalizeExportText(settings.pdfAuthor),
     pdfFooter: normalizeExportText(settings.pdfFooter),
     pdfHeader: normalizeExportText(settings.pdfHeader),
     pdfHeightMm: dimensions.heightMm,
-    pdfMarginMm: pdfMarginPreset === "custom" ? pdfMarginMm : exportMarginPresetMm[pdfMarginPreset],
+    pdfMarginMm: presetMarginMm,
+    pdfMarginTopMm: normalizeExportMarginMm(settings.pdfMarginTopMm ?? settings.pdfMarginMm) ?? presetMarginMm,
+    pdfMarginBottomMm: normalizeExportMarginMm(settings.pdfMarginBottomMm ?? settings.pdfMarginMm) ?? presetMarginMm,
+    pdfMarginLeftMm: normalizeExportMarginMm(settings.pdfMarginLeftMm ?? settings.pdfMarginMm) ?? presetMarginMm,
+    pdfMarginRightMm: normalizeExportMarginMm(settings.pdfMarginRightMm ?? settings.pdfMarginMm) ?? presetMarginMm,
     pdfMarginPreset,
     pdfPageBreakOnH1: typeof settings.pdfPageBreakOnH1 === "boolean" ? settings.pdfPageBreakOnH1 : false,
     pdfPageSize,

@@ -73,17 +73,17 @@ jobs:
           
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -z "${{ inputs.tag_name }}" ]]; then
             pnpm install --frozen-lockfile
-            pnpm release patch --yes
+            pnpm release patch --yes --no-push
             NEW_TAG="v$(node -p "require('./package.json').version")"
-            git push origin main --follow-tags
+            git push origin "$NEW_TAG"
             echo "name=$NEW_TAG" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             pnpm install --frozen-lockfile
             # Strip 'v' from tag_name for bumpp
             V="${{ inputs.tag_name }}"
-            pnpm release "${V#v}" --yes
-            git push origin main --follow-tags
-            echo "name=${{ inputs.tag_name }}" >> "$GITHUB_OUTPUT"
+            pnpm release "${V#v}" --yes --no-push
+            git push origin "$V"
+            echo "name=$V" >> "$GITHUB_OUTPUT"
           else
             echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi

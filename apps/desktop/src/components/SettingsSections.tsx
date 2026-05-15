@@ -625,9 +625,15 @@ function applyExportMarginPreset(settings: ExportSettingsValue, preset: PdfMargi
     };
   }
 
+  const marginMm = exportMarginPresetMm[preset];
+
   return {
     ...settings,
-    pdfMarginMm: exportMarginPresetMm[preset],
+    pdfMarginMm: marginMm,
+    pdfMarginTopMm: marginMm,
+    pdfMarginBottomMm: marginMm,
+    pdfMarginLeftMm: marginMm,
+    pdfMarginRightMm: marginMm,
     pdfMarginPreset: preset
   };
 }
@@ -1781,20 +1787,64 @@ export function ExportSettings({
             title={translate("settings.export.pdfMargin")}
             description={translate("settings.export.pdfMarginDescription")}
             action={
-              <SettingsNumberInput
-                label={translate("settings.export.pdfMargin")}
-                min={0}
-                max={60}
-                unit={translate("settings.export.pdfMarginUnit")}
-                value={settings.pdfMarginMm}
-                onChange={(value) =>
-                  onUpdateSettings({
-                    ...settings,
-                    pdfMarginMm: value,
-                    pdfMarginPreset: "custom"
-                  })
-                }
-              />
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <SettingsNumberInput
+                  label={translate("settings.export.pdfMarginTop")}
+                  min={0}
+                  max={60}
+                  unit={translate("settings.export.pdfMarginUnit")}
+                  value={settings.pdfMarginTopMm}
+                  onChange={(value) =>
+                    onUpdateSettings({
+                      ...settings,
+                      pdfMarginTopMm: value,
+                      pdfMarginPreset: "custom"
+                    })
+                  }
+                />
+                <SettingsNumberInput
+                  label={translate("settings.export.pdfMarginBottom")}
+                  min={0}
+                  max={60}
+                  unit={translate("settings.export.pdfMarginUnit")}
+                  value={settings.pdfMarginBottomMm}
+                  onChange={(value) =>
+                    onUpdateSettings({
+                      ...settings,
+                      pdfMarginBottomMm: value,
+                      pdfMarginPreset: "custom"
+                    })
+                  }
+                />
+                <SettingsNumberInput
+                  label={translate("settings.export.pdfMarginLeft")}
+                  min={0}
+                  max={60}
+                  unit={translate("settings.export.pdfMarginUnit")}
+                  value={settings.pdfMarginLeftMm}
+                  onChange={(value) =>
+                    onUpdateSettings({
+                      ...settings,
+                      pdfMarginLeftMm: value,
+                      pdfMarginPreset: "custom"
+                    })
+                  }
+                />
+                <SettingsNumberInput
+                  label={translate("settings.export.pdfMarginRight")}
+                  min={0}
+                  max={60}
+                  unit={translate("settings.export.pdfMarginUnit")}
+                  value={settings.pdfMarginRightMm}
+                  onChange={(value) =>
+                    onUpdateSettings({
+                      ...settings,
+                      pdfMarginRightMm: value,
+                      pdfMarginPreset: "custom"
+                    })
+                  }
+                />
+              </div>
             }
           />
         ) : null}

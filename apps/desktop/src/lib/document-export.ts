@@ -11,6 +11,10 @@ export type MarkdownExportStyleOptions = {
   pdfHeader?: string;
   pdfHeightMm?: number;
   pdfMarginMm?: number;
+  pdfMarginTopMm?: number;
+  pdfMarginBottomMm?: number;
+  pdfMarginLeftMm?: number;
+  pdfMarginRightMm?: number;
   pdfPageBreakOnH1?: boolean;
   pdfWidthMm?: number;
 };
@@ -32,12 +36,20 @@ export function createMarkdownExportStyles({
   pdfHeader,
   pdfHeightMm,
   pdfMarginMm,
+  pdfMarginTopMm,
+  pdfMarginBottomMm,
+  pdfMarginLeftMm,
+  pdfMarginRightMm,
   pdfPageBreakOnH1,
   pdfWidthMm
 }: MarkdownExportStyleOptions = {}) {
   const hasHeader = Boolean(pdfHeader?.trim());
   const hasFooter = Boolean(pdfFooter?.trim());
   const pageMarginMm = normalizePdfMarginMm(pdfMarginMm);
+  const marginTopMm = normalizePdfMarginMm(pdfMarginTopMm ?? pdfMarginMm);
+  const marginBottomMm = normalizePdfMarginMm(pdfMarginBottomMm ?? pdfMarginMm);
+  const marginLeftMm = normalizePdfMarginMm(pdfMarginLeftMm ?? pdfMarginMm);
+  const marginRightMm = normalizePdfMarginMm(pdfMarginRightMm ?? pdfMarginMm);
   const pageHeightMm = normalizePdfPageDimensionMm(pdfHeightMm, defaultPdfPageHeightMm);
   const pageWidthMm = normalizePdfPageDimensionMm(pdfWidthMm, defaultPdfPageWidthMm);
   const pageBreakStyles = pdfPageBreakOnH1
@@ -190,7 +202,10 @@ body {
 
 @page {
   size: ${pageWidthMm}mm ${pageHeightMm}mm;
-  margin: ${pageMarginMm}mm;
+  margin-top: ${marginTopMm}mm;
+  margin-bottom: ${marginBottomMm}mm;
+  margin-left: ${marginLeftMm}mm;
+  margin-right: ${marginRightMm}mm;
 }
 `.trim();
 }
@@ -205,6 +220,10 @@ type BuildMarkdownHtmlDocumentInput = {
   pdfHeader?: string;
   pdfHeightMm?: number;
   pdfMarginMm?: number;
+  pdfMarginTopMm?: number;
+  pdfMarginBottomMm?: number;
+  pdfMarginLeftMm?: number;
+  pdfMarginRightMm?: number;
   pdfPageBreakOnH1?: boolean;
   pdfWidthMm?: number;
   styles?: string;
@@ -254,6 +273,10 @@ export function buildMarkdownHtmlDocument({
   pdfHeader,
   pdfHeightMm,
   pdfMarginMm,
+  pdfMarginTopMm,
+  pdfMarginBottomMm,
+  pdfMarginLeftMm,
+  pdfMarginRightMm,
   pdfPageBreakOnH1,
   pdfWidthMm,
   styles,
@@ -269,6 +292,10 @@ export function buildMarkdownHtmlDocument({
     pdfHeader,
     pdfHeightMm,
     pdfMarginMm,
+    pdfMarginTopMm,
+    pdfMarginBottomMm,
+    pdfMarginLeftMm,
+    pdfMarginRightMm,
     pdfPageBreakOnH1,
     pdfWidthMm
   });
