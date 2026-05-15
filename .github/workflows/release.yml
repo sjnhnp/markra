@@ -51,6 +51,7 @@ jobs:
     outputs:
       tag_name: ${{ steps.tag.outputs.name }}
       matrix: ${{ steps.matrix.outputs.config }}
+      sha: ${{ steps.tag.outputs.sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,19 +68,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -z "${{ inputs.tag_name }}" ]]; then
-            git config --global user.name "github-actions[bot]"
-            git config --global user.email "github-actions[bot]@users.noreply.github.com"
             pnpm install --frozen-lockfile
             pnpm release patch --yes
             NEW_TAG="v$(node -p "require('./package.json').version")"
             git push origin main --follow-tags
             echo "name=$NEW_TAG" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            pnpm install --frozen-lockfile
+            # Strip 'v' from tag_name for bumpp
+            V="${{ inputs.tag_name }}"
+            pnpm release "${V#v}" --yes
+            git push origin main --follow-tags
             echo "name=${{ inputs.tag_name }}" >> "$GITHUB_OUTPUT"
           else
             echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set Matrix
         id: matrix
@@ -119,7 +127,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Checkout release scripts
         uses: actions/checkout@v4
@@ -411,7 +419,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Checkout release scripts
         uses: actions/checkout@v4
