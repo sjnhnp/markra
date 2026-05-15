@@ -479,6 +479,7 @@ export type I18nKey =
   | "menu.bulletList"
   | "menu.orderedList"
   | "menu.quote"
+  | "menu.callout"
   | "menu.codeBlock"
   | "menu.link"
   | "menu.image"

@@ -32,6 +32,8 @@ import {
   type SaveRemoteClipboardImage
 } from "@markra/editor";
 import { markraCodeBlockPlugin } from "@markra/editor";
+import { markraCalloutPlugin } from "@markra/editor";
+import { markraCalloutSerializerPlugin } from "@markra/editor";
 import { markraHeadingSourcePlugin } from "@markra/editor";
 import { normalizeHeadingSourceDocument } from "@markra/editor";
 import { markraLinkImageLivePlugin } from "@markra/editor";
@@ -364,6 +366,7 @@ function MilkdownSurface({
     noResults: t(language, "editor.slashCommandsNoResults"),
     commands: {
       bulletList: t(language, "menu.bulletList"),
+      callout: t(language, "menu.callout"),
       codeBlock: t(language, "menu.codeBlock"),
       heading1: t(language, "menu.heading1"),
       heading2: t(language, "menu.heading2"),
@@ -440,6 +443,8 @@ function MilkdownSurface({
         .use(markraMathRemarkPlugin)
         .use(markraCommonmark)
         .use(markraGfm)
+        .use(markraCalloutSerializerPlugin)
+        .use(markraCalloutPlugin)
         .use(markraSlashCommands(slashCommandLabels))
         .use(markraMathSourcePlugin)
         .use(markraMarkdownShortcuts(markdownShortcuts))

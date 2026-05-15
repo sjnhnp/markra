@@ -468,6 +468,7 @@ const messages: LocaleMessages = {
   "menu.bulletList": "項目符號清單",
   "menu.orderedList": "編號清單",
   "menu.quote": "引用",
+  "menu.callout": "提示區塊",
   "menu.codeBlock": "程式碼區塊",
   "menu.link": "連結",
   "menu.image": "圖片",

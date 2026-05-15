@@ -468,6 +468,7 @@ const messages: BaseLocaleMessages = {
   "menu.bulletList": "Bullet List",
   "menu.orderedList": "Ordered List",
   "menu.quote": "Quote",
+  "menu.callout": "Callout",
   "menu.codeBlock": "Code Block",
   "menu.link": "Link",
   "menu.image": "Image",

@@ -35,4 +35,18 @@ describe("MarkdownSourceEditor", () => {
 
     expect(handleChange).toHaveBeenCalledWith("# Changed");
   });
+
+  it("highlights GitHub-style alert markers in source mode", () => {
+    const content = "> [!TIP]\n> Keep notes portable.";
+
+    const { container } = render(
+      <MarkdownSourceEditor
+        content={content}
+        onChange={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".markdown-source-token-callout")).toHaveTextContent("[!TIP]");
+    expect(container.querySelector(".markdown-source-token-quote-marker")).toHaveTextContent(">");
+  });
 });

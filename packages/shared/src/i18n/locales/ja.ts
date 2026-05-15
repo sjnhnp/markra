@@ -468,6 +468,7 @@ const messages: LocaleMessages = {
   "menu.bulletList": "箇条書き",
   "menu.orderedList": "番号付きリスト",
   "menu.quote": "引用",
+  "menu.callout": "コールアウト",
   "menu.codeBlock": "コードブロック",
   "menu.link": "リンク",
   "menu.image": "画像",

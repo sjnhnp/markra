@@ -468,6 +468,7 @@ const messages: LocaleMessages = {
   "menu.bulletList": "글머리 기호 목록",
   "menu.orderedList": "번호 매기기 목록",
   "menu.quote": "인용",
+  "menu.callout": "콜아웃",
   "menu.codeBlock": "코드 블록",
   "menu.link": "링크",
   "menu.image": "이미지",

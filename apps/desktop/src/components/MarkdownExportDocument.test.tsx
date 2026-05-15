@@ -48,4 +48,52 @@ describe("MarkdownExportDocument", () => {
     expect(bodyHtml).toContain("katex");
     expect(bodyHtml).not.toContain("language-math");
   });
+
+  it("renders GitHub-style alert blockquotes as callouts before exporting HTML", async () => {
+    const onRendered = vi.fn();
+
+    render(
+      <MarkdownExportDocument
+        onRendered={onRendered}
+        snapshot={{
+          id: 1,
+          kind: "html",
+          markdown: "> [!WARNING]\n> Check this before publishing.",
+          title: "callout.md"
+        }}
+      />
+    );
+
+    await waitFor(() => expect(onRendered).toHaveBeenCalledTimes(1));
+
+    const bodyHtml = onRendered.mock.calls[0]?.[0].bodyHtml as string;
+    expect(bodyHtml).toContain("markra-callout");
+    expect(bodyHtml).toContain("markra-callout-warning");
+    expect(bodyHtml).toContain('data-callout-type="warning"');
+    expect(bodyHtml).toContain("Warning");
+    expect(bodyHtml).toContain("Check this before publishing.");
+  });
+
+  it("omits empty marker paragraphs from exported callouts", async () => {
+    const onRendered = vi.fn();
+
+    render(
+      <MarkdownExportDocument
+        onRendered={onRendered}
+        snapshot={{
+          id: 1,
+          kind: "html",
+          markdown: "> [!NOTE]\n>\n> Keep this in mind.",
+          title: "callout.md"
+        }}
+      />
+    );
+
+    await waitFor(() => expect(onRendered).toHaveBeenCalledTimes(1));
+
+    const bodyHtml = onRendered.mock.calls[0]?.[0].bodyHtml as string;
+    expect(bodyHtml).toContain("markra-callout-note");
+    expect(bodyHtml).toContain("Keep this in mind.");
+    expect(bodyHtml).not.toContain("<p></p>");
+  });
 });
