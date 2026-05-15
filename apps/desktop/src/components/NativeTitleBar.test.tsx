@@ -122,7 +122,7 @@ describe("NativeTitleBar", () => {
     });
   });
 
-  it("keeps Windows titlebar tabs out of the markdown files sidebar", () => {
+  it("keeps Windows titlebar tabs beside the markdown files sidebar without covering it", () => {
     const { container } = render(
       <NativeTitleBar
         aiAgentOpen={false}
@@ -147,9 +147,9 @@ describe("NativeTitleBar", () => {
 
     expect(screen.getByRole("tablist", { name: "Open documents" })).toBeInTheDocument();
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "220px minmax(0,1fr) 164px"
+      left: "220px"
     });
-    expect(container.querySelector(".native-titlebar-sidebar-spacer")).toBeInTheDocument();
+    expect(container.querySelector(".native-titlebar-sidebar-spacer")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title-slot")).not.toHaveStyle({ paddingLeft: "232px" });
   });
 
