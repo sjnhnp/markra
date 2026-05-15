@@ -839,7 +839,7 @@ function normalizeS3Bucket(value: unknown) {
 function normalizeExportMarginMm(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) return defaultExportSettings.pdfMarginMm;
 
-  return Math.min(Math.max(Math.round(value), 0), 60);
+  return Math.min(Math.max(value, 0), 60);
 }
 
 function normalizeExportMarginPreset(value: unknown, marginMm: number): PdfMarginPreset {
@@ -853,7 +853,7 @@ function normalizeExportMarginPreset(value: unknown, marginMm: number): PdfMargi
 function normalizeExportPageDimension(value: unknown, fallback: number) {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
 
-  return Math.min(Math.max(Math.round(value), 50), 2000);
+  return Math.min(Math.max(value, 50), 2000);
 }
 
 function normalizeExportText(value: unknown) {
