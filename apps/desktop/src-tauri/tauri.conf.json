@@ -76,12 +76,5 @@
     }
   },
   "plugins": {
-    "updater": {
-      "endpoints": [],
-      "pubkey": "",
-      "windows": {
-        "installMode": "passive"
-      }
-    }
   }
 }
