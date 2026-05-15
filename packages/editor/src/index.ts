@@ -10,4 +10,5 @@ export * from "./raw-html.ts";
 export * from "./selection-hold.ts";
 export * from "./shortcuts.ts";
 export * from "./slash-commands.ts";
+export * from "./smart-paste.ts";
 export * from "./table-controls.ts";

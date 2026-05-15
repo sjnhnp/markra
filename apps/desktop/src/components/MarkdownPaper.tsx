@@ -47,6 +47,7 @@ import { markraTableControlsPlugin } from "@markra/editor";
 import { markraAiEditorPreviewPlugin } from "@markra/editor";
 import { markraAiSelectionHoldPlugin } from "@markra/editor";
 import { markraBlockDragPlugin } from "@markra/editor";
+import { markraSmartPastePlugin } from "@markra/editor";
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { SlashCommandLabels } from "@markra/editor";
 import type { AiSelectionContext } from "@markra/ai";
@@ -430,6 +431,7 @@ function MilkdownSurface({
         .use(markraTableControlsPlugin(tableControlLabels))
         .use(markraLinkImageLivePlugin(resolveImageSrc))
         .use(markraHeadingSourcePlugin)
+        .use(markraSmartPastePlugin)
         .use(
           markraRawHtmlPlugin({
             htmlSourceApplyLabel: t(language, "editor.htmlSourceApply"),
