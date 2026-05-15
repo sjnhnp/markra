@@ -1145,7 +1145,7 @@ export default function App() {
   });
 
   useNativeMarkdownDrop(handleDroppedMarkdownPath);
-  useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null, {
+  useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : "en", {
     getAiCommandsAvailable: getAiContextMenuAvailable,
     markdownShortcuts: editorPreferences.preferences.markdownShortcuts
   });

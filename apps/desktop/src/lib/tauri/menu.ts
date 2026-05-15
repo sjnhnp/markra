@@ -6,7 +6,7 @@ import {
   type SubmenuOptions
 } from "@tauri-apps/api/menu";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import {
   defaultMarkdownShortcuts,
@@ -158,17 +158,31 @@ function menuLabel(language: AppLanguage, key: I18nKey) {
 
 async function isCurrentNativeWindowFocused() {
   try {
-    return await getCurrentWindow().isFocused();
+    const window = getCurrentWindow();
+    if (await window.isFocused()) return true;
+
+    // On Windows, native menu interactions can sometimes cause isFocused to return false
+    // while the menu loop is active. If no other window reports focus, we assume this
+    // window is the intended target.
+    const allWindows = await getAllWindows();
+    const anyOtherFocused = (await Promise.all(
+      allWindows
+        .filter((w: any) => w.label !== window.label)
+        .map((w: any) => w.isFocused())
+    )).some((focused: any) => focused);
+
+    return !anyOtherFocused;
   } catch {
     return true;
   }
 }
 
 export async function listenNativeApplicationMenuCommands(handlers: NativeMenuHandlers) {
-  return listen<NativeMenuCommandPayload>("markra://menu-command", async (event) => {
+  return listen<NativeMenuCommandPayload>("markra://menu-command", async (event: any) => {
     if (!(await isCurrentNativeWindowFocused())) return;
 
-    runNativeMenuAction(handlers[event.payload.command]);
+    const command = event.payload.command as NativeMenuCommand;
+    runNativeMenuAction(handlers[command]);
   });
 }
 

@@ -1,0 +1,23 @@
+name: Generate Tauri Keys
+
+on:
+  workflow_dispatch:
+    inputs:
+      password:
+        description: 'Optional password for the private key (Recommended to leave blank if you want it easy)'
+        required: false
+        default: ''
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Keys
+        run: |
+          if [ -n "${{ github.event.inputs.password }}" ]; then
+            npx @tauri-apps/cli@2.11.0 signer generate --password "${{ github.event.inputs.password }}"
+          else
+            # Non-interactive generation without password
+            npx @tauri-apps/cli@2.11.0 signer generate
+          fi
+        shell: bash
