@@ -375,6 +375,13 @@ function positionMenu(menu: HTMLElement, view: EditorView, range: SlashCommandRa
   }
 }
 
+function elementFromEventTarget(target: EventTarget | null) {
+  if (target instanceof Element) return target;
+  if (target instanceof Node) return target.parentElement;
+
+  return null;
+}
+
 class SlashCommandMenuView {
   private readonly menu: HTMLDivElement;
   private view: EditorView;
@@ -469,7 +476,7 @@ class SlashCommandMenuView {
   };
 
   private runCommandFromMouseEvent(event: MouseEvent) {
-    const target = event.target instanceof Element ? event.target : null;
+    const target = elementFromEventTarget(event.target);
     const option = target?.closest<HTMLElement>("[data-slash-command-id]");
     if (!option || !this.menu.contains(option)) return;
 
@@ -488,7 +495,7 @@ class SlashCommandMenuView {
   }
 
   private readonly handleMouseOver = (event: MouseEvent) => {
-    const target = event.target instanceof Element ? event.target : null;
+    const target = elementFromEventTarget(event.target);
     const option = target?.closest<HTMLElement>("[data-slash-command-id]");
     if (!option || !this.menu.contains(option)) return;
 
