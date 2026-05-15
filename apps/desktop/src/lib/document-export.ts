@@ -122,6 +122,101 @@ body {
   color: #555;
 }
 
+.markdown-export blockquote.markra-callout {
+  --callout-color: oklch(52% 0.11 252);
+  --callout-bg: color-mix(in srgb, var(--callout-color) 5%, #fbfbfb);
+  --callout-border: color-mix(in srgb, var(--callout-color) 22%, #d8d8d8);
+  margin: 1.1em 0;
+  padding: 0.85em 1em 0.9em;
+  border: 1px solid var(--callout-border);
+  border-radius: 7px;
+  background: var(--callout-bg);
+  color: #222;
+}
+
+.markdown-export blockquote.markra-callout-tip {
+  --callout-color: oklch(50% 0.11 154);
+}
+
+.markdown-export blockquote.markra-callout-important {
+  --callout-color: oklch(50% 0.12 292);
+}
+
+.markdown-export blockquote.markra-callout-warning {
+  --callout-color: oklch(54% 0.12 72);
+}
+
+.markdown-export blockquote.markra-callout-caution {
+  --callout-color: oklch(52% 0.13 28);
+}
+
+.markdown-export .markra-callout-header {
+  display: flex;
+  min-height: 1.25em;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.45em;
+  color: var(--callout-color);
+  font-size: 0.78em;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.markdown-export .markra-callout-icon {
+  position: relative;
+  display: inline-grid;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 11%, #fbfbfb);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.markdown-export .markra-callout-icon::before {
+  display: block;
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+}
+
+.markdown-export .markra-callout-tip .markra-callout-icon::before {
+  width: 0.44rem;
+  height: 0.44rem;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.markdown-export .markra-callout-important .markra-callout-icon::before {
+  width: 0.25rem;
+  height: 0.56rem;
+  border-radius: 999px;
+}
+
+.markdown-export .markra-callout-warning .markra-callout-icon::before {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 0;
+  clip-path: polygon(50% 4%, 96% 92%, 4% 92%);
+}
+
+.markdown-export .markra-callout-caution .markra-callout-icon::before {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 2px;
+}
+
+.markdown-export blockquote.markra-callout p {
+  margin: 0 0 0.75em;
+}
+
+.markdown-export blockquote.markra-callout p:last-child {
+  margin-bottom: 0;
+}
+
 .markdown-export .markra-math-render {
   color: #222;
   letter-spacing: 0;

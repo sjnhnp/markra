@@ -468,6 +468,7 @@ const messages: LocaleMessages = {
   "menu.bulletList": "Lista con viñetas",
   "menu.orderedList": "Lista numerada",
   "menu.quote": "Cita",
+  "menu.callout": "Aviso",
   "menu.codeBlock": "Bloque de código",
   "menu.link": "Enlace",
   "menu.image": "Imagen",

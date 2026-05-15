@@ -2241,8 +2241,12 @@ describe("Markra workspace", () => {
     renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
-    const link = await screen.findByText("Guide");
-    link.closest("a")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true }));
+    let link: HTMLAnchorElement | null = null;
+    await waitFor(() => {
+      link = document.querySelector<HTMLAnchorElement>('.ProseMirror a[href="./docs/guide.md"]');
+      expect(link).toHaveTextContent("Guide");
+    });
+    link!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true }));
 
     expect(await screen.findByText("Opened through a document link.")).toBeInTheDocument();
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);

@@ -716,6 +716,11 @@
     color: oklch(43% 0.13 151);
   }
 
+  .markdown-source-token-callout {
+    color: color-mix(in srgb, var(--accent-hover) 82%, var(--text-primary));
+    font-weight: 700;
+  }
+
   .markdown-source-token-link {
     color: var(--accent-hover);
   }
@@ -1127,6 +1132,134 @@
     @apply my-4.5 mr-0 border-l border-(--border-strong) py-0 pr-0 pl-5 text-(--text-secondary);
     border-color: var(--editor-border-strong);
     color: var(--editor-text-secondary);
+  }
+
+  .markdown-paper blockquote.markra-callout {
+    --callout-color: oklch(57% 0.11 252);
+    --callout-bg: color-mix(in srgb, var(--callout-color) 5%, var(--editor-paper-bg));
+    --callout-border: color-mix(in srgb, var(--callout-color) 22%, var(--editor-border));
+    --callout-border-focus: color-mix(in srgb, var(--callout-color) 38%, var(--editor-border-strong));
+    @apply relative my-5 rounded-[7px] border px-4 py-3.5 text-(--text-primary) transition-[background-color,border-color] duration-150 ease-out;
+    background: var(--callout-bg);
+    border-color: var(--callout-border);
+    color: var(--editor-text-primary);
+  }
+
+  .markdown-paper blockquote.markra-callout-tip {
+    --callout-color: oklch(56% 0.11 154);
+  }
+
+  .markdown-paper blockquote.markra-callout-important {
+    --callout-color: oklch(55% 0.12 292);
+  }
+
+  .markdown-paper blockquote.markra-callout-warning {
+    --callout-color: oklch(62% 0.12 72);
+  }
+
+  .markdown-paper blockquote.markra-callout-caution {
+    --callout-color: oklch(57% 0.13 28);
+  }
+
+  [data-theme="dark"] .markdown-paper blockquote.markra-callout,
+  [data-theme="night"] .markdown-paper blockquote.markra-callout,
+  [data-theme="solarized-dark"] .markdown-paper blockquote.markra-callout,
+  [data-theme="nord"] .markdown-paper blockquote.markra-callout,
+  [data-theme="catppuccin-mocha"] .markdown-paper blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="dark"] blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="night"] blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="solarized-dark"] blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="nord"] blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="catppuccin-mocha"] blockquote.markra-callout {
+    --callout-bg: color-mix(in srgb, var(--callout-color) 10%, var(--editor-paper-bg));
+    --callout-border: color-mix(in srgb, var(--callout-color) 32%, var(--editor-border));
+  }
+
+  .markdown-paper .markra-callout-header {
+    @apply mb-2 flex min-h-5 items-center gap-2 text-[0.76em] leading-5 font-[720] tracking-normal;
+    color: var(--callout-color);
+  }
+
+  .markdown-paper .markra-callout-icon {
+    @apply relative inline-grid size-4 shrink-0 place-items-center rounded-full;
+    background: color-mix(in srgb, currentColor 11%, var(--editor-paper-bg));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent);
+  }
+
+  .markdown-paper .markra-callout-icon::before {
+    @apply block size-1.5 rounded-full;
+    content: "";
+    background: currentColor;
+  }
+
+  .markdown-paper .markra-callout-tip .markra-callout-icon::before {
+    @apply size-1.75 rounded-[2px];
+    transform: rotate(45deg);
+  }
+
+  .markdown-paper .markra-callout-important .markra-callout-icon::before {
+    @apply h-2.25 w-1 rounded-full;
+  }
+
+  .markdown-paper .markra-callout-warning .markra-callout-icon::before {
+    @apply size-2.5 rounded-none;
+    clip-path: polygon(50% 4%, 96% 92%, 4% 92%);
+  }
+
+  .markdown-paper .markra-callout-caution .markra-callout-icon::before {
+    @apply size-2 rounded-[2px];
+  }
+
+  .markdown-paper .markra-callout-title {
+    @apply shrink-0;
+  }
+
+  .markdown-paper .markra-callout-type-select {
+    @apply ml-auto h-6 max-w-30 rounded-md border border-(--border-default) px-2 text-[12px] leading-4 font-[520] text-(--text-secondary) outline-none transition-[opacity,border-color,color,background-color] duration-150 ease-out;
+    background: color-mix(in srgb, var(--editor-paper-bg) 86%, var(--callout-bg));
+    border-color: color-mix(in srgb, var(--callout-color) 18%, var(--editor-border));
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .markdown-paper .markra-callout:hover .markra-callout-type-select,
+  .markdown-paper .markra-callout:focus-within .markra-callout-type-select {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .markdown-paper blockquote.markra-callout:focus-within {
+    border-color: var(--callout-border-focus);
+  }
+
+  .markdown-paper .markra-callout-type-select:focus {
+    border-color: var(--callout-color);
+    color: var(--editor-text-primary);
+  }
+
+  .markdown-paper .markra-callout-marker-line {
+    @apply hidden;
+  }
+
+  .markdown-paper .markra-callout-source-marker {
+    @apply hidden;
+  }
+
+  .markdown-paper .markra-callout-source-marker + br {
+    @apply hidden;
+  }
+
+  .markdown-paper blockquote.markra-callout p {
+    @apply mb-3;
+    color: var(--editor-text-primary);
+  }
+
+  .markdown-paper blockquote.markra-callout p:first-of-type {
+    @apply mt-0;
+  }
+
+  .markdown-paper blockquote.markra-callout p:last-child {
+    @apply mb-0;
   }
 
   .markdown-paper blockquote p {

@@ -1,9 +1,10 @@
-import { Children, isValidElement, useEffect, useRef, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { renderToString } from "katex";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import { parseMarkdownCalloutMarker, type ParsedMarkdownCalloutMarker } from "@markra/shared";
 import type { ExportDocumentFormat } from "../lib/document-export";
 
 export type MarkdownExportSnapshot = {
@@ -53,6 +54,87 @@ function renderMathSource(source: string, kind: "display" | "inline") {
   );
 }
 
+function removeCalloutMarkerFromChildren(children: ReactNode, marker: string) {
+  let remainingMarkerLength = marker.length;
+  let trimLeadingBreak = false;
+
+  return Children.toArray(children)
+    .map((child) => {
+      if (remainingMarkerLength <= 0 && !trimLeadingBreak) return child;
+
+      if (typeof child === "string" || typeof child === "number") {
+        let text = String(child);
+
+        if (remainingMarkerLength > 0) {
+          const removeLength = Math.min(remainingMarkerLength, text.length);
+          text = text.slice(removeLength);
+          remainingMarkerLength -= removeLength;
+          if (remainingMarkerLength === 0) trimLeadingBreak = true;
+        }
+
+        if (trimLeadingBreak) {
+          text = text.replace(/^[\s\r\n]+/u, "");
+          if (text.length > 0) trimLeadingBreak = false;
+        }
+
+        return text || null;
+      }
+
+      if (trimLeadingBreak && isValidElement(child) && child.type === "br") {
+        return null;
+      }
+
+      return child;
+    })
+    .filter((child) => child !== null);
+}
+
+function renderCalloutHeader(marker: ParsedMarkdownCalloutMarker) {
+  return (
+    <div className="markra-callout-header">
+      <span aria-hidden="true" className="markra-callout-icon" />
+      <span className="markra-callout-title">{marker.label}</span>
+    </div>
+  );
+}
+
+function renderCalloutBlockquote(props: {
+  children?: ReactNode;
+}) {
+  const children = Children.toArray(props.children);
+  const firstParagraphIndex = children.findIndex((child) =>
+    isValidElement<{ children?: ReactNode }>(child) && child.type === "p"
+  );
+  const firstChild = children[firstParagraphIndex];
+  if (!isValidElement<{ children?: ReactNode }>(firstChild) || firstChild.type !== "p") {
+    return <blockquote>{props.children}</blockquote>;
+  }
+
+  const marker = parseMarkdownCalloutMarker(childrenToText(firstChild.props.children));
+  if (!marker) return <blockquote>{props.children}</blockquote>;
+
+  const nextFirstChildContent = removeCalloutMarkerFromChildren(firstChild.props.children, marker.source);
+  const nextFirstChild = nextFirstChildContent.length > 0
+    ? cloneElement(firstChild as ReactElement<{ children?: ReactNode }>, undefined, nextFirstChildContent)
+    : null;
+  const nextChildren = [
+    ...children.slice(0, firstParagraphIndex),
+    ...(nextFirstChild ? [nextFirstChild] : []),
+    ...children.slice(firstParagraphIndex + 1)
+  ];
+
+  return (
+    <blockquote
+      className={`markra-callout markra-callout-${marker.type}`}
+      data-callout-label={marker.label}
+      data-callout-type={marker.type}
+    >
+      {renderCalloutHeader(marker)}
+      {nextChildren}
+    </blockquote>
+  );
+}
+
 export function MarkdownExportDocument({
   onRendered,
   resolveImageSrc,
@@ -84,6 +166,7 @@ export function MarkdownExportDocument({
           remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
           components={{
             a: ({ node: _node, ...props }) => <a {...props} rel="noreferrer" target="_blank" />,
+            blockquote: ({ node: _node, ...props }) => renderCalloutBlockquote(props),
             code: ({ node: _node, className, children, ...props }) => {
               if (hasMathClass(className, "inline")) {
                 return renderMathSource(childrenToText(children), "inline");

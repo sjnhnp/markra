@@ -468,6 +468,7 @@ const messages: LocaleMessages = {
   "menu.bulletList": "Маркированный список",
   "menu.orderedList": "Нумерованный список",
   "menu.quote": "Цитата",
+  "menu.callout": "Выноска",
   "menu.codeBlock": "Блок кода",
   "menu.link": "Ссылка",
   "menu.image": "Изображение",

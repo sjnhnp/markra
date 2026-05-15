@@ -19,6 +19,7 @@ import { Plugin, PluginKey, TextSelection, type Command, type EditorState, type 
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { wrapInList } from "@milkdown/kit/prose/schema-list";
 import { $prose } from "@milkdown/kit/utils";
+import { markdownCalloutMarkerForType, type MarkdownCalloutType } from "@markra/shared";
 
 export type SlashCommandId =
   | "paragraph"
@@ -28,6 +29,7 @@ export type SlashCommandId =
   | "bulletList"
   | "orderedList"
   | "quote"
+  | "callout"
   | "codeBlock"
   | "table";
 
@@ -89,6 +91,7 @@ export const defaultSlashCommandLabels: SlashCommandLabels = {
     heading3: "Heading 3",
     orderedList: "Ordered List",
     paragraph: "Paragraph",
+    callout: "Callout",
     quote: "Quote",
     table: "Table"
   }
@@ -246,6 +249,55 @@ function runTableCommand(view: EditorView, range: SlashCommandRange, commands: {
   return true;
 }
 
+function calloutTypeFromQuery(query: string): MarkdownCalloutType {
+  const normalizedQuery = normalizedSearchText(query);
+  if (!normalizedQuery) return "note";
+
+  if ("warning".startsWith(normalizedQuery) || normalizedQuery.startsWith("warn")) return "warning";
+  if ("caution".startsWith(normalizedQuery) || "danger".startsWith(normalizedQuery)) return "caution";
+  if ("important".startsWith(normalizedQuery)) return "important";
+  if ("tip".startsWith(normalizedQuery)) return "tip";
+  if ("note".startsWith(normalizedQuery) || "info".startsWith(normalizedQuery)) return "note";
+
+  return "note";
+}
+
+function createDefaultCalloutNode(view: EditorView, type: MarkdownCalloutType, commands: {
+  paragraph: NodeType;
+  quote: NodeType;
+}) {
+  const markerParagraph = commands.paragraph.create(null, view.state.schema.text(markdownCalloutMarkerForType(type)));
+  const bodyParagraph = commands.paragraph.create();
+
+  return commands.quote.create(null, [markerParagraph, bodyParagraph]);
+}
+
+function runCalloutCommand(view: EditorView, range: SlashCommandRange, commands: {
+  paragraph: NodeType;
+  quote: NodeType;
+}) {
+  const { state } = view;
+  const $from = state.doc.resolve(range.from);
+  if (!$from.parent.isTextblock || $from.depth < 1) return false;
+
+  const blockFrom = $from.before();
+  const blockTo = $from.after();
+  const callout = createDefaultCalloutNode(view, calloutTypeFromQuery(range.query), commands);
+  const markerParagraph = callout.firstChild;
+  if (!markerParagraph) return false;
+
+  let transaction = state.tr.replaceWith(blockFrom, blockTo, callout);
+  const selectionPosition = Math.min(blockFrom + 1 + markerParagraph.nodeSize + 1, transaction.doc.content.size);
+
+  transaction = transaction
+    .setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition)))
+    .scrollIntoView();
+  view.dispatch(transaction);
+  view.focus();
+
+  return true;
+}
+
 function createSlashCommands(
   labels: SlashCommandLabels,
   commands: {
@@ -300,10 +352,16 @@ function createSlashCommands(
       run: (view, range) => runCommandAfterDeletingSlash(view, range, wrapInList(commands.orderedList))
     },
     {
-      aliases: ["blockquote", "callout"],
+      aliases: ["blockquote"],
       id: "quote",
       label: labels.commands.quote,
       run: (view, range) => runCommandAfterDeletingSlash(view, range, wrapIn(commands.quote))
+    },
+    {
+      aliases: ["alert", "note", "info", "tip", "warning", "caution", "danger", "important"],
+      id: "callout",
+      label: labels.commands.callout,
+      run: (view, range) => runCalloutCommand(view, range, commands)
     },
     {
       aliases: ["code", "pre", "fence"],
