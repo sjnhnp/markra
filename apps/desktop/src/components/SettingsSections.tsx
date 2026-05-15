@@ -449,6 +449,9 @@ function SettingsNumberInput({
 }) {
   return (
     <div className="inline-flex items-center gap-2">
+      <span className="text-[12px] leading-5 font-[560] text-(--text-secondary)" aria-hidden="true">
+        {label}
+      </span>
       <input
         className="h-8 w-24 rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
         type="number"
