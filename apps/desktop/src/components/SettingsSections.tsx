@@ -7,13 +7,11 @@ import {
   FolderOpen,
   HardDrive,
   Languages,
-  Monitor,
   Moon,
   RefreshCw,
   RotateCcw,
   Save,
   Sparkles,
-  Sun,
   type LucideIcon
 } from "lucide-react";
 import {
@@ -46,6 +44,7 @@ import {
 } from "@markra/editor";
 import {
   defaultTitlebarActions,
+  appThemeOptions,
   reorderTitlebarActions,
   type AppTheme,
   type AiSelectionDisplayMode,
@@ -84,31 +83,26 @@ import { SortableTitlebarAction } from "./SortableTitlebarAction";
 
 type Translate = (key: I18nKey) => string;
 
-const themeOptions: Array<{
-  actionLabelKey: I18nKey;
-  icon: LucideIcon;
-  labelKey: I18nKey;
-  value: AppTheme;
-}> = [
-  {
-    actionLabelKey: "settings.theme.useSystemLabel",
-    icon: Monitor,
-    labelKey: "settings.theme.system",
-    value: "system"
-  },
-  {
-    actionLabelKey: "settings.theme.useLightLabel",
-    icon: Sun,
-    labelKey: "settings.theme.light",
-    value: "light"
-  },
-  {
-    actionLabelKey: "settings.theme.useDarkLabel",
-    icon: Moon,
-    labelKey: "settings.theme.dark",
-    value: "dark"
-  }
-];
+const themeLabelKeys: Record<AppTheme, I18nKey> = {
+  system: "settings.theme.system",
+  light: "settings.theme.light",
+  dark: "settings.theme.dark",
+  github: "settings.theme.github",
+  gothic: "settings.theme.gothic",
+  newsprint: "settings.theme.newsprint",
+  night: "settings.theme.night",
+  pixyll: "settings.theme.pixyll",
+  whitey: "settings.theme.whitey",
+  sepia: "settings.theme.sepia",
+  "solarized-light": "settings.theme.solarizedLight",
+  "solarized-dark": "settings.theme.solarizedDark",
+  nord: "settings.theme.nord",
+  "catppuccin-latte": "settings.theme.catppuccinLatte",
+  "catppuccin-mocha": "settings.theme.catppuccinMocha",
+  academic: "settings.theme.academic",
+  minimal: "settings.theme.minimal",
+  custom: "settings.theme.custom"
+};
 
 const imageUploadProviderOptions: Array<{
   actionLabelKey: I18nKey;
@@ -681,37 +675,6 @@ function LanguageSelect({
   );
 }
 
-function ThemeSegmentedControl({
-  onSelectTheme,
-  selectedTheme,
-  translate
-}: {
-  onSelectTheme: (theme: AppTheme) => unknown;
-  selectedTheme: AppTheme;
-  translate: Translate;
-}) {
-  return (
-    <SegmentedControl className="grid-cols-3" label={translate("settings.theme.groupLabel")}>
-      {themeOptions.map((option) => {
-        const Icon = option.icon;
-        const active = selectedTheme === option.value;
-
-        return (
-          <SegmentedControlItem
-            key={option.value}
-            label={translate(option.actionLabelKey)}
-            selected={active}
-            onClick={() => onSelectTheme(option.value)}
-          >
-            <Icon aria-hidden="true" size={13} />
-            {translate(option.labelKey)}
-          </SegmentedControlItem>
-        );
-      })}
-    </SegmentedControl>
-  );
-}
-
 function ImageUploadProviderControl({
   onSelectProvider,
   provider,
@@ -1064,11 +1027,15 @@ export function GeneralSettings({
 }
 
 export function AppearanceSettings({
+  customThemeCss,
   onSelectTheme,
+  onUpdateCustomThemeCss,
   selectedTheme,
   translate
 }: {
+  customThemeCss: string;
   onSelectTheme: (theme: AppTheme) => unknown;
+  onUpdateCustomThemeCss: (css: string) => unknown;
   selectedTheme: AppTheme;
   translate: Translate;
 }) {
@@ -1078,9 +1045,30 @@ export function AppearanceSettings({
         title={translate("settings.theme.colorTitle")}
         description={translate("settings.theme.description")}
         action={
-          <ThemeSegmentedControl selectedTheme={selectedTheme} translate={translate} onSelectTheme={onSelectTheme} />
+          <SettingsSelect
+            label={translate("settings.theme.colorTitle")}
+            value={selectedTheme}
+            options={appThemeOptions.map((theme) => ({
+              label: translate(themeLabelKeys[theme]),
+              value: theme
+            }))}
+            onChange={(value) => onSelectTheme(value as AppTheme)}
+          />
         }
       />
+      {selectedTheme === "custom" ? (
+        <SettingsRow
+          title={translate("settings.theme.customCssTitle")}
+          description={translate("settings.theme.customCssDescription")}
+          action={
+            <SettingsTextarea
+              label={translate("settings.theme.customCssTitle")}
+              value={customThemeCss}
+              onChange={onUpdateCustomThemeCss}
+            />
+          }
+        />
+      ) : null}
     </SettingsSection>
   );
 }

@@ -172,6 +172,73 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .hljs-type");
   });
 
+  it("defines Typora-style editor themes and code block copy controls", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const paperStart = styles.indexOf(".markdown-paper {");
+    const githubStart = styles.indexOf(".markdown-paper[data-editor-theme=\"github\"]");
+    const paperStyles = styles.slice(paperStart, githubStart);
+
+    for (const theme of [
+      "github",
+      "gothic",
+      "newsprint",
+      "night",
+      "pixyll",
+      "whitey",
+      "sepia",
+      "solarized-light",
+      "solarized-dark",
+      "nord",
+      "catppuccin-latte",
+      "catppuccin-mocha",
+      "academic",
+      "minimal",
+      "custom"
+    ]) {
+      expect(styles).toContain(`.markdown-paper[data-editor-theme="${theme}"]`);
+    }
+
+    expect(paperStyles).not.toContain("background: var(--editor-paper-bg)");
+    expect(styles).toContain(".markdown-paper[data-editor-theme=\"dark\"]");
+    expect(styles).toContain(".markdown-paper[data-editor-theme=\"night\"]");
+    expect(styles).not.toContain(".markdown-paper[data-editor-theme=\"night\"] .ProseMirror");
+    expect(styles).toContain("[data-theme=\"newsprint\"]");
+    expect(styles).toContain("[data-theme=\"night\"]");
+    expect(styles).toContain("[data-theme=\"solarized-light\"]");
+    expect(styles).toContain("[data-theme=\"solarized-dark\"]");
+    expect(styles).toContain("[data-theme=\"catppuccin-mocha\"]");
+    expect(styles).toContain(".markdown-paper .markra-code-copy-button");
+    expect(styles).toContain(".markdown-paper .markra-code-block:hover .markra-code-copy-button");
+    expect(styles).toContain(".markdown-paper .markra-code-block:focus-within .markra-code-copy-button");
+    expect(styles).toContain(".markdown-paper .markra-code-copy-button[data-copied=\"true\"] .markra-code-copy-icon");
+    expect(styles).toContain(".markdown-paper .markra-code-copy-button[data-copied=\"true\"] .markra-code-copy-check-icon");
+  });
+
+  it("keeps the GitHub theme aligned with Primer light Markdown colors", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const appThemeStart = styles.indexOf("[data-theme=\"github\"] {");
+    const appThemeEnd = styles.indexOf("[data-theme=\"gothic\"] {");
+    const appThemeStyles = styles.slice(appThemeStart, appThemeEnd);
+    const editorThemeStart = styles.indexOf(".markdown-paper[data-editor-theme=\"github\"] {");
+    const editorThemeEnd = styles.indexOf(":root:not([data-theme=\"dark\"]) .markdown-paper[data-editor-theme=\"gothic\"] {");
+    const editorThemeStyles = styles.slice(editorThemeStart, editorThemeEnd);
+
+    expect(appThemeStyles).toContain("--bg-primary: #ffffff;");
+    expect(appThemeStyles).toContain("--bg-secondary: #f6f8fa;");
+    expect(appThemeStyles).toContain("--text-primary: #1f2328;");
+    expect(appThemeStyles).toContain("--text-secondary: #59636e;");
+    expect(appThemeStyles).toContain("--border-default: #d1d9e0;");
+    expect(appThemeStyles).toContain("--accent: #0969da;");
+    expect(editorThemeStyles).toContain("--editor-paper-bg: #ffffff;");
+    expect(editorThemeStyles).toContain("--editor-inline-code-bg: rgba(175, 184, 193, 0.2);");
+    expect(editorThemeStyles).toContain("--editor-code-bg: #f6f8fa;");
+    expect(editorThemeStyles).toContain("--editor-hl-keyword: #cf222e;");
+    expect(editorThemeStyles).toContain("--editor-hl-string: #0a3069;");
+    expect(editorThemeStyles).toContain("--editor-hl-number: #0550ae;");
+    expect(editorThemeStyles).toContain("--editor-hl-title: #8250df;");
+    expect(editorThemeStyles).toContain("--editor-hl-type: #116329;");
+  });
+
   it("includes the inline AI loading shimmer used by compact quick actions", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

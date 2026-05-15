@@ -57,6 +57,7 @@ import {
   editorCustomContentWidthMin,
   type EditorContentWidth
 } from "../lib/editor-width";
+import type { EditorTheme } from "../lib/settings/app-settings";
 import { readAiSelectionContextFromView } from "../hooks/useEditorController";
 import type { MarkdownDocumentLinkFile } from "../lib/document-links";
 import { markraDocumentLinkCompletionPlugin } from "./document-link-completion";
@@ -92,6 +93,7 @@ type MarkdownPaperProps = {
   contentWidthMin?: number;
   contentWidthPx?: number | null;
   documentPath?: string | null;
+  editorTheme?: EditorTheme;
   initialContent: string;
   language?: AppLanguage;
   lineHeight?: number;
@@ -512,6 +514,7 @@ export function MarkdownPaper({
   contentWidthMin = editorCustomContentWidthMin,
   contentWidthPx = null,
   documentPath,
+  editorTheme = "light",
   initialContent,
   language = "en",
   lineHeight = 1.65,
@@ -555,6 +558,7 @@ export function MarkdownPaper({
         style={paperStyle}
         aria-label={t(language, "app.markdownEditor")}
         data-editor-engine="milkdown"
+        data-editor-theme={editorTheme}
       >
         <EditorWidthResizer
           language={language}

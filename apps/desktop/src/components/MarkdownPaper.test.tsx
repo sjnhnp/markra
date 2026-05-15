@@ -573,6 +573,12 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".paper-scroll")).toHaveClass("h-full", "min-h-0", "overflow-auto");
   });
 
+  it("marks the editor paper with the default resolved app theme", async () => {
+    const { container } = await renderEditor();
+
+    expect(container.querySelector(".markdown-paper")).toHaveAttribute("data-editor-theme", "light");
+  });
+
   it("renders fenced code blocks with syntax highlighting and line numbers", async () => {
     const source = ["```ts", "const answer = 42;", "return answer;", "```"].join("\n");
     const { container, editor, view } = await renderEditor(source);
@@ -586,6 +592,29 @@ describe("MarkdownPaper editing", () => {
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toContain(source);
+  });
+
+  it("copies code block content from the inline copy button", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    const source = ["```ts", "const answer = 42;", "return answer;", "```"].join("\n");
+    await renderEditor(source);
+
+    const copyButton = screen.getByRole("button", { name: "Copy code block" });
+
+    expect(copyButton).toHaveAttribute("data-copied", "false");
+    expect(copyButton.querySelector(".markra-code-copy-icon")).toBeInTheDocument();
+    expect(copyButton.querySelector(".markra-code-copy-check-icon")).toBeInTheDocument();
+
+    fireEvent.click(copyButton);
+
+    expect(writeText).toHaveBeenCalledWith("const answer = 42;\nreturn answer;");
+
+    await waitFor(() => expect(copyButton).toHaveAccessibleName("Code copied"));
+    expect(copyButton).toHaveAttribute("data-copied", "true");
   });
 
   it("updates a code block language from the inline language selector", async () => {

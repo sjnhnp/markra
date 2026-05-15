@@ -39,6 +39,7 @@ import {
   getStoredAiAgentSession,
   getStoredAiAgentSessionSummary,
   getStoredAiSettings,
+  getStoredCustomThemeCss,
   getStoredEditorPreferences,
   getStoredExportSettings,
   getStoredLanguage,
@@ -51,6 +52,7 @@ import {
   saveStoredAiAgentSession,
   saveStoredAiAgentSessionTitle,
   saveStoredAiSettings,
+  saveStoredCustomThemeCss,
   saveStoredEditorPreferences,
   saveStoredExportSettings,
   saveStoredLanguage,
@@ -60,12 +62,14 @@ import {
 } from "../lib/settings/app-settings";
 import {
   listenAppAiSettingsChanged,
+  listenAppCustomThemeCssChanged,
   listenAppEditorPreferencesChanged,
   listenAppExportSettingsChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
   listenAppWebSearchSettingsChanged,
   notifyAppAiSettingsChanged,
+  notifyAppCustomThemeCssChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
   notifyAppLanguageChanged,
@@ -195,6 +199,50 @@ vi.mock("../lib/settings/app-settings", () => ({
     ],
     showWordCount: true
   },
+  appThemeOptions: [
+    "system",
+    "light",
+    "dark",
+    "github",
+    "gothic",
+    "newsprint",
+    "night",
+    "pixyll",
+    "whitey",
+    "sepia",
+    "solarized-light",
+    "solarized-dark",
+    "nord",
+    "catppuccin-latte",
+    "catppuccin-mocha",
+    "academic",
+    "minimal",
+    "custom"
+  ],
+  editorThemeOptions: [
+    "light",
+    "dark",
+    "github",
+    "gothic",
+    "newsprint",
+    "night",
+    "pixyll",
+    "whitey",
+    "sepia",
+    "solarized-light",
+    "solarized-dark",
+    "nord",
+    "catppuccin-latte",
+    "catppuccin-mocha",
+    "academic",
+    "minimal",
+    "custom"
+  ],
+  resolveAppAppearanceTheme: vi.fn((theme, systemTheme) => {
+    const resolvedTheme = theme === "system" ? systemTheme : theme;
+    return ["dark", "night", "solarized-dark", "nord", "catppuccin-mocha"].includes(resolvedTheme) ? "dark" : "light";
+  }),
+  resolveAppEditorTheme: vi.fn((theme, systemTheme) => theme === "system" ? systemTheme : theme),
   defaultTitlebarActions: [
     { id: "aiAgent", visible: true },
     { id: "sourceMode", visible: true },
@@ -220,10 +268,12 @@ vi.mock("../lib/settings/app-settings", () => ({
     pdfPageSize: "default",
     pdfWidthMm: 210
   },
+  defaultCustomThemeCss: ":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }",
   getStoredAiAgentSession: vi.fn(),
   getStoredAiAgentSessionSummary: vi.fn(),
   getStoredAiAgentPreferences: vi.fn(),
   getStoredAiSettings: vi.fn(),
+  getStoredCustomThemeCss: vi.fn(),
   getStoredEditorPreferences: vi.fn(),
   getStoredExportSettings: vi.fn(),
   getStoredLanguage: vi.fn(),
@@ -335,11 +385,13 @@ vi.mock("../lib/settings/app-settings", () => ({
     searxngApiHost: "",
     ...settings
   })),
+  normalizeCustomThemeCss: vi.fn((css) => typeof css === "string" ? css.slice(0, 50000) : ":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }"),
   resetWelcomeDocumentState: vi.fn(),
   saveStoredAiAgentPreferences: vi.fn(),
   saveStoredAiAgentSession: vi.fn(),
   saveStoredAiAgentSessionTitle: vi.fn(),
   saveStoredAiSettings: vi.fn(),
+  saveStoredCustomThemeCss: vi.fn(),
   saveStoredEditorPreferences: vi.fn(),
   saveStoredExportSettings: vi.fn(),
   saveStoredLanguage: vi.fn(),
@@ -350,12 +402,14 @@ vi.mock("../lib/settings/app-settings", () => ({
 
 vi.mock("../lib/settings/settings-events", () => ({
   listenAppAiSettingsChanged: vi.fn(),
+  listenAppCustomThemeCssChanged: vi.fn(),
   listenAppEditorPreferencesChanged: vi.fn(),
   listenAppExportSettingsChanged: vi.fn(),
   listenAppLanguageChanged: vi.fn(),
   listenAppThemeChanged: vi.fn(),
   listenAppWebSearchSettingsChanged: vi.fn(),
   notifyAppAiSettingsChanged: vi.fn(),
+  notifyAppCustomThemeCssChanged: vi.fn(),
   notifyAppEditorPreferencesChanged: vi.fn(),
   notifyAppExportSettingsChanged: vi.fn(),
   notifyAppLanguageChanged: vi.fn(),
@@ -418,6 +472,7 @@ export const mockedGetStoredAiAgentPreferences = vi.mocked(getStoredAiAgentPrefe
 export const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
 export const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
 export const mockedGetStoredAiSettings = vi.mocked(getStoredAiSettings);
+export const mockedGetStoredCustomThemeCss = vi.mocked(getStoredCustomThemeCss);
 export const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPreferences);
 export const mockedGetStoredExportSettings = vi.mocked(getStoredExportSettings);
 export const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
@@ -430,6 +485,7 @@ export const mockedResetWelcomeDocumentState = vi.mocked(resetWelcomeDocumentSta
 export const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession);
 export const mockedSaveStoredAiAgentSessionTitle = vi.mocked(saveStoredAiAgentSessionTitle);
 export const mockedSaveStoredAiSettings = vi.mocked(saveStoredAiSettings);
+export const mockedSaveStoredCustomThemeCss = vi.mocked(saveStoredCustomThemeCss);
 export const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences);
 export const mockedSaveStoredExportSettings = vi.mocked(saveStoredExportSettings);
 export const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
@@ -437,12 +493,14 @@ export const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
 export const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 export const mockedSetStoredAiAgentSessionArchived = vi.mocked(setStoredAiAgentSessionArchived);
 export const mockedListenAppAiSettingsChanged = vi.mocked(listenAppAiSettingsChanged);
+export const mockedListenAppCustomThemeCssChanged = vi.mocked(listenAppCustomThemeCssChanged);
 export const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
 export const mockedListenAppExportSettingsChanged = vi.mocked(listenAppExportSettingsChanged);
 export const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
 export const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
 export const mockedListenAppWebSearchSettingsChanged = vi.mocked(listenAppWebSearchSettingsChanged);
 export const mockedNotifyAppAiSettingsChanged = vi.mocked(notifyAppAiSettingsChanged);
+export const mockedNotifyAppCustomThemeCssChanged = vi.mocked(notifyAppCustomThemeCssChanged);
 export const mockedNotifyAppEditorPreferencesChanged = vi.mocked(notifyAppEditorPreferencesChanged);
 export const mockedNotifyAppExportSettingsChanged = vi.mocked(notifyAppExportSettingsChanged);
 export const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
@@ -559,6 +617,7 @@ export function installAppTestHarness() {
     mockedGetStoredAiAgentPreferences.mockReset();
     mockedGetStoredAiAgentSession.mockReset();
     mockedGetStoredAiAgentSessionSummary.mockReset();
+    mockedGetStoredCustomThemeCss.mockReset();
     mockedGetStoredEditorPreferences.mockReset();
     mockedGetStoredExportSettings.mockReset();
     mockedGetStoredTheme.mockReset();
@@ -569,6 +628,7 @@ export function installAppTestHarness() {
     mockedSaveStoredAiAgentSession.mockReset();
     mockedSaveStoredAiAgentSessionTitle.mockReset();
     mockedSaveStoredAiSettings.mockReset();
+    mockedSaveStoredCustomThemeCss.mockReset();
     mockedSaveStoredEditorPreferences.mockReset();
     mockedSaveStoredExportSettings.mockReset();
     mockedSaveStoredLanguage.mockReset();
@@ -576,11 +636,13 @@ export function installAppTestHarness() {
     mockedSaveStoredWorkspaceState.mockReset();
     mockedSetStoredAiAgentSessionArchived.mockReset();
     mockedListenAppAiSettingsChanged.mockReset();
+    mockedListenAppCustomThemeCssChanged.mockReset();
     mockedListenAppEditorPreferencesChanged.mockReset();
     mockedListenAppExportSettingsChanged.mockReset();
     mockedListenAppLanguageChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
     mockedNotifyAppAiSettingsChanged.mockReset();
+    mockedNotifyAppCustomThemeCssChanged.mockReset();
     mockedNotifyAppEditorPreferencesChanged.mockReset();
     mockedNotifyAppExportSettingsChanged.mockReset();
     mockedNotifyAppLanguageChanged.mockReset();
@@ -592,6 +654,7 @@ export function installAppTestHarness() {
     mockedDownloadNativeWebImage.mockReset();
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("data-window");
+    document.getElementById("markra-custom-theme-style")?.remove();
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
     mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
     mockedTakeNativeOpenedMarkdownPaths.mockResolvedValue([]);
@@ -618,6 +681,7 @@ export function installAppTestHarness() {
       path
     }));
     mockedSaveStoredEditorPreferences.mockResolvedValue(undefined);
+    mockedSaveStoredCustomThemeCss.mockResolvedValue(undefined);
     mockedSaveStoredExportSettings.mockResolvedValue(undefined);
     mockedSaveNativeHtmlFile.mockResolvedValue({
       name: "Untitled.html",
@@ -629,6 +693,7 @@ export function installAppTestHarness() {
     });
     mockedShowNativeMarkdownFileTreeContextMenu.mockResolvedValue(undefined);
     mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
+    mockedListenAppCustomThemeCssChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
     mockedListenAppExportSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppWebSearchSettingsChanged.mockResolvedValue(() => {});
@@ -764,6 +829,7 @@ export function installAppTestHarness() {
       ]
     });
     mockedGetStoredLanguage.mockResolvedValue("en");
+    mockedGetStoredCustomThemeCss.mockResolvedValue(":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }");
     mockedGetStoredTheme.mockResolvedValue("light");
     mockedGetStoredWorkspaceState.mockResolvedValue({
       aiAgentSessionId: "session-app",
@@ -786,6 +852,7 @@ export function installAppTestHarness() {
     mockedListenAppLanguageChanged.mockResolvedValue(() => {});
     mockedListenAppThemeChanged.mockResolvedValue(() => {});
     mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);
+    mockedNotifyAppCustomThemeCssChanged.mockResolvedValue(undefined);
     mockedNotifyAppThemeChanged.mockResolvedValue(undefined);
     mockedFetchAiProviderModels.mockResolvedValue([
       { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "gpt-5", name: "GPT-5" },

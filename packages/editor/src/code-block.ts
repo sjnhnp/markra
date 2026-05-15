@@ -28,6 +28,11 @@ type SplitFenceParagraph = {
 
 type CodeBlockGetPosition = () => number | undefined;
 
+type SvgChildSpec = {
+  attributes: Record<string, string>;
+  tag: "path" | "rect";
+};
+
 const codeLanguageOptions = [
   { label: "Plain Text", value: "" },
   { label: "Bash", value: "bash" },
@@ -76,6 +81,34 @@ const codeLanguageOptions = [
 const codeBlockHighlightKey = new PluginKey("markra-code-block-highlight");
 const lowlight = createLowlight(common);
 const codeFencePattern = /^```(?<language>[^\s`]*)$/u;
+const svgNamespace = "http://www.w3.org/2000/svg";
+const copyIconChildren: SvgChildSpec[] = [
+  {
+    tag: "rect",
+    attributes: {
+      height: "14",
+      rx: "2",
+      ry: "2",
+      width: "14",
+      x: "8",
+      y: "8"
+    }
+  },
+  {
+    tag: "path",
+    attributes: {
+      d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+    }
+  }
+];
+const checkIconChildren: SvgChildSpec[] = [
+  {
+    tag: "path",
+    attributes: {
+      d: "M20 6 9 17l-5-5"
+    }
+  }
+];
 
 function normalizeCodeLanguage(language: unknown) {
   if (typeof language !== "string") return "";
@@ -169,6 +202,31 @@ function lineCountForCodeBlock(node: ProseNode) {
 
 function targetIsInside(target: EventTarget | Node | null, container: HTMLElement) {
   return target instanceof Node && container.contains(target);
+}
+
+function createIcon(ownerDocument: Document, className: string, children: SvgChildSpec[]) {
+  const icon = ownerDocument.createElementNS(svgNamespace, "svg");
+
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("fill", "none");
+  icon.setAttribute("height", "15");
+  icon.setAttribute("stroke", "currentColor");
+  icon.setAttribute("stroke-linecap", "round");
+  icon.setAttribute("stroke-linejoin", "round");
+  icon.setAttribute("stroke-width", "2");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("width", "15");
+  icon.classList.add(className);
+
+  for (const childSpec of children) {
+    const child = ownerDocument.createElementNS(svgNamespace, childSpec.tag);
+    for (const [name, value] of Object.entries(childSpec.attributes)) {
+      child.setAttribute(name, value);
+    }
+    icon.append(child);
+  }
+
+  return icon;
 }
 
 function openCodeBlockWithInsertedFence(view: EditorView, codeBlock: NodeType, text: string) {
@@ -301,6 +359,8 @@ class MarkraCodeBlockNodeView implements NodeView {
   readonly contentDOM: HTMLElement;
 
   private node: ProseNode;
+  private copyResetTimer: number | null = null;
+  private readonly copyButton: HTMLButtonElement;
   private readonly lineNumbers: HTMLElement;
   private readonly languageControl: HTMLElement;
   private readonly languageSelect: HTMLSelectElement;
@@ -313,6 +373,7 @@ class MarkraCodeBlockNodeView implements NodeView {
   ) {
     this.node = node;
     this.dom = view.dom.ownerDocument.createElement("div");
+    this.copyButton = view.dom.ownerDocument.createElement("button");
     this.lineNumbers = view.dom.ownerDocument.createElement("div");
     this.languageControl = view.dom.ownerDocument.createElement("div");
     this.languageSelect = view.dom.ownerDocument.createElement("select");
@@ -321,6 +382,16 @@ class MarkraCodeBlockNodeView implements NodeView {
     this.contentDOM = this.code;
 
     this.dom.className = "markra-code-block";
+    this.copyButton.className = "markra-code-copy-button";
+    this.copyButton.type = "button";
+    this.copyButton.contentEditable = "false";
+    this.copyButton.dataset.copied = "false";
+    this.copyButton.setAttribute("aria-label", "Copy code block");
+    this.copyButton.title = "Copy code block";
+    this.copyButton.append(
+      createIcon(view.dom.ownerDocument, "markra-code-copy-icon", copyIconChildren),
+      createIcon(view.dom.ownerDocument, "markra-code-copy-check-icon", checkIconChildren)
+    );
     this.languageControl.className = "markra-code-language-control";
     this.languageControl.contentEditable = "false";
     this.languageSelect.className = "markra-code-language-select";
@@ -335,10 +406,11 @@ class MarkraCodeBlockNodeView implements NodeView {
     this.code.setAttribute("autocapitalize", "off");
 
     this.populateLanguageOptions();
+    this.copyButton.addEventListener("click", this.handleCopyClick);
     this.languageSelect.addEventListener("change", this.handleLanguageChange);
     this.languageControl.append(this.languageSelect);
     pre.append(this.code);
-    this.dom.append(this.lineNumbers, pre, this.languageControl);
+    this.dom.append(this.lineNumbers, pre, this.copyButton, this.languageControl);
     this.syncLanguage();
     this.syncLineNumbers();
   }
@@ -353,15 +425,24 @@ class MarkraCodeBlockNodeView implements NodeView {
   }
 
   stopEvent(event: Event) {
-    return targetIsInside(event.target, this.lineNumbers) || targetIsInside(event.target, this.languageControl);
+    return targetIsInside(event.target, this.copyButton) ||
+      targetIsInside(event.target, this.lineNumbers) ||
+      targetIsInside(event.target, this.languageControl);
   }
 
   ignoreMutation(mutation: ViewMutationRecord) {
-    return targetIsInside(mutation.target, this.lineNumbers) || targetIsInside(mutation.target, this.languageControl);
+    return targetIsInside(mutation.target, this.copyButton) ||
+      targetIsInside(mutation.target, this.lineNumbers) ||
+      targetIsInside(mutation.target, this.languageControl);
   }
 
   destroy() {
+    this.copyButton.removeEventListener("click", this.handleCopyClick);
     this.languageSelect.removeEventListener("change", this.handleLanguageChange);
+    if (this.copyResetTimer !== null) {
+      this.dom.ownerDocument.defaultView?.clearTimeout(this.copyResetTimer);
+      this.copyResetTimer = null;
+    }
   }
 
   private syncLanguage() {
@@ -424,6 +505,36 @@ class MarkraCodeBlockNodeView implements NodeView {
       })
     );
   };
+
+  private readonly handleCopyClick = (event: MouseEvent) => {
+    event.preventDefault();
+
+    const clipboard = this.dom.ownerDocument.defaultView?.navigator.clipboard;
+    if (!clipboard) return;
+
+    Promise.resolve(clipboard.writeText(this.node.textContent))
+      .then(() => {
+        this.showCopiedState();
+      })
+      .catch(() => {});
+  };
+
+  private showCopiedState() {
+    if (this.copyResetTimer !== null) {
+      this.dom.ownerDocument.defaultView?.clearTimeout(this.copyResetTimer);
+    }
+
+    this.copyButton.dataset.copied = "true";
+    this.copyButton.setAttribute("aria-label", "Code copied");
+    this.copyButton.title = "Code copied";
+
+    this.copyResetTimer = this.dom.ownerDocument.defaultView?.setTimeout(() => {
+      this.copyButton.dataset.copied = "false";
+      this.copyButton.setAttribute("aria-label", "Copy code block");
+      this.copyButton.title = "Copy code block";
+      this.copyResetTimer = null;
+    }, 1400) ?? null;
+  }
 }
 
 export const markraCodeBlockPlugin = $prose((ctx) => {
