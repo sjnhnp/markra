@@ -375,7 +375,7 @@ describe("Markra workspace", () => {
     renderApp();
 
     await waitFor(() => expect(mockedGetStoredLanguage).toHaveBeenCalledTimes(1));
-    expect(mockedInstallNativeApplicationMenu).not.toHaveBeenCalled();
+    expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "en");
 
     act(() => {
       resolveLanguage?.("fr");

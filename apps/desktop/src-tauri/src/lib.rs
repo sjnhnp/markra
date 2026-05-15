@@ -47,7 +47,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             apply_main_window_chrome(app);
             let paths = opened_markdown_paths_from_args(std::env::args());

@@ -1,7 +1,7 @@
 import { Menu, type MenuOptions } from "@tauri-apps/api/menu";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 import {
   installNativeEditorContextMenu,
   installNativeApplicationMenu,
@@ -25,13 +25,15 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 
 vi.mock("@tauri-apps/api/window", () => ({
-  getCurrentWindow: vi.fn()
+  getCurrentWindow: vi.fn(),
+  getAllWindows: vi.fn()
 }));
 
 const mockedMenuNew = vi.mocked(Menu.new);
 const mockedInvoke = vi.mocked(invoke);
 const mockedListen = vi.mocked(listen);
 const mockedGetCurrentWindow = vi.mocked(getCurrentWindow);
+const mockedGetAllWindows = vi.mocked(getAllWindows);
 type TestMenuItem = NonNullable<MenuOptions["items"]>[number];
 type TestActionMenuItem = TestMenuItem & {
   action?: (id: string) => unknown;
@@ -89,6 +91,7 @@ describe("native menu", () => {
     mockedInvoke.mockReset();
     mockedListen.mockReset();
     mockedGetCurrentWindow.mockReset();
+    mockedGetAllWindows.mockReset();
     setAsAppMenu.mockReset();
     popup.mockReset();
     unlisten.mockReset();
@@ -102,6 +105,9 @@ describe("native menu", () => {
     mockedGetCurrentWindow.mockReturnValue({
       isFocused
     } as unknown as ReturnType<typeof getCurrentWindow>);
+    mockedGetAllWindows.mockResolvedValue([{
+      isFocused
+    } as unknown as ReturnType<typeof getCurrentWindow>]);
     isFocused.mockResolvedValue(true);
   });
 
@@ -165,6 +171,11 @@ describe("native menu", () => {
 
   it("ignores native application menu commands in unfocused windows", async () => {
     isFocused.mockResolvedValue(false);
+    const otherFocused = vi.fn().mockResolvedValue(true);
+    mockedGetAllWindows.mockResolvedValue([
+      { label: "main", isFocused },
+      { label: "other", isFocused: otherFocused }
+    ] as unknown as ReturnType<typeof getAllWindows>);
     const handlers: NativeMenuHandlers = {
       saveDocument: vi.fn()
     };
