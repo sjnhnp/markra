@@ -485,7 +485,8 @@ jobs:
 
       - name: Generate updater manifest
         env:
-          EXPECTED_UPDATER_PLATFORMS: darwin-aarch64,darwin-x86_64,linux-x86_64,windows-x86_64
+          EXPECTED_UPDATER_PLATFORMS: >-
+            ${{ (inputs.build_macos || github.event_name == 'push') && 'darwin-aarch64,darwin-x86_64' || '' }}${{ ((inputs.build_macos || github.event_name == 'push') && (inputs.build_linux || github.event_name == 'push' || inputs.build_windows || github.event_name == 'push')) && ',' || '' }}${{ (inputs.build_linux || github.event_name == 'push') && 'linux-x86_64' || '' }}${{ ((inputs.build_linux || github.event_name == 'push') && (inputs.build_windows || github.event_name == 'push')) && ',' || '' }}${{ (inputs.build_windows || github.event_name == 'push') && 'windows-x86_64' || '' }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_ASSETS_ROOT: release-assets
           RELEASE_NOTES_PATH: release-notes.md
