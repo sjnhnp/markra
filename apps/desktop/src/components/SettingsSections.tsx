@@ -435,7 +435,7 @@ function SettingsNumberInput({
   max,
   min,
   onChange,
-  step = 1,
+  step = 0.1,
   unit,
   value
 }: {
@@ -443,10 +443,16 @@ function SettingsNumberInput({
   max?: number;
   min?: number;
   onChange: (value: number) => unknown;
-  step?: number;
+  step?: number | "any";
   unit?: string;
   value: number;
 }) {
+  const [inputValue, setInputValue] = useState(value.toString());
+
+  useEffect(() => {
+    setInputValue(value.toString());
+  }, [value]);
+
   return (
     <div className="inline-flex items-center gap-2">
       <span className="text-[12px] leading-5 font-[560] text-(--text-secondary)" aria-hidden="true">
@@ -459,8 +465,23 @@ function SettingsNumberInput({
         min={min}
         max={max}
         step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.currentTarget.value))}
+        value={inputValue}
+        onBlur={() => {
+          setInputValue(value.toString());
+        }}
+        onChange={(event) => {
+          const rawValue = event.currentTarget.value;
+          setInputValue(rawValue);
+
+          if (rawValue === "") {
+            return;
+          }
+
+          const numValue = Number(rawValue);
+          if (!isNaN(numValue)) {
+            onChange(numValue);
+          }
+        }}
       />
       {unit ? (
         <span className="text-[12px] leading-5 font-[560] text-(--text-secondary)" aria-hidden="true">
