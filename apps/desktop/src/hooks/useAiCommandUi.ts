@@ -21,6 +21,7 @@ type AiCommandContext = {
   provider: AiProviderConfig | null;
   settingsLoading: boolean;
   translate?: (key: I18nKey) => string;
+  translationTargetLanguage?: string;
   workspaceFiles?: AgentWorkspaceFile[];
 };
 
@@ -126,6 +127,7 @@ export function useAiCommandUi(ctx: AiCommandContext) {
         provider: ctx.provider,
         target,
         thinkingEnabled: options.thinkingEnabled,
+        translationTargetLanguage: ctx.translationTargetLanguage ?? "English",
         onEvent: (event) => {
           if (requestIdRef.current !== requestId) return;
           setStatus(agentStatusFromEvent(event));

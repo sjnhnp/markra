@@ -42,7 +42,7 @@ import {
   useNativeMenuHandlers,
   useNativeMenus
 } from "./hooks/useNativeBindings";
-import { t, type I18nKey } from "@markra/shared";
+import { aiTranslationLanguageName, t, type I18nKey } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
@@ -372,6 +372,7 @@ export default function App() {
     provider: aiSettings.inlineProvider,
     settingsLoading: aiSettings.loading,
     translate,
+    translationTargetLanguage: aiTranslationLanguageName(appLanguage.ready ? appLanguage.language : "en"),
     workspaceFiles: fileTreeFiles
   });
   const aiCommandVisible = aiCommand.open && (hasAiCommandContext || Boolean(aiResult) || aiContextMenuActionPending);

@@ -42,5 +42,6 @@ export type InlineAiAgentInput = {
   provider: AiProviderConfig;
   target: InlineAiAgentTarget;
   thinkingEnabled?: boolean;
+  translationTargetLanguage?: string;
   workspaceFiles?: AgentWorkspaceFile[];
 };

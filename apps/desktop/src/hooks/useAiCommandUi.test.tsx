@@ -251,7 +251,7 @@ describe("useAiCommandUi", () => {
     });
   });
 
-  it("lets translate prompts auto-detect the selected text language", async () => {
+  it("passes the selected app language as the preferred translation target", async () => {
     const onAiResult = vi.fn();
     mockedRunInlineAiAgent.mockResolvedValue({ content: "你好", finishReason: "stop" });
     const { result } = renderHook(() =>
@@ -261,7 +261,8 @@ describe("useAiCommandUi", () => {
         model: "gpt-5.5",
         onAiResult,
         provider: provider(),
-        settingsLoading: false
+        settingsLoading: false,
+        translationTargetLanguage: "Simplified Chinese"
       })
     );
 
@@ -270,9 +271,9 @@ describe("useAiCommandUi", () => {
     });
 
     expect(mockedRunInlineAiAgent).toHaveBeenCalledWith(expect.objectContaining({
-      intent: "translate"
+      intent: "translate",
+      translationTargetLanguage: "Simplified Chinese"
     }));
-    expect(mockedRunInlineAiAgent.mock.calls[0]?.[0]).not.toHaveProperty("translationTargetLanguage");
   });
 
   it("keeps the command session open and clears the prompt after a suggestion is ready", async () => {

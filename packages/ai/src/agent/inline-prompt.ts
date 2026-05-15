@@ -16,6 +16,7 @@ type BuildInlineAiMessagesInput = {
   targetScope?: AiTargetScope;
   targetText: string;
   targetType?: "insert" | "replace";
+  translationTargetLanguage?: string;
 };
 
 type NormalizeInlineAiReplacementOptions = {
@@ -55,7 +56,8 @@ export function buildInlineAiMessages({
   targetContext = null,
   targetScope = "selection",
   targetText,
-  targetType = "replace"
+  targetType = "replace",
+  translationTargetLanguage = "English"
 }: BuildInlineAiMessagesInput): ChatMessage[] {
   const trimmedDocumentContext = documentContent.trim();
   const currentSuggestion = suggestionContext
@@ -82,7 +84,7 @@ export function buildInlineAiMessages({
     },
     {
       content: [
-        `Task:\n${instructionForIntent(intent)}`,
+        `Task:\n${instructionForIntent(intent, translationTargetLanguage)}`,
         `Target scope:\n${targetScopeLabel[targetScope]}`,
         `Edit mode:\n${targetType === "insert" ? "Insert after the target" : "Replace the target"}`,
         `Target text:\n${targetText}`,
@@ -101,7 +103,20 @@ export function buildInlineAiMessages({
   ];
 }
 
-function instructionForIntent(intent: AiEditIntent) {
+function instructionForIntent(intent: AiEditIntent, translationTargetLanguage: string) {
+  if (intent === "translate") {
+    const preferredTargetLanguage = translationTargetLanguage || "English";
+    const fallbackTargetLanguage = preferredTargetLanguage === "English" ? "Simplified Chinese" : "English";
+
+    return [
+      "Automatically detect the target text's current language before translating it.",
+      `Use ${preferredTargetLanguage} as the preferred target language when the target text is not already in ${preferredTargetLanguage}.`,
+      `If the target text is already in ${preferredTargetLanguage}, translate it into ${fallbackTargetLanguage} unless the user instruction names another target language.`,
+      "If the user instruction explicitly names a different target language, use that explicit language instead.",
+      "Preserve Markdown formatting."
+    ].join(" ");
+  }
+
   return intentInstruction[intent];
 }
 

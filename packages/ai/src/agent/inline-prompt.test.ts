@@ -77,7 +77,8 @@ describe("inline AI prompt builder", () => {
       documentContent: "# 标题\n\n你好",
       intent: "translate",
       prompt: "Translate",
-      targetText: "你好"
+      targetText: "你好",
+      translationTargetLanguage: "Japanese"
     });
     const defaultMessages = buildInlineAiMessages({
       documentContent: "# 标题\n\n你好",
@@ -87,10 +88,10 @@ describe("inline AI prompt builder", () => {
     });
 
     expect(messages[1]?.content).toContain("Task:\nAutomatically detect the target text's current language");
-    expect(messages[1]?.content).toContain("If the target text is mostly English, translate it into Simplified Chinese.");
-    expect(messages[1]?.content).toContain("If the target text is mostly Chinese, translate it into English.");
+    expect(messages[1]?.content).toContain("Use Japanese as the preferred target language");
+    expect(messages[1]?.content).toContain("If the target text is already in Japanese, translate it into English");
     expect(defaultMessages[1]?.content).toContain(
-      "For other languages, translate it into English unless the user instruction names another target language."
+      "Use English as the preferred target language"
     );
   });
 
