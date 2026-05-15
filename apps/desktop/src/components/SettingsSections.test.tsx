@@ -1,7 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import { t } from "@markra/shared";
-import { defaultEditorPreferences, type EditorPreferences } from "../lib/settings/app-settings";
+import {
+  defaultCustomThemeCss,
+  defaultEditorPreferences,
+  type EditorPreferences
+} from "../lib/settings/app-settings";
 import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import { AiSettings, AppearanceSettings, EditorSettings, KeyboardShortcutsSettings, StorageSettings } from "./SettingsSections";
 
@@ -98,6 +102,105 @@ describe("AppearanceSettings", () => {
     });
 
     expect(onUpdateCustomThemeCss).toHaveBeenCalledWith(":root[data-theme=\"custom\"] { --accent: #0969da; }");
+  });
+
+  it("selects a theme from preview swatches", () => {
+    const onSelectTheme = vi.fn();
+
+    render(
+      <AppearanceSettings
+        customThemeCss=""
+        selectedTheme="system"
+        translate={translate}
+        onUpdateCustomThemeCss={vi.fn()}
+        onSelectTheme={onSelectTheme}
+      />
+    );
+
+    const themePreviews = screen.getByRole("radiogroup", { name: "Theme previews" });
+    const systemPreview = within(themePreviews).getByRole("radio", { name: "System" });
+    const sepiaPreview = within(themePreviews).getByRole("radio", { name: "Sepia" });
+
+    expect(systemPreview).toHaveAttribute("aria-checked", "true");
+    expect(sepiaPreview).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(sepiaPreview);
+
+    expect(onSelectTheme).toHaveBeenCalledWith("sepia");
+  });
+
+  it("resets the custom theme CSS to the default template", () => {
+    const onUpdateCustomThemeCss = vi.fn();
+
+    render(
+      <AppearanceSettings
+        customThemeCss={":root[data-theme=\"custom\"] { --accent: #b91c1c; }"}
+        selectedTheme="custom"
+        translate={translate}
+        onUpdateCustomThemeCss={onUpdateCustomThemeCss}
+        onSelectTheme={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset template" }));
+
+    expect(onUpdateCustomThemeCss).toHaveBeenCalledWith(defaultCustomThemeCss);
+  });
+
+  it("imports custom theme CSS from a stylesheet file", async () => {
+    const onUpdateCustomThemeCss = vi.fn();
+    const importedCss = ":root[data-theme=\"custom\"] { --accent: #2aa198; }";
+
+    render(
+      <AppearanceSettings
+        customThemeCss=""
+        selectedTheme="custom"
+        translate={translate}
+        onUpdateCustomThemeCss={onUpdateCustomThemeCss}
+        onSelectTheme={vi.fn()}
+      />
+    );
+
+    const fileInput = document.querySelector("input[type=\"file\"]") as HTMLInputElement;
+
+    expect(fileInput).toHaveAttribute("accept", ".css,text/css");
+
+    const cssFile = new File([importedCss], "solarized.css", { type: "text/css" });
+    fireEvent.change(fileInput, { target: { files: [cssFile] } });
+
+    await waitFor(() => {
+      expect(onUpdateCustomThemeCss).toHaveBeenCalledWith(importedCss);
+    });
+  });
+
+  it("exports custom theme CSS as a stylesheet file", async () => {
+    const css = ":root[data-theme=\"custom\"] { --accent: #8fbcbb; }";
+    const objectUrl = "blob:markra-custom-theme";
+    const createObjectUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue(objectUrl);
+    const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const clickAnchor = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    render(
+      <AppearanceSettings
+        customThemeCss={css}
+        selectedTheme="custom"
+        translate={translate}
+        onUpdateCustomThemeCss={vi.fn()}
+        onSelectTheme={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Export CSS" }));
+
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
+    const exportedBlob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    expect(await exportedBlob.text()).toBe(css);
+    expect(clickAnchor).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith(objectUrl);
+
+    createObjectUrl.mockRestore();
+    revokeObjectUrl.mockRestore();
+    clickAnchor.mockRestore();
   });
 });
 
