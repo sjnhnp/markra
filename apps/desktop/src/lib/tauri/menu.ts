@@ -159,12 +159,14 @@ function menuLabel(language: AppLanguage, key: I18nKey) {
 async function isCurrentNativeWindowFocused() {
   try {
     const window = getCurrentWindow();
+    // 基础检查：如果窗口报告已聚焦，直接返回
     if (await window.isFocused()) return true;
 
-    // On Windows, native menu interactions can sometimes cause isFocused to return false
-    // while the menu loop is active. If no other window reports focus, we assume this
-    // window is the intended target.
+    // 针对 Windows 菜单交互的补丁：
+    // 如果窗口暂时失去焦点，但没有其他窗口接管焦点，我们依然认为当前窗口是操作目标。
     const allWindows = await getAllWindows();
+    if (allWindows.length <= 1) return true;
+
     const anyOtherFocused = (await Promise.all(
       allWindows
         .filter((w: any) => w.label !== window.label)
@@ -172,7 +174,9 @@ async function isCurrentNativeWindowFocused() {
     )).some((focused: any) => focused);
 
     return !anyOtherFocused;
-  } catch {
+  } catch (err) {
+    // 启动阶段或 API 不可用时，默认允许执行，防止程序挂起
+    console.error("Native focus check bypassed:", err);
     return true;
   }
 }
