@@ -39,6 +39,7 @@ import {
   mockedOpenNativeMarkdownFolder,
   mockedOpenNativeMarkdownFolderInNewWindow,
   mockedOpenNativeMarkdownPath,
+  mockedOpenNativeExternalUrl,
   mockedOpenSettingsWindow,
   mockedReadNativeMarkdownFile,
   mockedResetWelcomeDocumentState,
@@ -2167,6 +2168,34 @@ describe("Markra workspace", () => {
     expect(savedContents).toContain("[关于我们](https://m.techflowpost.com/article/9424)");
     expect(savedContents).not.toContain("\\[关于我们\\]");
     expect(savedContents).not.toContain("\\(https\\://m.techflowpost.com/article/9424\\)");
+  });
+
+  it("opens relative markdown links inside the current folder workspace", async () => {
+    const guidePath = "/mock-files/docs/guide.md";
+    mockOpenMarkdownFile({
+      content: "[Guide](./docs/guide.md)",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "native.md", path: mockNativePath, relativePath: "native.md" },
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOpened through a document link.",
+      name: "guide.md",
+      path: guidePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    const link = await screen.findByText("Guide");
+    link.closest("a")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true }));
+
+    expect(await screen.findByText("Opened through a document link.")).toBeInTheDocument();
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
+    expect(mockedOpenNativeExternalUrl).not.toHaveBeenCalled();
   });
 
   it("wires native menu file actions to the current document commands", async () => {

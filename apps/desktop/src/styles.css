@@ -792,6 +792,26 @@
     @apply hidden;
   }
 
+  .markra-document-link-menu {
+    @apply fixed z-[60] min-w-60 max-w-[22rem] rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 shadow-(--ai-command-expanded-shadow);
+  }
+
+  .markra-document-link-option {
+    @apply flex cursor-pointer flex-col gap-0.5 rounded-md px-2.5 py-1.5 text-left;
+  }
+
+  .markra-document-link-option[aria-selected="true"] {
+    @apply bg-(--bg-hover);
+  }
+
+  .markra-document-link-title {
+    @apply truncate text-sm font-medium leading-5 text-(--text-heading);
+  }
+
+  .markra-document-link-path {
+    @apply truncate text-xs leading-4 text-(--text-secondary);
+  }
+
   .markdown-paper .markra-html-node {
     @apply max-w-full outline-none;
   }

@@ -29,6 +29,7 @@ import { clearAiSelectionHold, defaultMarkdownShortcuts, showAiSelectionHold, ty
 async function renderEditor(
   initialContent = "",
   options: {
+    documentPath?: string | null;
     onMarkdownChange?: (content: string) => unknown;
     onSaveClipboardImage?: (image: File) => Promise<{ alt: string; src: string } | null>;
     onSaveRemoteClipboardImage?: (image: RemoteClipboardImage) => Promise<{ alt: string; src: string } | null>;
@@ -36,11 +37,18 @@ async function renderEditor(
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
     resolveImageSrc?: (src: string) => string;
     markdownShortcuts?: MarkdownShortcutMap;
+    workspaceFiles?: Array<{
+      kind?: "asset" | "folder";
+      name: string;
+      path: string;
+      relativePath: string;
+    }>;
   } = {}
 ) {
   let editor: Editor | null = null;
   const result = render(
     <MarkdownPaper
+      documentPath={options.documentPath}
       initialContent={initialContent}
       onEditorReady={(instance) => {
         editor = instance;
@@ -53,6 +61,7 @@ async function renderEditor(
       onTextSelectionChange={options.onTextSelectionChange}
       resolveImageSrc={options.resolveImageSrc}
       revision={0}
+      workspaceFiles={options.workspaceFiles}
     />
   );
 
@@ -4092,6 +4101,38 @@ describe("MarkdownPaper editing", () => {
     expect(editCase.container.querySelector(".ProseMirror")?.textContent).toBe("[Markra](https://example.com)");
     expectActiveSourceLinkLabel(editCase.container, "Markra");
     expect(editCase.container.querySelector(".ProseMirror .markra-live-link-mark-source-text")).not.toBeInTheDocument();
+  });
+
+  it("inserts a standard markdown document link from double-bracket completion", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", {
+      documentPath: "/mock-files/vault/index.md",
+      onMarkdownChange,
+      workspaceFiles: [
+        { name: "index.md", path: "/mock-files/vault/index.md", relativePath: "index.md" },
+        { name: "Guide Notes.md", path: "/mock-files/vault/docs/Guide Notes.md", relativePath: "docs/Guide Notes.md" },
+        { kind: "asset", name: "cover.png", path: "/mock-files/vault/cover.png", relativePath: "cover.png" }
+      ]
+    });
+
+    typeText(view, "[[guide");
+
+    expect(await screen.findByRole("listbox", { name: "Document links" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Guide Notes docs/Guide Notes.md" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    expect(pressEnter(view)).toBe(true);
+    expect(screen.queryByRole("listbox", { name: "Document links" })).not.toBeInTheDocument();
+    expect(container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="./docs/Guide%20Notes.md"]')).toHaveTextContent(
+      "Guide Notes"
+    );
+
+    await settleMarkdownListener();
+    const changedMarkdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "");
+    expect(changedMarkdown).toContain("[Guide Notes](./docs/Guide%20Notes.md)");
+    expect(changedMarkdown).not.toContain("[[guide");
   });
 
   it("expands finalized links into editable markdown source", async () => {
