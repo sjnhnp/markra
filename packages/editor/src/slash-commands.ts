@@ -438,9 +438,9 @@ class SlashCommandMenuView {
 
   private render(state: SlashCommandState) {
     const filteredCommands = filterSlashCommands(this.commands, state.active?.query ?? "");
-    this.menu.textContent = "";
 
     if (filteredCommands.length === 0) {
+      this.menu.textContent = "";
       const empty = this.view.dom.ownerDocument.createElement("div");
       empty.className = "markra-slash-menu-empty";
       empty.textContent = this.labels.noResults;
@@ -448,17 +448,39 @@ class SlashCommandMenuView {
       return;
     }
 
-    filteredCommands.forEach((command, index) => {
-      const option = this.view.dom.ownerDocument.createElement("button");
-      option.className = "markra-slash-menu-option";
+    const currentOptions = Array.from(this.menu.querySelectorAll<HTMLButtonElement>(".markra-slash-menu-option"));
+    const optionsMatchCommands = currentOptions.length === filteredCommands.length
+      && currentOptions.every((option, index) => option.dataset.slashCommandId === filteredCommands[index]?.id);
+
+    if (!optionsMatchCommands) {
+      this.menu.textContent = "";
+      filteredCommands.forEach((command, index) => {
+        this.menu.append(this.createOption(command, index === state.selectedIndex));
+      });
+      return;
+    }
+
+    currentOptions.forEach((option, index) => {
+      const command = filteredCommands[index];
+      if (!command) return;
+
       option.dataset.slashCommandId = command.id;
       option.setAttribute("aria-selected", String(index === state.selectedIndex));
-      option.setAttribute("role", "option");
-      option.tabIndex = -1;
-      option.type = "button";
       option.textContent = command.label;
-      this.menu.append(option);
     });
+  }
+
+  private createOption(command: SlashCommandSpec, selected: boolean) {
+    const option = this.view.dom.ownerDocument.createElement("button");
+    option.className = "markra-slash-menu-option";
+    option.dataset.slashCommandId = command.id;
+    option.setAttribute("aria-selected", String(selected));
+    option.setAttribute("role", "option");
+    option.tabIndex = -1;
+    option.type = "button";
+    option.textContent = command.label;
+
+    return option;
   }
 
   private readonly handleMouseDown = (event: MouseEvent) => {
