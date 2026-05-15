@@ -1,7 +1,8 @@
-import type { Node as ProseNode, ResolvedPos } from "@milkdown/kit/prose/model";
+import { Fragment, type Node as ProseNode, type ResolvedPos } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, TextSelection, type EditorState } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
+import { openSlashCommandMenu } from "./slash-commands.ts";
 
 export type BlockDragLabels = {
   addBlock: string;
@@ -386,17 +387,81 @@ function moveBlock(view: EditorView, source: BlockDragRange, target: BlockDropTa
   }
 }
 
-function blockToInsertAfter(view: EditorView, range: BlockDragRange) {
-  if (range.node.type.name === "list_item") {
-    return range.node.type.createAndFill();
-  }
-
+function paragraphBlockFor(view: EditorView) {
   const paragraph = view.state.schema.nodes.paragraph;
   return paragraph?.create() ?? null;
 }
 
+function blockToInsertAfter(view: EditorView) {
+  return paragraphBlockFor(view);
+}
+
+function listChildIndexForRange(list: ProseNode, range: BlockDragRange) {
+  const targetOffset = range.pos - range.parentStart - 1;
+  let targetIndex = -1;
+
+  list.forEach((child, offset, index) => {
+    if (targetIndex >= 0) return;
+    if (offset !== targetOffset || !child.eq(range.node)) return;
+
+    targetIndex = index;
+  });
+
+  return targetIndex;
+}
+
+function splitListAroundInsertedParagraph(view: EditorView, range: BlockDragRange) {
+  const paragraph = paragraphBlockFor(view);
+  if (!paragraph) return false;
+
+  const list = parentNodeForRange(view.state, range);
+  if (!list || !listNodeNames.has(list.type.name)) return false;
+
+  const targetIndex = listChildIndexForRange(list, range);
+  if (targetIndex < 0) return false;
+
+  const beforeItems: ProseNode[] = [];
+  const afterItems: ProseNode[] = [];
+
+  list.forEach((child, _offset, index) => {
+    if (index <= targetIndex) {
+      beforeItems.push(child);
+      return;
+    }
+
+    afterItems.push(child);
+  });
+
+  const beforeList = list.type.create(list.attrs, Fragment.fromArray(beforeItems));
+  const replacementNodes: ProseNode[] = [beforeList, paragraph];
+  const paragraphPosition = range.parentStart + beforeList.nodeSize;
+
+  if (afterItems.length > 0) {
+    const afterAttrs = list.type.name === "ordered_list"
+      ? { ...list.attrs, order: (list.attrs.order ?? 1) + targetIndex + 1 }
+      : list.attrs;
+    replacementNodes.push(list.type.create(afterAttrs, Fragment.fromArray(afterItems)));
+  }
+
+  try {
+    const tr = view.state.tr.replaceWith(
+      range.parentStart,
+      range.parentStart + list.nodeSize,
+      Fragment.fromArray(replacementNodes)
+    );
+    const selection = TextSelection.near(tr.doc.resolve(paragraphPosition + 1), 1);
+    view.dispatch(tr.setSelection(selection).scrollIntoView());
+    view.focus();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function insertBlockAfter(view: EditorView, range: BlockDragRange) {
-  const block = blockToInsertAfter(view, range);
+  if (range.node.type.name === "list_item") return splitListAroundInsertedParagraph(view, range);
+
+  const block = blockToInsertAfter(view);
   if (!block) return false;
 
   const insertPos = range.pos + range.node.nodeSize;
@@ -605,6 +670,7 @@ class MarkraBlockDragView {
     const range = this.activeRange ?? this.rangeFromPoint(event.clientX, event.clientY);
     if (!range || !insertBlockAfter(this.view, range)) return;
 
+    openSlashCommandMenu(this.view);
     this.hideHandle();
   };
 

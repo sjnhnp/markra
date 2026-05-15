@@ -15,7 +15,7 @@ import {
 } from "@milkdown/kit/preset/gfm";
 import type { NodeType } from "@milkdown/kit/prose/model";
 import { setBlockType, wrapIn } from "@milkdown/kit/prose/commands";
-import { Plugin, PluginKey, TextSelection, type Command, type EditorState } from "@milkdown/kit/prose/state";
+import { Plugin, PluginKey, TextSelection, type Command, type EditorState, type Transaction } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { wrapInList } from "@milkdown/kit/prose/schema-list";
 import { $prose } from "@milkdown/kit/utils";
@@ -40,6 +40,7 @@ export type SlashCommandLabels = {
 type SlashCommandRange = {
   from: number;
   query: string;
+  source: "typed" | "virtual";
   to: number;
 };
 
@@ -54,6 +55,9 @@ type SlashCommandState = {
 type SlashCommandMeta =
   | {
       type: "close";
+    }
+  | {
+      type: "open";
     }
   | {
       selectedIndex: number;
@@ -117,8 +121,44 @@ function slashRangeFromState(state: EditorState): SlashCommandRange | null {
   return {
     from: selection.from - beforeCursor.length,
     query: match[1] ?? "",
+    source: "typed",
     to: selection.from
   };
+}
+
+function virtualSlashRangeFromState(state: EditorState, from = state.selection.from): SlashCommandRange | null {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+
+  const { $from } = selection;
+  if (!$from.parent.isTextblock || $from.parent.type.spec.code) return null;
+
+  const afterCursor = $from.parent.textContent.slice($from.parentOffset);
+  if (afterCursor.length > 0) return null;
+
+  const textOffset = from - $from.start();
+  if (textOffset < 0 || textOffset > $from.parentOffset) return null;
+
+  const query = $from.parent.textContent.slice(textOffset, $from.parentOffset);
+  if (/[\s/]/u.test(query)) return null;
+
+  return {
+    from,
+    query,
+    source: "virtual",
+    to: selection.from
+  };
+}
+
+function continuedVirtualSlashRangeFromState(
+  state: EditorState,
+  transaction: Transaction,
+  previousState: SlashCommandState
+) {
+  if (previousState.active?.source !== "virtual") return null;
+
+  const from = transaction.mapping.map(previousState.active.from, -1);
+  return virtualSlashRangeFromState(state, from);
 }
 
 function normalizedSearchText(value: string) {
@@ -293,6 +333,16 @@ function closeSlashCommandMenu(view: EditorView) {
   } satisfies SlashCommandMeta));
 }
 
+export function openSlashCommandMenu(view: EditorView) {
+  if (!virtualSlashRangeFromState(view.state)) return false;
+
+  view.dispatch(view.state.tr.setMeta(slashCommandsKey, {
+    type: "open"
+  } satisfies SlashCommandMeta));
+  view.focus();
+  return true;
+}
+
 function runSelectedSlashCommand(view: EditorView, commands: SlashCommandSpec[]) {
   const state = slashCommandsKey.getState(view.state);
   if (!state?.active) return false;
@@ -301,7 +351,11 @@ function runSelectedSlashCommand(view: EditorView, commands: SlashCommandSpec[])
   const selectedCommand = filteredCommands[state.selectedIndex];
   if (!selectedCommand) return false;
 
-  return selectedCommand.run(view, state.active);
+  const range = state.active;
+  const handled = selectedCommand.run(view, range);
+  if (handled && range.source === "virtual") closeSlashCommandMenu(view);
+
+  return handled;
 }
 
 function positionMenu(menu: HTMLElement, view: EditorView, range: SlashCommandRange) {
@@ -321,6 +375,13 @@ function positionMenu(menu: HTMLElement, view: EditorView, range: SlashCommandRa
   }
 }
 
+function elementFromEventTarget(target: EventTarget | null) {
+  if (target instanceof Element) return target;
+  if (target instanceof Node) return target.parentElement;
+
+  return null;
+}
+
 class SlashCommandMenuView {
   private readonly menu: HTMLDivElement;
   private view: EditorView;
@@ -335,7 +396,9 @@ class SlashCommandMenuView {
     this.menu.className = "markra-slash-menu";
     this.menu.setAttribute("aria-label", labels.menu);
     this.menu.setAttribute("role", "listbox");
+    this.menu.addEventListener("pointerdown", this.handlePointerDown);
     this.menu.addEventListener("mousedown", this.handleMouseDown);
+    this.menu.addEventListener("click", this.handleClick);
     this.menu.addEventListener("mouseover", this.handleMouseOver);
   }
 
@@ -354,7 +417,9 @@ class SlashCommandMenuView {
   }
 
   destroy() {
+    this.menu.removeEventListener("pointerdown", this.handlePointerDown);
     this.menu.removeEventListener("mousedown", this.handleMouseDown);
+    this.menu.removeEventListener("click", this.handleClick);
     this.menu.removeEventListener("mouseover", this.handleMouseOver);
     this.detach();
   }
@@ -373,9 +438,9 @@ class SlashCommandMenuView {
 
   private render(state: SlashCommandState) {
     const filteredCommands = filterSlashCommands(this.commands, state.active?.query ?? "");
-    this.menu.textContent = "";
 
     if (filteredCommands.length === 0) {
+      this.menu.textContent = "";
       const empty = this.view.dom.ownerDocument.createElement("div");
       empty.className = "markra-slash-menu-empty";
       empty.textContent = this.labels.noResults;
@@ -383,25 +448,62 @@ class SlashCommandMenuView {
       return;
     }
 
-    filteredCommands.forEach((command, index) => {
-      const option = this.view.dom.ownerDocument.createElement("button");
-      option.className = "markra-slash-menu-option";
+    const currentOptions = Array.from(this.menu.querySelectorAll<HTMLButtonElement>(".markra-slash-menu-option"));
+    const optionsMatchCommands = currentOptions.length === filteredCommands.length
+      && currentOptions.every((option, index) => option.dataset.slashCommandId === filteredCommands[index]?.id);
+
+    if (!optionsMatchCommands) {
+      this.menu.textContent = "";
+      filteredCommands.forEach((command, index) => {
+        this.menu.append(this.createOption(command, index === state.selectedIndex));
+      });
+      return;
+    }
+
+    currentOptions.forEach((option, index) => {
+      const command = filteredCommands[index];
+      if (!command) return;
+
       option.dataset.slashCommandId = command.id;
       option.setAttribute("aria-selected", String(index === state.selectedIndex));
-      option.setAttribute("role", "option");
-      option.tabIndex = -1;
-      option.type = "button";
       option.textContent = command.label;
-      this.menu.append(option);
     });
   }
 
+  private createOption(command: SlashCommandSpec, selected: boolean) {
+    const option = this.view.dom.ownerDocument.createElement("button");
+    option.className = "markra-slash-menu-option";
+    option.dataset.slashCommandId = command.id;
+    option.setAttribute("aria-selected", String(selected));
+    option.setAttribute("role", "option");
+    option.tabIndex = -1;
+    option.type = "button";
+    option.textContent = command.label;
+
+    return option;
+  }
+
   private readonly handleMouseDown = (event: MouseEvent) => {
-    const target = event.target instanceof Element ? event.target : null;
+    this.runCommandFromMouseEvent(event);
+  };
+
+  private readonly handleClick = (event: MouseEvent) => {
+    this.runCommandFromMouseEvent(event);
+  };
+
+  private readonly handlePointerDown = (event: PointerEvent) => {
+    if (event.button !== 0) return;
+
+    this.runCommandFromMouseEvent(event);
+  };
+
+  private runCommandFromMouseEvent(event: MouseEvent) {
+    const target = elementFromEventTarget(event.target);
     const option = target?.closest<HTMLElement>("[data-slash-command-id]");
     if (!option || !this.menu.contains(option)) return;
 
     event.preventDefault();
+    event.stopPropagation();
     const commandId = option.dataset.slashCommandId as SlashCommandId | undefined;
     const state = slashCommandsKey.getState(this.view.state);
     if (!state?.active || !commandId) return;
@@ -409,11 +511,13 @@ class SlashCommandMenuView {
     const command = this.commands.find((candidate) => candidate.id === commandId);
     if (!command) return;
 
-    command.run(this.view, state.active);
-  };
+    const range = state.active;
+    const handled = command.run(this.view, range);
+    if (handled && range.source === "virtual") closeSlashCommandMenu(this.view);
+  }
 
   private readonly handleMouseOver = (event: MouseEvent) => {
-    const target = event.target instanceof Element ? event.target : null;
+    const target = elementFromEventTarget(event.target);
     const option = target?.closest<HTMLElement>("[data-slash-command-id]");
     if (!option || !this.menu.contains(option)) return;
 
@@ -454,13 +558,24 @@ export const markraSlashCommands = (labels: Partial<SlashCommandLabels> = {}) =>
       init: () => emptySlashCommandState,
       apply(transaction, previousState, _oldState, newState) {
         const meta = transaction.getMeta(slashCommandsKey) as SlashCommandMeta | undefined;
-        const activeRange = slashRangeFromState(newState);
+        const activeRange = slashRangeFromState(newState)
+          ?? continuedVirtualSlashRangeFromState(newState, transaction, previousState);
 
         if (meta?.type === "close") {
           return {
             active: null,
             selectedIndex: 0,
-            suppressed: activeRange ? { from: activeRange.from, to: activeRange.to } : null
+            suppressed: activeRange?.source === "typed" ? { from: activeRange.from, to: activeRange.to } : null
+          };
+        }
+
+        if (meta?.type === "open") {
+          const openedRange = virtualSlashRangeFromState(newState);
+
+          return {
+            active: openedRange,
+            selectedIndex: 0,
+            suppressed: null
           };
         }
 

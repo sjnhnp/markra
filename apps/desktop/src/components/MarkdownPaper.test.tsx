@@ -1767,7 +1767,135 @@ describe("MarkdownPaper editing", () => {
     restoreLayout();
   });
 
-  it("adds a list item below the hovered list item from the side toolbar", async () => {
+  it("opens slash commands after adding a paragraph from the side toolbar", async () => {
+    const { container, editor, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    expect(await screen.findByRole("listbox", { name: "Slash commands" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Heading 1" })).toBeInTheDocument();
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("First\n\nSecond\n\n<br />\n\nThird\n");
+    expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("/");
+    restoreLayout();
+  });
+
+  it("runs slash commands by mouse after adding a paragraph from the side toolbar", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    const headingOption = await screen.findByRole("option", { name: "Heading 1" });
+    fireEvent.pointerDown(headingOption, {
+      button: 0,
+      buttons: 1,
+      pointerId: 11
+    });
+
+    await waitFor(() => expect(view.state.doc.child(2).type.name).toBe("heading"));
+    expect(view.state.doc.child(2).attrs.level).toBe(1);
+    expect(screen.queryByRole("listbox", { name: "Slash commands" })).not.toBeInTheDocument();
+    restoreLayout();
+  });
+
+  it("runs slash commands when a mouse event targets the option text", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    const headingOption = await screen.findByRole("option", { name: "Heading 1" });
+    const optionText = headingOption.firstChild;
+    expect(optionText?.nodeType).toBe(Node.TEXT_NODE);
+    optionText?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true
+    }));
+
+    await waitFor(() => expect(view.state.doc.child(2).type.name).toBe("heading"));
+    expect(view.state.doc.child(2).attrs.level).toBe(1);
+    expect(screen.queryByRole("listbox", { name: "Slash commands" })).not.toBeInTheDocument();
+    restoreLayout();
+  });
+
+  it("keeps a hovered slash command option clickable", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    const headingOption = await screen.findByRole("option", { name: "Heading 1" });
+    fireEvent.mouseOver(headingOption);
+    fireEvent.mouseDown(headingOption, {
+      button: 0,
+      buttons: 1
+    });
+
+    await waitFor(() => expect(view.state.doc.child(2).type.name).toBe("heading"));
+    expect(view.state.doc.child(2).attrs.level).toBe(1);
+    expect(screen.queryByRole("listbox", { name: "Slash commands" })).not.toBeInTheDocument();
+    restoreLayout();
+  });
+
+  it("filters slash commands from a side toolbar inserted paragraph", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+    expect(await screen.findByRole("listbox", { name: "Slash commands" })).toBeInTheDocument();
+
+    typeText(view, "co");
+
+    expect(screen.getByRole("option", { name: "Code Block" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("option", { name: "Heading 1" })).not.toBeInTheDocument();
+
+    expect(pressEnter(view)).toBe(true);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror .markra-code-block")).toBeInTheDocument());
+    expect(view.state.doc.textContent).toBe("FirstSecondThird");
+    restoreLayout();
+  });
+
+  it("adds a blank paragraph below the hovered list item from the side toolbar", async () => {
     const { container, editor, view } = await renderEditor("- First\n- Second");
     const restoreLayout = mockListItemBlockDragLayout(view, container);
     const surface = container.querySelector<HTMLElement>(".ProseMirror");
@@ -1779,10 +1907,38 @@ describe("MarkdownPaper editing", () => {
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+    expect(await screen.findByRole("listbox", { name: "Slash commands" })).toBeInTheDocument();
     typeText(view, "Inserted");
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-    expect(serializeMarkdown(view.state.doc)).toBe("* First\n\n* Inserted\n\n* Second\n");
+    expect(serializeMarkdown(view.state.doc)).toBe("* First\n\nInserted\n\n* Second\n");
+    restoreLayout();
+  });
+
+  it("runs slash commands after adding a blank paragraph from a list item", async () => {
+    const { container, view } = await renderEditor("- First\n- Second");
+    const restoreLayout = mockListItemBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    const headingOption = await screen.findByRole("option", { name: "Heading 1" });
+    fireEvent.pointerDown(headingOption, {
+      button: 0,
+      buttons: 1,
+      pointerId: 12
+    });
+
+    await waitFor(() => expect(view.state.doc.child(1).type.name).toBe("heading"));
+    expect(view.state.doc.child(1).attrs.level).toBe(1);
+    expect(view.state.doc.child(0).type.name).toBe("bullet_list");
+    expect(view.state.doc.child(2).type.name).toBe("bullet_list");
     restoreLayout();
   });
 
