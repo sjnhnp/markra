@@ -1803,7 +1803,11 @@ describe("MarkdownPaper editing", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
 
     const headingOption = await screen.findByRole("option", { name: "Heading 1" });
-    fireEvent.click(headingOption);
+    fireEvent.pointerDown(headingOption, {
+      button: 0,
+      buttons: 1,
+      pointerId: 11
+    });
 
     await waitFor(() => expect(view.state.doc.child(2).type.name).toBe("heading"));
     expect(view.state.doc.child(2).attrs.level).toBe(1);
@@ -1837,7 +1841,7 @@ describe("MarkdownPaper editing", () => {
     restoreLayout();
   });
 
-  it("adds a list item below the hovered list item from the side toolbar", async () => {
+  it("adds a blank paragraph below the hovered list item from the side toolbar", async () => {
     const { container, editor, view } = await renderEditor("- First\n- Second");
     const restoreLayout = mockListItemBlockDragLayout(view, container);
     const surface = container.querySelector<HTMLElement>(".ProseMirror");
@@ -1849,10 +1853,38 @@ describe("MarkdownPaper editing", () => {
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+    expect(await screen.findByRole("listbox", { name: "Slash commands" })).toBeInTheDocument();
     typeText(view, "Inserted");
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-    expect(serializeMarkdown(view.state.doc)).toBe("* First\n\n* Inserted\n\n* Second\n");
+    expect(serializeMarkdown(view.state.doc)).toBe("* First\n\nInserted\n\n* Second\n");
+    restoreLayout();
+  });
+
+  it("runs slash commands after adding a blank paragraph from a list item", async () => {
+    const { container, view } = await renderEditor("- First\n- Second");
+    const restoreLayout = mockListItemBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    const headingOption = await screen.findByRole("option", { name: "Heading 1" });
+    fireEvent.pointerDown(headingOption, {
+      button: 0,
+      buttons: 1,
+      pointerId: 12
+    });
+
+    await waitFor(() => expect(view.state.doc.child(1).type.name).toBe("heading"));
+    expect(view.state.doc.child(1).attrs.level).toBe(1);
+    expect(view.state.doc.child(0).type.name).toBe("bullet_list");
+    expect(view.state.doc.child(2).type.name).toBe("bullet_list");
     restoreLayout();
   });
 

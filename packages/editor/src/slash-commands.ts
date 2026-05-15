@@ -389,6 +389,7 @@ class SlashCommandMenuView {
     this.menu.className = "markra-slash-menu";
     this.menu.setAttribute("aria-label", labels.menu);
     this.menu.setAttribute("role", "listbox");
+    this.menu.addEventListener("pointerdown", this.handlePointerDown);
     this.menu.addEventListener("mousedown", this.handleMouseDown);
     this.menu.addEventListener("click", this.handleClick);
     this.menu.addEventListener("mouseover", this.handleMouseOver);
@@ -409,6 +410,7 @@ class SlashCommandMenuView {
   }
 
   destroy() {
+    this.menu.removeEventListener("pointerdown", this.handlePointerDown);
     this.menu.removeEventListener("mousedown", this.handleMouseDown);
     this.menu.removeEventListener("click", this.handleClick);
     this.menu.removeEventListener("mouseover", this.handleMouseOver);
@@ -460,12 +462,19 @@ class SlashCommandMenuView {
     this.runCommandFromMouseEvent(event);
   };
 
+  private readonly handlePointerDown = (event: PointerEvent) => {
+    if (event.button !== 0) return;
+
+    this.runCommandFromMouseEvent(event);
+  };
+
   private runCommandFromMouseEvent(event: MouseEvent) {
     const target = event.target instanceof Element ? event.target : null;
     const option = target?.closest<HTMLElement>("[data-slash-command-id]");
     if (!option || !this.menu.contains(option)) return;
 
     event.preventDefault();
+    event.stopPropagation();
     const commandId = option.dataset.slashCommandId as SlashCommandId | undefined;
     const state = slashCommandsKey.getState(this.view.state);
     if (!state?.active || !commandId) return;
