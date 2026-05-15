@@ -198,6 +198,14 @@ body {
     padding-top: 4mm;
     border-top: ${hasFooter ? "1px solid #ddd" : "0"};
   }${pageBreakStyles}
+
+  .markra-pdf-counter-page::after {
+    content: counter(page);
+  }
+
+  .markra-pdf-counter-pages::after {
+    content: counter(pages);
+  }
 }
 
 @page {
@@ -300,6 +308,16 @@ export function buildMarkdownHtmlDocument({
     pdfWidthMm
   });
 
+  const processText = (text: string | undefined) => {
+    if (!text) return "";
+    return escapeHtmlText(text.trim())
+      .replace(/{{page}}/gu, '<span class="markra-pdf-counter-page"></span>')
+      .replace(/{{pages}}/gu, '<span class="markra-pdf-counter-pages"></span>');
+  };
+
+  const processedHeader = processText(pdfHeader);
+  const processedFooter = processText(pdfFooter);
+
   return [
     "<!doctype html>",
     `<html lang="${escapedLanguage}">`,
@@ -313,8 +331,8 @@ export function buildMarkdownHtmlDocument({
     "</style>",
     "</head>",
     "<body>",
-    ...(escapedHeader ? [`<header class="markdown-export-page-header">${escapedHeader}</header>`] : []),
-    ...(escapedFooter ? [`<footer class="markdown-export-page-footer">${escapedFooter}</footer>`] : []),
+    ...(processedHeader ? [`<header class="markdown-export-page-header">${processedHeader}</header>`] : []),
+    ...(processedFooter ? [`<footer class="markdown-export-page-footer">${processedFooter}</footer>`] : []),
     '<main class="markdown-export">',
     bodyHtml,
     "</main>",
