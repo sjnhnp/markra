@@ -185,6 +185,7 @@ body {
     color: #666;
     font-size: 10px;
     line-height: 1.4;
+    text-align: center;
   }
 
   .markdown-export-page-header {
