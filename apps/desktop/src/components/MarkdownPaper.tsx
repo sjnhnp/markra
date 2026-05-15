@@ -59,6 +59,8 @@ import {
   type EditorContentWidth
 } from "../lib/editor-width";
 import { readAiSelectionContextFromView } from "../hooks/useEditorController";
+import type { MarkdownDocumentLinkFile } from "../lib/document-links";
+import { markraDocumentLinkCompletionPlugin } from "./document-link-completion";
 import { EditorWidthResizer } from "./EditorWidthResizer";
 
 const markraCommonmark = [
@@ -90,6 +92,7 @@ type MarkdownPaperProps = {
   contentWidthMax?: number;
   contentWidthMin?: number;
   contentWidthPx?: number | null;
+  documentPath?: string | null;
   initialContent: string;
   language?: AppLanguage;
   lineHeight?: number;
@@ -106,10 +109,12 @@ type MarkdownPaperProps = {
   resolveImageSrc?: (src: string) => string;
   revision: number;
   topInset?: "tabs" | "titlebar";
+  workspaceFiles?: MarkdownDocumentLinkFile[];
 };
 
 type MilkdownSurfaceProps = {
   autoFocus: boolean;
+  documentPath?: MarkdownPaperProps["documentPath"];
   initialContent: string;
   language: AppLanguage;
   onEditorReady: MarkdownPaperProps["onEditorReady"];
@@ -120,6 +125,7 @@ type MilkdownSurfaceProps = {
   onTextSelectionChange?: MarkdownPaperProps["onTextSelectionChange"];
   resolveImageSrc?: MarkdownPaperProps["resolveImageSrc"];
   markdownShortcuts?: MarkdownPaperProps["markdownShortcuts"];
+  workspaceFiles?: MarkdownPaperProps["workspaceFiles"];
 };
 
 function markraTextSelectionObserverPlugin(
@@ -313,6 +319,7 @@ function MilkdownInstanceBridge({ autoFocus, onEditorReady }: Pick<MilkdownSurfa
 
 function MilkdownSurface({
   autoFocus,
+  documentPath,
   initialContent,
   language,
   onEditorReady,
@@ -322,12 +329,17 @@ function MilkdownSurface({
   openExternalUrl,
   onTextSelectionChange,
   resolveImageSrc,
-  markdownShortcuts
+  markdownShortcuts,
+  workspaceFiles
 }: MilkdownSurfaceProps) {
   const initialContentRef = useRef(initialContent);
+  const documentPathRef = useRef(documentPath);
+  const openExternalUrlRef = useRef(openExternalUrl);
   const onSaveClipboardImageRef = useRef(onSaveClipboardImage);
   const onSaveRemoteClipboardImageRef = useRef(onSaveRemoteClipboardImage);
   const onTextSelectionChangeRef = useRef(onTextSelectionChange);
+  const workspaceFilesRef = useRef(workspaceFiles ?? []);
+  const externalLinkOpeningEnabled = Boolean(openExternalUrl);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
   const tableControlLabels = {
     addColumnRight: t(language, "editor.table.addColumnRight"),
@@ -367,12 +379,24 @@ function MilkdownSurface({
   }, [onSaveClipboardImage]);
 
   useEffect(() => {
+    documentPathRef.current = documentPath;
+  }, [documentPath]);
+
+  useEffect(() => {
+    openExternalUrlRef.current = openExternalUrl;
+  }, [openExternalUrl]);
+
+  useEffect(() => {
     onSaveRemoteClipboardImageRef.current = onSaveRemoteClipboardImage;
   }, [onSaveRemoteClipboardImage]);
 
   useEffect(() => {
     onTextSelectionChangeRef.current = onTextSelectionChange;
   }, [onTextSelectionChange]);
+
+  useEffect(() => {
+    workspaceFilesRef.current = workspaceFiles ?? [];
+  }, [workspaceFiles]);
 
   const createEditor = useCallback(
     (root: HTMLElement) => {
@@ -424,6 +448,12 @@ function MilkdownSurface({
         .use(markraAiEditorPreviewPlugin)
         .use(markraBlockDragPlugin(blockDragLabels))
         .use(
+          markraDocumentLinkCompletionPlugin({
+            getDocumentPath: () => documentPathRef.current,
+            getWorkspaceFiles: () => workspaceFilesRef.current
+          })
+        )
+        .use(
           markraTextSelectionObserverPlugin((selection) => {
             onTextSelectionChangeRef.current?.(selection);
           })
@@ -441,8 +471,12 @@ function MilkdownSurface({
         )
         .use(markraLiveMarkdownPlugin);
 
-      if (openExternalUrl) {
-        editor.use(markraExternalLinkClickPlugin(openExternalUrl));
+      if (externalLinkOpeningEnabled) {
+        editor.use(
+          markraExternalLinkClickPlugin((url) => {
+            return openExternalUrlRef.current?.(url);
+          })
+        );
       }
 
       if (onSaveClipboardImageRef.current || onSaveRemoteClipboardImageRef.current) {
@@ -458,7 +492,7 @@ function MilkdownSurface({
 
       return editor;
     },
-    [language, markdownDocumentLabel, markdownShortcuts, onMarkdownChange, openExternalUrl, resolveImageSrc, slashCommandLabels]
+    [externalLinkOpeningEnabled, language, markdownDocumentLabel, markdownShortcuts, onMarkdownChange, resolveImageSrc, slashCommandLabels]
   );
 
   useEditor(createEditor, [createEditor]);
@@ -479,6 +513,7 @@ export function MarkdownPaper({
   contentWidthMax = editorCustomContentWidthMax,
   contentWidthMin = editorCustomContentWidthMin,
   contentWidthPx = null,
+  documentPath,
   initialContent,
   language = "en",
   lineHeight = 1.65,
@@ -494,7 +529,8 @@ export function MarkdownPaper({
   onTextSelectionChange,
   resolveImageSrc,
   revision,
-  topInset = "titlebar"
+  topInset = "titlebar",
+  workspaceFiles
 }: MarkdownPaperProps) {
   const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
   const paperStyle = {
@@ -534,6 +570,7 @@ export function MarkdownPaper({
         <MilkdownProvider>
           <MilkdownSurface
             autoFocus={autoFocus}
+            documentPath={documentPath}
             initialContent={initialContent}
             language={language}
             markdownShortcuts={normalizedMarkdownShortcuts}
@@ -544,6 +581,7 @@ export function MarkdownPaper({
             openExternalUrl={openExternalUrl}
             onTextSelectionChange={onTextSelectionChange}
             resolveImageSrc={resolveImageSrc}
+            workspaceFiles={workspaceFiles}
           />
         </MilkdownProvider>
       </article>

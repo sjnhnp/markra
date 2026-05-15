@@ -46,6 +46,7 @@ import { aiTranslationLanguageName, t, type I18nKey } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
+import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
 import type { EditorContentWidth } from "./lib/editor-width";
 import { saveEditorImage } from "./lib/image-upload";
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
@@ -291,6 +292,16 @@ export default function App() {
       src
     });
   }, [document.path]);
+  const handleOpenEditorLink = useCallback(async (href: string) => {
+    const linkedFile = resolveMarkdownDocumentLinkFile(href, document.path, fileTreeFiles);
+    if (linkedFile) {
+      setActiveImageFile(null);
+      await openTreeMarkdownFile(linkedFile);
+      return;
+    }
+
+    await openNativeExternalUrl(href);
+  }, [document.path, fileTreeFiles, openTreeMarkdownFile]);
   const getActiveAiSelection = useCallback(() => activeAiSelectionRef.current, []);
   const updateActiveAiSelection = useCallback((selection: AiSelectionContext | null) => {
     activeAiSelectionRef.current = selection;
@@ -1414,6 +1425,7 @@ export default function App() {
                       bodyFontSize={editorPreferences.preferences.bodyFontSize}
                       contentWidth={activeEditorContentWidth}
                       contentWidthPx={activeEditorContentWidthPx}
+                      documentPath={document.path}
                       initialContent={document.content}
                       language={appLanguage.language}
                       lineHeight={editorPreferences.preferences.lineHeight}
@@ -1424,11 +1436,12 @@ export default function App() {
                       onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                       onSaveClipboardImage={handleSaveClipboardImage}
                       onSaveRemoteClipboardImage={handleSaveRemoteClipboardImage}
-                      openExternalUrl={openNativeExternalUrl}
+                      openExternalUrl={handleOpenEditorLink}
                       onTextSelectionChange={handleTextSelectionChange}
                       resolveImageSrc={resolveImageSrc}
                       revision={document.revision}
                       topInset="titlebar"
+                      workspaceFiles={fileTreeFiles}
                     />
                   )}
                   <QuietStatus
