@@ -351,7 +351,11 @@ function runSelectedSlashCommand(view: EditorView, commands: SlashCommandSpec[])
   const selectedCommand = filteredCommands[state.selectedIndex];
   if (!selectedCommand) return false;
 
-  return selectedCommand.run(view, state.active);
+  const range = state.active;
+  const handled = selectedCommand.run(view, range);
+  if (handled && range.source === "virtual") closeSlashCommandMenu(view);
+
+  return handled;
 }
 
 function positionMenu(menu: HTMLElement, view: EditorView, range: SlashCommandRange) {
@@ -386,6 +390,7 @@ class SlashCommandMenuView {
     this.menu.setAttribute("aria-label", labels.menu);
     this.menu.setAttribute("role", "listbox");
     this.menu.addEventListener("mousedown", this.handleMouseDown);
+    this.menu.addEventListener("click", this.handleClick);
     this.menu.addEventListener("mouseover", this.handleMouseOver);
   }
 
@@ -405,6 +410,7 @@ class SlashCommandMenuView {
 
   destroy() {
     this.menu.removeEventListener("mousedown", this.handleMouseDown);
+    this.menu.removeEventListener("click", this.handleClick);
     this.menu.removeEventListener("mouseover", this.handleMouseOver);
     this.detach();
   }
@@ -447,6 +453,14 @@ class SlashCommandMenuView {
   }
 
   private readonly handleMouseDown = (event: MouseEvent) => {
+    this.runCommandFromMouseEvent(event);
+  };
+
+  private readonly handleClick = (event: MouseEvent) => {
+    this.runCommandFromMouseEvent(event);
+  };
+
+  private runCommandFromMouseEvent(event: MouseEvent) {
     const target = event.target instanceof Element ? event.target : null;
     const option = target?.closest<HTMLElement>("[data-slash-command-id]");
     if (!option || !this.menu.contains(option)) return;
@@ -459,8 +473,10 @@ class SlashCommandMenuView {
     const command = this.commands.find((candidate) => candidate.id === commandId);
     if (!command) return;
 
-    command.run(this.view, state.active);
-  };
+    const range = state.active;
+    const handled = command.run(this.view, range);
+    if (handled && range.source === "virtual") closeSlashCommandMenu(this.view);
+  }
 
   private readonly handleMouseOver = (event: MouseEvent) => {
     const target = event.target instanceof Element ? event.target : null;

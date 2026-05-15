@@ -1789,6 +1789,28 @@ describe("MarkdownPaper editing", () => {
     restoreLayout();
   });
 
+  it("runs slash commands by mouse after adding a paragraph from the side toolbar", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    const headingOption = await screen.findByRole("option", { name: "Heading 1" });
+    fireEvent.click(headingOption);
+
+    await waitFor(() => expect(view.state.doc.child(2).type.name).toBe("heading"));
+    expect(view.state.doc.child(2).attrs.level).toBe(1);
+    expect(screen.queryByRole("listbox", { name: "Slash commands" })).not.toBeInTheDocument();
+    restoreLayout();
+  });
+
   it("filters slash commands from a side toolbar inserted paragraph", async () => {
     const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
     const restoreLayout = mockTopLevelBlockDragLayout(view, container);
