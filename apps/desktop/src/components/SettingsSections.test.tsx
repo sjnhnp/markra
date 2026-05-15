@@ -3,7 +3,7 @@ import { defaultMarkdownShortcuts } from "@markra/editor";
 import { t } from "@markra/shared";
 import { defaultEditorPreferences, type EditorPreferences } from "../lib/settings/app-settings";
 import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../lib/ai-actions";
-import { AiSettings, EditorSettings, KeyboardShortcutsSettings, StorageSettings } from "./SettingsSections";
+import { AiSettings, AppearanceSettings, EditorSettings, KeyboardShortcutsSettings, StorageSettings } from "./SettingsSections";
 
 function translate(key: Parameters<typeof t>[1]) {
   return t("en", key);
@@ -37,7 +37,84 @@ async function settleSortableDrag() {
   });
 }
 
+describe("AppearanceSettings", () => {
+  it("updates the global theme from appearance settings", () => {
+    const onSelectTheme = vi.fn();
+
+    render(
+      <AppearanceSettings
+        customThemeCss=""
+        selectedTheme="system"
+        translate={translate}
+        onUpdateCustomThemeCss={vi.fn()}
+        onSelectTheme={onSelectTheme}
+      />
+    );
+
+    const themeSelect = screen.getByRole("combobox", { name: "Color theme" });
+
+    expect(themeSelect).toHaveValue("system");
+    expect(screen.getByRole("option", { name: "System" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Dark" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Github" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Sepia" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Solarized Light" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Solarized Dark" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Nord" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Catppuccin Latte" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Catppuccin Mocha" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Academic" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Minimal" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Night" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Pixyll" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Custom" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Custom theme CSS" })).not.toBeInTheDocument();
+
+    fireEvent.change(themeSelect, { target: { value: "newsprint" } });
+
+    expect(onSelectTheme).toHaveBeenCalledWith("newsprint");
+  });
+
+  it("edits custom theme CSS when the custom theme is selected", () => {
+    const onUpdateCustomThemeCss = vi.fn();
+    const css = ":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }";
+
+    render(
+      <AppearanceSettings
+        customThemeCss={css}
+        selectedTheme="custom"
+        translate={translate}
+        onUpdateCustomThemeCss={onUpdateCustomThemeCss}
+        onSelectTheme={vi.fn()}
+      />
+    );
+
+    const customCss = screen.getByRole("textbox", { name: "Custom theme CSS" });
+
+    expect(customCss).toHaveValue(css);
+
+    fireEvent.change(customCss, {
+      target: { value: ":root[data-theme=\"custom\"] { --accent: #0969da; }" }
+    });
+
+    expect(onUpdateCustomThemeCss).toHaveBeenCalledWith(":root[data-theme=\"custom\"] { --accent: #0969da; }");
+  });
+});
+
 describe("EditorSettings", () => {
+  it("keeps global theme controls out of the editor tab", () => {
+    render(
+      <EditorSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("combobox", { name: "Color theme" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Editor theme" })).not.toBeInTheDocument();
+  });
+
   it("keeps markdown shortcuts out of the editor tab", () => {
     render(
       <EditorSettings

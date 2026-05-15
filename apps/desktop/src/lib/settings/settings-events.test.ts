@@ -2,10 +2,12 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import { defaultAiQuickActionPrompts } from "../ai-actions";
 import {
+  listenAppCustomThemeCssChanged,
   listenAppEditorPreferencesChanged,
   listenAppExportSettingsChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
+  notifyAppCustomThemeCssChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
   notifyAppLanguageChanged,
@@ -47,15 +49,37 @@ describe("settings events", () => {
     const cleanup = await listenAppThemeChanged(onThemeChanged);
     const listener = mockedListen.mock.calls[0]?.[1];
 
-    await notifyAppThemeChanged("system");
-    listener?.({ payload: { theme: "system" } } as Parameters<NonNullable<typeof listener>>[0]);
-    listener?.({ payload: { theme: "sepia" } } as Parameters<NonNullable<typeof listener>>[0]);
+    await notifyAppThemeChanged("newsprint");
+    listener?.({ payload: { theme: "newsprint" } } as Parameters<NonNullable<typeof listener>>[0]);
+    listener?.({ payload: { theme: "dracula" } } as Parameters<NonNullable<typeof listener>>[0]);
     cleanup();
 
     expect(mockedListen).toHaveBeenCalledWith("markra://theme-changed", expect.any(Function));
-    expect(mockedEmit).toHaveBeenCalledWith("markra://theme-changed", { theme: "system" });
-    expect(onThemeChanged).toHaveBeenCalledWith("system");
+    expect(mockedEmit).toHaveBeenCalledWith("markra://theme-changed", { theme: "newsprint" });
+    expect(onThemeChanged).toHaveBeenCalledWith("newsprint");
     expect(onThemeChanged).toHaveBeenCalledTimes(1);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits and listens for custom theme CSS changes inside Tauri", async () => {
+    const unlisten = vi.fn();
+    const onCustomThemeCssChanged = vi.fn();
+    const css = ":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }";
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppCustomThemeCssChanged(onCustomThemeCssChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await notifyAppCustomThemeCssChanged(css);
+    listener?.({ payload: { css } } as Parameters<NonNullable<typeof listener>>[0]);
+    listener?.({ payload: { css: 42 } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://custom-theme-css-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://custom-theme-css-changed", { css });
+    expect(onCustomThemeCssChanged).toHaveBeenCalledWith(css);
+    expect(onCustomThemeCssChanged).toHaveBeenCalledTimes(1);
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 

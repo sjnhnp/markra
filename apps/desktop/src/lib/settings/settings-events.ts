@@ -2,6 +2,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { normalizeAiSettings } from "@markra/providers";
 import {
   isAppTheme,
+  normalizeCustomThemeCss,
   normalizeEditorPreferences,
   normalizeExportSettings,
   normalizeWebSearchSettings,
@@ -15,6 +16,7 @@ import { isAppLanguage, type AppLanguage } from "@markra/shared";
 import { hasTauriRuntime } from "@markra/shared";
 
 const themeChangedEvent = "markra://theme-changed";
+const customThemeCssChangedEvent = "markra://custom-theme-css-changed";
 const languageChangedEvent = "markra://language-changed";
 const editorPreferencesChangedEvent = "markra://editor-preferences-changed";
 const exportSettingsChangedEvent = "markra://export-settings-changed";
@@ -23,6 +25,10 @@ const aiSettingsChangedEvent = "markra://ai-settings-changed";
 
 type ThemeChangedPayload = {
   theme: AppTheme;
+};
+
+type CustomThemeCssChangedPayload = {
+  css: string;
 };
 
 type LanguageChangedPayload = {
@@ -57,6 +63,22 @@ export async function listenAppThemeChanged(onThemeChanged: (theme: AppTheme) =>
   return listen<ThemeChangedPayload>(themeChangedEvent, (event) => {
     if (isAppTheme(event.payload.theme)) {
       onThemeChanged(event.payload.theme);
+    }
+  });
+}
+
+export async function notifyAppCustomThemeCssChanged(css: string) {
+  if (!hasTauriRuntime()) return;
+
+  await emit(customThemeCssChangedEvent, { css: normalizeCustomThemeCss(css) });
+}
+
+export async function listenAppCustomThemeCssChanged(onCustomThemeCssChanged: (css: string) => unknown) {
+  if (!hasTauriRuntime()) return () => {};
+
+  return listen<CustomThemeCssChangedPayload>(customThemeCssChangedEvent, (event) => {
+    if (typeof event.payload.css === "string") {
+      onCustomThemeCssChanged(normalizeCustomThemeCss(event.payload.css));
     }
   });
 }

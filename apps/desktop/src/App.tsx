@@ -1422,6 +1422,7 @@ export default function App() {
                       contentWidth={activeEditorContentWidth}
                       contentWidthPx={activeEditorContentWidthPx}
                       documentPath={document.path}
+                      editorTheme={appTheme.editorTheme}
                       initialContent={document.content}
                       language={appLanguage.language}
                       lineHeight={editorPreferences.preferences.lineHeight}
