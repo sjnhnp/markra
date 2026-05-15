@@ -12,6 +12,7 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  Sparkles,
   Sun,
   type LucideIcon
 } from "lucide-react";
@@ -47,6 +48,7 @@ import {
   defaultTitlebarActions,
   reorderTitlebarActions,
   type AppTheme,
+  type AiSelectionDisplayMode,
   type EditorPreferences,
   type ExportSettings as ExportSettingsValue,
   type ImageUploadProvider,
@@ -57,8 +59,21 @@ import {
   type WebSearchProviderId,
   type WebSearchSettings
 } from "../lib/settings/app-settings";
+import {
+  aiQuickActionIds,
+  aiQuickActionLabelKeys,
+  defaultAiQuickActionPrompt,
+  defaultAiQuickActionPrompts,
+  type AiQuickActionId
+} from "../lib/ai-actions";
 import type { DesktopPlatform } from "../lib/platform";
-import { clampNumber, supportedLanguages, type AppLanguage, type I18nKey } from "@markra/shared";
+import {
+  aiTranslationLanguageName,
+  clampNumber,
+  supportedLanguages,
+  type AppLanguage,
+  type I18nKey
+} from "@markra/shared";
 import {
   editorContentWidthPixels,
   editorCustomContentWidthMax,
@@ -126,6 +141,26 @@ const imageUploadProviderSettingsActionLabelKeys: Record<ImageUploadProvider, I1
   s3: "settings.editor.imageUploadProvider.showS3Settings",
   webdav: "settings.editor.imageUploadProvider.showWebDavSettings"
 };
+
+const aiSelectionDisplayModeOptions: Array<{
+  actionLabelKey: I18nKey;
+  icon: LucideIcon;
+  labelKey: I18nKey;
+  value: AiSelectionDisplayMode;
+}> = [
+  {
+    actionLabelKey: "settings.editor.aiSelectionDisplayMode.useCommand",
+    icon: Bot,
+    labelKey: "settings.editor.aiSelectionDisplayMode.command",
+    value: "command"
+  },
+  {
+    actionLabelKey: "settings.editor.aiSelectionDisplayMode.useToolbar",
+    icon: Sparkles,
+    labelKey: "settings.editor.aiSelectionDisplayMode.toolbar",
+    value: "toolbar"
+  }
+];
 
 const titlebarActionOptions: Array<{
   icon: LucideIcon;
@@ -371,6 +406,25 @@ function SettingsTextInput({
       aria-label={label}
       value={value}
       placeholder={placeholder}
+      onChange={(event) => onChange(event.currentTarget.value)}
+    />
+  );
+}
+
+function SettingsTextarea({
+  label,
+  onChange,
+  value
+}: {
+  label: string;
+  onChange: (value: string) => unknown;
+  value: string;
+}) {
+  return (
+    <textarea
+      className="min-h-18 w-80 resize-y rounded-md border border-(--border-default) bg-(--bg-primary) px-3 py-2 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out placeholder:text-(--text-secondary) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) max-[760px]:w-full"
+      aria-label={label}
+      value={value}
       onChange={(event) => onChange(event.currentTarget.value)}
     />
   );
@@ -710,6 +764,37 @@ function ImageUploadProviderSettingsControl({
             label={translate(imageUploadProviderSettingsActionLabelKeys[option.value])}
             selected={active}
             onClick={() => onSelectProvider(option.value)}
+          >
+            <Icon aria-hidden="true" size={13} />
+            {translate(option.labelKey)}
+          </SegmentedControlItem>
+        );
+      })}
+    </SegmentedControl>
+  );
+}
+
+function AiSelectionDisplayModeControl({
+  mode,
+  onSelectMode,
+  translate
+}: {
+  mode: AiSelectionDisplayMode;
+  onSelectMode: (mode: AiSelectionDisplayMode) => unknown;
+  translate: Translate;
+}) {
+  return (
+    <SegmentedControl className="grid-cols-2" label={translate("settings.editor.aiSelectionDisplayMode")}>
+      {aiSelectionDisplayModeOptions.map((option) => {
+        const Icon = option.icon;
+        const active = mode === option.value;
+
+        return (
+          <SegmentedControlItem
+            key={option.value}
+            label={translate(option.actionLabelKey)}
+            selected={active}
+            onClick={() => onSelectMode(option.value)}
           >
             <Icon aria-hidden="true" size={13} />
             {translate(option.labelKey)}
@@ -1399,6 +1484,145 @@ export function KeyboardShortcutsSettings({
   );
 }
 
+function aiPromptInputLabel(actionId: AiQuickActionId, translate: Translate) {
+  return `${translate(aiQuickActionLabelKeys[actionId])} ${translate("settings.ai.prompt")}`;
+}
+
+function updateAiQuickActionPrompt(
+  preferences: EditorPreferences,
+  actionId: AiQuickActionId,
+  prompt: string
+): EditorPreferences {
+  return {
+    ...preferences,
+    aiQuickActionPrompts: {
+      ...(preferences.aiQuickActionPrompts ?? defaultAiQuickActionPrompts),
+      [actionId]: prompt
+    }
+  };
+}
+
+export function AiSettings({
+  language,
+  onUpdatePreferences,
+  preferences,
+  translate
+}: {
+  language: AppLanguage;
+  onUpdatePreferences: (preferences: EditorPreferences) => unknown;
+  preferences: EditorPreferences;
+  translate: Translate;
+}) {
+  const quickActionPrompts = preferences.aiQuickActionPrompts ?? defaultAiQuickActionPrompts;
+  const translationTargetLanguage = aiTranslationLanguageName(language);
+
+  return (
+    <>
+      <SettingsSection label={translate("settings.sections.aiAssistance")}>
+        <SettingsRow
+          title={translate("settings.editor.autoOpenAiOnSelection")}
+          description={translate("settings.editor.autoOpenAiOnSelectionDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.autoOpenAiOnSelection}
+              label={translate("settings.editor.autoOpenAiOnSelection")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  autoOpenAiOnSelection: !preferences.autoOpenAiOnSelection
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.aiSelectionDisplayMode")}
+          description={translate("settings.editor.aiSelectionDisplayModeDescription")}
+          action={
+            <AiSelectionDisplayModeControl
+              mode={preferences.aiSelectionDisplayMode}
+              translate={translate}
+              onSelectMode={(mode) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  aiSelectionDisplayMode: mode
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.closeAiCommandOnAgentPanelOpen")}
+          description={translate("settings.editor.closeAiCommandOnAgentPanelOpenDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.closeAiCommandOnAgentPanelOpen}
+              label={translate("settings.editor.closeAiCommandOnAgentPanelOpen")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  closeAiCommandOnAgentPanelOpen: !preferences.closeAiCommandOnAgentPanelOpen
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.suggestAiPanelForComplexInlinePrompts")}
+          description={translate("settings.editor.suggestAiPanelForComplexInlinePromptsDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.suggestAiPanelForComplexInlinePrompts}
+              label={translate("settings.editor.suggestAiPanelForComplexInlinePrompts")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  suggestAiPanelForComplexInlinePrompts: !preferences.suggestAiPanelForComplexInlinePrompts
+                })
+              }
+            />
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection label={translate("settings.sections.aiPrompts")}>
+        {aiQuickActionIds.map((actionId) => {
+          const actionLabel = translate(aiQuickActionLabelKeys[actionId]);
+          const defaultPrompt = defaultAiQuickActionPrompt(actionId, translationTargetLanguage);
+          const inputLabel = aiPromptInputLabel(actionId, translate);
+          const storedPrompt = quickActionPrompts[actionId];
+
+          return (
+            <SettingsRow
+              key={actionId}
+              title={actionLabel}
+              description={translate("settings.ai.promptDescription")}
+              action={
+                <div className="flex flex-col items-end gap-2 max-[760px]:w-full">
+                  <SettingsTextarea
+                    label={inputLabel}
+                    value={storedPrompt || defaultPrompt}
+                    onChange={(prompt) => onUpdatePreferences(updateAiQuickActionPrompt(preferences, actionId, prompt))}
+                  />
+                  <SettingsButton
+                    label={`${translate("settings.ai.promptReset")} ${inputLabel}`}
+                    onClick={() =>
+                      onUpdatePreferences(updateAiQuickActionPrompt(preferences, actionId, defaultAiQuickActionPrompts[actionId]))
+                    }
+                  >
+                    <RotateCcw aria-hidden="true" size={13} />
+                    {translate("settings.ai.promptReset")}
+                  </SettingsButton>
+                </div>
+              }
+            />
+          );
+        })}
+      </SettingsSection>
+    </>
+  );
+}
+
 export function EditorSettings({
   onUpdatePreferences,
   preferences,
@@ -1500,57 +1724,6 @@ export function EditorSettings({
                 onUpdatePreferences({
                   ...preferences,
                   showWordCount: !preferences.showWordCount
-                })
-              }
-            />
-          }
-        />
-      </SettingsSection>
-
-      <SettingsSection label={translate("settings.sections.aiAssistance")}>
-        <SettingsRow
-          title={translate("settings.editor.autoOpenAiOnSelection")}
-          description={translate("settings.editor.autoOpenAiOnSelectionDescription")}
-          action={
-            <SettingsSwitch
-              checked={preferences.autoOpenAiOnSelection}
-              label={translate("settings.editor.autoOpenAiOnSelection")}
-              onChange={() =>
-                onUpdatePreferences({
-                  ...preferences,
-                  autoOpenAiOnSelection: !preferences.autoOpenAiOnSelection
-                })
-              }
-            />
-          }
-        />
-        <SettingsRow
-          title={translate("settings.editor.closeAiCommandOnAgentPanelOpen")}
-          description={translate("settings.editor.closeAiCommandOnAgentPanelOpenDescription")}
-          action={
-            <SettingsSwitch
-              checked={preferences.closeAiCommandOnAgentPanelOpen}
-              label={translate("settings.editor.closeAiCommandOnAgentPanelOpen")}
-              onChange={() =>
-                onUpdatePreferences({
-                  ...preferences,
-                  closeAiCommandOnAgentPanelOpen: !preferences.closeAiCommandOnAgentPanelOpen
-                })
-              }
-            />
-          }
-        />
-        <SettingsRow
-          title={translate("settings.editor.suggestAiPanelForComplexInlinePrompts")}
-          description={translate("settings.editor.suggestAiPanelForComplexInlinePromptsDescription")}
-          action={
-            <SettingsSwitch
-              checked={preferences.suggestAiPanelForComplexInlinePrompts}
-              label={translate("settings.editor.suggestAiPanelForComplexInlinePrompts")}
-              onChange={() =>
-                onUpdatePreferences({
-                  ...preferences,
-                  suggestAiPanelForComplexInlinePrompts: !preferences.suggestAiPanelForComplexInlinePrompts
                 })
               }
             />

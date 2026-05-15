@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
+import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
 import {
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
   dispatchAiEditorPreviewAction,
@@ -122,6 +123,8 @@ describe("Markra AI workspace", () => {
 
   it("hides the complex inline prompt panel suggestion when the experimental setting is off", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",

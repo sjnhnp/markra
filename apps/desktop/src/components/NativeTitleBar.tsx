@@ -421,18 +421,27 @@ export function NativeTitleBar({
 
   if (platform === "windows") {
     if (titleContent) {
+      const windowsTitlebarStyle: CSSProperties | undefined = {
+        ...titlebarSurfaceStyle,
+        ...(markdownFilesOpen ? { gridTemplateColumns: `${markdownFilesWidth}px minmax(0,1fr) 164px` } : {})
+      };
+
       return (
         <header
           className={`native-titlebar group/titlebar fixed inset-x-0 top-0 z-10 grid h-10 grid-cols-[minmax(0,1fr)_164px] select-none items-center ${titlebarSurfaceClassName} [-webkit-user-select:none]`}
-          style={titlebarSurfaceStyle}
+          style={windowsTitlebarStyle}
           aria-label={label("app.windowDragRegion")}
           data-tauri-drag-region
         >
           {renderMarkdownFilesDivider()}
-          {renderTitleContent(
-            "native-title-slot min-w-0 h-10 px-3",
-            markdownFilesOpen ? { paddingLeft: markdownFilesWidth + 12 } : undefined
-          )}
+          {markdownFilesOpen ? (
+            <span
+              aria-hidden="true"
+              className="native-titlebar-sidebar-spacer h-10"
+              data-tauri-drag-region
+            />
+          ) : null}
+          {renderTitleContent("native-title-slot min-w-0 h-10 px-3")}
           {renderDocumentActions(
             "document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100"
           )}

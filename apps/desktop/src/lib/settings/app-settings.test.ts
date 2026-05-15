@@ -33,6 +33,7 @@ import {
   type AiProviderSettings
 } from "./app-settings";
 import { defaultMarkdownShortcuts } from "@markra/editor";
+import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../ai-actions";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn()
@@ -134,6 +135,8 @@ describe("app settings", () => {
     store.get.mockResolvedValue(undefined);
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -339,6 +342,7 @@ describe("app settings", () => {
 
   it("normalizes partial editor preferences from older settings files", async () => {
     store.get.mockResolvedValue({
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 99,
       clipboardImageFolder: "media/screenshots",
@@ -366,6 +370,8 @@ describe("app settings", () => {
     });
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 16,
       clipboardImageFolder: "media/screenshots",
@@ -428,6 +434,35 @@ describe("app settings", () => {
       { id: "open", visible: true },
       { id: "sourceMode", visible: true }
     ]);
+  });
+
+  it("falls back to the quick input for unknown AI selection display modes", () => {
+    expect(normalizeEditorPreferences({
+      aiSelectionDisplayMode: "popup"
+    }).aiSelectionDisplayMode).toBe("command");
+  });
+
+  it("normalizes AI quick action prompt overrides", () => {
+    expect(normalizeEditorPreferences({
+      aiQuickActionPrompts: {
+        continue: "Keep writing in the same voice.",
+        polish: 42,
+        summarize: "Summarize in one sentence."
+      }
+    }).aiQuickActionPrompts).toEqual({
+      ...defaultAiQuickActionPrompts,
+      continue: "Keep writing in the same voice.",
+      summarize: "Summarize in one sentence."
+    });
+  });
+
+  it("normalizes stored built-in AI quick action prompts as unset defaults", () => {
+    expect(normalizeEditorPreferences({
+      aiQuickActionPrompts: {
+        continue: defaultAiQuickActionPrompt("continue", "English"),
+        translate: defaultAiQuickActionPrompt("translate", "English")
+      }
+    }).aiQuickActionPrompts).toEqual(defaultAiQuickActionPrompts);
   });
 
   it("moves titlebar actions to the target slot in both directions", () => {
@@ -583,6 +618,8 @@ describe("app settings", () => {
     });
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -627,6 +664,8 @@ describe("app settings", () => {
 
   it("persists editor preferences", async () => {
     await saveStoredEditorPreferences({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
       clipboardImageFolder: "images",
@@ -672,6 +711,8 @@ describe("app settings", () => {
     });
 
     expect(store.set).toHaveBeenCalledWith("editorPreferences", {
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
       clipboardImageFolder: "images",

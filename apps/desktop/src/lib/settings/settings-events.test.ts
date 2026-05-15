@@ -1,5 +1,6 @@
 import { emit, listen } from "@tauri-apps/api/event";
 import { defaultMarkdownShortcuts } from "@markra/editor";
+import { defaultAiQuickActionPrompts } from "../ai-actions";
 import {
   listenAppEditorPreferencesChanged,
   listenAppExportSettingsChanged,
@@ -89,6 +90,8 @@ describe("settings events", () => {
     const listener = mockedListen.mock.calls[0]?.[1];
 
     const preferences: EditorPreferences = {
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: false,
       bodyFontSize: 18,
       clipboardImageFolder: "images",

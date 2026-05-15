@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import { AiCommandBar } from "./AiCommandBar";
 
 describe("AiCommandBar", () => {
@@ -20,6 +21,91 @@ describe("AiCommandBar", () => {
 
     expect(input.closest(".ai-command-box")).toHaveAttribute("data-state", "compact");
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
+  });
+
+  it("notifies when the command input takes focus so the app can preserve selection context", () => {
+    const onSelectionContextFocus = vi.fn();
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={vi.fn()}
+        onSelectionContextFocus={onSelectionContextFocus}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    fireEvent.focus(screen.getByRole("textbox", { name: "AI command" }));
+
+    expect(onSelectionContextFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes an idle compact command when clicking outside it", () => {
+    const onClose = vi.fn();
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={onClose}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    fireEvent.mouseDown(document.body);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes an idle expanded command when clicking outside it", () => {
+    const onClose = vi.fn();
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={onClose}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("textbox", { name: "AI command" }));
+    fireEvent.mouseDown(document.body);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a result follow-up command open when clicking outside it", () => {
+    const onClose = vi.fn();
+    render(
+      <AiCommandBar
+        aiResult={{
+          from: 1,
+          original: "Original",
+          replacement: "Improved",
+          to: 9,
+          type: "replace"
+        }}
+        language="en"
+        open
+        prompt=""
+        submitting={false}
+        onClose={onClose}
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    fireEvent.mouseDown(document.body);
+
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("reports the compact command overlay inset from its rendered height", async () => {
@@ -409,8 +495,8 @@ describe("AiCommandBar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Polish" }));
 
-    expect(onPromptChange).toHaveBeenCalledWith("Polish");
-    expect(onSubmit).toHaveBeenCalledWith("Polish", "polish");
+    expect(onPromptChange).toHaveBeenCalledWith(defaultAiQuickActionPrompt("polish", "English"));
+    expect(onSubmit).toHaveBeenCalledWith(defaultAiQuickActionPrompt("polish", "English"), "polish");
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: "custom request" } });
@@ -418,9 +504,65 @@ describe("AiCommandBar", () => {
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
   });
 
+  it("uses configured quick action prompts for the command box toolkit", async () => {
+    const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt=""
+        quickActionPrompts={{
+          ...defaultAiQuickActionPrompts,
+          polish: "Make the selected text clearer."
+        }}
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("textbox", { name: "AI command" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Polish" }));
+
+    expect(onPromptChange).toHaveBeenCalledWith("Make the selected text clearer.");
+    expect(onSubmit).toHaveBeenCalledWith("Make the selected text clearer.", "polish");
+  });
+
+  it("targets translation quick actions to the selected app language", async () => {
+    const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="zh-CN"
+        open
+        prompt=""
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("textbox", { name: "AI 命令" }));
+    fireEvent.click(await screen.findByRole("button", { name: "翻译" }));
+
+    expect(onPromptChange).toHaveBeenCalledWith(
+      defaultAiQuickActionPrompt("translate", "Simplified Chinese")
+    );
+    expect(onSubmit).toHaveBeenCalledWith(
+      defaultAiQuickActionPrompt("translate", "Simplified Chinese"),
+      "translate"
+    );
+  });
+
   it("keeps quick action generation in the compact input style", async () => {
     const onPromptChange = vi.fn();
     const onSubmit = vi.fn();
+    const chinesePolishPrompt = defaultAiQuickActionPrompt("polish", "Simplified Chinese");
 
     const { rerender } = render(
       <AiCommandBar
@@ -441,7 +583,7 @@ describe("AiCommandBar", () => {
       <AiCommandBar
         language="zh-CN"
         open
-        prompt="润色"
+        prompt={chinesePolishPrompt}
         submitting
         onClose={vi.fn()}
         onInterrupt={vi.fn()}
@@ -453,8 +595,8 @@ describe("AiCommandBar", () => {
     const status = screen.getByRole("status");
     const commandBox = status.closest(".ai-command-box");
 
-    expect(onPromptChange).toHaveBeenCalledWith("润色");
-    expect(onSubmit).toHaveBeenCalledWith("润色", "polish");
+    expect(onPromptChange).toHaveBeenCalledWith(chinesePolishPrompt);
+    expect(onSubmit).toHaveBeenCalledWith(chinesePolishPrompt, "polish");
     expect(status).toHaveTextContent("润色中……");
     expect(screen.getByText("润色中……")).toHaveClass("ai-command-inline-loading-text");
     expect(commandBox).toHaveClass("h-14", "rounded-xl", "border-(--border-default)");

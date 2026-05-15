@@ -1,10 +1,19 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import { getStoredEditorPreferences } from "../lib/settings/app-settings";
 import { listenAppEditorPreferencesChanged } from "../lib/settings/settings-events";
 import { useEditorPreferences } from "./useEditorPreferences";
 
 vi.mock("../lib/settings/app-settings", () => ({
   defaultEditorPreferences: {
+    aiQuickActionPrompts: {
+      continue: "",
+      polish: "",
+      rewrite: "",
+      summarize: "",
+      translate: ""
+    },
+    aiSelectionDisplayMode: "command",
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -77,6 +86,8 @@ describe("useEditorPreferences", () => {
   it("loads editor preferences and reacts to cross-window preference changes", async () => {
     let onPreferencesChanged: Parameters<typeof listenAppEditorPreferencesChanged>[0] | null = null;
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -150,6 +161,8 @@ describe("useEditorPreferences", () => {
 
     act(() => {
       onPreferencesChanged?.({
+        aiQuickActionPrompts: defaultAiQuickActionPrompts,
+        aiSelectionDisplayMode: "command",
         autoOpenAiOnSelection: false,
         bodyFontSize: 18,
         clipboardImageFolder: "images",
@@ -213,6 +226,7 @@ describe("useEditorPreferences", () => {
     });
 
     expect(result.current.preferences.autoOpenAiOnSelection).toBe(false);
+    expect(result.current.preferences.aiSelectionDisplayMode).toBe("command");
     expect(result.current.preferences.bodyFontSize).toBe(18);
     expect(result.current.preferences.closeAiCommandOnAgentPanelOpen).toBe(true);
     expect(result.current.preferences.contentWidth).toBe("wide");

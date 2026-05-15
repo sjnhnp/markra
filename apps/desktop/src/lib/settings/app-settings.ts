@@ -20,6 +20,11 @@ import {
   normalizeEditorContentWidthPx,
   type EditorContentWidth
 } from "../editor-width";
+import {
+  defaultAiQuickActionPrompts,
+  normalizeAiQuickActionPrompts,
+  type AiQuickActionPrompts
+} from "../ai-actions";
 
 const settingsStorePath = "settings.json";
 const aiAgentSessionIndexStorePath = "ai-agent-sessions/index.json";
@@ -38,6 +43,7 @@ const workspaceKey = "workspace";
 
 export type AppTheme = "light" | "dark" | "system";
 export type ResolvedAppTheme = "light" | "dark";
+export type AiSelectionDisplayMode = "command" | "toolbar";
 export type PdfMarginPreset = "custom" | "default" | "narrow" | "none" | "normal" | "wide";
 export type PdfPageSize = "a4" | "custom" | "default" | "letter";
 export type TitlebarActionId = "aiAgent" | "sourceMode" | "open" | "save" | "theme";
@@ -73,6 +79,8 @@ export type AiAgentPreferences = {
   webSearchEnabled: boolean;
 };
 export type EditorPreferences = {
+  aiQuickActionPrompts: AiQuickActionPrompts;
+  aiSelectionDisplayMode: AiSelectionDisplayMode;
   autoOpenAiOnSelection: boolean;
   bodyFontSize: number;
   clipboardImageFolder: string;
@@ -140,6 +148,8 @@ export const defaultImageUploadSettings: ImageUploadSettings = {
 };
 
 export const defaultEditorPreferences: EditorPreferences = {
+  aiQuickActionPrompts: { ...defaultAiQuickActionPrompts },
+  aiSelectionDisplayMode: "command",
   autoOpenAiOnSelection: true,
   bodyFontSize: 16,
   clipboardImageFolder: "assets",
@@ -183,6 +193,7 @@ export const defaultWebSearchSettings: WebSearchSettings = {
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
+const aiSelectionDisplayModeOptions: AiSelectionDisplayMode[] = ["command", "toolbar"];
 const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
 const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
 const exportPageSizeDimensions: Record<Exclude<PdfPageSize, "custom">, { heightMm: number; widthMm: number }> = {
@@ -570,6 +581,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   const preferences = value as Partial<EditorPreferences>;
 
   return {
+    aiQuickActionPrompts: normalizeAiQuickActionPrompts(preferences.aiQuickActionPrompts),
+    aiSelectionDisplayMode: aiSelectionDisplayModeOptions.includes(preferences.aiSelectionDisplayMode as AiSelectionDisplayMode)
+      ? preferences.aiSelectionDisplayMode as AiSelectionDisplayMode
+      : defaultEditorPreferences.aiSelectionDisplayMode,
     autoOpenAiOnSelection:
       typeof preferences.autoOpenAiOnSelection === "boolean"
         ? preferences.autoOpenAiOnSelection

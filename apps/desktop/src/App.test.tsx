@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
+import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
 import {
   dispatchAiEditorPreviewAction,
   installAppTestHarness,
@@ -140,6 +141,8 @@ describe("Markra workspace", () => {
 
   it("persists titlebar action order changes by holding and dragging", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -176,6 +179,8 @@ describe("Markra workspace", () => {
 
     await waitFor(() =>
       expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith({
+        aiQuickActionPrompts: defaultAiQuickActionPrompts,
+        aiSelectionDisplayMode: "command",
         autoOpenAiOnSelection: true,
         bodyFontSize: 16,
         clipboardImageFolder: "assets",
@@ -200,6 +205,8 @@ describe("Markra workspace", () => {
     );
     await waitFor(() =>
       expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith({
+        aiQuickActionPrompts: defaultAiQuickActionPrompts,
+        aiSelectionDisplayMode: "command",
         autoOpenAiOnSelection: true,
         bodyFontSize: 16,
         clipboardImageFolder: "assets",
@@ -401,10 +408,10 @@ describe("Markra workspace", () => {
     expect(settingsGroups[0]).not.toHaveClass("divide-y");
     expect(settingsGroups.some((group) => group.classList.contains("divide-y"))).toBe(true);
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
-    expect(categoryButtons).toHaveLength(8);
+    expect(categoryButtons).toHaveLength(9);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
     expect(categoryButtons[1]).not.toHaveAttribute("aria-current");
-    expect(categoryButtons[6]).toHaveTextContent("Keyboard shortcuts");
+    expect(categoryButtons[7]).toHaveTextContent("Keyboard shortcuts");
     const languageSelect = container.querySelector("select");
     expect(languageSelect).toHaveValue("en");
     expect(container.querySelector('[role="group"]')).not.toBeInTheDocument();
@@ -417,8 +424,8 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedSaveStoredLanguage).toHaveBeenCalledWith("zh-CN"));
     await waitFor(() => expect(mockedNotifyAppLanguageChanged).toHaveBeenCalledWith("zh-CN"));
 
-    fireEvent.click(categoryButtons[4]);
-    expect(categoryButtons[4]).toHaveAttribute("aria-current", "page");
+    fireEvent.click(categoryButtons[5]);
+    expect(categoryButtons[5]).toHaveAttribute("aria-current", "page");
     const themeGroup = container.querySelector('[role="group"]');
     expect(themeGroup).toBeInTheDocument();
     const themeButtons = themeGroup?.querySelectorAll("button");
@@ -439,6 +446,8 @@ describe("Markra workspace", () => {
       return () => {};
     });
     const initialPreferences = {
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command" as const,
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -520,7 +529,7 @@ describe("Markra workspace", () => {
 
     renderApp();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Editor" }));
+    fireEvent.click(await screen.findByRole("button", { name: "AI" }));
     const closeInlineAiSwitch = screen.getByRole("switch", { name: "Close inline AI when opening Markra AI" });
 
     expect(closeInlineAiSwitch).toHaveAttribute("aria-checked", "false");
@@ -537,6 +546,8 @@ describe("Markra workspace", () => {
 
   it("updates markdown shortcuts from the dedicated settings tab", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -599,7 +610,7 @@ describe("Markra workspace", () => {
     const { container } = renderApp();
 
     await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "AI" }));
+    fireEvent.click(screen.getByRole("button", { name: "Providers" }));
 
     expect(await screen.findByRole("button", { name: "OpenAI" })).toHaveAttribute("aria-current", "page");
     expect(container.querySelector(".ai-settings-layout")).toHaveClass("h-full", "min-h-0", "grid-cols-[16rem_minmax(0,1fr)]");
@@ -1494,6 +1505,8 @@ describe("Markra workspace", () => {
 
   it("keeps dirty editor content when opening another markdown file is cancelled", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",

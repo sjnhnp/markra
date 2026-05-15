@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { AiAgentPanel } from "./components/AiAgentPanel";
+import { AiSelectionToolbar } from "./components/AiSelectionToolbar";
 import { ImagePreview } from "./components/ImagePreview";
 import {
   MarkdownExportDocument,
@@ -47,6 +48,7 @@ import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import type { EditorContentWidth } from "./lib/editor-width";
 import { saveEditorImage } from "./lib/image-upload";
+import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
 import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
 import type { AiDiffResult, AiEditIntent, AiSelectionContext } from "@markra/ai";
 import {
@@ -167,6 +169,7 @@ export default function App() {
   const [imageTabs, setImageTabs] = useState<ImageDocumentTab[]>([]);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
   const [aiCommandOverlayInset, setAiCommandOverlayInset] = useState(0);
+  const [aiSelectionToolbarAnchor, setAiSelectionToolbarAnchor] = useState<SelectionAnchor | null>(null);
   const [aiContextMenuActionPending, setAiContextMenuActionPending] = useState(false);
   const [editorMode, setEditorMode] = useState<"source" | "visual">("visual");
   const [exportSnapshot, setExportSnapshot] = useState<MarkdownExportSnapshot | null>(null);
@@ -444,6 +447,7 @@ export default function App() {
   const handleAiCommandClose = useCallback(() => {
     aiContextMenuActionIdRef.current += 1;
     setAiContextMenuActionPending(false);
+    setAiSelectionToolbarAnchor(null);
     closeAiCommand();
     editor.clearAiSelection();
   }, [closeAiCommand, editor]);
@@ -539,34 +543,53 @@ export default function App() {
     updateActiveAiSelection(selection);
 
     if (!selection?.text.trim()) {
+      setAiSelectionToolbarAnchor(null);
       editor.clearAiSelection();
       if (aiResultsRef.current.length === 0) aiCommand.closeAiCommand();
       return;
     }
 
     if (selection.source !== "selection") {
+      setAiSelectionToolbarAnchor(null);
       editor.clearAiSelection();
       if (aiResultsRef.current.length === 0) aiCommand.closeAiCommand();
       return;
     }
 
-    editor.holdAiSelection(selection);
+    editor.clearAiSelection();
 
     if (shouldHideAiCommandForAiAgentPanel({
       aiAgentOpen,
       closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen
     })) {
+      setAiSelectionToolbarAnchor(null);
       aiCommand.closeAiCommand();
       return;
     }
 
-    if (!editorPreferences.preferences.autoOpenAiOnSelection || aiCommand.open || aiCommand.submitting) return;
+    if (!editorPreferences.preferences.autoOpenAiOnSelection || aiCommand.open || aiCommand.submitting) {
+      setAiSelectionToolbarAnchor(null);
+      return;
+    }
 
-    aiCommand.openAiCommand(selection);
+    if (editorPreferences.preferences.aiSelectionDisplayMode === "command") {
+      setAiSelectionToolbarAnchor(null);
+      aiCommand.openAiCommand(selection);
+      return;
+    }
+
+    const toolbarAnchor = selectionAnchorFromDomSelection(window.getSelection());
+    if (!toolbarAnchor) {
+      aiCommand.openAiCommand(selection);
+      return;
+    }
+
+    setAiSelectionToolbarAnchor(toolbarAnchor);
   }, [
     aiAgentOpen,
     aiCommand,
     editor,
+    editorPreferences.preferences.aiSelectionDisplayMode,
     editorPreferences.preferences.autoOpenAiOnSelection,
     editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
     updateActiveAiSelection
@@ -588,6 +611,7 @@ export default function App() {
       const actionId = aiContextMenuActionIdRef.current + 1;
       let opened = false;
       aiContextMenuActionIdRef.current = actionId;
+      setAiSelectionToolbarAnchor(null);
 
       flushSync(() => {
         updateActiveAiSelection(selection);
@@ -629,6 +653,8 @@ export default function App() {
     return Boolean(selection);
   }, [getActiveAiSelection, getEditorSelection]);
   const handleAiCommandToggle = useCallback(() => {
+    setAiSelectionToolbarAnchor(null);
+
     if (aiCommand.open) {
       handleAiCommandClose();
       return;
@@ -637,7 +663,6 @@ export default function App() {
     const selection = aiCommandTextSelection(getActiveAiSelection()) ?? aiCommandTextSelection(getEditorSelection());
     if (!selection) return;
 
-    holdAiSelection(selection);
     updateActiveAiSelection(selection);
     openAiCommand(selection);
   }, [
@@ -649,11 +674,36 @@ export default function App() {
     openAiCommand,
     updateActiveAiSelection
   ]);
+  const handleAiCommandSelectionContextFocus = useCallback(() => {
+    const selection = aiCommandTextSelection(getActiveAiSelection()) ?? aiCommandTextSelection(getEditorSelection());
+    if (!selection) return;
+
+    holdAiSelection(selection);
+    updateActiveAiSelection(selection);
+  }, [getActiveAiSelection, getEditorSelection, holdAiSelection, updateActiveAiSelection]);
   const handleAiCommandInterrupt = useCallback(() => {
     aiContextMenuActionIdRef.current += 1;
     setAiContextMenuActionPending(false);
+    setAiSelectionToolbarAnchor(null);
     interruptAiCommandPrompt();
   }, [interruptAiCommandPrompt]);
+  const aiSelectionToolbarVisible =
+    !sourceMode &&
+    Boolean(aiSelectionToolbarAnchor) &&
+    activeAiSelection?.source === "selection" &&
+    Boolean(activeAiSelection.text.trim()) &&
+    !aiCommandVisible &&
+    !aiCommand.submitting &&
+    !aiContextMenuActionPending &&
+    !aiResult;
+  const handleAiSelectionToolbarOpenCommand = useCallback(() => {
+    setAiSelectionToolbarAnchor(null);
+    handleAiCommandToggle();
+  }, [handleAiCommandToggle]);
+  const handleAiSelectionToolbarAction = useCallback((intent: AiQuickActionIntent, prompt: string) => {
+    setAiSelectionToolbarAnchor(null);
+    handleAiContextMenuAction(intent, prompt);
+  }, [handleAiContextMenuAction]);
   useDeferredAiSelectionReveal({
     active: aiCommandVisible,
     bottomInset: aiCommandOverlayInset,
@@ -1435,6 +1485,16 @@ export default function App() {
           </div>
         </div>
 
+        <AiSelectionToolbar
+          anchor={aiSelectionToolbarAnchor}
+          busy={aiCommand.submitting || aiContextMenuActionPending}
+          language={appLanguage.language}
+          open={aiSelectionToolbarVisible}
+          quickActionPrompts={editorPreferences.preferences.aiQuickActionPrompts}
+          onOpenCommand={handleAiSelectionToolbarOpenCommand}
+          onRunAction={handleAiSelectionToolbarAction}
+        />
+
         <AiCommandBar
           aiResult={aiResult}
           availableModels={aiSettings.availableTextModels}
@@ -1444,6 +1504,7 @@ export default function App() {
           language={appLanguage.language}
           open={aiCommandVisible}
           prompt={aiCommand.prompt}
+          quickActionPrompts={editorPreferences.preferences.aiQuickActionPrompts}
           selectedModelId={aiSettings.inlineModelId}
           selectedProviderId={aiSettings.inlineProviderId}
           selectedText={activeAiSelection?.text ?? ""}
@@ -1453,6 +1514,7 @@ export default function App() {
           onInterrupt={handleAiCommandInterrupt}
           onOverlayInsetChange={setAiCommandOverlayInset}
           onPromptChange={aiCommand.updatePrompt}
+          onSelectionContextFocus={handleAiCommandSelectionContextFocus}
           onSelectModel={aiSettings.selectInlineModel}
           onSubmit={aiCommand.submitPrompt}
           onTransferToAiPanel={

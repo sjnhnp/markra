@@ -23,6 +23,7 @@ import {
 } from "@milkdown/kit/preset/gfm";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { Plugin } from "@milkdown/kit/prose/state";
+import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 import { markraLiveMarkdownPlugin } from "@markra/editor";
 import {
@@ -126,53 +127,97 @@ function markraTextSelectionObserverPlugin(
   return $prose(() => {
     let lastSignature = "";
 
+    const notifySelectionChange = (view: EditorView, options: { requireFocusForEmptySelection: boolean }) => {
+      const { selection } = view.state;
+
+      if (selection.empty) {
+        if (options.requireFocusForEmptySelection && !view.hasFocus()) return;
+
+        const blockContext = readAiSelectionContextFromView(view);
+        if (blockContext.text.trim()) {
+          const signature = `${blockContext.source ?? "block"}:${blockContext.from}:${blockContext.to}:${blockContext.text}`;
+          if (signature === lastSignature) return;
+
+          lastSignature = signature;
+          onTextSelectionChange(blockContext);
+          return;
+        }
+
+        if (lastSignature) {
+          lastSignature = "";
+          onTextSelectionChange(null);
+        }
+        return;
+      }
+
+      const text = view.state.doc.textBetween(selection.from, selection.to, "\n").trim();
+      if (!text) {
+        if (view.hasFocus() && lastSignature) {
+          lastSignature = "";
+          onTextSelectionChange(null);
+        }
+
+        return;
+      }
+
+      const signature = `${selection.from}:${selection.to}:${text}`;
+      if (signature === lastSignature) return;
+
+      lastSignature = signature;
+      onTextSelectionChange({
+        from: selection.from,
+        source: "selection",
+        text,
+        to: selection.to
+      });
+    };
+
+    const clearStaleSelectionAfterEditorClick = (view: EditorView) => {
+      if (!lastSignature) return;
+
+      const domSelection = view.dom.ownerDocument.getSelection();
+      const hasDomSelectedText = Boolean(domSelection && !domSelection.isCollapsed && domSelection.toString().trim());
+      if (hasDomSelectedText) return;
+
+      if (!view.state.selection.empty) {
+        lastSignature = "";
+        onTextSelectionChange(null);
+        return;
+      }
+
+      notifySelectionChange(view, { requireFocusForEmptySelection: false });
+    };
+
     return new Plugin({
-      view() {
+      view(view) {
+        const ownerDocument = view.dom.ownerDocument;
+        const handleMouseUp = (event: MouseEvent) => {
+          if (event.button !== 0) return;
+
+          const targetElement =
+            event.target instanceof Element
+              ? event.target
+              : event.target instanceof Node
+                ? event.target.parentElement
+                : null;
+          const writingSurface = view.dom.closest(".paper-scroll");
+          if (!targetElement || !writingSurface?.contains(targetElement)) return;
+
+          ownerDocument.defaultView?.setTimeout(() => {
+            clearStaleSelectionAfterEditorClick(view);
+          }, 0);
+        };
+
+        ownerDocument.addEventListener("mouseup", handleMouseUp, true);
+
         return {
+          destroy() {
+            ownerDocument.removeEventListener("mouseup", handleMouseUp, true);
+          },
           update(view, previousState) {
             const { selection } = view.state;
             if (selection.eq(previousState.selection)) return;
-
-            if (selection.empty) {
-              if (!view.hasFocus()) return;
-
-              const blockContext = readAiSelectionContextFromView(view);
-              if (blockContext.text.trim()) {
-                const signature = `${blockContext.source ?? "block"}:${blockContext.from}:${blockContext.to}:${blockContext.text}`;
-                if (signature === lastSignature) return;
-
-                lastSignature = signature;
-                onTextSelectionChange(blockContext);
-                return;
-              }
-
-              if (lastSignature) {
-                lastSignature = "";
-                onTextSelectionChange(null);
-              }
-              return;
-            }
-
-            const text = view.state.doc.textBetween(selection.from, selection.to, "\n").trim();
-            if (!text) {
-              if (view.hasFocus() && lastSignature) {
-                lastSignature = "";
-                onTextSelectionChange(null);
-              }
-
-              return;
-            }
-
-            const signature = `${selection.from}:${selection.to}:${text}`;
-            if (signature === lastSignature) return;
-
-            lastSignature = signature;
-            onTextSelectionChange({
-              from: selection.from,
-              source: "selection",
-              text,
-              to: selection.to
-            });
+            notifySelectionChange(view, { requireFocusForEmptySelection: true });
           }
         };
       }

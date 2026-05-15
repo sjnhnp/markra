@@ -76,6 +76,15 @@ import { fetchAiProviderModels, testAiProviderConnection } from "@markra/provide
 import { chatCompletion } from "@markra/ai";
 import { generateAiAgentSessionTitle } from "@markra/ai";
 import { resolveDesktopPlatform } from "../lib/platform";
+
+const testAiQuickActionPrompts = vi.hoisted(() => ({
+  continue: "",
+  polish: "",
+  rewrite: "",
+  summarize: "",
+  translate: ""
+}));
+
 vi.mock("../lib/tauri", () => ({
   confirmNativeMarkdownFileDelete: vi.fn(),
   confirmNativeUnsavedMarkdownDocumentDiscard: vi.fn(),
@@ -131,6 +140,8 @@ vi.mock("../lib/settings/app-settings", () => ({
   consumeWelcomeDocumentState: vi.fn(),
   deleteStoredAiAgentSession: vi.fn(),
   defaultEditorPreferences: {
+    aiQuickActionPrompts: testAiQuickActionPrompts,
+    aiSelectionDisplayMode: "command",
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -222,6 +233,8 @@ vi.mock("../lib/settings/app-settings", () => ({
   initializeStoredAiAgentSession: vi.fn(),
   listStoredAiAgentSessions: vi.fn(),
   normalizeEditorPreferences: vi.fn((preferences) => ({
+    aiQuickActionPrompts: testAiQuickActionPrompts,
+    aiSelectionDisplayMode: "command",
     autoOpenAiOnSelection: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -657,6 +670,8 @@ export function installAppTestHarness() {
     });
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiQuickActionPrompts: testAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
       autoOpenAiOnSelection: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",

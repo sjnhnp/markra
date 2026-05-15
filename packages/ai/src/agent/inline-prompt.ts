@@ -23,13 +23,22 @@ type NormalizeInlineAiReplacementOptions = {
   preserveLeadingWhitespace?: boolean;
 };
 
+const translateIntentInstruction = [
+  "Automatically detect the target text's current language before translating it.",
+  "If the target text is mostly English, translate it into Simplified Chinese.",
+  "If the target text is mostly Chinese, translate it into English.",
+  "For other languages, translate it into English unless the user instruction names another target language.",
+  "If the user instruction explicitly names a different target language, use that explicit language instead.",
+  "Preserve Markdown formatting."
+].join(" ");
+
 const intentInstruction: Record<AiEditIntent, string> = {
   custom: "Follow the user instruction exactly while keeping the edit scoped to the target.",
   polish: "Polish the target text for clarity, flow, grammar, and word choice without adding new facts.",
   rewrite: "Rewrite the target text according to the user instruction while preserving the intended meaning unless asked otherwise.",
   continue: "Continue after the target text. Return only the new Markdown to insert after it. Do not repeat the target text.",
   summarize: "Summarize the target text concisely while preserving the important facts and Markdown readability.",
-  translate: "Translate the target text into English."
+  translate: translateIntentInstruction
 };
 
 const targetScopeLabel: Record<AiTargetScope, string> = {
@@ -94,14 +103,25 @@ export function buildInlineAiMessages({
   ];
 }
 
-function instructionForIntent(intent: AiEditIntent, translationTargetLanguage: string) {
-  if (intent !== "translate") return intentInstruction[intent];
+export function buildInlineAiIntentInstruction(intent: AiEditIntent, translationTargetLanguage = "English") {
+  if (intent === "translate") {
+    const preferredTargetLanguage = translationTargetLanguage || "English";
+    const fallbackTargetLanguage = preferredTargetLanguage === "English" ? "Simplified Chinese" : "English";
 
-  return [
-    `Translate the target text into ${translationTargetLanguage || "English"}.`,
-    "If the user instruction explicitly names a different target language, use that explicit language instead.",
-    "Preserve Markdown formatting."
-  ].join(" ");
+    return [
+      "Automatically detect the target text's current language before translating it.",
+      `Use ${preferredTargetLanguage} as the preferred target language when the target text is not already in ${preferredTargetLanguage}.`,
+      `If the target text is already in ${preferredTargetLanguage}, translate it into ${fallbackTargetLanguage} unless the user instruction names another target language.`,
+      "If the user instruction explicitly names a different target language, use that explicit language instead.",
+      "Preserve Markdown formatting."
+    ].join(" ");
+  }
+
+  return intentInstruction[intent];
+}
+
+function instructionForIntent(intent: AiEditIntent, translationTargetLanguage: string) {
+  return buildInlineAiIntentInstruction(intent, translationTargetLanguage);
 }
 
 export function normalizeInlineAiReplacement(

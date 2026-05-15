@@ -251,7 +251,7 @@ describe("useAiCommandUi", () => {
     });
   });
 
-  it("passes the configured app language as the AI translation target", async () => {
+  it("passes the selected app language as the preferred translation target", async () => {
     const onAiResult = vi.fn();
     mockedRunInlineAiAgent.mockResolvedValue({ content: "你好", finishReason: "stop" });
     const { result } = renderHook(() =>

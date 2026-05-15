@@ -24,13 +24,20 @@ import { AiModelPicker, type AiModelPickerOption } from "./AiModelPicker";
 import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import type { AiDiffResult, AiEditIntent } from "@markra/ai";
 import type { AiProviderApiStyle } from "../lib/settings/app-settings";
-import { t, type AppLanguage, type I18nKey } from "@markra/shared";
+import { aiTranslationLanguageName, t, type AppLanguage, type I18nKey } from "@markra/shared";
 import { RoundIconButton, ToggleButton } from "@markra/ui";
+import {
+  aiQuickActionLabelKeys,
+  defaultAiQuickActionPrompt,
+  defaultAiQuickActionPrompts,
+  resolveAiQuickActionPrompt,
+  type AiQuickActionId,
+  type AiQuickActionPrompts
+} from "../lib/ai-actions";
 
 type AiCommandAction = {
   icon: LucideIcon;
-  intent: Exclude<AiEditIntent, "custom">;
-  labelKey: I18nKey;
+  intent: AiQuickActionId;
 };
 
 type AiCommandModelOption = AiModelPickerOption & {
@@ -68,28 +75,23 @@ const exitDurationMs = 200;
 const aiCommandActions: AiCommandAction[] = [
   {
     icon: Sparkles,
-    intent: "polish",
-    labelKey: "app.aiPolish"
+    intent: "polish"
   },
   {
     icon: PenLine,
-    intent: "rewrite",
-    labelKey: "app.aiRewrite"
+    intent: "rewrite"
   },
   {
     icon: Plus,
-    intent: "continue",
-    labelKey: "app.aiContinueWriting"
+    intent: "continue"
   },
   {
     icon: FileText,
-    intent: "summarize",
-    labelKey: "app.aiSummarize"
+    intent: "summarize"
   },
   {
     icon: Languages,
-    intent: "translate",
-    labelKey: "app.aiTranslate"
+    intent: "translate"
   }
 ];
 
@@ -110,6 +112,7 @@ type AiCommandBarProps = {
   language?: AppLanguage;
   open: boolean;
   prompt: string;
+  quickActionPrompts?: AiQuickActionPrompts;
   selectedModelId?: string | null;
   selectedProviderId?: string | null;
   selectedText?: string;
@@ -119,6 +122,7 @@ type AiCommandBarProps = {
   onInterrupt?: () => unknown;
   onOverlayInsetChange?: (inset: number) => unknown;
   onPromptChange: (prompt: string) => unknown;
+  onSelectionContextFocus?: () => unknown;
   onSelectModel?: (providerId: string, modelId: string) => unknown;
   onSubmit: (promptOverride?: string, intent?: AiEditIntent, options?: AiCommandSubmitOptions) => unknown;
   onTransferToAiPanel?: (prompt: string) => unknown;
@@ -133,6 +137,7 @@ export function AiCommandBar({
   language = "en",
   open,
   prompt,
+  quickActionPrompts = defaultAiQuickActionPrompts,
   selectedModelId = null,
   selectedProviderId = null,
   selectedText = "",
@@ -142,6 +147,7 @@ export function AiCommandBar({
   onInterrupt,
   onOverlayInsetChange,
   onPromptChange,
+  onSelectionContextFocus,
   onSelectModel,
   onSubmit,
   onTransferToAiPanel
@@ -165,6 +171,7 @@ export function AiCommandBar({
   const { handleCompositionEnd, handleCompositionStart, isComposingEnter } = useImeInputGuard();
   const busy = submitting || externalActionPending;
   const label = (key: I18nKey) => t(language, key);
+  const translationTargetLanguage = aiTranslationLanguageName(language);
   const canSubmit = prompt.trim().length > 0 && !busy;
   const closing = commandState === "closing";
   const expanded = commandState === "expanded";
@@ -327,19 +334,25 @@ export function AiCommandBar({
   }, [clearCollapseTimer, expanded, setCommandStateValue]);
 
   useEffect(() => {
-    if (!open || !expanded) return;
+    if (!open) return;
 
     const handleOutsideClick = (event: MouseEvent) => {
       if (commandRef.current?.contains(event.target as Node)) return;
 
-      collapseCommand();
+      const state = commandStateRef.current;
+      if (!busy && !aiResult && !prompt.trim() && (state === "compact" || state === "expanded")) {
+        onClose();
+        return;
+      }
+
+      if (state === "expanded") collapseCommand();
     };
 
     document.addEventListener("mousedown", handleOutsideClick);
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
-  }, [collapseCommand, expanded, open]);
+  }, [aiResult, busy, collapseCommand, onClose, open, prompt]);
 
   useEffect(() => {
     if (!rendered) return;
@@ -440,7 +453,11 @@ export function AiCommandBar({
   const handleQuickAction = (action: AiCommandAction) => {
     if (busy) return;
 
-    const quickPrompt = label(action.labelKey);
+    const quickPrompt = resolveAiQuickActionPrompt(
+      quickActionPrompts,
+      action.intent,
+      defaultAiQuickActionPrompt(action.intent, translationTargetLanguage)
+    );
     setActiveQuickActionIntent(action.intent);
     setQuickActionsVisible(false);
     onPromptChange(quickPrompt);
@@ -543,6 +560,7 @@ export function AiCommandBar({
             onChange={(event) => handlePromptChange(event.target.value)}
             onCompositionEnd={handleCompositionEnd}
             onCompositionStart={handleCompositionStart}
+            onFocus={onSelectionContextFocus}
             onKeyDown={handlePromptKeyDown}
             aria-label={label("app.aiCommandInput")}
           />
@@ -634,17 +652,18 @@ export function AiCommandBar({
             <div className="grid gap-0.5">
               {aiCommandActions.map((action) => {
                 const Icon = action.icon;
+                const actionLabel = label(aiQuickActionLabelKeys[action.intent]);
 
                 return (
                   <button
                     className="inline-flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-left text-[13px] leading-5 font-[560] text-(--text-primary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                    key={action.labelKey}
+                    key={action.intent}
                     type="button"
                     onClick={() => handleQuickAction(action)}
-                    aria-label={label(action.labelKey)}
+                    aria-label={actionLabel}
                   >
                     <Icon aria-hidden="true" size={15} />
-                    <span className="min-w-0 truncate">{label(action.labelKey)}</span>
+                    <span className="min-w-0 truncate">{actionLabel}</span>
                   </button>
                 );
               })}

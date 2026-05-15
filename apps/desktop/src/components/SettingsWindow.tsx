@@ -1,6 +1,7 @@
 import { AppToaster } from "./AppToaster";
 import { AiProviderSettingsPanel } from "./AiProviderSettingsPanel";
 import {
+  AiSettings,
   AppearanceSettings,
   EditorSettings,
   ExportSettings,
@@ -85,6 +86,14 @@ export function SettingsWindow() {
             />
           ) : null}
           {activeCategory === "ai" ? (
+            <AiSettings
+              language={appLanguage.language}
+              preferences={editorPreferences}
+              translate={translate}
+              onUpdatePreferences={handleUpdateEditorPreferences}
+            />
+          ) : null}
+          {activeCategory === "providers" ? (
             <AiProviderSettingsPanel
               saved={aiSettingsSaved}
               selectedProviderId={selectedAiProvider?.id}

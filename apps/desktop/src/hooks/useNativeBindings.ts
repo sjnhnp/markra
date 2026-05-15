@@ -13,7 +13,12 @@ import {
   type MarkdownShortcutAction,
   type MarkdownShortcutMap
 } from "@markra/editor";
-import { matchesKeyboardShortcutEvent, t, type AppLanguage, type I18nKey } from "@markra/shared";
+import {
+  aiTranslationLanguageName,
+  matchesKeyboardShortcutEvent,
+  type AppLanguage
+} from "@markra/shared";
+import { defaultAiQuickActionPrompt } from "../lib/ai-actions";
 
 type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
@@ -143,11 +148,11 @@ export function useNativeMenuHandlers({
       insertLink: () => latestOptionsRef.current.insertMarkdownSnippet("[", "](https://)", "text"),
       insertImage: () => latestOptionsRef.current.insertMarkdownSnippet("![", "](https://)", "alt"),
       insertTable: () => latestOptionsRef.current.insertMarkdownTable(),
-      aiPolish: () => runLatestAiQuickAction("polish", "app.aiPolish"),
-      aiRewrite: () => runLatestAiQuickAction("rewrite", "app.aiRewrite"),
-      aiContinueWriting: () => runLatestAiQuickAction("continue", "app.aiContinueWriting"),
-      aiSummarize: () => runLatestAiQuickAction("summarize", "app.aiSummarize"),
-      aiTranslate: () => runLatestAiQuickAction("translate", "app.aiTranslate"),
+      aiPolish: () => runLatestAiQuickAction("polish"),
+      aiRewrite: () => runLatestAiQuickAction("rewrite"),
+      aiContinueWriting: () => runLatestAiQuickAction("continue"),
+      aiSummarize: () => runLatestAiQuickAction("summarize"),
+      aiTranslate: () => runLatestAiQuickAction("translate"),
       toggleAiAgent: () => latestOptionsRef.current.toggleAiAgent?.(),
       toggleAiCommand: () => latestOptionsRef.current.toggleAiCommand?.(),
       toggleMarkdownFiles: () => latestOptionsRef.current.toggleMarkdownFiles?.(),
@@ -166,10 +171,13 @@ export function useNativeMenuHandlers({
     });
   }
 
-  function runLatestAiQuickAction(intent: NativeAiQuickActionIntent, labelKey: I18nKey) {
+  function runLatestAiQuickAction(intent: NativeAiQuickActionIntent) {
     const { language: currentLanguage, runAiQuickAction: currentRunAiQuickAction } = latestOptionsRef.current;
 
-    return currentRunAiQuickAction?.(intent, t(currentLanguage, labelKey));
+    return currentRunAiQuickAction?.(
+      intent,
+      defaultAiQuickActionPrompt(intent, aiTranslationLanguageName(currentLanguage))
+    );
   }
 }
 
