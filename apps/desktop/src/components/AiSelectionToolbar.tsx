@@ -1,8 +1,9 @@
 import { type CSSProperties } from "react";
 import { FileText, Languages, PenLine, Plus, Sparkles, WandSparkles, type LucideIcon } from "lucide-react";
-import { t, type AppLanguage, type I18nKey } from "@markra/shared";
+import { aiTranslationLanguageName, t, type AppLanguage, type I18nKey } from "@markra/shared";
 import {
   aiQuickActionLabelKeys,
+  defaultAiQuickActionPrompt,
   defaultAiQuickActionPrompts,
   resolveAiQuickActionPrompt,
   type AiQuickActionId,
@@ -62,6 +63,7 @@ export function AiSelectionToolbar({
   if (!open || !anchor) return null;
 
   const label = (key: I18nKey) => t(language, key);
+  const translationTargetLanguage = aiTranslationLanguageName(language);
   const style: CSSProperties = {
     left: `${Math.round((anchor.left + anchor.right) / 2)}px`,
     top: `${Math.max(12, Math.round(anchor.top - toolbarOffsetPx))}px`
@@ -93,7 +95,7 @@ export function AiSelectionToolbar({
           const actionPrompt = resolveAiQuickActionPrompt(
             quickActionPrompts,
             action.intent,
-            defaultAiQuickActionPrompts[action.intent]
+            defaultAiQuickActionPrompt(action.intent, translationTargetLanguage)
           );
 
           return (

@@ -24,10 +24,11 @@ import { AiModelPicker, type AiModelPickerOption } from "./AiModelPicker";
 import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import type { AiDiffResult, AiEditIntent } from "@markra/ai";
 import type { AiProviderApiStyle } from "../lib/settings/app-settings";
-import { t, type AppLanguage, type I18nKey } from "@markra/shared";
+import { aiTranslationLanguageName, t, type AppLanguage, type I18nKey } from "@markra/shared";
 import { RoundIconButton, ToggleButton } from "@markra/ui";
 import {
   aiQuickActionLabelKeys,
+  defaultAiQuickActionPrompt,
   defaultAiQuickActionPrompts,
   resolveAiQuickActionPrompt,
   type AiQuickActionId,
@@ -170,6 +171,7 @@ export function AiCommandBar({
   const { handleCompositionEnd, handleCompositionStart, isComposingEnter } = useImeInputGuard();
   const busy = submitting || externalActionPending;
   const label = (key: I18nKey) => t(language, key);
+  const translationTargetLanguage = aiTranslationLanguageName(language);
   const canSubmit = prompt.trim().length > 0 && !busy;
   const closing = commandState === "closing";
   const expanded = commandState === "expanded";
@@ -454,7 +456,7 @@ export function AiCommandBar({
     const quickPrompt = resolveAiQuickActionPrompt(
       quickActionPrompts,
       action.intent,
-      defaultAiQuickActionPrompts[action.intent]
+      defaultAiQuickActionPrompt(action.intent, translationTargetLanguage)
     );
     setActiveQuickActionIntent(action.intent);
     setQuickActionsVisible(false);

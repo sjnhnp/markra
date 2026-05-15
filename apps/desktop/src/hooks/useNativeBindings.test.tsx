@@ -1,5 +1,5 @@
 import { fireEvent, renderHook } from "@testing-library/react";
-import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
+import { defaultAiQuickActionPrompt } from "../lib/ai-actions";
 import { useApplicationShortcuts, useNativeMenuHandlers } from "./useNativeBindings";
 
 describe("useNativeMenuHandlers", () => {
@@ -48,9 +48,21 @@ describe("useNativeMenuHandlers", () => {
     result.current.aiContinueWriting?.();
     result.current.aiTranslate?.();
 
-    expect(runAiQuickAction).toHaveBeenNthCalledWith(1, "polish", defaultAiQuickActionPrompts.polish);
-    expect(runAiQuickAction).toHaveBeenNthCalledWith(2, "continue", defaultAiQuickActionPrompts.continue);
-    expect(runAiQuickAction).toHaveBeenNthCalledWith(3, "translate", defaultAiQuickActionPrompts.translate);
+    expect(runAiQuickAction).toHaveBeenNthCalledWith(
+      1,
+      "polish",
+      defaultAiQuickActionPrompt("polish", "Simplified Chinese")
+    );
+    expect(runAiQuickAction).toHaveBeenNthCalledWith(
+      2,
+      "continue",
+      defaultAiQuickActionPrompt("continue", "Simplified Chinese")
+    );
+    expect(runAiQuickAction).toHaveBeenNthCalledWith(
+      3,
+      "translate",
+      defaultAiQuickActionPrompt("translate", "Simplified Chinese")
+    );
   });
 
   it("routes native formatting commands through custom markdown shortcuts", () => {

@@ -13,8 +13,12 @@ import {
   type MarkdownShortcutAction,
   type MarkdownShortcutMap
 } from "@markra/editor";
-import { matchesKeyboardShortcutEvent, type AppLanguage } from "@markra/shared";
-import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
+import {
+  aiTranslationLanguageName,
+  matchesKeyboardShortcutEvent,
+  type AppLanguage
+} from "@markra/shared";
+import { defaultAiQuickActionPrompt } from "../lib/ai-actions";
 
 type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
@@ -170,7 +174,10 @@ export function useNativeMenuHandlers({
   function runLatestAiQuickAction(intent: NativeAiQuickActionIntent) {
     const { language: currentLanguage, runAiQuickAction: currentRunAiQuickAction } = latestOptionsRef.current;
 
-    return currentRunAiQuickAction?.(intent, defaultAiQuickActionPrompts[intent]);
+    return currentRunAiQuickAction?.(
+      intent,
+      defaultAiQuickActionPrompt(intent, aiTranslationLanguageName(currentLanguage))
+    );
   }
 }
 

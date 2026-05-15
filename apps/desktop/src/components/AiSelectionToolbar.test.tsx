@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
+import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import { AiSelectionToolbar } from "./AiSelectionToolbar";
 
 const anchor = {
@@ -35,7 +35,7 @@ describe("AiSelectionToolbar", () => {
     expect(screen.getByRole("button", { name: "Translate" })).toBeInTheDocument();
   });
 
-  it("runs preset prompts through the existing inline AI action flow", () => {
+  it("targets translation preset prompts to the selected app language", () => {
     const onRunAction = vi.fn();
 
     render(
@@ -48,9 +48,12 @@ describe("AiSelectionToolbar", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "润色" }));
+    fireEvent.click(screen.getByRole("button", { name: "翻译" }));
 
-    expect(onRunAction).toHaveBeenCalledWith("polish", defaultAiQuickActionPrompts.polish);
+    expect(onRunAction).toHaveBeenCalledWith(
+      "translate",
+      defaultAiQuickActionPrompt("translate", "Simplified Chinese")
+    );
   });
 
   it("uses configured prompt text while keeping the localized button label", () => {

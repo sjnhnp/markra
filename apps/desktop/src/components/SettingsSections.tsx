@@ -62,11 +62,18 @@ import {
 import {
   aiQuickActionIds,
   aiQuickActionLabelKeys,
+  defaultAiQuickActionPrompt,
   defaultAiQuickActionPrompts,
   type AiQuickActionId
 } from "../lib/ai-actions";
 import type { DesktopPlatform } from "../lib/platform";
-import { clampNumber, supportedLanguages, type AppLanguage, type I18nKey } from "@markra/shared";
+import {
+  aiTranslationLanguageName,
+  clampNumber,
+  supportedLanguages,
+  type AppLanguage,
+  type I18nKey
+} from "@markra/shared";
 import {
   editorContentWidthPixels,
   editorCustomContentWidthMax,
@@ -1496,15 +1503,18 @@ function updateAiQuickActionPrompt(
 }
 
 export function AiSettings({
+  language,
   onUpdatePreferences,
   preferences,
   translate
 }: {
+  language: AppLanguage;
   onUpdatePreferences: (preferences: EditorPreferences) => unknown;
   preferences: EditorPreferences;
   translate: Translate;
 }) {
   const quickActionPrompts = preferences.aiQuickActionPrompts ?? defaultAiQuickActionPrompts;
+  const translationTargetLanguage = aiTranslationLanguageName(language);
 
   return (
     <>
@@ -1578,7 +1588,7 @@ export function AiSettings({
       <SettingsSection label={translate("settings.sections.aiPrompts")}>
         {aiQuickActionIds.map((actionId) => {
           const actionLabel = translate(aiQuickActionLabelKeys[actionId]);
-          const defaultPrompt = defaultAiQuickActionPrompts[actionId];
+          const defaultPrompt = defaultAiQuickActionPrompt(actionId, translationTargetLanguage);
           const inputLabel = aiPromptInputLabel(actionId, translate);
           const storedPrompt = quickActionPrompts[actionId];
 

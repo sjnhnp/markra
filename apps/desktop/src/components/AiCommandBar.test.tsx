@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
+import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import { AiCommandBar } from "./AiCommandBar";
 
 describe("AiCommandBar", () => {
@@ -495,8 +495,8 @@ describe("AiCommandBar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Polish" }));
 
-    expect(onPromptChange).toHaveBeenCalledWith(defaultAiQuickActionPrompts.polish);
-    expect(onSubmit).toHaveBeenCalledWith(defaultAiQuickActionPrompts.polish, "polish");
+    expect(onPromptChange).toHaveBeenCalledWith(defaultAiQuickActionPrompt("polish", "English"));
+    expect(onSubmit).toHaveBeenCalledWith(defaultAiQuickActionPrompt("polish", "English"), "polish");
     expect(screen.queryByText("AI toolkit")).not.toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: "custom request" } });
@@ -531,9 +531,38 @@ describe("AiCommandBar", () => {
     expect(onSubmit).toHaveBeenCalledWith("Make the selected text clearer.", "polish");
   });
 
+  it("targets translation quick actions to the selected app language", async () => {
+    const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="zh-CN"
+        open
+        prompt=""
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("textbox", { name: "AI 命令" }));
+    fireEvent.click(await screen.findByRole("button", { name: "翻译" }));
+
+    expect(onPromptChange).toHaveBeenCalledWith(
+      defaultAiQuickActionPrompt("translate", "Simplified Chinese")
+    );
+    expect(onSubmit).toHaveBeenCalledWith(
+      defaultAiQuickActionPrompt("translate", "Simplified Chinese"),
+      "translate"
+    );
+  });
+
   it("keeps quick action generation in the compact input style", async () => {
     const onPromptChange = vi.fn();
     const onSubmit = vi.fn();
+    const chinesePolishPrompt = defaultAiQuickActionPrompt("polish", "Simplified Chinese");
 
     const { rerender } = render(
       <AiCommandBar
@@ -554,7 +583,7 @@ describe("AiCommandBar", () => {
       <AiCommandBar
         language="zh-CN"
         open
-        prompt={defaultAiQuickActionPrompts.polish}
+        prompt={chinesePolishPrompt}
         submitting
         onClose={vi.fn()}
         onInterrupt={vi.fn()}
@@ -566,8 +595,8 @@ describe("AiCommandBar", () => {
     const status = screen.getByRole("status");
     const commandBox = status.closest(".ai-command-box");
 
-    expect(onPromptChange).toHaveBeenCalledWith(defaultAiQuickActionPrompts.polish);
-    expect(onSubmit).toHaveBeenCalledWith(defaultAiQuickActionPrompts.polish, "polish");
+    expect(onPromptChange).toHaveBeenCalledWith(chinesePolishPrompt);
+    expect(onSubmit).toHaveBeenCalledWith(chinesePolishPrompt, "polish");
     expect(status).toHaveTextContent("润色中……");
     expect(screen.getByText("润色中……")).toHaveClass("ai-command-inline-loading-text");
     expect(commandBox).toHaveClass("h-14", "rounded-xl", "border-(--border-default)");

@@ -33,7 +33,7 @@ import {
   type AiProviderSettings
 } from "./app-settings";
 import { defaultMarkdownShortcuts } from "@markra/editor";
-import { defaultAiQuickActionPrompts } from "../ai-actions";
+import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../ai-actions";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn()
@@ -454,6 +454,15 @@ describe("app settings", () => {
       continue: "Keep writing in the same voice.",
       summarize: "Summarize in one sentence."
     });
+  });
+
+  it("normalizes stored built-in AI quick action prompts as unset defaults", () => {
+    expect(normalizeEditorPreferences({
+      aiQuickActionPrompts: {
+        continue: defaultAiQuickActionPrompt("continue", "English"),
+        translate: defaultAiQuickActionPrompt("translate", "English")
+      }
+    }).aiQuickActionPrompts).toEqual(defaultAiQuickActionPrompts);
   });
 
   it("moves titlebar actions to the target slot in both directions", () => {

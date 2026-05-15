@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import { t } from "@markra/shared";
 import { defaultEditorPreferences, type EditorPreferences } from "../lib/settings/app-settings";
-import { defaultAiQuickActionPrompts } from "../lib/ai-actions";
+import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import { AiSettings, EditorSettings, KeyboardShortcutsSettings, StorageSettings } from "./SettingsSections";
 
 function translate(key: Parameters<typeof t>[1]) {
@@ -93,6 +93,7 @@ describe("AiSettings", () => {
 
     render(
       <AiSettings
+        language="en"
         preferences={{
           ...defaultEditorPreferences,
           suggestAiPanelForComplexInlinePrompts: true
@@ -121,6 +122,7 @@ describe("AiSettings", () => {
 
     render(
       <AiSettings
+        language="en"
         preferences={{
           ...defaultEditorPreferences,
           aiSelectionDisplayMode: "toolbar"
@@ -156,6 +158,7 @@ describe("AiSettings", () => {
 
     render(
       <AiSettings
+        language="en"
         preferences={preferences}
         translate={translate}
         onUpdatePreferences={onUpdatePreferences}
@@ -185,9 +188,10 @@ describe("AiSettings", () => {
     });
   });
 
-  it("shows the English default prompt when no custom quick action prompt is stored", () => {
+  it("shows the default prompt when no custom quick action prompt is stored", () => {
     render(
       <AiSettings
+        language="en"
         preferences={defaultEditorPreferences}
         translate={translate}
         onUpdatePreferences={vi.fn()}
@@ -195,24 +199,29 @@ describe("AiSettings", () => {
     );
 
     expect(screen.getByRole("textbox", { name: "Polish prompt" })).toHaveValue(
-      defaultAiQuickActionPrompts.polish
+      defaultAiQuickActionPrompt("polish", "English")
     );
     expect(screen.getByRole("textbox", { name: "Continue writing prompt" })).toHaveValue(
-      defaultAiQuickActionPrompts.continue
+      defaultAiQuickActionPrompt("continue", "English")
     );
   });
 
-  it("keeps default quick action prompts in English across app languages", () => {
+  it("keeps non-translation defaults in English while targeting translations to the app language", () => {
     render(
       <AiSettings
+        language="zh-CN"
         preferences={defaultEditorPreferences}
         translate={translateChinese}
         onUpdatePreferences={vi.fn()}
       />
     );
 
-    expect(screen.getByRole("textbox", { name: "润色 提示词" })).toHaveValue(defaultAiQuickActionPrompts.polish);
-    expect(screen.getByRole("textbox", { name: "翻译 提示词" })).toHaveValue(defaultAiQuickActionPrompts.translate);
+    expect(screen.getByRole("textbox", { name: "润色 提示词" })).toHaveValue(
+      defaultAiQuickActionPrompt("polish", "Simplified Chinese")
+    );
+    expect(screen.getByRole("textbox", { name: "翻译 提示词" })).toHaveValue(
+      defaultAiQuickActionPrompt("translate", "Simplified Chinese")
+    );
   });
 });
 

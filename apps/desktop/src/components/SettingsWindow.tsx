@@ -87,6 +87,7 @@ export function SettingsWindow() {
           ) : null}
           {activeCategory === "ai" ? (
             <AiSettings
+              language={appLanguage.language}
               preferences={editorPreferences}
               translate={translate}
               onUpdatePreferences={handleUpdateEditorPreferences}

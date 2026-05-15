@@ -103,7 +103,7 @@ export function buildInlineAiMessages({
   ];
 }
 
-function instructionForIntent(intent: AiEditIntent, translationTargetLanguage: string) {
+export function buildInlineAiIntentInstruction(intent: AiEditIntent, translationTargetLanguage = "English") {
   if (intent === "translate") {
     const preferredTargetLanguage = translationTargetLanguage || "English";
     const fallbackTargetLanguage = preferredTargetLanguage === "English" ? "Simplified Chinese" : "English";
@@ -118,6 +118,10 @@ function instructionForIntent(intent: AiEditIntent, translationTargetLanguage: s
   }
 
   return intentInstruction[intent];
+}
+
+function instructionForIntent(intent: AiEditIntent, translationTargetLanguage: string) {
+  return buildInlineAiIntentInstruction(intent, translationTargetLanguage);
 }
 
 export function normalizeInlineAiReplacement(
