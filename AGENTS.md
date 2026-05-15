@@ -58,3 +58,13 @@ This document only defines engineering conventions for this repository.
 - Confirm that a new dependency is actually needed before adding it.
 - Prefer reusing the current stack over introducing additional frameworks or tools.
 - Update this document when repository-wide conventions change.
+
+## Upstream Synchronization
+
+- **Upstream Source**: `https://github.com/murongg/markra`
+- **Smart Merge Policy**: When merging from upstream, do not simply pick "theirs" or "ours". Perform a logic-aware "smart merge" that preserves local enhancements while adopting upstream improvements.
+- **Protected Customizations**:
+  - **Manual Workflows**: Keep `.github/workflows/` (release.yml, ci.yml) as manual-only (`workflow_dispatch`). Do not restore automatic `push` triggers.
+  - **Window Focus Fix**: Preserve the multi-window fallback logic in `isCurrentNativeWindowFocused` within `apps/desktop/src/lib/tauri/menu.ts`.
+  - **Early Menu Registration**: Preserve the early registration of native menu listeners in `App.tsx` (passing `"en"` as fallback language).
+- **Bug Fix Comparison**: If upstream fixes a bug that was already fixed locally (e.g., window focus), perform a code review to select the most robust implementation. If the local fix covers more edge cases (like the Windows 11 menu focus bug), prioritize the local implementation.
