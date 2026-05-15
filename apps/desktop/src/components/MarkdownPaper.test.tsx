@@ -1767,6 +1767,54 @@ describe("MarkdownPaper editing", () => {
     restoreLayout();
   });
 
+  it("opens slash commands after adding a paragraph from the side toolbar", async () => {
+    const { container, editor, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    expect(await screen.findByRole("listbox", { name: "Slash commands" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Heading 1" })).toBeInTheDocument();
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("First\n\nSecond\n\n<br />\n\nThird\n");
+    expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("/");
+    restoreLayout();
+  });
+
+  it("filters slash commands from a side toolbar inserted paragraph", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+    expect(await screen.findByRole("listbox", { name: "Slash commands" })).toBeInTheDocument();
+
+    typeText(view, "co");
+
+    expect(screen.getByRole("option", { name: "Code Block" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("option", { name: "Heading 1" })).not.toBeInTheDocument();
+
+    expect(pressEnter(view)).toBe(true);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror .markra-code-block")).toBeInTheDocument());
+    expect(view.state.doc.textContent).toBe("FirstSecondThird");
+    restoreLayout();
+  });
+
   it("adds a list item below the hovered list item from the side toolbar", async () => {
     const { container, editor, view } = await renderEditor("- First\n- Second");
     const restoreLayout = mockListItemBlockDragLayout(view, container);

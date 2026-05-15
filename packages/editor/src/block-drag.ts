@@ -2,6 +2,7 @@ import type { Node as ProseNode, ResolvedPos } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, TextSelection, type EditorState } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
+import { openSlashCommandMenu } from "./slash-commands.ts";
 
 export type BlockDragLabels = {
   addBlock: string;
@@ -605,6 +606,7 @@ class MarkraBlockDragView {
     const range = this.activeRange ?? this.rangeFromPoint(event.clientX, event.clientY);
     if (!range || !insertBlockAfter(this.view, range)) return;
 
+    openSlashCommandMenu(this.view);
     this.hideHandle();
   };
 

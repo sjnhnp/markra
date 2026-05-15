@@ -15,7 +15,7 @@ import {
 } from "@milkdown/kit/preset/gfm";
 import type { NodeType } from "@milkdown/kit/prose/model";
 import { setBlockType, wrapIn } from "@milkdown/kit/prose/commands";
-import { Plugin, PluginKey, TextSelection, type Command, type EditorState } from "@milkdown/kit/prose/state";
+import { Plugin, PluginKey, TextSelection, type Command, type EditorState, type Transaction } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { wrapInList } from "@milkdown/kit/prose/schema-list";
 import { $prose } from "@milkdown/kit/utils";
@@ -40,6 +40,7 @@ export type SlashCommandLabels = {
 type SlashCommandRange = {
   from: number;
   query: string;
+  source: "typed" | "virtual";
   to: number;
 };
 
@@ -54,6 +55,9 @@ type SlashCommandState = {
 type SlashCommandMeta =
   | {
       type: "close";
+    }
+  | {
+      type: "open";
     }
   | {
       selectedIndex: number;
@@ -117,8 +121,44 @@ function slashRangeFromState(state: EditorState): SlashCommandRange | null {
   return {
     from: selection.from - beforeCursor.length,
     query: match[1] ?? "",
+    source: "typed",
     to: selection.from
   };
+}
+
+function virtualSlashRangeFromState(state: EditorState, from = state.selection.from): SlashCommandRange | null {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+
+  const { $from } = selection;
+  if (!$from.parent.isTextblock || $from.parent.type.spec.code) return null;
+
+  const afterCursor = $from.parent.textContent.slice($from.parentOffset);
+  if (afterCursor.length > 0) return null;
+
+  const textOffset = from - $from.start();
+  if (textOffset < 0 || textOffset > $from.parentOffset) return null;
+
+  const query = $from.parent.textContent.slice(textOffset, $from.parentOffset);
+  if (/[\s/]/u.test(query)) return null;
+
+  return {
+    from,
+    query,
+    source: "virtual",
+    to: selection.from
+  };
+}
+
+function continuedVirtualSlashRangeFromState(
+  state: EditorState,
+  transaction: Transaction,
+  previousState: SlashCommandState
+) {
+  if (previousState.active?.source !== "virtual") return null;
+
+  const from = transaction.mapping.map(previousState.active.from, -1);
+  return virtualSlashRangeFromState(state, from);
 }
 
 function normalizedSearchText(value: string) {
@@ -293,6 +333,16 @@ function closeSlashCommandMenu(view: EditorView) {
   } satisfies SlashCommandMeta));
 }
 
+export function openSlashCommandMenu(view: EditorView) {
+  if (!virtualSlashRangeFromState(view.state)) return false;
+
+  view.dispatch(view.state.tr.setMeta(slashCommandsKey, {
+    type: "open"
+  } satisfies SlashCommandMeta));
+  view.focus();
+  return true;
+}
+
 function runSelectedSlashCommand(view: EditorView, commands: SlashCommandSpec[]) {
   const state = slashCommandsKey.getState(view.state);
   if (!state?.active) return false;
@@ -454,13 +504,24 @@ export const markraSlashCommands = (labels: Partial<SlashCommandLabels> = {}) =>
       init: () => emptySlashCommandState,
       apply(transaction, previousState, _oldState, newState) {
         const meta = transaction.getMeta(slashCommandsKey) as SlashCommandMeta | undefined;
-        const activeRange = slashRangeFromState(newState);
+        const activeRange = slashRangeFromState(newState)
+          ?? continuedVirtualSlashRangeFromState(newState, transaction, previousState);
 
         if (meta?.type === "close") {
           return {
             active: null,
             selectedIndex: 0,
-            suppressed: activeRange ? { from: activeRange.from, to: activeRange.to } : null
+            suppressed: activeRange?.source === "typed" ? { from: activeRange.from, to: activeRange.to } : null
+          };
+        }
+
+        if (meta?.type === "open") {
+          const openedRange = virtualSlashRangeFromState(newState);
+
+          return {
+            active: openedRange,
+            selectedIndex: 0,
+            suppressed: null
           };
         }
 
