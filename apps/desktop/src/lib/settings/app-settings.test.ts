@@ -7,6 +7,7 @@ import {
   getStoredAiAgentPreferences,
   initializeStoredAiAgentSession,
   getStoredAiSettings,
+  getStoredCustomThemeCss,
   listStoredAiAgentSessions,
   getStoredEditorPreferences,
   getStoredExportSettings,
@@ -23,6 +24,7 @@ import {
   saveStoredAiAgentPreferences,
   saveStoredAiAgentSessionTitle,
   saveStoredAiSettings,
+  saveStoredCustomThemeCss,
   saveStoredEditorPreferences,
   saveStoredExportSettings,
   saveStoredLanguage,
@@ -80,10 +82,10 @@ describe("app settings", () => {
     expect(store.save).not.toHaveBeenCalled();
   });
 
-  it("loads a persisted color theme from settings", async () => {
-    store.get.mockResolvedValue("dark");
+  it("loads a persisted global theme from settings", async () => {
+    store.get.mockResolvedValue("catppuccin-mocha");
 
-    await expect(getStoredTheme()).resolves.toBe("dark");
+    await expect(getStoredTheme()).resolves.toBe("catppuccin-mocha");
 
     expect(store.get).toHaveBeenCalledWith("theme");
   });
@@ -100,15 +102,27 @@ describe("app settings", () => {
   });
 
   it("falls back to the system theme preference when the stored theme is missing or invalid", async () => {
-    store.get.mockResolvedValue("sepia");
+    store.get.mockResolvedValue("dracula");
 
     await expect(getStoredTheme()).resolves.toBe("system");
   });
 
-  it("persists the selected color theme", async () => {
-    await saveStoredTheme("dark");
+  it("persists the selected global theme", async () => {
+    await saveStoredTheme("solarized-dark");
 
-    expect(store.set).toHaveBeenCalledWith("theme", "dark");
+    expect(store.set).toHaveBeenCalledWith("theme", "solarized-dark");
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads and persists custom theme CSS", async () => {
+    const css = ":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }";
+    store.get.mockResolvedValue(css);
+
+    await expect(getStoredCustomThemeCss()).resolves.toBe(css);
+    await saveStoredCustomThemeCss(css);
+
+    expect(store.get).toHaveBeenCalledWith("customThemeCss");
+    expect(store.set).toHaveBeenCalledWith("customThemeCss", css);
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 

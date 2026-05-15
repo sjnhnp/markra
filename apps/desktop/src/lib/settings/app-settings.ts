@@ -33,6 +33,7 @@ const aiAgentSessionMetaKey = "meta";
 const aiAgentSessionIndexKey = "entries";
 const welcomeDocumentSeenKey = "welcomeDocumentSeen";
 const themeKey = "theme";
+const customThemeCssKey = "customThemeCss";
 const languageKey = "language";
 const aiProvidersKey = "aiProviders";
 const aiAgentPreferencesKey = "aiAgentPreferences";
@@ -41,9 +42,30 @@ const exportSettingsKey = "exportSettings";
 const webSearchKey = "webSearch";
 const workspaceKey = "workspace";
 
-export type AppTheme = "light" | "dark" | "system";
 export type ResolvedAppTheme = "light" | "dark";
 export type AiSelectionDisplayMode = "command" | "toolbar";
+export const editorThemeOptions = [
+  "light",
+  "dark",
+  "github",
+  "gothic",
+  "newsprint",
+  "night",
+  "pixyll",
+  "whitey",
+  "sepia",
+  "solarized-light",
+  "solarized-dark",
+  "nord",
+  "catppuccin-latte",
+  "catppuccin-mocha",
+  "academic",
+  "minimal",
+  "custom"
+] as const;
+export type EditorTheme = typeof editorThemeOptions[number];
+export const appThemeOptions = ["system", ...editorThemeOptions] as const;
+export type AppTheme = typeof appThemeOptions[number];
 export type PdfMarginPreset = "custom" | "default" | "narrow" | "none" | "normal" | "wide";
 export type PdfPageSize = "a4" | "custom" | "default" | "letter";
 export type TitlebarActionId = "aiAgent" | "sourceMode" | "open" | "save" | "theme";
@@ -121,6 +143,37 @@ export type StoredWorkspaceState = {
 export type { AppLanguage };
 export type { EditorContentWidth };
 export type { WebSearchProviderId, WebSearchSettings };
+
+export const customThemeCssMaxLength = 50000;
+export const defaultCustomThemeCss = `:root[data-theme="custom"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-code: #f6f8fa;
+  --bg-hover: rgba(129, 139, 152, 0.1);
+  --bg-active: #e6eaef;
+  --text-primary: #1f2328;
+  --text-heading: #1f2328;
+  --text-secondary: #59636e;
+  --text-md-char: #818b98;
+  --border-default: #d1d9e0;
+  --border-strong: #d1d9e0;
+  --accent: #0969da;
+  --accent-soft: rgba(9, 105, 218, 0.12);
+  --accent-hover: #0550ae;
+}
+
+:root[data-theme="custom"] .markdown-paper[data-editor-theme="custom"] {
+  --editor-paper-bg: var(--bg-primary);
+  --editor-text-primary: var(--text-primary);
+  --editor-text-heading: var(--text-heading);
+  --editor-text-secondary: var(--text-secondary);
+  --editor-border: var(--border-default);
+  --editor-border-strong: var(--border-strong);
+  --editor-bg-secondary: var(--bg-secondary);
+  --editor-inline-code-bg: var(--bg-code);
+  --editor-code-bg: var(--bg-code);
+  --editor-code-line-bg: var(--bg-secondary);
+}`;
 
 export const defaultTitlebarActions: readonly TitlebarActionPreference[] = [
   { id: "aiAgent", visible: true },
@@ -244,7 +297,36 @@ export function createAiAgentSessionId() {
 }
 
 export function isAppTheme(value: unknown): value is AppTheme {
-  return value === "light" || value === "dark" || value === "system";
+  return appThemeOptions.includes(value as AppTheme);
+}
+
+export function isEditorTheme(value: unknown): value is EditorTheme {
+  return editorThemeOptions.includes(value as EditorTheme);
+}
+
+export function normalizeCustomThemeCss(value: unknown) {
+  if (typeof value !== "string") return defaultCustomThemeCss;
+
+  return value.slice(0, customThemeCssMaxLength);
+}
+
+export function resolveAppAppearanceTheme(theme: AppTheme, systemTheme: ResolvedAppTheme): ResolvedAppTheme {
+  if (theme === "system") return systemTheme;
+  if (
+    theme === "dark" ||
+    theme === "night" ||
+    theme === "solarized-dark" ||
+    theme === "nord" ||
+    theme === "catppuccin-mocha"
+  ) return "dark";
+
+  return "light";
+}
+
+export function resolveAppEditorTheme(theme: AppTheme, systemTheme: ResolvedAppTheme): EditorTheme {
+  if (theme === "system") return systemTheme;
+
+  return theme;
 }
 
 export async function consumeWelcomeDocumentState() {
@@ -270,6 +352,20 @@ export async function saveStoredTheme(theme: AppTheme) {
   const store = await loadSettingsStore();
 
   await store.set(themeKey, theme);
+  await store.save();
+}
+
+export async function getStoredCustomThemeCss() {
+  const store = await loadSettingsStore();
+  const css = await store.get<string>(customThemeCssKey);
+
+  return normalizeCustomThemeCss(css);
+}
+
+export async function saveStoredCustomThemeCss(css: string) {
+  const store = await loadSettingsStore();
+
+  await store.set(customThemeCssKey, normalizeCustomThemeCss(css));
   await store.save();
 }
 

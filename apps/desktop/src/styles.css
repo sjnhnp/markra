@@ -195,7 +195,11 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  [data-theme="dark"] {
+  [data-theme="dark"],
+  [data-theme="night"],
+  [data-theme="solarized-dark"],
+  [data-theme="nord"],
+  [data-theme="catppuccin-mocha"] {
     --bg-primary: #1e1e1e;
     --bg-secondary: #252526;
     --bg-code: #1e1e1e;
@@ -241,6 +245,253 @@
     --ai-border: #444444;
 
     color-scheme: dark;
+  }
+
+  [data-theme="github"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-code: #f6f8fa;
+    --bg-hover: rgba(129, 139, 152, 0.1);
+    --bg-active: #e6eaef;
+
+    --text-primary: #1f2328;
+    --text-heading: #1f2328;
+    --text-secondary: #59636e;
+    --text-md-char: #818b98;
+
+    --border-default: #d1d9e0;
+    --border-strong: #d1d9e0;
+    --accent: #0969da;
+    --accent-soft: rgba(9, 105, 218, 0.12);
+    --accent-hover: #0550ae;
+  }
+
+  [data-theme="gothic"] {
+    --bg-primary: oklch(96% 0.012 77);
+    --bg-secondary: oklch(92% 0.018 77);
+    --bg-code: oklch(90% 0.018 78);
+    --bg-hover: oklch(91% 0.02 77);
+    --bg-active: oklch(87% 0.024 77);
+
+    --text-primary: oklch(30% 0.016 70);
+    --text-heading: oklch(21% 0.016 70);
+    --text-secondary: oklch(48% 0.024 70);
+    --text-md-char: oklch(68% 0.025 74);
+
+    --border-default: oklch(84% 0.024 74);
+    --border-strong: oklch(73% 0.032 74);
+    --accent: oklch(43% 0.13 31);
+    --accent-soft: oklch(43% 0.13 31 / 0.12);
+    --accent-hover: oklch(36% 0.14 31);
+  }
+
+  [data-theme="newsprint"] {
+    --bg-primary: oklch(96% 0.018 88);
+    --bg-secondary: oklch(91% 0.022 86);
+    --bg-code: oklch(88% 0.02 86);
+    --bg-hover: oklch(90% 0.024 86);
+    --bg-active: oklch(85% 0.026 84);
+
+    --text-primary: oklch(28% 0.012 75);
+    --text-heading: oklch(18% 0.012 75);
+    --text-secondary: oklch(45% 0.018 75);
+    --text-md-char: oklch(65% 0.024 78);
+
+    --border-default: oklch(80% 0.025 78);
+    --border-strong: oklch(68% 0.03 78);
+    --accent: oklch(42% 0.12 24);
+    --accent-soft: oklch(42% 0.12 24 / 0.12);
+    --accent-hover: oklch(34% 0.13 24);
+  }
+
+  [data-theme="pixyll"] {
+    --bg-primary: oklch(98% 0.012 94);
+    --bg-secondary: oklch(95% 0.018 94);
+    --bg-code: oklch(94.5% 0.017 94);
+    --bg-hover: oklch(93.5% 0.019 94);
+    --bg-active: oklch(90% 0.021 94);
+
+    --text-primary: oklch(33% 0.017 254);
+    --text-heading: oklch(24% 0.02 254);
+    --text-secondary: oklch(51% 0.026 254);
+    --text-md-char: oklch(70% 0.022 94);
+
+    --border-default: oklch(88% 0.018 94);
+    --border-strong: oklch(78% 0.026 94);
+    --accent: oklch(46% 0.16 15);
+    --accent-soft: oklch(46% 0.16 15 / 0.12);
+    --accent-hover: oklch(38% 0.17 15);
+  }
+
+  [data-theme="whitey"] {
+    --bg-primary: oklch(99.3% 0.004 106);
+    --bg-secondary: oklch(97.5% 0.006 106);
+    --bg-code: oklch(97% 0.006 106);
+    --bg-hover: oklch(96% 0.008 106);
+    --bg-active: oklch(93.5% 0.01 106);
+
+    --text-primary: oklch(31% 0.011 106);
+    --text-heading: oklch(20% 0.01 106);
+    --text-secondary: oklch(54% 0.014 106);
+    --text-md-char: oklch(75% 0.01 106);
+
+    --border-default: oklch(91% 0.008 106);
+    --border-strong: oklch(83% 0.012 106);
+    --accent: oklch(48% 0.13 215);
+    --accent-soft: oklch(48% 0.13 215 / 0.12);
+    --accent-hover: oklch(41% 0.14 215);
+  }
+
+  [data-theme="sepia"] {
+    --bg-primary: #fbf0d9;
+    --bg-secondary: #f3e2bd;
+    --bg-code: #f5e6c8;
+    --bg-hover: rgba(102, 81, 50, 0.11);
+    --bg-active: #ead6aa;
+
+    --text-primary: #4b3828;
+    --text-heading: #2f241b;
+    --text-secondary: #7a654d;
+    --text-md-char: #b49a76;
+
+    --border-default: #dfc596;
+    --border-strong: #c8a974;
+    --accent: #8f4e22;
+    --accent-soft: rgba(143, 78, 34, 0.13);
+    --accent-hover: #6f3d18;
+  }
+
+  [data-theme="solarized-light"] {
+    --bg-primary: #fdf6e3;
+    --bg-secondary: #eee8d5;
+    --bg-code: #eee8d5;
+    --bg-hover: rgba(101, 123, 131, 0.12);
+    --bg-active: #e1d8bd;
+
+    --text-primary: #586e75;
+    --text-heading: #073642;
+    --text-secondary: #839496;
+    --text-md-char: #93a1a1;
+
+    --border-default: #d8cfb2;
+    --border-strong: #c8bd9c;
+    --accent: #268bd2;
+    --accent-soft: rgba(38, 139, 210, 0.14);
+    --accent-hover: #006cae;
+  }
+
+  [data-theme="solarized-dark"] {
+    --bg-primary: #002b36;
+    --bg-secondary: #073642;
+    --bg-code: #073642;
+    --bg-hover: rgba(131, 148, 150, 0.12);
+    --bg-active: #104554;
+
+    --text-primary: #93a1a1;
+    --text-heading: #eee8d5;
+    --text-secondary: #839496;
+    --text-md-char: #586e75;
+
+    --border-default: #164b5a;
+    --border-strong: #2a5d6a;
+    --accent: #268bd2;
+    --accent-soft: rgba(38, 139, 210, 0.18);
+    --accent-hover: #2aa198;
+  }
+
+  [data-theme="nord"] {
+    --bg-primary: #2e3440;
+    --bg-secondary: #3b4252;
+    --bg-code: #242933;
+    --bg-hover: rgba(216, 222, 233, 0.08);
+    --bg-active: #434c5e;
+
+    --text-primary: #d8dee9;
+    --text-heading: #eceff4;
+    --text-secondary: #a7b1c3;
+    --text-md-char: #6b768a;
+
+    --border-default: #4c566a;
+    --border-strong: #5e6b83;
+    --accent: #88c0d0;
+    --accent-soft: rgba(136, 192, 208, 0.16);
+    --accent-hover: #8fbcbb;
+  }
+
+  [data-theme="catppuccin-latte"] {
+    --bg-primary: #eff1f5;
+    --bg-secondary: #e6e9ef;
+    --bg-code: #e6e9ef;
+    --bg-hover: rgba(124, 127, 147, 0.12);
+    --bg-active: #ccd0da;
+
+    --text-primary: #4c4f69;
+    --text-heading: #1e1e2e;
+    --text-secondary: #6c6f85;
+    --text-md-char: #9ca0b0;
+
+    --border-default: #ccd0da;
+    --border-strong: #bcc0cc;
+    --accent: #1e66f5;
+    --accent-soft: rgba(30, 102, 245, 0.13);
+    --accent-hover: #04a5e5;
+  }
+
+  [data-theme="catppuccin-mocha"] {
+    --bg-primary: #1e1e2e;
+    --bg-secondary: #313244;
+    --bg-code: #181825;
+    --bg-hover: rgba(205, 214, 244, 0.08);
+    --bg-active: #45475a;
+
+    --text-primary: #cdd6f4;
+    --text-heading: #f5e0dc;
+    --text-secondary: #a6adc8;
+    --text-md-char: #6c7086;
+
+    --border-default: #45475a;
+    --border-strong: #585b70;
+    --accent: #89b4fa;
+    --accent-soft: rgba(137, 180, 250, 0.16);
+    --accent-hover: #94e2d5;
+  }
+
+  [data-theme="academic"] {
+    --bg-primary: #fbfaf7;
+    --bg-secondary: #f1efe8;
+    --bg-code: #eeeae0;
+    --bg-hover: rgba(85, 75, 58, 0.1);
+    --bg-active: #e5dfd1;
+
+    --text-primary: #302a22;
+    --text-heading: #191612;
+    --text-secondary: #6b6254;
+    --text-md-char: #b1a799;
+
+    --border-default: #ded6c8;
+    --border-strong: #c9bdab;
+    --accent: #315f8c;
+    --accent-soft: rgba(49, 95, 140, 0.13);
+    --accent-hover: #244866;
+  }
+
+  [data-theme="minimal"] {
+    --bg-primary: #fdfdfc;
+    --bg-secondary: #f7f7f5;
+    --bg-code: #f3f3f1;
+    --bg-hover: rgba(82, 82, 74, 0.08);
+    --bg-active: #ededeb;
+
+    --text-primary: #2f302d;
+    --text-heading: #171815;
+    --text-secondary: #777972;
+    --text-md-char: #c8cac2;
+
+    --border-default: #e7e7e2;
+    --border-strong: #d5d6cf;
+    --accent: #4b6f77;
+    --accent-soft: rgba(75, 111, 119, 0.12);
+    --accent-hover: #36565f;
   }
 
   * {
@@ -465,6 +716,11 @@
     color: oklch(43% 0.13 151);
   }
 
+  .markdown-source-token-callout {
+    color: color-mix(in srgb, var(--accent-hover) 82%, var(--text-primary));
+    font-weight: 700;
+  }
+
   .markdown-source-token-link {
     color: var(--accent-hover);
   }
@@ -477,6 +733,371 @@
     color: var(--text-md-char);
   }
 
+  .markdown-paper {
+    --editor-paper-bg: var(--bg-primary);
+    --editor-text-primary: var(--text-primary);
+    --editor-text-heading: var(--text-heading);
+    --editor-text-secondary: var(--text-secondary);
+    --editor-border: var(--border-default);
+    --editor-border-strong: var(--border-strong);
+    --editor-bg-secondary: var(--bg-secondary);
+    --editor-inline-code-bg: var(--bg-code);
+    --editor-inline-code-text: oklch(40% 0.13 247);
+    --editor-code-bg: var(--bg-code);
+    --editor-code-line-bg: color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-code));
+    --editor-code-text: var(--text-primary);
+    --editor-code-control-bg: color-mix(in srgb, var(--bg-primary) 94%, transparent);
+    --editor-hl-keyword: oklch(43% 0.17 283);
+    --editor-hl-string: oklch(42% 0.13 151);
+    --editor-hl-number: oklch(47% 0.16 42);
+    --editor-hl-title: oklch(44% 0.15 247);
+    --editor-hl-type: oklch(39% 0.13 210);
+    --editor-hl-meta: oklch(44% 0.15 330);
+    --editor-hl-symbol: oklch(40% 0.12 190);
+    --editor-hl-deletion: oklch(45% 0.17 29);
+    --editor-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --editor-heading-font-family: var(--editor-font-family);
+    color: var(--editor-text-primary);
+    font-family: var(--editor-font-family);
+    transition:
+      color 160ms ease-out,
+      border-color 160ms ease-out;
+  }
+
+  [data-theme="dark"] .markdown-paper,
+  [data-theme="night"] .markdown-paper,
+  .markdown-paper[data-editor-theme="dark"] {
+    --editor-inline-code-text: oklch(78% 0.09 225);
+    --editor-code-control-bg: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+    --editor-hl-keyword: oklch(78% 0.11 285);
+    --editor-hl-string: oklch(76% 0.1 151);
+    --editor-hl-number: oklch(76% 0.12 70);
+    --editor-hl-title: oklch(76% 0.1 220);
+    --editor-hl-type: oklch(76% 0.08 196);
+    --editor-hl-meta: oklch(76% 0.1 330);
+    --editor-hl-symbol: oklch(76% 0.09 185);
+    --editor-hl-deletion: oklch(72% 0.12 29);
+  }
+
+  .markdown-paper[data-editor-theme="night"] {
+    --editor-paper-bg: oklch(18% 0.018 250);
+    --editor-text-primary: oklch(82% 0.018 250);
+    --editor-text-heading: oklch(92% 0.012 250);
+    --editor-text-secondary: oklch(65% 0.024 250);
+    --editor-border: oklch(31% 0.025 250);
+    --editor-border-strong: oklch(38% 0.03 250);
+    --editor-bg-secondary: oklch(23% 0.02 250);
+    --editor-code-bg: oklch(15% 0.02 250);
+    --editor-code-line-bg: oklch(20% 0.022 250);
+    --editor-code-text: oklch(84% 0.018 250);
+    --editor-code-control-bg: oklch(23% 0.024 250 / 0.96);
+    --editor-inline-code-bg: oklch(24% 0.025 250);
+    --editor-inline-code-text: oklch(76% 0.1 205);
+    --editor-hl-keyword: oklch(76% 0.12 285);
+    --editor-hl-string: oklch(78% 0.11 151);
+    --editor-hl-number: oklch(78% 0.12 70);
+    --editor-hl-title: oklch(76% 0.1 220);
+    --editor-hl-type: oklch(78% 0.09 196);
+    --editor-hl-meta: oklch(76% 0.11 330);
+    --editor-hl-symbol: oklch(77% 0.1 185);
+    --editor-hl-deletion: oklch(73% 0.13 29);
+  }
+
+  .markdown-paper[data-editor-theme="gothic"] {
+    --editor-font-family: "Avenir Next", Avenir, "Segoe UI", Helvetica, Arial, sans-serif;
+    --editor-heading-font-family: "Avenir Next", Avenir, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+
+  .markdown-paper[data-editor-theme="newsprint"] {
+    --editor-font-family: Georgia, "Times New Roman", serif;
+    --editor-heading-font-family: Georgia, "Times New Roman", serif;
+  }
+
+  .markdown-paper[data-editor-theme="pixyll"] {
+    --editor-font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+
+  .markdown-paper[data-editor-theme="academic"] {
+    --editor-font-family: Georgia, "Times New Roman", serif;
+    --editor-heading-font-family: Georgia, "Times New Roman", serif;
+  }
+
+  .markdown-paper[data-editor-theme="minimal"] {
+    --editor-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+
+  .markdown-paper[data-editor-theme="custom"] {
+    --editor-paper-bg: var(--bg-primary);
+    --editor-text-primary: var(--text-primary);
+    --editor-text-heading: var(--text-heading);
+    --editor-text-secondary: var(--text-secondary);
+    --editor-border: var(--border-default);
+    --editor-border-strong: var(--border-strong);
+    --editor-bg-secondary: var(--bg-secondary);
+    --editor-inline-code-bg: var(--bg-code);
+    --editor-code-bg: var(--bg-code);
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="sepia"] {
+    --editor-paper-bg: #fbf0d9;
+    --editor-text-primary: #4b3828;
+    --editor-text-heading: #2f241b;
+    --editor-text-secondary: #7a654d;
+    --editor-border: #dfc596;
+    --editor-border-strong: #c8a974;
+    --editor-bg-secondary: #f3e2bd;
+    --editor-inline-code-bg: #f5e6c8;
+    --editor-inline-code-text: #6f3d18;
+    --editor-code-bg: #f5e6c8;
+    --editor-code-line-bg: #ead6aa;
+    --editor-hl-keyword: #8f4e22;
+    --editor-hl-string: #587a37;
+    --editor-hl-number: #9b5e23;
+    --editor-hl-title: #315f8c;
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="solarized-light"] {
+    --editor-paper-bg: #fdf6e3;
+    --editor-text-primary: #586e75;
+    --editor-text-heading: #073642;
+    --editor-text-secondary: #839496;
+    --editor-border: #d8cfb2;
+    --editor-border-strong: #c8bd9c;
+    --editor-bg-secondary: #eee8d5;
+    --editor-inline-code-bg: #eee8d5;
+    --editor-inline-code-text: #268bd2;
+    --editor-code-bg: #eee8d5;
+    --editor-code-line-bg: #e1d8bd;
+    --editor-hl-keyword: #859900;
+    --editor-hl-string: #2aa198;
+    --editor-hl-number: #d33682;
+    --editor-hl-title: #268bd2;
+    --editor-hl-type: #b58900;
+    --editor-hl-meta: #6c71c4;
+    --editor-hl-symbol: #cb4b16;
+    --editor-hl-deletion: #dc322f;
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="solarized-dark"] {
+    --editor-paper-bg: #002b36;
+    --editor-text-primary: #93a1a1;
+    --editor-text-heading: #eee8d5;
+    --editor-text-secondary: #839496;
+    --editor-border: #164b5a;
+    --editor-border-strong: #2a5d6a;
+    --editor-bg-secondary: #073642;
+    --editor-inline-code-bg: #073642;
+    --editor-inline-code-text: #2aa198;
+    --editor-code-bg: #073642;
+    --editor-code-line-bg: #002b36;
+    --editor-code-text: #93a1a1;
+    --editor-hl-keyword: #859900;
+    --editor-hl-string: #2aa198;
+    --editor-hl-number: #d33682;
+    --editor-hl-title: #268bd2;
+    --editor-hl-type: #b58900;
+    --editor-hl-meta: #6c71c4;
+    --editor-hl-symbol: #cb4b16;
+    --editor-hl-deletion: #dc322f;
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="nord"] {
+    --editor-paper-bg: #2e3440;
+    --editor-text-primary: #d8dee9;
+    --editor-text-heading: #eceff4;
+    --editor-text-secondary: #a7b1c3;
+    --editor-border: #4c566a;
+    --editor-border-strong: #5e6b83;
+    --editor-bg-secondary: #3b4252;
+    --editor-inline-code-bg: #242933;
+    --editor-inline-code-text: #88c0d0;
+    --editor-code-bg: #242933;
+    --editor-code-line-bg: #2e3440;
+    --editor-code-text: #d8dee9;
+    --editor-hl-keyword: #81a1c1;
+    --editor-hl-string: #a3be8c;
+    --editor-hl-number: #b48ead;
+    --editor-hl-title: #88c0d0;
+    --editor-hl-type: #8fbcbb;
+    --editor-hl-meta: #d08770;
+    --editor-hl-symbol: #ebcb8b;
+    --editor-hl-deletion: #bf616a;
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="catppuccin-latte"] {
+    --editor-paper-bg: #eff1f5;
+    --editor-text-primary: #4c4f69;
+    --editor-text-heading: #1e1e2e;
+    --editor-text-secondary: #6c6f85;
+    --editor-border: #ccd0da;
+    --editor-border-strong: #bcc0cc;
+    --editor-bg-secondary: #e6e9ef;
+    --editor-inline-code-bg: #e6e9ef;
+    --editor-inline-code-text: #1e66f5;
+    --editor-code-bg: #e6e9ef;
+    --editor-code-line-bg: #dce0e8;
+    --editor-hl-keyword: #8839ef;
+    --editor-hl-string: #40a02b;
+    --editor-hl-number: #fe640b;
+    --editor-hl-title: #1e66f5;
+    --editor-hl-type: #179299;
+    --editor-hl-meta: #ea76cb;
+    --editor-hl-symbol: #df8e1d;
+    --editor-hl-deletion: #d20f39;
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="catppuccin-mocha"] {
+    --editor-paper-bg: #1e1e2e;
+    --editor-text-primary: #cdd6f4;
+    --editor-text-heading: #f5e0dc;
+    --editor-text-secondary: #a6adc8;
+    --editor-border: #45475a;
+    --editor-border-strong: #585b70;
+    --editor-bg-secondary: #313244;
+    --editor-inline-code-bg: #181825;
+    --editor-inline-code-text: #89b4fa;
+    --editor-code-bg: #181825;
+    --editor-code-line-bg: #1e1e2e;
+    --editor-code-text: #cdd6f4;
+    --editor-hl-keyword: #cba6f7;
+    --editor-hl-string: #a6e3a1;
+    --editor-hl-number: #fab387;
+    --editor-hl-title: #89b4fa;
+    --editor-hl-type: #94e2d5;
+    --editor-hl-meta: #f5c2e7;
+    --editor-hl-symbol: #f9e2af;
+    --editor-hl-deletion: #f38ba8;
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="academic"] {
+    --editor-paper-bg: #fbfaf7;
+    --editor-text-primary: #302a22;
+    --editor-text-heading: #191612;
+    --editor-text-secondary: #6b6254;
+    --editor-border: #ded6c8;
+    --editor-border-strong: #c9bdab;
+    --editor-bg-secondary: #f1efe8;
+    --editor-inline-code-bg: #eeeae0;
+    --editor-inline-code-text: #315f8c;
+    --editor-code-bg: #eeeae0;
+    --editor-code-line-bg: #e5dfd1;
+    --editor-hl-keyword: #884a2d;
+    --editor-hl-string: #4d7238;
+    --editor-hl-number: #8a5a2b;
+    --editor-hl-title: #315f8c;
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="minimal"] {
+    --editor-paper-bg: #fdfdfc;
+    --editor-text-primary: #2f302d;
+    --editor-text-heading: #171815;
+    --editor-text-secondary: #777972;
+    --editor-border: #e7e7e2;
+    --editor-border-strong: #d5d6cf;
+    --editor-bg-secondary: #f7f7f5;
+    --editor-inline-code-bg: #f3f3f1;
+    --editor-inline-code-text: #4b6f77;
+    --editor-code-bg: #f3f3f1;
+    --editor-code-line-bg: #ededeb;
+    --editor-hl-keyword: #5a6070;
+    --editor-hl-string: #55705a;
+    --editor-hl-number: #775b42;
+    --editor-hl-title: #4b6f77;
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="github"] {
+    --editor-paper-bg: #ffffff;
+    --editor-text-primary: #1f2328;
+    --editor-text-heading: #1f2328;
+    --editor-text-secondary: #59636e;
+    --editor-border: #d1d9e0;
+    --editor-border-strong: #d1d9e0;
+    --editor-bg-secondary: #f6f8fa;
+    --editor-inline-code-bg: rgba(175, 184, 193, 0.2);
+    --editor-inline-code-text: #1f2328;
+    --editor-code-bg: #f6f8fa;
+    --editor-code-line-bg: #eff2f5;
+    --editor-code-text: #1f2328;
+    --editor-code-control-bg: rgba(255, 255, 255, 0.92);
+    --editor-hl-keyword: #cf222e;
+    --editor-hl-string: #0a3069;
+    --editor-hl-number: #0550ae;
+    --editor-hl-title: #8250df;
+    --editor-hl-type: #116329;
+    --editor-hl-meta: #6e7781;
+    --editor-hl-symbol: #953800;
+    --editor-hl-deletion: #82071e;
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="gothic"] {
+    --editor-paper-bg: oklch(96% 0.012 77);
+    --editor-text-primary: oklch(30% 0.016 70);
+    --editor-text-heading: oklch(21% 0.016 70);
+    --editor-text-secondary: oklch(48% 0.024 70);
+    --editor-border: oklch(84% 0.024 74);
+    --editor-border-strong: oklch(73% 0.032 74);
+    --editor-bg-secondary: oklch(92% 0.018 77);
+    --editor-inline-code-bg: oklch(91% 0.022 78);
+    --editor-code-bg: oklch(90% 0.018 78);
+    --editor-code-line-bg: oklch(86% 0.022 78);
+    --editor-hl-keyword: oklch(38% 0.13 31);
+    --editor-hl-string: oklch(37% 0.09 139);
+    --editor-hl-title: oklch(36% 0.11 250);
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="newsprint"] {
+    --editor-paper-bg: oklch(96% 0.018 88);
+    --editor-text-primary: oklch(28% 0.012 75);
+    --editor-text-heading: oklch(18% 0.012 75);
+    --editor-text-secondary: oklch(45% 0.018 75);
+    --editor-border: oklch(80% 0.025 78);
+    --editor-border-strong: oklch(68% 0.03 78);
+    --editor-bg-secondary: oklch(91% 0.022 86);
+    --editor-inline-code-bg: oklch(89% 0.024 86);
+    --editor-code-bg: oklch(88% 0.02 86);
+    --editor-code-line-bg: oklch(83% 0.026 86);
+    --editor-hl-keyword: oklch(35% 0.12 24);
+    --editor-hl-string: oklch(36% 0.09 145);
+    --editor-hl-title: oklch(34% 0.1 248);
+    --editor-hl-meta: oklch(36% 0.1 325);
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="pixyll"] {
+    --editor-paper-bg: oklch(98% 0.012 94);
+    --editor-text-primary: oklch(33% 0.017 254);
+    --editor-text-heading: oklch(24% 0.02 254);
+    --editor-text-secondary: oklch(51% 0.026 254);
+    --editor-border: oklch(88% 0.018 94);
+    --editor-border-strong: oklch(78% 0.026 94);
+    --editor-bg-secondary: oklch(95% 0.018 94);
+    --editor-inline-code-bg: oklch(94% 0.022 94);
+    --editor-code-bg: oklch(94.5% 0.017 94);
+    --editor-code-line-bg: oklch(90% 0.021 94);
+    --editor-hl-keyword: oklch(46% 0.16 15);
+    --editor-hl-string: oklch(44% 0.12 157);
+    --editor-hl-title: oklch(43% 0.15 236);
+  }
+
+  :root:not([data-theme="dark"]) .markdown-paper[data-editor-theme="whitey"] {
+    --editor-paper-bg: oklch(99.3% 0.004 106);
+    --editor-text-primary: oklch(31% 0.011 106);
+    --editor-text-heading: oklch(20% 0.01 106);
+    --editor-text-secondary: oklch(54% 0.014 106);
+    --editor-border: oklch(91% 0.008 106);
+    --editor-border-strong: oklch(83% 0.012 106);
+    --editor-bg-secondary: oklch(97.5% 0.006 106);
+    --editor-inline-code-bg: oklch(96% 0.008 106);
+    --editor-code-bg: oklch(97% 0.006 106);
+    --editor-code-line-bg: oklch(94.5% 0.008 106);
+  }
+
+  .markdown-paper[data-editor-theme="newsprint"] .ProseMirror::selection,
+  .markdown-paper[data-editor-theme="gothic"] .ProseMirror::selection,
+  .markdown-paper[data-editor-theme="pixyll"] .ProseMirror::selection,
+  .markdown-paper[data-editor-theme="whitey"] .ProseMirror::selection {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+
   .markdown-paper h1,
   .markdown-paper h2,
   .markdown-paper h3,
@@ -484,14 +1105,18 @@
   .markdown-paper h5,
   .markdown-paper h6 {
     @apply text-[var(--text-heading)] font-[760] tracking-normal;
+    color: var(--editor-text-heading);
+    font-family: var(--editor-heading-font-family);
   }
 
   .markdown-paper h1 {
     @apply m-0 mb-4.5 border-b border-(--border-default) pb-2.5 text-[44px] leading-[1.15] max-[900px]:text-[34px];
+    border-color: var(--editor-border);
   }
 
   .markdown-paper h2 {
     @apply mt-9 mb-4.5 border-b border-(--border-default) pb-1.5 text-[31px] leading-[1.22] max-[900px]:text-[26px];
+    border-color: var(--editor-border);
   }
 
   .markdown-paper h3 {
@@ -500,10 +1125,141 @@
 
   .markdown-paper p {
     @apply m-0 mb-4.5;
+    color: var(--editor-text-primary);
   }
 
   .markdown-paper blockquote {
     @apply my-4.5 mr-0 border-l border-(--border-strong) py-0 pr-0 pl-5 text-(--text-secondary);
+    border-color: var(--editor-border-strong);
+    color: var(--editor-text-secondary);
+  }
+
+  .markdown-paper blockquote.markra-callout {
+    --callout-color: oklch(57% 0.11 252);
+    --callout-bg: color-mix(in srgb, var(--callout-color) 5%, var(--editor-paper-bg));
+    --callout-border: color-mix(in srgb, var(--callout-color) 22%, var(--editor-border));
+    --callout-border-focus: color-mix(in srgb, var(--callout-color) 38%, var(--editor-border-strong));
+    @apply relative my-5 rounded-[7px] border px-4 py-3.5 text-(--text-primary) transition-[background-color,border-color] duration-150 ease-out;
+    background: var(--callout-bg);
+    border-color: var(--callout-border);
+    color: var(--editor-text-primary);
+  }
+
+  .markdown-paper blockquote.markra-callout-tip {
+    --callout-color: oklch(56% 0.11 154);
+  }
+
+  .markdown-paper blockquote.markra-callout-important {
+    --callout-color: oklch(55% 0.12 292);
+  }
+
+  .markdown-paper blockquote.markra-callout-warning {
+    --callout-color: oklch(62% 0.12 72);
+  }
+
+  .markdown-paper blockquote.markra-callout-caution {
+    --callout-color: oklch(57% 0.13 28);
+  }
+
+  [data-theme="dark"] .markdown-paper blockquote.markra-callout,
+  [data-theme="night"] .markdown-paper blockquote.markra-callout,
+  [data-theme="solarized-dark"] .markdown-paper blockquote.markra-callout,
+  [data-theme="nord"] .markdown-paper blockquote.markra-callout,
+  [data-theme="catppuccin-mocha"] .markdown-paper blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="dark"] blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="night"] blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="solarized-dark"] blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="nord"] blockquote.markra-callout,
+  .markdown-paper[data-editor-theme="catppuccin-mocha"] blockquote.markra-callout {
+    --callout-bg: color-mix(in srgb, var(--callout-color) 10%, var(--editor-paper-bg));
+    --callout-border: color-mix(in srgb, var(--callout-color) 32%, var(--editor-border));
+  }
+
+  .markdown-paper .markra-callout-header {
+    @apply mb-2 flex min-h-5 items-center gap-2 text-[0.76em] leading-5 font-[720] tracking-normal;
+    color: var(--callout-color);
+  }
+
+  .markdown-paper .markra-callout-icon {
+    @apply relative inline-grid size-4 shrink-0 place-items-center rounded-full;
+    background: color-mix(in srgb, currentColor 11%, var(--editor-paper-bg));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent);
+  }
+
+  .markdown-paper .markra-callout-icon::before {
+    @apply block size-1.5 rounded-full;
+    content: "";
+    background: currentColor;
+  }
+
+  .markdown-paper .markra-callout-tip .markra-callout-icon::before {
+    @apply size-1.75 rounded-[2px];
+    transform: rotate(45deg);
+  }
+
+  .markdown-paper .markra-callout-important .markra-callout-icon::before {
+    @apply h-2.25 w-1 rounded-full;
+  }
+
+  .markdown-paper .markra-callout-warning .markra-callout-icon::before {
+    @apply size-2.5 rounded-none;
+    clip-path: polygon(50% 4%, 96% 92%, 4% 92%);
+  }
+
+  .markdown-paper .markra-callout-caution .markra-callout-icon::before {
+    @apply size-2 rounded-[2px];
+  }
+
+  .markdown-paper .markra-callout-title {
+    @apply shrink-0;
+  }
+
+  .markdown-paper .markra-callout-type-select {
+    @apply ml-auto h-6 max-w-30 rounded-md border border-(--border-default) px-2 text-[12px] leading-4 font-[520] text-(--text-secondary) outline-none transition-[opacity,border-color,color,background-color] duration-150 ease-out;
+    background: color-mix(in srgb, var(--editor-paper-bg) 86%, var(--callout-bg));
+    border-color: color-mix(in srgb, var(--callout-color) 18%, var(--editor-border));
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .markdown-paper .markra-callout:hover .markra-callout-type-select,
+  .markdown-paper .markra-callout:focus-within .markra-callout-type-select {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .markdown-paper blockquote.markra-callout:focus-within {
+    border-color: var(--callout-border-focus);
+  }
+
+  .markdown-paper .markra-callout-type-select:focus {
+    border-color: var(--callout-color);
+    color: var(--editor-text-primary);
+  }
+
+  .markdown-paper .markra-callout-marker-line {
+    @apply hidden;
+  }
+
+  .markdown-paper .markra-callout-source-marker {
+    @apply hidden;
+  }
+
+  .markdown-paper .markra-callout-source-marker + br {
+    @apply hidden;
+  }
+
+  .markdown-paper blockquote.markra-callout p {
+    @apply mb-3;
+    color: var(--editor-text-primary);
+  }
+
+  .markdown-paper blockquote.markra-callout p:first-of-type {
+    @apply mt-0;
+  }
+
+  .markdown-paper blockquote.markra-callout p:last-child {
+    @apply mb-0;
   }
 
   .markdown-paper blockquote p {
@@ -512,10 +1268,12 @@
 
   .markdown-paper ul {
     @apply mt-3 mb-6 list-disc pl-[1.4em] marker:text-(--text-secondary);
+    color: var(--editor-text-primary);
   }
 
   .markdown-paper ol {
     @apply mt-3 mb-6 list-decimal pl-[1.4em] marker:text-(--text-secondary);
+    color: var(--editor-text-primary);
   }
 
   .markdown-paper li {
@@ -542,18 +1300,23 @@
   .markdown-paper th,
   .markdown-paper td {
     @apply border border-(--border-strong) px-3 py-2 align-top;
+    border-color: var(--editor-border-strong);
   }
 
   .markdown-paper th {
     @apply bg-(--bg-secondary) text-(--text-heading) font-[650];
+    background: var(--editor-bg-secondary);
+    color: var(--editor-text-heading);
   }
 
   .markdown-paper td {
     @apply bg-(--bg-primary);
+    background: var(--editor-paper-bg);
   }
 
   .markdown-paper tbody tr:nth-child(even) td {
     @apply bg-(--bg-secondary);
+    background: var(--editor-bg-secondary);
   }
 
   .markdown-paper th p,
@@ -1165,11 +1928,16 @@
     @apply rounded-[3px] border border-(--border-default) bg-(--bg-code) px-[0.28em] py-[0.12em] text-[0.88em] text-(--text-primary);
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
     color: oklch(40% 0.13 247);
+    background: var(--editor-inline-code-bg);
+    border-color: var(--editor-border);
+    color: var(--editor-inline-code-text);
     box-shadow: inset 0 -1px 0 color-mix(in srgb, oklch(69.6% 0.17 162.48) 28%, transparent);
   }
 
   .markdown-paper pre {
     @apply mt-5 mb-7 overflow-auto rounded border border-(--border-default) bg-(--bg-code) px-4.5 py-4;
+    background: var(--editor-code-bg);
+    border-color: var(--editor-border);
   }
 
   .markdown-paper pre code {
@@ -1180,7 +1948,62 @@
 
   .markdown-paper .markra-code-block {
     @apply relative mt-5 mb-7 grid overflow-visible rounded border border-(--border-default) bg-(--bg-code);
+    background: var(--editor-code-bg);
+    border-color: var(--editor-border);
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .markdown-paper .markra-code-copy-button {
+    @apply absolute top-2 right-2 z-[3] grid size-7 cursor-pointer place-items-center rounded-md border border-(--border-default) p-0 outline-none transition-[opacity,transform,color,background-color,border-color,box-shadow] duration-150 ease-out;
+    background: var(--editor-code-control-bg);
+    border-color: var(--editor-border);
+    color: var(--editor-text-secondary);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.125rem);
+  }
+
+  .markdown-paper .markra-code-copy-button svg {
+    @apply absolute;
+    transition:
+      opacity 140ms ease-out,
+      transform 140ms ease-out;
+  }
+
+  .markdown-paper .markra-code-copy-check-icon {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  .markdown-paper .markra-code-block:hover .markra-code-copy-button,
+  .markdown-paper .markra-code-block:focus-within .markra-code-copy-button {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .markdown-paper .markra-code-copy-button:hover,
+  .markdown-paper .markra-code-copy-button:focus-visible {
+    background: var(--editor-bg-secondary);
+    border-color: var(--editor-border-strong);
+    color: var(--editor-text-heading);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .markdown-paper .markra-code-copy-button[data-copied="true"] {
+    background: color-mix(in srgb, oklch(69.6% 0.17 162.48) 14%, var(--editor-code-control-bg));
+    border-color: color-mix(in srgb, oklch(69.6% 0.17 162.48) 62%, var(--editor-border));
+    color: oklch(50% 0.13 151);
+  }
+
+  .markdown-paper .markra-code-copy-button[data-copied="true"] .markra-code-copy-icon {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  .markdown-paper .markra-code-copy-button[data-copied="true"] .markra-code-copy-check-icon {
+    opacity: 1;
+    transform: scale(1);
   }
 
   .markdown-paper .markra-code-language-control {
@@ -1199,6 +2022,9 @@
 
   .markdown-paper .markra-code-language-select {
     @apply h-8 min-w-40 cursor-pointer rounded-md border border-(--border-default) bg-(--bg-primary)/96 px-3 text-[0.82rem] font-medium text-(--text-secondary) shadow-sm outline-none transition-[border-color,color,background-color,box-shadow];
+    background: var(--editor-code-control-bg);
+    border-color: var(--editor-border);
+    color: var(--editor-text-secondary);
     max-width: min(18rem, calc(100vw - 4rem));
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
     line-height: 1;
@@ -1211,7 +2037,9 @@
 
   .markdown-paper .markra-code-line-numbers {
     @apply rounded-l border-r border-(--border-default) px-3 py-4 text-right text-[0.9em] leading-[1.65] text-(--text-secondary);
-    background: color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-code));
+    background: var(--editor-code-line-bg);
+    border-color: var(--editor-border);
+    color: var(--editor-text-secondary);
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
     user-select: none;
   }
@@ -1227,7 +2055,7 @@
 
   .markdown-paper .markra-code-block code {
     @apply block border-0 bg-transparent p-0 text-[0.9em];
-    color: var(--text-primary);
+    color: var(--editor-code-text);
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
     line-height: 1.65;
     overflow-wrap: anywhere;
@@ -1237,54 +2065,54 @@
   .markdown-paper .hljs-keyword,
   .markdown-paper .hljs-selector-tag,
   .markdown-paper .hljs-literal {
-    color: oklch(43% 0.17 283);
+    color: var(--editor-hl-keyword);
     font-weight: 650;
   }
 
   .markdown-paper .hljs-string,
   .markdown-paper .hljs-regexp,
   .markdown-paper .hljs-addition {
-    color: oklch(42% 0.13 151);
+    color: var(--editor-hl-string);
   }
 
   .markdown-paper .hljs-number,
   .markdown-paper .hljs-attr,
   .markdown-paper .hljs-variable {
-    color: oklch(47% 0.16 42);
+    color: var(--editor-hl-number);
   }
 
   .markdown-paper .hljs-title,
   .markdown-paper .hljs-function,
   .markdown-paper .hljs-built_in {
-    color: oklch(44% 0.15 247);
+    color: var(--editor-hl-title);
   }
 
   .markdown-paper .hljs-type,
   .markdown-paper .hljs-class .hljs-title,
   .markdown-paper .hljs-tag,
   .markdown-paper .hljs-name {
-    color: oklch(39% 0.13 210);
+    color: var(--editor-hl-type);
   }
 
   .markdown-paper .hljs-meta,
   .markdown-paper .hljs-doctag,
   .markdown-paper .hljs-section {
-    color: oklch(44% 0.15 330);
+    color: var(--editor-hl-meta);
   }
 
   .markdown-paper .hljs-symbol,
   .markdown-paper .hljs-bullet,
   .markdown-paper .hljs-link {
-    color: oklch(40% 0.12 190);
+    color: var(--editor-hl-symbol);
   }
 
   .markdown-paper .hljs-deletion {
-    color: oklch(45% 0.17 29);
+    color: var(--editor-hl-deletion);
   }
 
   .markdown-paper .hljs-comment,
   .markdown-paper .hljs-quote {
-    color: var(--text-secondary);
+    color: var(--editor-text-secondary);
     font-style: italic;
   }
 

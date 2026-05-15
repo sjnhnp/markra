@@ -123,8 +123,10 @@ export function SettingsWindow() {
           ) : null}
           {activeCategory === "appearance" ? (
             <AppearanceSettings
+              customThemeCss={appTheme.customThemeCss}
               selectedTheme={appTheme.theme}
               translate={translate}
+              onUpdateCustomThemeCss={appTheme.updateCustomThemeCss}
               onSelectTheme={appTheme.selectTheme}
             />
           ) : null}

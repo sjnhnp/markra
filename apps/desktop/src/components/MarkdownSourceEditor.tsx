@@ -1,5 +1,5 @@
 import { Fragment, type CSSProperties, type ChangeEvent, type ReactNode } from "react";
-import { t, type AppLanguage } from "@markra/shared";
+import { parseMarkdownCalloutMarker, t, type AppLanguage } from "@markra/shared";
 import {
   editorContentWidthPixels,
   editorCustomContentWidthMax,
@@ -72,6 +72,25 @@ function renderMarkdownSourceLine(line: string, lineIndex: number, fenceState: F
 
   const blockquoteMatch = line.match(/^(\s*>+)(\s.*)?$/u);
   if (blockquoteMatch) {
+    const calloutContent = blockquoteMatch[2] ?? "";
+    const calloutPrefixMatch = /^(\s*)(.*)$/u.exec(calloutContent);
+    const calloutMarker = parseMarkdownCalloutMarker(calloutPrefixMatch?.[2] ?? "");
+    if (calloutMarker && calloutPrefixMatch) {
+      const [, prefix = "", content = ""] = calloutPrefixMatch;
+      const markerIndex = content.indexOf(calloutMarker.source);
+      const afterMarker = content.slice(markerIndex + calloutMarker.source.length);
+
+      return (
+        <>
+          <span className="markdown-source-token-quote-marker">{blockquoteMatch[1]}</span>
+          {prefix ? <span className="markdown-source-token-muted">{prefix}</span> : null}
+          {markerIndex > 0 ? renderInlineMarkdownSource(content.slice(0, markerIndex), lineIndex) : null}
+          <span className="markdown-source-token-callout">{calloutMarker.source}</span>
+          {afterMarker ? renderInlineMarkdownSource(afterMarker, lineIndex) : null}
+        </>
+      );
+    }
+
     return (
       <>
         <span className="markdown-source-token-quote-marker">{blockquoteMatch[1]}</span>

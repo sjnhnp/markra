@@ -32,6 +32,8 @@ import {
   type SaveRemoteClipboardImage
 } from "@markra/editor";
 import { markraCodeBlockPlugin } from "@markra/editor";
+import { markraCalloutPlugin } from "@markra/editor";
+import { markraCalloutSerializerPlugin } from "@markra/editor";
 import { markraHeadingSourcePlugin } from "@markra/editor";
 import { normalizeHeadingSourceDocument } from "@markra/editor";
 import { markraLinkImageLivePlugin } from "@markra/editor";
@@ -58,6 +60,7 @@ import {
   editorCustomContentWidthMin,
   type EditorContentWidth
 } from "../lib/editor-width";
+import type { EditorTheme } from "../lib/settings/app-settings";
 import { readAiSelectionContextFromView } from "../hooks/useEditorController";
 import type { MarkdownDocumentLinkFile } from "../lib/document-links";
 import { markraDocumentLinkCompletionPlugin } from "./document-link-completion";
@@ -93,6 +96,7 @@ type MarkdownPaperProps = {
   contentWidthMin?: number;
   contentWidthPx?: number | null;
   documentPath?: string | null;
+  editorTheme?: EditorTheme;
   initialContent: string;
   language?: AppLanguage;
   lineHeight?: number;
@@ -363,6 +367,7 @@ function MilkdownSurface({
     noResults: t(language, "editor.slashCommandsNoResults"),
     commands: {
       bulletList: t(language, "menu.bulletList"),
+      callout: t(language, "menu.callout"),
       codeBlock: t(language, "menu.codeBlock"),
       heading1: t(language, "menu.heading1"),
       heading2: t(language, "menu.heading2"),
@@ -439,6 +444,8 @@ function MilkdownSurface({
         .use(markraMathRemarkPlugin)
         .use(markraCommonmark)
         .use(markraGfm)
+        .use(markraCalloutSerializerPlugin)
+        .use(markraCalloutPlugin)
         .use(markraSlashCommands(slashCommandLabels))
         .use(markraMathSourcePlugin)
         .use(markraMarkdownShortcuts(markdownShortcuts))
@@ -514,6 +521,7 @@ export function MarkdownPaper({
   contentWidthMin = editorCustomContentWidthMin,
   contentWidthPx = null,
   documentPath,
+  editorTheme = "light",
   initialContent,
   language = "en",
   lineHeight = 1.65,
@@ -557,6 +565,7 @@ export function MarkdownPaper({
         style={paperStyle}
         aria-label={t(language, "app.markdownEditor")}
         data-editor-engine="milkdown"
+        data-editor-theme={editorTheme}
       >
         <EditorWidthResizer
           language={language}
