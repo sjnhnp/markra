@@ -1558,13 +1558,13 @@
   }
 
   .markdown-paper a {
-    @apply cursor-text text-(--accent-hover) underline underline-offset-2;
+    @apply cursor-pointer text-(--accent-hover) underline underline-offset-2;
     -webkit-user-drag: none;
     user-select: text;
   }
 
   .markdown-paper .markra-live-link-label {
-    @apply cursor-text text-(--accent-hover) underline underline-offset-2;
+    @apply cursor-pointer text-(--accent-hover) underline underline-offset-2;
     -webkit-user-drag: none;
     user-select: text;
   }
@@ -1572,6 +1572,44 @@
   .markdown-paper .ProseMirror.markra-link-open-modifier-active a[href],
   .markdown-paper .ProseMirror.markra-link-open-modifier-active .markra-live-link-label {
     cursor: pointer;
+  }
+
+  /* Footnotes */
+  .markdown-paper .footnotes {
+    @apply mt-12 border-t border-(--border-default) pt-6 text-[0.88em] leading-[1.6] text-(--text-secondary);
+  }
+
+  .markdown-paper .footnotes ol {
+    @apply m-0 pl-5;
+  }
+
+  .markdown-paper .footnotes li {
+    @apply mb-4 pl-1;
+  }
+
+  .markdown-paper .footnotes li > p:first-child {
+    @apply inline;
+  }
+
+  .markdown-paper .footnote-reference {
+    @apply align-baseline text-[0.85em] font-bold;
+    vertical-align: super;
+  }
+
+  .markdown-paper .footnote-reference a {
+    @apply px-0.5 text-(--accent) no-underline transition-colors hover:underline;
+    cursor: pointer !important;
+  }
+
+  .markdown-paper .footnote-backref {
+    @apply ml-1.5 inline-block no-underline! text-(--accent) opacity-60 transition-opacity hover:opacity-100;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    vertical-align: middle;
+    font-size: 1.1em;
+  }
+
+  .markdown-paper [id] {
+    scroll-margin-top: 80px;
   }
 
   .markdown-paper .markra-live-link-source-label {

@@ -269,6 +269,9 @@ function markraExternalLinkClickPlugin(openExternalUrl: (url: string) => unknown
             const href = linkHrefFromClickTarget(event.target);
             if (!href) return false;
 
+            // Internal links don't need modifiers
+            if (href.startsWith("#")) return true;
+
             if (!linkOpenModifierIsPressed(event)) {
               return false;
             }
@@ -276,9 +279,28 @@ function markraExternalLinkClickPlugin(openExternalUrl: (url: string) => unknown
             event.preventDefault();
             return true;
           },
-          click(_view, event) {
+          click(view, event) {
             const href = linkHrefFromClickTarget(event.target);
             if (!href) return false;
+
+            // Handle internal hash links (like footnotes)
+            if (href.startsWith("#")) {
+              event.preventDefault();
+              const id = href.slice(1);
+              const element = view.dom.querySelector(`[id="${id}"]`);
+              if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "center" });
+                
+                // Add a temporary highlight effect
+                const originalBg = (element as HTMLElement).style.backgroundColor;
+                (element as HTMLElement).style.backgroundColor = "var(--accent-soft)";
+                (element as HTMLElement).style.transition = "background-color 0.5s ease-out";
+                setTimeout(() => {
+                  (element as HTMLElement).style.backgroundColor = originalBg;
+                }, 1500);
+              }
+              return true;
+            }
 
             if (!linkOpenModifierIsPressed(event)) {
               return false;
@@ -444,6 +466,7 @@ function MilkdownSurface({
             }
           });
         })
+        .use(markraSmartPastePlugin)
         .use(listener)
         .use(history)
         .use(markraMathRemarkPlugin)
@@ -474,7 +497,6 @@ function MilkdownSurface({
         .use(markraTableControlsPlugin(tableControlLabels))
         .use(markraLinkImageLivePlugin(resolveImageSrc))
         .use(markraHeadingSourcePlugin)
-        .use(markraSmartPastePlugin)
         .use(
           markraRawHtmlPlugin({
             htmlSourceApplyLabel: t(language, "editor.htmlSourceApply"),

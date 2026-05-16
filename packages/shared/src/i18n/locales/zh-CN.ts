@@ -264,6 +264,8 @@ const messages: LocaleMessages = {
   "app.switchToSourceMode": "切换到源码模式",
   "app.switchToVisualMode": "切换到可视化模式",
   "app.unsavedChanges": "未保存的更改",
+  "app.visualMode": "可视化",
+  "app.sourceMode": "源码",
   "app.documentTabs": "打开的文档",
   "app.closeDocumentTab": "关闭标签页",
   "app.newDocumentTab": "新建标签页",

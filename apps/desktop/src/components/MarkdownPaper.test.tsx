@@ -4744,4 +4744,126 @@ describe("MarkdownPaper editing", () => {
     expect(strikethrough.container.querySelector(".ProseMirror")?.textContent).toBe("aftera");
     await settleMarkdownListener();
   });
+
+  it("parses and serializes footnote references without escaping brackets", async () => {
+    const source = "Here is a footnote reference[^1].\n\n[^1]: This is the footnote.";
+    const { editor, view } = await renderEditor(source);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[^1]");
+    expect(markdown).not.toContain("\\[^1]");
+  });
+
+  it("parses and serializes link syntax without escaping brackets", async () => {
+    const source = "Check out [Markra](https://example.com) for details.";
+    const { editor, view } = await renderEditor(source);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[Markra](https://example.com)");
+    expect(markdown).not.toContain("\\[Markra\\]");
+  });
+
+  it("smart-pastes footnote references from Markdown text without escaping brackets", async () => {
+    const { editor, view } = await renderEditor("Before.\n\nAfter.");
+
+    moveCursor(view, findFirstTextBlockCursor(view));
+    selectText(view, findFirstTextBlockCursor(view), findFirstTextBlockCursor(view));
+
+    const clipboardData = {
+      getData: (type: string) => {
+        if (type === "text/plain") return "Here is a footnote[^1].\n\n[^1]: The footnote.";
+        if (type === "text/html") return "<p>Here is a footnote[^1].</p>";
+        return "";
+      },
+      types: ["text/plain", "text/html"]
+    } as DataTransfer;
+
+    const event = new Event("paste", { bubbles: true }) as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+    view.dom.dispatchEvent(event);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[^1]");
+    expect(markdown).not.toContain("\\[^1]");
+  });
+
+  it("smart-pastes Markdown links from plain text without escaping brackets", async () => {
+    const { editor, view } = await renderEditor("Before.\n\nAfter.");
+
+    moveCursor(view, findFirstTextBlockCursor(view));
+    selectText(view, findFirstTextBlockCursor(view), findFirstTextBlockCursor(view));
+
+    const clipboardData = {
+      getData: (type: string) => {
+        if (type === "text/plain") return "Check [Markra](https://example.com) out.";
+        if (type === "text/html") return "<p>Check [Markra](https://example.com) out.</p>";
+        return "";
+      },
+      types: ["text/plain", "text/html"]
+    } as DataTransfer;
+
+    const event = new Event("paste", { bubbles: true }) as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+    view.dom.dispatchEvent(event);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[Markra](https://example.com)");
+    expect(markdown).not.toContain("\\[Markra\\]");
+  });
+
+  it("smart-pastes footnote references from plain-text-only clipboard without escaping brackets", async () => {
+    const { editor, view } = await renderEditor("Before.\n\nAfter.");
+
+    moveCursor(view, findFirstTextBlockCursor(view));
+    selectText(view, findFirstTextBlockCursor(view), findFirstTextBlockCursor(view));
+
+    const clipboardData = {
+      getData: (type: string) => {
+        if (type === "text/plain") return "Here is a footnote[^1].\n\n[^1]: The footnote.";
+        return "";
+      },
+      types: ["text/plain"]
+    } as DataTransfer;
+
+    const event = new Event("paste", { bubbles: true }) as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+    view.dom.dispatchEvent(event);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[^1]");
+    expect(markdown).not.toContain("\\[^1]");
+  });
+
+  it("smart-pastes Markdown links from plain-text-only clipboard without escaping brackets", async () => {
+    const { editor, view } = await renderEditor("Before.\n\nAfter.");
+
+    moveCursor(view, findFirstTextBlockCursor(view));
+    selectText(view, findFirstTextBlockCursor(view), findFirstTextBlockCursor(view));
+
+    const clipboardData = {
+      getData: (type: string) => {
+        if (type === "text/plain") return "Check [Markra](https://example.com) out.";
+        return "";
+      },
+      types: ["text/plain"]
+    } as DataTransfer;
+
+    const event = new Event("paste", { bubbles: true }) as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+    view.dom.dispatchEvent(event);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[Markra](https://example.com)");
+    expect(markdown).not.toContain("\\[Markra\\]");
+  });
 });

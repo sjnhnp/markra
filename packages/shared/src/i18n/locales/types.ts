@@ -275,6 +275,8 @@ export type I18nKey =
   | "app.switchToSourceMode"
   | "app.switchToVisualMode"
   | "app.unsavedChanges"
+  | "app.visualMode"
+  | "app.sourceMode"
   | "app.documentTabs"
   | "app.closeDocumentTab"
   | "app.newDocumentTab"

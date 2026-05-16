@@ -1031,13 +1031,22 @@ export default function App() {
 
     if (sourceMode) {
       setEditorMode("visual");
+      showAppToast({
+        message: t(appLanguage.language, "app.switchToVisualMode"),
+        status: "success"
+      });
       return;
     }
 
     updateActiveAiSelection(null);
     handleAiCommandClose();
     setEditorMode("source");
+    showAppToast({
+      message: t(appLanguage.language, "app.switchToSourceMode"),
+      status: "success"
+    });
   }, [
+    appLanguage.language,
     handleAiCommandClose,
     sourceMode,
     sourceModeAvailable,
@@ -1447,6 +1456,7 @@ export default function App() {
                   )}
                   <QuietStatus
                     dirty={document.dirty}
+                    editorMode={editorMode}
                     language={appLanguage.language}
                     showWordCount={editorPreferences.preferences.showWordCount}
                     wordCount={wordCount}

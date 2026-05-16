@@ -264,6 +264,8 @@ const messages: BaseLocaleMessages = {
   "app.switchToSourceMode": "Switch to source mode",
   "app.switchToVisualMode": "Switch to visual mode",
   "app.unsavedChanges": "Unsaved changes",
+  "app.visualMode": "Visual",
+  "app.sourceMode": "Source",
   "app.documentTabs": "Open documents",
   "app.closeDocumentTab": "Close tab",
   "app.newDocumentTab": "New tab",

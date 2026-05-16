@@ -299,7 +299,7 @@ export function NativeTitleBar({
         return (
           <IconButton
             className={mergeClassNames(
-              "bg-(--bg-active) text-(--text-heading) opacity-100 disabled:opacity-35",
+              "bg-(--bg-active) text-(--text-heading) opacity-100 disabled:opacity-35 px-2 w-auto gap-1.5",
               sortable.actionClassName
             )}
             disabled={sourceModeDisabled}
@@ -309,13 +309,14 @@ export function NativeTitleBar({
             {...sortable.actionListeners}
           >
             <Eye aria-hidden="true" size={15} />
+            <span className="text-[11px] font-bold uppercase tracking-wider">{label("app.sourceMode")}</span>
           </IconButton>
         );
       }
 
       return (
         <IconButton
-          className={mergeClassNames("disabled:opacity-35", sortable.actionClassName)}
+          className={mergeClassNames("disabled:opacity-35 px-2 w-auto gap-1.5", sortable.actionClassName)}
           disabled={sourceModeDisabled}
           label={label("app.switchToSourceMode")}
           onClick={(event) => handleTitlebarActionClick("sourceMode", event, onToggleSourceMode)}
@@ -323,6 +324,7 @@ export function NativeTitleBar({
           {...sortable.actionListeners}
         >
           <Code2 aria-hidden="true" size={15} />
+          <span className="text-[11px] font-bold uppercase tracking-wider opacity-60">{label("app.visualMode")}</span>
         </IconButton>
       );
     }
