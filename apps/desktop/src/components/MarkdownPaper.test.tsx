@@ -4866,4 +4866,31 @@ describe("MarkdownPaper editing", () => {
     expect(markdown).toContain("[Markra](https://example.com)");
     expect(markdown).not.toContain("\\[Markra\\]");
   });
+
+  it("renders footnote references with clickable decoration and id attribute", async () => {
+    const source = "Here is a footnote[^1].\n\n[^1]: This is the footnote.";
+    const { container } = await renderEditor(source);
+
+    const footnoteRef = container.querySelector(".footnote-reference");
+    expect(footnoteRef).toBeInTheDocument();
+    expect(footnoteRef?.getAttribute("id")).toBe("fnref-1");
+    expect(footnoteRef?.getAttribute("data-label")).toBe("1");
+    expect(footnoteRef?.getAttribute("role")).toBe("doc-noteref");
+  });
+
+  it("renders footnote definitions with id attribute and back-reference link", async () => {
+    const source = "Here is a footnote[^1].\n\n[^1]: This is the footnote.";
+    const { container } = await renderEditor(source);
+
+    const footnoteDef = container.querySelector(".footnote-definition");
+    expect(footnoteDef).toBeInTheDocument();
+    expect(footnoteDef?.getAttribute("id")).toBe("fn-1");
+    expect(footnoteDef?.getAttribute("data-label")).toBe("1");
+    expect(footnoteDef?.getAttribute("role")).toBe("doc-endnote");
+
+    const backref = container.querySelector(".footnote-backref");
+    expect(backref).toBeInTheDocument();
+    expect(backref?.getAttribute("href")).toBe("#fnref-1");
+    expect(backref?.textContent).toBe("↩");
+  });
 });

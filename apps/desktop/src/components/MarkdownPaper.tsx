@@ -51,6 +51,7 @@ import { markraAiEditorPreviewPlugin } from "@markra/editor";
 import { markraAiSelectionHoldPlugin } from "@markra/editor";
 import { markraBlockDragPlugin } from "@markra/editor";
 import { markraSmartPastePlugin } from "@markra/editor";
+import { markraFootnotePlugin } from "@markra/editor";
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { SlashCommandLabels } from "@markra/editor";
 import type { AiSelectionContext } from "@markra/ai";
@@ -467,6 +468,7 @@ function MilkdownSurface({
           });
         })
         .use(markraSmartPastePlugin)
+        .use(markraFootnotePlugin)
         .use(listener)
         .use(history)
         .use(markraMathRemarkPlugin)

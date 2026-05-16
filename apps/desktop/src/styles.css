@@ -1594,11 +1594,30 @@
   .markdown-paper .footnote-reference {
     @apply align-baseline text-[0.85em] font-bold;
     vertical-align: super;
+    cursor: pointer !important;
   }
 
-  .markdown-paper .footnote-reference a {
+  .markdown-paper .footnote-reference sup,
+  .markdown-paper .footnote-reference[data-label] {
     @apply px-0.5 text-(--accent) no-underline transition-colors hover:underline;
     cursor: pointer !important;
+  }
+
+  .markdown-paper .footnote-definition {
+    @apply mb-4 text-[0.92em] leading-[1.6] text-(--text-secondary);
+  }
+
+  .markdown-paper .footnote-definition dt {
+    @apply float-left mr-1 font-bold text-(--accent);
+    cursor: pointer;
+  }
+
+  .markdown-paper .footnote-definition dd {
+    @apply m-0;
+  }
+
+  .markdown-paper .footnote-definition dd p {
+    @apply m-0;
   }
 
   .markdown-paper .footnote-backref {
