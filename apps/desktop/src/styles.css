@@ -1613,10 +1613,14 @@
   }
 
   .markdown-paper .footnote-definition dd {
-    @apply m-0;
+    @apply m-0 overflow-hidden;
   }
 
-  .markdown-paper .footnote-definition dd p {
+  .markdown-paper .footnote-definition dd > p:first-child {
+    @apply m-0 inline;
+  }
+
+  .markdown-paper .footnote-definition dd > p {
     @apply m-0;
   }
 
@@ -1625,6 +1629,8 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     vertical-align: middle;
     font-size: 1.1em;
+    padding: 2px 4px;
+    cursor: pointer;
   }
 
   .markdown-paper [id] {

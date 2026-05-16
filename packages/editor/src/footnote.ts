@@ -52,9 +52,14 @@ function buildFootnoteDecorations(doc: ProseNode) {
           backref.className = "footnote-backref";
           backref.href = `#${footnoteRefId(label)}`;
           backref.setAttribute("aria-label", `Back to reference ${label}`);
+          backref.contentEditable = "false";
           backref.textContent = "↩";
+          backref.addEventListener("mousedown", (event) => {
+            event.stopPropagation();
+          });
           backref.addEventListener("click", (event) => {
             event.preventDefault();
+            event.stopPropagation();
             const target = view.dom.querySelector(`#${footnoteRefId(label)}`);
             if (target) {
               target.scrollIntoView({ behavior: "smooth", block: "center" });
