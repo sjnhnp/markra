@@ -350,6 +350,8 @@ export type I18nKey =
   | "app.markdownDocument"
   | "editor.blockAdd"
   | "editor.blockDrag"
+  | "editor.collapseSection"
+  | "editor.expandSection"
   | "editor.htmlSource"
   | "editor.htmlSourceApply"
   | "editor.table.addColumnRight"

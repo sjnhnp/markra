@@ -1123,6 +1123,58 @@
     @apply mt-7.5 mb-3 text-2xl leading-[1.28];
   }
 
+  .markdown-paper .markra-heading-toggle-heading {
+    @apply relative;
+    --markra-heading-toggle-center-offset: 0px;
+  }
+
+  .markdown-paper h1.markra-heading-toggle-heading {
+    --markra-heading-toggle-center-offset: -5.5px;
+  }
+
+  .markdown-paper h2.markra-heading-toggle-heading {
+    --markra-heading-toggle-center-offset: -3.5px;
+  }
+
+  .markdown-paper .markra-heading-toggle-button {
+    @apply absolute inline-flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 outline-none transition-[opacity,color,background-color] duration-150 ease-out focus-visible:bg-(--bg-hover) focus-visible:outline-none;
+    color: color-mix(in srgb, var(--editor-text-secondary) 62%, transparent);
+    left: -28px;
+    opacity: 0;
+    top: calc(50% + var(--markra-heading-toggle-center-offset));
+    transform: translateY(-50%);
+  }
+
+  .markdown-paper .markra-heading-toggle-heading:hover > .markra-heading-toggle-button,
+  .markdown-paper .markra-heading-toggle-heading:focus-within > .markra-heading-toggle-button {
+    opacity: 0.72;
+  }
+
+  .markdown-paper .markra-heading-toggle-button:hover,
+  .markdown-paper .markra-heading-toggle-button:focus-visible {
+    color: var(--editor-text-secondary);
+    opacity: 1;
+  }
+
+  .markdown-paper .markra-heading-toggle-button::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-right: 1.6px solid currentColor;
+    border-bottom: 1.6px solid currentColor;
+    transform: rotate(45deg);
+    transform-origin: center;
+    transition: transform 120ms ease-out;
+  }
+
+  .markdown-paper .markra-heading-toggle-button[data-collapsed="true"]::before {
+    transform: rotate(-45deg);
+  }
+
+  .markdown-paper .markra-heading-collapsed-content {
+    display: none !important;
+  }
+
   .markdown-paper p {
     @apply m-0 mb-4.5;
     color: var(--editor-text-primary);

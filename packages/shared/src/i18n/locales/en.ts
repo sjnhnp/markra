@@ -339,6 +339,8 @@ const messages: BaseLocaleMessages = {
   "app.markdownDocument": "Markdown document",
   "editor.blockAdd": "Add block below",
   "editor.blockDrag": "Drag block",
+  "editor.collapseSection": "Collapse section",
+  "editor.expandSection": "Expand section",
   "editor.htmlSource": "HTML source",
   "editor.htmlSourceApply": "Apply HTML source",
   "editor.table.addColumnRight": "Add column to the right",

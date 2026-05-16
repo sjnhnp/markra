@@ -233,6 +233,8 @@ const messages: LocaleMessages = {
   "app.markdownDocument": "Markdown ドキュメント",
   "editor.blockAdd": "下にブロックを追加",
   "editor.blockDrag": "ブロックをドラッグ",
+  "editor.collapseSection": "セクションを折りたたむ",
+  "editor.expandSection": "セクションを展開",
   "editor.htmlSource": "HTML ソース",
   "editor.htmlSourceApply": "HTML ソースを適用",
   "editor.table.addColumnRight": "右に列を追加",
