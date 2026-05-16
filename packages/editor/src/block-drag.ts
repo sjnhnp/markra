@@ -63,6 +63,7 @@ const dragGhostOffset = {
   top: 10
 };
 const dragGhostTextLimit = 96;
+const blockToolbarGutterOffset = 54;
 const dropIndicatorInset = 2;
 const dropIndicatorMaxWidth = 640;
 const edgeScrollMaxStep = 28;
@@ -78,6 +79,25 @@ function normalizeBlockDragLabels(labels: Partial<BlockDragLabels> | undefined):
 
 function clampedDocumentPosition(state: EditorState, position: number) {
   return Math.max(0, Math.min(position, state.doc.content.size));
+}
+
+function pixelValue(value: string) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function contentBoxCenterTop(element: Element, rect: DOMRect) {
+  const ownerWindow = element.ownerDocument.defaultView;
+  if (!ownerWindow) return rect.top + rect.height / 2;
+
+  const style = ownerWindow.getComputedStyle(element);
+  const borderTop = pixelValue(style.borderTopWidth);
+  const borderBottom = pixelValue(style.borderBottomWidth);
+  const paddingTop = pixelValue(style.paddingTop);
+  const paddingBottom = pixelValue(style.paddingBottom);
+  const contentHeight = Math.max(0, rect.height - borderTop - borderBottom - paddingTop - paddingBottom);
+
+  return rect.top + borderTop + paddingTop + contentHeight / 2;
 }
 
 function hasTableAncestor($pos: ResolvedPos) {
@@ -931,15 +951,15 @@ class MarkraBlockDragView {
 
   private positionToolbar(range: BlockDragRange) {
     const dom = this.blockDom(range);
-    const rect = dom?.getBoundingClientRect();
     const editorRect = this.view.dom.getBoundingClientRect();
-    if (!rect) {
+    if (!dom) {
       this.hideHandle();
       return;
     }
 
-    const left = Math.max(8, editorRect.left - 30);
-    const top = rect.top + Math.min(rect.height / 2, 18);
+    const rect = dom.getBoundingClientRect();
+    const left = Math.max(8, editorRect.left - blockToolbarGutterOffset);
+    const top = contentBoxCenterTop(dom, rect);
 
     this.toolbar.style.left = `${Math.round(left)}px`;
     this.toolbar.style.top = `${Math.round(top)}px`;

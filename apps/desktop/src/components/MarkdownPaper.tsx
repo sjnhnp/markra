@@ -35,6 +35,7 @@ import { markraCodeBlockPlugin } from "@markra/editor";
 import { markraCalloutPlugin } from "@markra/editor";
 import { markraCalloutSerializerPlugin } from "@markra/editor";
 import { markraHeadingSourcePlugin } from "@markra/editor";
+import { markraHeadingTogglePlugin } from "@markra/editor";
 import { normalizeHeadingSourceDocument } from "@markra/editor";
 import { markraLinkImageLivePlugin } from "@markra/editor";
 import { markraRawHtmlPlugin } from "@markra/editor";
@@ -362,6 +363,10 @@ function MilkdownSurface({
     addBlock: t(language, "editor.blockAdd"),
     dragBlock: t(language, "editor.blockDrag")
   };
+  const headingToggleLabels = {
+    collapseSection: t(language, "editor.collapseSection"),
+    expandSection: t(language, "editor.expandSection")
+  };
   const slashCommandLabels = useMemo<SlashCommandLabels>(() => ({
     menu: t(language, "editor.slashCommands"),
     noResults: t(language, "editor.slashCommandsNoResults"),
@@ -454,6 +459,7 @@ function MilkdownSurface({
         .use(markraAiSelectionHoldPlugin)
         .use(markraAiEditorPreviewPlugin)
         .use(markraBlockDragPlugin(blockDragLabels))
+        .use(markraHeadingTogglePlugin(headingToggleLabels))
         .use(
           markraDocumentLinkCompletionPlugin({
             getDocumentPath: () => documentPathRef.current,

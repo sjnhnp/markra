@@ -227,6 +227,8 @@ const messages: LocaleMessages = {
   "app.markdownDocument": "Documento Markdown",
   "editor.blockAdd": "Adicionar bloco abaixo",
   "editor.blockDrag": "Arrastar bloco",
+  "editor.collapseSection": "Recolher seção",
+  "editor.expandSection": "Expandir seção",
   "editor.htmlSource": "Código-fonte HTML",
   "editor.htmlSourceApply": "Aplicar código-fonte HTML",
   "editor.table.addColumnRight": "Adicionar coluna à direita",
