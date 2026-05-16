@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Editor } from "@milkdown/kit/core";
 import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/kit/core";
 import { Slice } from "@milkdown/kit/prose/model";
@@ -1156,6 +1156,7 @@ describe("MarkdownPaper editing", () => {
     });
 
     const handle = await screen.findByRole("button", { name: "Drag block" });
+    expect(handle.closest<HTMLElement>(".markra-block-toolbar")?.style.left).toBe("106px");
     const dataTransfer = createDragDataTransfer();
 
     dispatchDragEvent(handle, "dragstart", {
@@ -1216,6 +1217,67 @@ describe("MarkdownPaper editing", () => {
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toBe("Second\n\nFirst\n\nThird\n");
     restoreLayout();
+  });
+
+  it("centers the block toolbar against tall heading content", async () => {
+    const { container, view } = await renderEditor("# Parent\n\nBody");
+    const heading = container.querySelector<HTMLElement>(".ProseMirror > h1");
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    expect(heading).toBeInTheDocument();
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+
+    heading!.style.paddingBottom = "10px";
+    heading!.style.borderBottomWidth = "1px";
+    heading!.style.borderBottomStyle = "solid";
+    heading!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 184,
+          height: 84,
+          left: 160,
+          right: 640,
+          top: 100,
+          width: 480,
+          x: 160,
+          y: 100,
+          toJSON: () => ({})
+        }) as DOMRect
+    );
+    view.dom.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 260,
+          height: 180,
+          left: 160,
+          right: 640,
+          top: 90,
+          width: 480,
+          x: 160,
+          y: 90,
+          toJSON: () => ({})
+        }) as DOMRect
+    );
+
+    const originalPosAtCoords = view.posAtCoords.bind(view);
+    Object.defineProperty(view, "posAtCoords", {
+      configurable: true,
+      value: () => ({ inside: 0, pos: 1 })
+    });
+
+    fireEvent.pointerMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+    expect(handle.closest<HTMLElement>(".markra-block-toolbar")?.style.top).toBe("137px");
+
+    Object.defineProperty(view, "posAtCoords", {
+      configurable: true,
+      value: originalPosAtCoords
+    });
   });
 
   it("reorders blocks with pointer dragging from the gutter handle", async () => {
@@ -3983,6 +4045,54 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror h2")).toHaveTextContent("Title");
     expect(container.querySelector(".ProseMirror")?.textContent).toBe("Title");
     await settleMarkdownListener();
+  });
+
+  it("collapses a heading section from the heading toggle", async () => {
+    const source = "# Intro\n\nIntro body\n\n## Nested\n\nNested body\n\n# Outro\n\nOutro body";
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const headings = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror h1, .ProseMirror h2"));
+    const paragraphs = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror p"));
+
+    expect(headings).toHaveLength(3);
+    expect(paragraphs).toHaveLength(3);
+
+    fireEvent.click(within(headings[0]).getByRole("button", { name: "Collapse section" }));
+
+    expect(within(headings[0]).getByRole("button", { name: "Expand section" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(paragraphs[0]).toHaveClass("markra-heading-collapsed-content");
+    expect(headings[1]).toHaveClass("markra-heading-collapsed-content");
+    expect(paragraphs[1]).toHaveClass("markra-heading-collapsed-content");
+    expect(headings[2]).not.toHaveClass("markra-heading-collapsed-content");
+    expect(paragraphs[2]).not.toHaveClass("markra-heading-collapsed-content");
+    expect(serializeMarkdown(view.state.doc)).toBe(`${source}\n`);
+  });
+
+  it("preserves nested heading folds when a parent heading is expanded again", async () => {
+    const { container } = await renderEditor("# Parent\n\n## Child\n\nChild body\n\n# Next\n\nNext body");
+    const headings = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror h1, .ProseMirror h2"));
+    const paragraphs = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror p"));
+
+    fireEvent.click(within(headings[1]).getByRole("button", { name: "Collapse section" }));
+
+    expect(within(headings[1]).getByRole("button", { name: "Expand section" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(paragraphs[0]).toHaveClass("markra-heading-collapsed-content");
+
+    fireEvent.click(within(headings[0]).getByRole("button", { name: "Collapse section" }));
+
+    expect(headings[1]).toHaveClass("markra-heading-collapsed-content");
+
+    fireEvent.click(within(headings[0]).getByRole("button", { name: "Expand section" }));
+
+    expect(headings[1]).not.toHaveClass("markra-heading-collapsed-content");
+    expect(paragraphs[0]).toHaveClass("markra-heading-collapsed-content");
+    expect(paragraphs[1]).not.toHaveClass("markra-heading-collapsed-content");
   });
 
   it("expands a rendered heading back to editable markdown source when clicked", async () => {
